@@ -1,3 +1,26 @@
+## [1.1.0-dev.1](https://github.com/banter240/tado_hijack/compare/v1.0.0...v1.1.0-dev.1) (2026-01-17)
+
+### ✨ New Features
+
+* feat: add temperature offset sensors, throttled mode, and config improvements
+
+FEATURES:
+- Temperature offset sensor per device (1 API call per valve)
+- Offset polling interval config (0 = disabled, only on manual poll)
+- Throttled mode with configurable threshold
+- API status sensor (connected/throttled/rate_limited)
+- Manual poll and resume all schedules buttons with trailing debounce
+
+FIXES:
+- Options flow bug fixed (settings now persist correctly)
+- Offset sensors now grouped under Zone device (like battery)
+- Improved timeout message with API rate limit reset info (12:00 CET)
+
+DOCS:
+- Updated README with new features and per-valve API cost warning
+- Clarified Matter is not supported (waiting for official HA Tado integration)
+- Removed hardcoded rate limit references (varies month to month)
+
 ## 1.0.0 (2026-01-17)
 
 ### ✨ New Features
