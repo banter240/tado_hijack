@@ -32,14 +32,16 @@
           "slow_poll_interval": "Intervall für Batterie-Update (Stunden)",
           "offset_poll_interval": "Intervall für Offset-Update (Stunden)",
           "throttle_threshold": "Drosselungsschwelle",
-          "disable_polling_when_throttled": "Polling bei Drosselung deaktivieren"
+          "disable_polling_when_throttled": "Polling bei Drosselung deaktivieren",
+          "debounce_time": "Debounce Zeit (Sekunden)"
         },
         "data_description": {
-          "scan_interval": "Wie oft Anwesenheit und Heizstatus geprüft werden. Auf 0 setzen um periodisches Polling zu deaktivieren (nur manuell). 3600s (1h) wird empfohlen.",
-          "slow_poll_interval": "Wie oft Batterien und Gerätedaten geprüft werden. 24h wird dringend empfohlen.",
+          "scan_interval": "Wie oft Anwesenheit und Heizstatus geprüft werden. Auf 0 setzen um periodisches Polling zu deaktivieren (nur manuell). 1800s (30m) wird empfohlen.",
+          "slow_poll_interval": "Wie oft Batterien und Gerätedaten geprüft werden. 24h wird dringend empfohlen. Kostet nur 2 API-Aufrufe insgesamt.",
           "offset_poll_interval": "Wie oft Temperatur-Offsets abgerufen werden. Kostet 1 API-Aufruf PRO VENTIL. Auf 0 setzen um zu deaktivieren (nur manuell).",
           "throttle_threshold": "Bestätigungs-API-Aufrufe überspringen wenn Restkontingent unter diesen Wert fällt. 0 = deaktiviert.",
-          "disable_polling_when_throttled": "Periodisches Polling komplett stoppen wenn im Drosselungsmodus."
+          "disable_polling_when_throttled": "Periodisches Polling komplett stoppen wenn im Drosselungsmodus.",
+          "debounce_time": "Zeitfenster um schnelle Änderungen zu sammeln bevor sie gesendet werden. Standard 5s."
         }
       }
     },
@@ -95,8 +97,11 @@
       "away_mode": {
         "name": "Away Modus"
       },
-      "auto_mode": {
-        "name": "Zeitplan fortsetzen"
+      "schedule": {
+        "name": "Zeitplan"
+      },
+      "child_lock": {
+        "name": "Kindersicherung"
       }
     },
     "button": {
@@ -105,6 +110,15 @@
       },
       "resume_all_schedules": {
         "name": "Alle Zeitpläne fortsetzen"
+      },
+      "turn_off_all_zones": {
+        "name": "Alle Zonen ausschalten"
+      },
+      "boost_all_zones": {
+        "name": "Alle Zonen aufheizen"
+      },
+      "resume_schedule": {
+        "name": "Zeitplan fortsetzen"
       }
     }
   },
@@ -116,6 +130,14 @@
     "resume_all_schedules": {
       "name": "Zeitpläne fortsetzen",
       "description": "Entfernt alle manuellen Änderungen in allen Zonen und kehrt zum Smart Schedule zurück."
+    },
+    "turn_off_all_zones": {
+      "name": "Alle Zonen ausschalten",
+      "description": "Schaltet die Heizung in allen Zonen aus."
+    },
+    "boost_all_zones": {
+      "name": "Alle Zonen aufheizen",
+      "description": "Heizt alle Zonen auf 25°C auf."
     }
   }
 }

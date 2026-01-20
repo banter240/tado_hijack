@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -13,8 +12,9 @@ if TYPE_CHECKING:
     from ..coordinator import TadoDataUpdateCoordinator
 
 from ..const import CAPABILITY_INSIDE_TEMP, TEMP_OFFSET_ATTR
+from .logging_utils import get_redacted_logger
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_redacted_logger(__name__)
 
 
 class TadoDataManager:
@@ -56,6 +56,12 @@ class TadoDataManager:
             devices = await self._tado.get_devices()
             self.zones_meta = {zone.id: zone for zone in zones}
             self.devices_meta = {dev.short_serial_no: dev for dev in devices}
+
+            # Find Internet Bridge devices for linking
+            self.coordinator.bridges = [
+                dev for dev in devices if dev.device_type.startswith("IB")
+            ]
+
             self._last_slow_poll = current_time
 
         # 2. OFFSET TRACK: Temperature offsets (separate timer, not on boot)

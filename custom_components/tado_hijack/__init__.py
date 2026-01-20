@@ -9,24 +9,27 @@ from homeassistant.const import CONF_SCAN_INTERVAL, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from tadoasync import Tado, TadoAuthenticationError
+from tadoasync import TadoAuthenticationError
 
 from .const import CONF_REFRESH_TOKEN, DEFAULT_SCAN_INTERVAL
 from .coordinator import TadoDataUpdateCoordinator
+from .helpers.client import TadoHijackClient
+from .helpers.logging_utils import TadoRedactionFilter
 from .helpers.patch import apply_patch
 from .services import async_setup_services, async_unload_services
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
 
-# Apply monkey-patches to tadoasync library
 apply_patch()
+
+logging.getLogger("tadoasync").addFilter(TadoRedactionFilter())
+logging.getLogger("tadoasync.tadoasync").addFilter(TadoRedactionFilter())
 
 _LOGGER = logging.getLogger(__name__)
 
 __version__ = "1.0.0"
 
-# Type alias for easier access in platforms
 type TadoConfigEntry = ConfigEntry[TadoDataUpdateCoordinator]
 
 PLATFORMS: list[Platform] = [
@@ -47,7 +50,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bool
 
     scan_interval = entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
 
-    client = Tado(
+    client = TadoHijackClient(
         refresh_token=entry.data[CONF_REFRESH_TOKEN],
         session=async_get_clientsession(hass),
         debug=True,
@@ -72,7 +75,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bool
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    # Modularized service setup
     await async_setup_services(hass, coordinator)
 
     return True

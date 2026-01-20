@@ -25,16 +25,19 @@ from homeassistant.helpers.selector import (
 )
 
 from .const import (
+    CONF_DEBOUNCE_TIME,
     CONF_DISABLE_POLLING_WHEN_THROTTLED,
     CONF_OFFSET_POLL_INTERVAL,
     CONF_REFRESH_TOKEN,
     CONF_SLOW_POLL_INTERVAL,
     CONF_THROTTLE_THRESHOLD,
+    DEFAULT_DEBOUNCE_TIME,
     DEFAULT_OFFSET_POLL_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_SLOW_POLL_INTERVAL,
     DEFAULT_THROTTLE_THRESHOLD,
     DOMAIN,
+    MIN_DEBOUNCE_TIME,
     MIN_OFFSET_POLL_INTERVAL,
     MIN_SCAN_INTERVAL,
     MIN_SLOW_POLL_INTERVAL,
@@ -166,6 +169,9 @@ class TadoHijackConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     CONF_DISABLE_POLLING_WHEN_THROTTLED: user_input.get(
                         CONF_DISABLE_POLLING_WHEN_THROTTLED, False
                     ),
+                    CONF_DEBOUNCE_TIME: user_input.get(
+                        CONF_DEBOUNCE_TIME, DEFAULT_DEBOUNCE_TIME
+                    ),
                 },
             )
 
@@ -194,6 +200,9 @@ class TadoHijackConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     vol.Optional(
                         CONF_DISABLE_POLLING_WHEN_THROTTLED, default=False
                     ): bool,
+                    vol.Optional(
+                        CONF_DEBOUNCE_TIME, default=DEFAULT_DEBOUNCE_TIME
+                    ): vol.All(vol.Coerce(int), vol.Range(min=MIN_DEBOUNCE_TIME)),
                 }
             ),
         )
@@ -278,6 +287,12 @@ class TadoHijackOptionsFlowHandler(config_entries.OptionsFlow):
                             CONF_DISABLE_POLLING_WHEN_THROTTLED, False
                         ),
                     ): bool,
+                    vol.Optional(
+                        CONF_DEBOUNCE_TIME,
+                        default=self.config_entry.data.get(
+                            CONF_DEBOUNCE_TIME, DEFAULT_DEBOUNCE_TIME
+                        ),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=MIN_DEBOUNCE_TIME)),
                 }
             ),
         )

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import contextlib
-import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -19,12 +18,13 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import CAPABILITY_INSIDE_TEMP
-from .entity import TadoHomeEntity, TadoZoneEntity
+from .entity import TadoDeviceEntity, TadoHomeEntity
+from .helpers.logging_utils import get_redacted_logger
 
 if TYPE_CHECKING:
     from . import TadoConfigEntry
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_redacted_logger(__name__)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -70,17 +70,15 @@ async def async_setup_entry(
     for zone in coordinator.zones_meta.values():
         if zone.type != "HEATING":
             continue
-        for device in zone.devices:
-            if CAPABILITY_INSIDE_TEMP in (device.characteristics.capabilities or []):
-                entities.append(
-                    TadoOffsetSensor(
-                        coordinator,
-                        device.serial_no,
-                        device.short_serial_no,
-                        zone.id,
-                        zone.name,
-                    )
-                )
+        entities.extend(
+            TadoOffsetSensor(
+                coordinator,
+                device,
+                zone.id,
+            )
+            for device in zone.devices
+            if CAPABILITY_INSIDE_TEMP in (device.characteristics.capabilities or [])
+        )
     async_add_entities(entities)
 
 
@@ -127,7 +125,7 @@ class TadoApiStatusSensor(TadoHomeEntity, SensorEntity):
         return str(self.coordinator.data.get("api_status", "connected"))
 
 
-class TadoOffsetSensor(TadoZoneEntity, RestoreEntity, SensorEntity):
+class TadoOffsetSensor(TadoDeviceEntity, RestoreEntity, SensorEntity):
     """Sensor for Tado device temperature offset."""
 
     _attr_device_class = SensorDeviceClass.TEMPERATURE
@@ -138,17 +136,21 @@ class TadoOffsetSensor(TadoZoneEntity, RestoreEntity, SensorEntity):
     def __init__(
         self,
         coordinator: Any,
-        serial_no: str,
-        short_serial: str,
+        device: Any,
         zone_id: int,
-        zone_name: str,
     ) -> None:
         """Initialize Tado offset sensor."""
-        super().__init__(coordinator, "temperature_offset", zone_id, zone_name)
-        self._serial_no = serial_no
-        self._attr_name = f"Temperature Offset ({short_serial})"
+        super().__init__(
+            coordinator,
+            "temperature_offset",
+            device.serial_no,
+            device.short_serial_no,
+            device.device_type,
+            zone_id,
+            device.current_fw_version,
+        )
         self._attr_unique_id = (
-            f"{coordinator.config_entry.entry_id}_offset_{short_serial}"
+            f"{coordinator.config_entry.entry_id}_offset_{device.short_serial_no}"
         )
         self._restored_value: float | None = None
 
@@ -165,7 +167,4 @@ class TadoOffsetSensor(TadoZoneEntity, RestoreEntity, SensorEntity):
         """Return the temperature offset value."""
         offsets = self.coordinator.data.get("offsets", {})
         offset = offsets.get(self._serial_no)
-        if offset is not None:
-            return float(offset.celsius)
-        # Fallback to restored value if no fresh data
-        return self._restored_value
+        return float(offset.celsius) if offset is not None else self._restored_value

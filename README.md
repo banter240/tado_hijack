@@ -1,140 +1,164 @@
-# Tado Hijack for Home Assistant
+# Tado Hijack for Home Assistant 🏴‍☠️
 
 [![semantic-release: conventional commits](https://img.shields.io/badge/semantic--release-conventionalcommits-e10079?logo=semantic-release)](https://github.com/semantic-release/semantic-release)
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/banter240/tado_hijack)](https://github.com/banter240/tado_hijack/releases/latest)
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 ![GitHub all releases](https://img.shields.io/github/downloads/banter240/tado_hijack/total)
 ![GitHub](https://img.shields.io/github/license/banter240/tado_hijack)
-![GitHub issues by-label](https://img.shields.io/github/issues/banter240/tado_hijack/bug?color=red)
 
-An ultra-efficient, minimalist Home Assistant integration to monitor and control Tado heating systems. Designed for maximum API economy and real-time precision.
+**The rebellion against API limits.**
+
+Tado restricted their API? They think you shouldn't control your own heating? **Tado Hijack begs to differ.**
+
+We engineered this integration with one goal: **To squeeze every drop of functionality out of Tado's cloud without triggering their rate limits.**
+
+Most integrations struggle with Tado's strict quotas. Tado Hijack was built differently. We implemented advanced **Smart Batching** that intelligently merges your dashboard interactions into single, efficient API calls.
+
+*   Click 10 rooms OFF in 1 second? That's **1 API call** for us.
+*   Boost your entire house? **1 API call**.
+*   Resume schedule for everyone? **1 API call**.
+
+It's designed to give you back control.
+
+### 🤝 The Ultimate HomeKit Companion
+**We don't replace HomeKit. We supercharge it.**
+Almost no other integration does this: Tado Hijack automatically detects your existing HomeKit devices and **injects** the missing features directly into them.
+You get the rock-solid local control of HomeKit combined with the advanced cloud features of Tado (Battery, Offset, Child Lock) in **one single unified device**.
+It's the best of both worlds.
 
 ---
 
-> 🏴‍☠️ **Why "Hijack"?**
-> 1. **Header Hijack**: We use advanced monkey-patching to intercept Tado API headers in real-time, tracking your remaining API calls with zero additional network overhead.
-> 2. **Feature Hijack**: HomeKit is great, but its standard integration is blind to Tado's most critical features. This integration "hijacks" Tado's daily API limit to pull exactly what is missing from HomeKit: **Battery health, Home/Away presence logic, and the full HVAC Auto control.** We bridge the gap where the official HomeKit support ends.
+## 🚀 Key Highlights
+
+### 🧠 Smart Batching Technology
+This is the game changer. Our background worker intelligently collects your commands. If you toggle 5 switches in 2 seconds, we don't send 5 requests. We merge them into **one single bulk payload**.
+*Result: You can automate your house like a pro without fearing the API jail.*
+
+### 🔗 Seamless HomeKit Linking
+Tado Hijack is smart. It automatically detects if your Tado thermostats are already added to Home Assistant via HomeKit. Instead of creating duplicate devices, it **injects** its advanced sensors (Battery, Offset) and controls (Child Lock) directly into your existing HomeKit devices.
+*Result: One unified device per thermostat with all capabilities.*
+
+### ⚡ Extreme API Economy
+We treat Tado's API limit like gold.
+
+### 🛠️ Missing Features Restored
+HomeKit is great for local control, but it lacks deep system access. We add:
+*   **🔋 Battery Status:** Real-time battery health for every valve.
+*   **🌡️ Temperature Offset:** Monitor configured offsets.
+*   **🔒 Child Lock:** Toggle child lock directly from HA.
+*   **🏠 Presence Control:** Force Home/Away mode.
+*   **🔥 Boost & Off:** Global controls to Boost or Turn Off the entire house.
 
 ---
 
-**Table of Contents**
+  - **API Consumption Table**:
 
-- [About This Integration](#about-this-integration)
-- [Features](#features)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Supported Entities](#supported-entities)
-- [Services](#services)
-- [Troubleshooting](#troubleshooting)
-- [Disclaimer](#disclaimer)
-- [License](#license)
+    | Action | Cost | Frequency | Description | Detailed API Calls |
+    | :--- | :---: | :--- | :--- | :--- |
+    | **Periodic Poll** | **2** | 30m (Default) | Fetches global state & zones. | `GET /homes/{id}/state`<br>`GET /homes/{id}/zoneStates` |
+    | **Battery Update** | **2** | 24h | Fetches device list & metadata. | `GET /homes/{id}/zones`<br>`GET /homes/{id}/devices` |
+    | **Toggle Schedule** | **1** | On Demand | Switches single zone mode. | `DELETE /zones/{z}/overlay` |
+    | **Set Temperature** | **1** | On Demand | Sets manual overlay. | `PUT /zones/{z}/overlay` |
+    | **Turn Off ALL** | **1** | On Demand | Bulk OFF. | `POST /homes/{id}/overlay` |
+    | **Boost ALL** | **1** | On Demand | Bulk Boost. | `POST /homes/{id}/overlay` |
+    | **Resume ALL** | **1** | On Demand | Bulk Resume. | `DELETE /homes/{id}/overlay?rooms=...` |
+    | **Home/Away** | **1** | On Demand | Force presence. | `PUT /homes/{id}/presenceLock` |
+    | **Child Lock** | **1** | On Demand | Toggle child lock. | `PUT /devices/{s}/childLock` |
+    | **Offset Check** | **N** | Disabled | Fetches offset config. | `GET /devices/{s}/temperatureOffset` |
 
-## About This Integration
+  - **Throttled Mode**: When API quota runs low, the integration can automatically disable periodic polling to preserve remaining quota.
 
-> **Important:** This integration is a **companion** to your existing Tado setup via HomeKit. It does **not** replace the Tado app or the HomeKit bridge. Your Tado devices must already be connected to Home Assistant through HomeKit for climate control.
->
-> **Note on Matter:** Matter is currently **not supported**. Once the official Home Assistant Tado integration adds Matter support and someone opens an issue, I will look into adding it here as well.
+## 🛠️ Architecture
 
-Tado Hijack adds the missing pieces that HomeKit doesn't expose:
+### Physical Device Mapping
+Unlike other integrations that group everything by "Zone", Tado Hijack maps entities to their **physical devices** (Valves/Thermostats).
+*   **If HomeKit is present:** Entities attach to the HomeKit device.
+*   **If HomeKit is absent:** We create clean, dedicated devices for each valve (e.g., `tado Smart Radiator Thermostat VA12345678`).
 
-- **Home/Away presence control** – Toggle between Home and Away mode
-- **HVAC Auto mode** – Resume smart schedules (not available in HomeKit)
-- **Battery monitoring** – Track battery health of your thermostats
-- **API quota tracking** – See how many API calls you have left today
+### Robustness & Security
+*   **Custom Client Layer:** We extend the underlying library to fix common deserialization errors and handle connection drops gracefully.
+*   **Privacy by Design:** All logs are automatically redacted. Sensitive data (User Codes, Serial Numbers, Home IDs) is stripped before writing to disk.
 
-This integration uses Tado's cloud API sparingly (designed for Tado's daily rate limit) to fetch only what HomeKit/Matter cannot provide.
+---
 
-## Features
-
-- **Extreme API Economy**:
-  - **The 2-Call Guarantee**: Every action (e.g., setting a zone to Auto) consumes exactly 2 API calls: 1 for the command and 1 for a targeted confirmation refresh.
-  - **Throttled Mode**: When API quota runs low, automatically skip confirmation calls to preserve remaining quota. Configurable threshold and behavior.
-  - **Dual-Track Polling**: Presence and HVAC states are checked frequently (Fast Track), while battery states and metadata are checked once a day (Slow Track).
-- **High-Performance Architecture**:
-  - **Sequential Background Worker**: All API commands are queued and processed one by one to prevent server flooding and ensure rock-solid stability.
-  - **Intelligent Batching**: Rapid sequential changes (e.g., turning off multiple rooms) are collected and processed in a single batch with a unified confirmation refresh.
-  - **Universal Debouncing**: A 5-second grace period on all UI toggles prevents accidental spamming of the Tado servers.
-- **Real-Time Header Hijack**:
-  - Captures `RateLimit-Policy` and `RateLimit` headers passively from every outgoing request.
-  - API call statistics update immediately in Home Assistant without costing an extra call.
-  - **API Status Monitoring**: Real-time sensor tracking connection state, throttling, and rate limiting status.
-- **Optimistic UI Feedback**: Immediate visual response in the Home Assistant UI while the background worker handles the actual communication.
-- **Robustness**:
-  - Monkey-patches `tadoasync` to fix common deserialization errors (`nextTimeBlock: null`).
-  - Native support for token rotation and automatic re-authentication.
-
-## Prerequisites
-
-- A Tado account with at least one Home and one Zone configured.
-- Home Assistant version 2024.6.0 or newer.
-
-## Installation
+## 📦 Installation
 
 ### Via HACS (Recommended)
 
-1. Open **HACS** in Home Assistant.
-2. Click on **Integrations**.
-3. Click the three dots in the top right and select **Custom repositories**.
-4. Add `https://github.com/banter240/tado_hijack` with category **Integration**.
-5. Search for **"Tado Hijack"** and click **Download**.
-6. **Restart Home Assistant**.
+1. Open **HACS** -> **Integrations**.
+2. Menu -> **Custom repositories**.
+3. Add `https://github.com/banter240/tado_hijack` as **Integration**.
+4. Search for **"Tado Hijack"** and click **Download**.
+5. **Restart Home Assistant**.
 
-## Configuration
+---
 
-### Initial Setup
+## ⚙️ Configuration
 
 1. Go to **Settings** -> **Devices & Services**.
-2. Click **+ ADD INTEGRATION** and search for **"Tado Hijack"**.
-3. Follow the OAuth link to authorize the integration.
-4. Configure your polling intervals:
-   - **Fast Polling (default 1h)**: For presence and heating status.
-   - **Slow Polling (default 24h)**: For battery states and device info.
-   - **Offset Polling (default 0 = disabled)**: For temperature offsets. **Costs 1 API call per valve!** With 5 thermostats, each offset poll cycle uses 5 API calls.
-   - **Scan Interval**: Set to `0` to disable periodic polling entirely (manual poll only via button or service).
+2. Click **+ ADD INTEGRATION** -> **"Tado Hijack"**.
+3. Follow the link to authorize with your Tado account.
+4. **Configure Polling:**
+   *   **Fast Polling (default 30m):** Core state update. 30m is efficient and sufficient for most.
+   *   **Slow Polling (default 24h):** Battery check.
+   *   **Offset Polling (default 0):** Keep disabled unless you need real-time offset updates.
 
-### Throttled Mode Configuration
+---
 
-- **throttle_threshold**: Skip confirmation API calls when remaining quota drops below this value. Set to `0` to disable throttling.
-- **disable_polling_when_throttled**: Stop periodic polling when throttled mode is active to preserve quota.
+## 📱 Entities & Controls
 
-## Supported Entities
+### 🏠 Home Device ("Tado Home")
+Global controls for the entire home.
 
-- **Home Device**:
-  - `switch.away_mode`: Toggle between Home and Away.
-  - `sensor.api_daily_limit`: Your current Tado API quota.
-  - `sensor.api_calls_remaining`: Real-time remaining calls for the day.
-  - `sensor.api_status`: API connection status (states: `connected`, `throttled`, `rate_limited`).
-  - `button.manual_poll`: Trigger an immediate data refresh.
-  - `button.resume_all_schedules`: Resume smart schedule on all zones.
-- **Zone Devices**:
-  - `switch.auto_mode`: Toggle between HVAC Auto and Manual Overlay (Protection).
-  - `binary_sensor.battery_state`: Binary sensor for device battery health.
-- **Physical Device Entities** (per thermostat/valve):
-  - `sensor.temperature_offset`: Current temperature offset configured on the device.
+| Entity | Type | Description |
+| :--- | :--- | :--- |
+| `switch.away_mode` | Switch | Toggle between Home and Away presence. |
+| `button.turn_off_all_zones` | Button | **Bulk:** Turns off heating in ALL zones (1 Call). |
+| `button.boost_all_zones` | Button | **Bulk:** Boosts all zones to 25°C (1 Call). |
+| `button.resume_all_schedules` | Button | **Bulk:** Returns all zones to Smart Schedule (1 Call). |
+| `sensor.api_calls_remaining` | Sensor | Real-time remaining API quota. |
+| `sensor.api_status` | Sensor | Connection health (`connected`, `throttled`). |
 
-## Services
+### 🌡️ Zone Devices
+Controls specific to a heating zone (Room).
 
-### `tado_hijack.manual_poll`
-Force an immediate update of all data, including slow-track metadata, batteries, and temperature offsets.
+| Entity | Type | Description |
+| :--- | :--- | :--- |
+| `switch.schedule` | Switch | **ON** = Smart Schedule, **OFF** = Manual Overlay. |
+| `button.resume_schedule` | Button | Force resume schedule (stateless trigger). |
 
-### `tado_hijack.resume_all_schedules`
-Resets all zones in the house to their HVAC Auto in a single batch operation.
+### 🔧 Physical Devices (Valves/Thermostats)
+Hardware-specific entities. *These will be linked to your HomeKit devices if available.*
 
-## Troubleshooting
+| Entity | Type | Description |
+| :--- | :--- | :--- |
+| `binary_sensor.battery` | Binary Sensor | Battery health (Normal/Low). |
+| `switch.child_lock` | Switch | Toggle Child Lock on the device. |
+| `sensor.temperature_offset` | Sensor | Current temperature offset. |
 
-- **Logs**: To enable debug logging, add the following to your `configuration.yaml`:
-  ```yaml
-  logger:
-    default: info
-    logs:
-      custom_components.tado_hijack: debug
-  ```
+---
 
-## Disclaimer
+## ⚡ Services
 
-This is an unofficial integration and is not affiliated with or endorsed by Tado GmbH. Use at your own risk.
+For advanced automation, use these services:
 
-## License
+*   `tado_hijack.turn_off_all_zones`: Turn off everything.
+*   `tado_hijack.boost_all_zones`: Heat everything up.
+*   `tado_hijack.resume_all_schedules`: Back to schedule.
+*   `tado_hijack.manual_poll`: Force data update.
 
-This project is licensed under the GNU General Public License v3.0.
+---
+
+## 🐛 Troubleshooting
+
+*   **Logs**: Enable debug logging in `configuration.yaml`. Logs are safe to share (auto-redacted).
+    ```yaml
+    logger:
+      default: info
+      logs:
+        custom_components.tado_hijack: debug
+    ```
+
+---
+
+**Disclaimer:** This is an unofficial integration. Not affiliated with Tado GmbH. Use at your own risk.

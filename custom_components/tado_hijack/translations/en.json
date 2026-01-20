@@ -32,14 +32,16 @@
           "slow_poll_interval": "Battery Update Interval (Hours)",
           "offset_poll_interval": "Offset Update Interval (Hours)",
           "throttle_threshold": "Throttle Threshold",
-          "disable_polling_when_throttled": "Disable Polling When Throttled"
+          "disable_polling_when_throttled": "Disable Polling When Throttled",
+          "debounce_time": "Debounce Time (Seconds)"
         },
         "data_description": {
-          "scan_interval": "How often to check Home/Away and HVAC state. Set to 0 to disable periodic polling (manual only). 3600s (1h) is recommended.",
-          "slow_poll_interval": "How often to check batteries and device info. 24h is highly recommended.",
+          "scan_interval": "How often to check Home/Away and HVAC state. Set to 0 to disable periodic polling (manual only). 1800s (30m) is recommended.",
+          "slow_poll_interval": "How often to check batteries and device info. 24h is highly recommended. Costs only 2 API calls total.",
           "offset_poll_interval": "How often to fetch temperature offsets. Costs 1 API call PER VALVE. Set to 0 to disable (manual poll only).",
           "throttle_threshold": "Skip confirmation API calls when remaining quota drops below this value. Set to 0 to disable throttling.",
-          "disable_polling_when_throttled": "Stop periodic polling entirely when in throttled mode."
+          "disable_polling_when_throttled": "Stop periodic polling entirely when in throttled mode.",
+          "debounce_time": "Time window to collect rapid changes before sending to API. Default 5s."
         }
       }
     },
@@ -95,8 +97,11 @@
       "away_mode": {
         "name": "Away Mode"
       },
-      "auto_mode": {
-        "name": "Resume Schedule"
+      "schedule": {
+        "name": "Schedule"
+      },
+      "child_lock": {
+        "name": "Child Lock"
       }
     },
     "button": {
@@ -105,6 +110,15 @@
       },
       "resume_all_schedules": {
         "name": "Resume All Schedules"
+      },
+      "turn_off_all_zones": {
+        "name": "Turn Off All Zones"
+      },
+      "boost_all_zones": {
+        "name": "Boost All Zones"
+      },
+      "resume_schedule": {
+        "name": "Resume Schedule"
       }
     }
   },
@@ -116,6 +130,14 @@
     "resume_all_schedules": {
       "name": "Resume All Schedules",
       "description": "Remove all manual overlays in all zones and return to Smart Schedule."
+    },
+    "turn_off_all_zones": {
+      "name": "Turn Off All Zones",
+      "description": "Turn off heating in all zones."
+    },
+    "boost_all_zones": {
+      "name": "Boost All Zones",
+      "description": "Boost heating in all zones to 25°C."
     }
   }
 }

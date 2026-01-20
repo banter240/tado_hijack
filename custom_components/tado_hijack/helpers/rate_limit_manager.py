@@ -1,0 +1,75 @@
+"""Manages API rate limits and throttling logic."""
+
+from __future__ import annotations
+
+from typing import Protocol
+
+from ..const import INITIAL_RATE_LIMIT_GUESS
+from .logging_utils import get_redacted_logger
+
+_LOGGER = get_redacted_logger(__name__)
+
+
+class RateLimitSource(Protocol):
+    """Protocol for the rate limit data source."""
+
+    rate_limit_data: dict[str, int]
+
+
+class RateLimitManager:
+    """Manages API quota tracking and throttling logic."""
+
+    def __init__(
+        self, throttle_threshold: int, data_source: RateLimitSource | None = None
+    ) -> None:
+        """Initialize the manager."""
+        self._throttle_threshold = throttle_threshold
+        self._internal_remaining: int = INITIAL_RATE_LIMIT_GUESS
+        self._data_source = data_source
+
+    @property
+    def is_throttled(self) -> bool:
+        """Return True if throttling is active."""
+        if self._throttle_threshold == 0:
+            return False
+        return self._internal_remaining < self._throttle_threshold
+
+    @property
+    def api_status(self) -> str:
+        """Return current API status string."""
+        if self._internal_remaining <= 0:
+            return "rate_limited"
+        return "throttled" if self.is_throttled else "connected"
+
+    @property
+    def remaining(self) -> int:
+        """Return estimated remaining calls."""
+        return self._internal_remaining
+
+    @property
+    def limit(self) -> int:
+        """Return total limit from headers."""
+        if self._data_source:
+            return int(self._data_source.rate_limit_data.get("limit", 0))
+        return 0
+
+    def decrement(self, count: int = 1) -> None:
+        """Decrement internal counter (e.g. during throttling)."""
+        self._internal_remaining = max(0, self._internal_remaining - count)
+        _LOGGER.debug("Internal remaining decremented to %d", self._internal_remaining)
+
+    def sync_from_headers(self) -> None:
+        """Sync internal counter with latest captured headers."""
+        if not self._data_source:
+            return
+
+        header_remaining = int(
+            self._data_source.rate_limit_data.get("remaining", self._internal_remaining)
+        )
+        if header_remaining != self._internal_remaining:
+            _LOGGER.debug(
+                "Syncing internal remaining: %d -> %d",
+                self._internal_remaining,
+                header_remaining,
+            )
+            self._internal_remaining = header_remaining

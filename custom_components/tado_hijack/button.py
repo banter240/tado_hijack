@@ -2,22 +2,19 @@
 
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.button import ButtonEntity
-from homeassistant.core import CALLBACK_TYPE, HassJob, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.event import async_call_later
 
-from .const import DEBOUNCE_COOLDOWN_S
-from .entity import TadoHomeEntity
+from .entity import TadoHomeEntity, TadoZoneEntity
+from .helpers.logging_utils import get_redacted_logger
 
 if TYPE_CHECKING:
     from . import TadoConfigEntry
     from .coordinator import TadoDataUpdateCoordinator
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_redacted_logger(__name__)
 
 
 async def async_setup_entry(
@@ -27,12 +24,20 @@ async def async_setup_entry(
 ) -> None:
     """Set up Tado buttons based on a config entry."""
     coordinator: TadoDataUpdateCoordinator = entry.runtime_data
-    async_add_entities(
-        [
-            TadoManualPollButton(coordinator),
-            TadoResumeAllSchedulesButton(coordinator),
-        ]
+    entities: list[ButtonEntity] = [
+        TadoManualPollButton(coordinator),
+        TadoResumeAllSchedulesButton(coordinator),
+        TadoTurnOffAllButton(coordinator),
+        TadoBoostAllButton(coordinator),
+    ]
+
+    # Per-zone resume schedule buttons
+    entities.extend(
+        TadoZoneResumeScheduleButton(coordinator, zone.id, zone.name)
+        for zone in coordinator.zones_meta.values()
+        if zone.type == "HEATING"
     )
+    async_add_entities(entities)
 
 
 class TadoManualPollButton(TadoHomeEntity, ButtonEntity):
@@ -42,33 +47,11 @@ class TadoManualPollButton(TadoHomeEntity, ButtonEntity):
         """Initialize manual poll button."""
         super().__init__(coordinator, "manual_poll")
         self._attr_unique_id = f"{coordinator.config_entry.entry_id}_manual_poll"
-        self._pending_timer: CALLBACK_TYPE | None = None
 
     async def async_press(self) -> None:
-        """Handle button press with trailing debounce."""
-        # Cancel existing timer if any
-        if self._pending_timer is not None:
-            self._pending_timer()
-            self._pending_timer = None
-            _LOGGER.debug("Manual poll: timer reset")
-
-        @callback
-        def _execute_after_debounce(_now: Any = None) -> None:
-            self._pending_timer = None
-            _LOGGER.info("Manual poll triggered via button (after debounce)")
-            self.hass.async_create_task(self._execute_and_update())
-
-        self._pending_timer = async_call_later(
-            self.hass,
-            DEBOUNCE_COOLDOWN_S,
-            HassJob(_execute_after_debounce, cancel_on_shutdown=True),
-        )
-        _LOGGER.debug("Manual poll: debounce timer started (%ds)", DEBOUNCE_COOLDOWN_S)
-
-    async def _execute_and_update(self) -> None:
-        """Execute the action and update the UI state."""
+        """Handle button press (debounced by ApiManager)."""
+        _LOGGER.debug("Manual poll triggered via button")
         await self.tado_coordinator.async_manual_poll()
-        self.async_write_ha_state()
 
 
 class TadoResumeAllSchedulesButton(TadoHomeEntity, ButtonEntity):
@@ -78,30 +61,53 @@ class TadoResumeAllSchedulesButton(TadoHomeEntity, ButtonEntity):
         """Initialize resume all schedules button."""
         super().__init__(coordinator, "resume_all_schedules")
         self._attr_unique_id = f"{coordinator.config_entry.entry_id}_resume_all"
-        self._pending_timer: CALLBACK_TYPE | None = None
 
     async def async_press(self) -> None:
-        """Handle button press with trailing debounce."""
-        # Cancel existing timer if any
-        if self._pending_timer is not None:
-            self._pending_timer()
-            self._pending_timer = None
-            _LOGGER.debug("Resume all: timer reset")
-
-        @callback
-        def _execute_after_debounce(_now: Any = None) -> None:
-            self._pending_timer = None
-            _LOGGER.info("Resume all schedules triggered via button (after debounce)")
-            self.hass.async_create_task(self._execute_and_update())
-
-        self._pending_timer = async_call_later(
-            self.hass,
-            DEBOUNCE_COOLDOWN_S,
-            HassJob(_execute_after_debounce, cancel_on_shutdown=True),
-        )
-        _LOGGER.debug("Resume all: debounce timer started (%ds)", DEBOUNCE_COOLDOWN_S)
-
-    async def _execute_and_update(self) -> None:
-        """Execute the action and update the UI state."""
+        """Handle button press (debounced by ApiManager)."""
+        _LOGGER.debug("Resume all schedules triggered via button")
         await self.tado_coordinator.async_resume_all_schedules()
+
+
+class TadoTurnOffAllButton(TadoHomeEntity, ButtonEntity):
+    """Button to turn off all heating zones."""
+
+    def __init__(self, coordinator: TadoDataUpdateCoordinator) -> None:
+        """Initialize turn off all button."""
+        super().__init__(coordinator, "turn_off_all_zones")
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_turn_off_all"
+
+    async def async_press(self) -> None:
+        """Handle button press (debounced by ApiManager)."""
+        _LOGGER.debug("Turn off all zones triggered via button")
+        await self.tado_coordinator.async_turn_off_all_zones()
+
+
+class TadoBoostAllButton(TadoHomeEntity, ButtonEntity):
+    """Button to boost all heating zones."""
+
+    def __init__(self, coordinator: TadoDataUpdateCoordinator) -> None:
+        """Initialize boost all button."""
+        super().__init__(coordinator, "boost_all_zones")
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_boost_all"
+
+    async def async_press(self) -> None:
+        """Handle button press (debounced by ApiManager)."""
+        _LOGGER.debug("Boost all zones triggered via button")
+        await self.tado_coordinator.async_boost_all_zones()
+
+
+class TadoZoneResumeScheduleButton(TadoZoneEntity, ButtonEntity):
+    """Button to resume schedule for a specific zone."""
+
+    def __init__(
+        self, coordinator: TadoDataUpdateCoordinator, zone_id: int, zone_name: str
+    ) -> None:
+        """Initialize zone resume schedule button."""
+        super().__init__(coordinator, "resume_schedule", zone_id, zone_name)
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_resume_{zone_id}"
+
+    async def async_press(self) -> None:
+        """Handle button press (debounced by ApiManager)."""
+        _LOGGER.debug("Resume schedule zone %d triggered via button", self._zone_id)
+        await self.tado_coordinator.async_set_zone_auto(self._zone_id)
         self.async_write_ha_state()

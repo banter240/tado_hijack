@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import functools
-import logging
-import time
 from datetime import timedelta
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -15,25 +12,31 @@ from tadoasync import Tado, TadoError
 if TYPE_CHECKING:
     from tadoasync.models import Device, Zone
     from . import TadoConfigEntry
+    from .helpers.client import TadoHijackClient
 
 from .const import (
+    BOOST_MODE_TEMP,
+    CONF_DEBOUNCE_TIME,
     CONF_DISABLE_POLLING_WHEN_THROTTLED,
     CONF_OFFSET_POLL_INTERVAL,
-    CONF_REFRESH_TOKEN,
     CONF_SLOW_POLL_INTERVAL,
     CONF_THROTTLE_THRESHOLD,
+    DEFAULT_DEBOUNCE_TIME,
     DEFAULT_OFFSET_POLL_INTERVAL,
     DEFAULT_SLOW_POLL_INTERVAL,
     DEFAULT_THROTTLE_THRESHOLD,
     DOMAIN,
-    OPTIMISTIC_GRACE_PERIOD_S,
 )
 from .helpers.api_manager import TadoApiManager
+from .helpers.auth_manager import AuthManager
 from .helpers.data_manager import TadoDataManager
-from .helpers.patch import RATE_LIMIT_DATA
-from .models import RateLimit
+from .helpers.logging_utils import get_redacted_logger
+from .helpers.optimistic_manager import OptimisticManager
+from .helpers.patch import get_handler
+from .helpers.rate_limit_manager import RateLimitManager
+from .models import CommandType, RateLimit, TadoCommand
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_redacted_logger(__name__)
 
 
 class TadoDataUpdateCoordinator(DataUpdateCoordinator):
@@ -49,7 +52,6 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
         """Initialize Tado coordinator."""
         self._tado = client
 
-        # scan_interval = 0 means no periodic polling
         update_interval = (
             timedelta(seconds=scan_interval) if scan_interval > 0 else None
         )
@@ -61,18 +63,20 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
             name=DOMAIN,
             update_interval=update_interval,
         )
-        self._refresh_token = entry.data.get(CONF_REFRESH_TOKEN)
 
-        # Throttle Configuration (0 = disabled, >0 = throttle when remaining < threshold)
-        self._throttle_threshold: int = int(
+        throttle_threshold = int(
             entry.data.get(CONF_THROTTLE_THRESHOLD, DEFAULT_THROTTLE_THRESHOLD)
         )
         self._disable_polling_when_throttled: bool = bool(
             entry.data.get(CONF_DISABLE_POLLING_WHEN_THROTTLED, False)
         )
-        self._internal_remaining: int = 100  # Will be synced from headers
+        self._debounce_time = int(
+            entry.data.get(CONF_DEBOUNCE_TIME, DEFAULT_DEBOUNCE_TIME)
+        )
 
-        # Initialize Managers
+        self.rate_limit = RateLimitManager(throttle_threshold, get_handler())
+        self.auth_manager = AuthManager(hass, entry, client)
+
         slow_poll_s = (
             entry.data.get(CONF_SLOW_POLL_INTERVAL, DEFAULT_SLOW_POLL_INTERVAL) * 3600
         )
@@ -81,57 +85,19 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
             * 3600
         )
         self.data_manager = TadoDataManager(self, client, slow_poll_s, offset_poll_s)
-        self.api_manager = TadoApiManager(hass, self)
-
-        # State Tracking
-        self.optimistic_presence: str | None = None
-        self.optimistic_time: float = 0
-        self.optimistic_zones: dict[int, dict[str, Any]] = {}
+        self.api_manager = TadoApiManager(hass, self, self._debounce_time)
+        self.optimistic = OptimisticManager()
 
         self.zones_meta: dict[int, Zone] = {}
         self.devices_meta: dict[str, Device] = {}
+        self.bridges: list[Device] = []
 
         self.api_manager.start(entry)
 
     @property
-    def zones_meta_public(self):
-        """Return the zones metadata."""
-        return self.zones_meta
-
-    @property
-    def is_throttled(self) -> bool:
-        """Return True if throttled mode is active based on threshold and remaining calls."""
-        # threshold = 0 means throttling is disabled
-        if self._throttle_threshold == 0:
-            return False
-        # Otherwise throttle when remaining drops below threshold
-        return self._internal_remaining < self._throttle_threshold
-
-    @property
-    def api_status(self) -> str:
-        """Return current API status for sensor."""
-        remaining = self._internal_remaining
-        if remaining <= 0:
-            return "rate_limited"
-        return "throttled" if self.is_throttled else "connected"
-
-    def decrement_internal_remaining(self, count: int = 1) -> None:
-        """Decrement internal remaining counter (used in throttled mode)."""
-        self._internal_remaining = max(0, self._internal_remaining - count)
-        _LOGGER.debug("Internal remaining decremented to %d", self._internal_remaining)
-
-    def sync_remaining_from_headers(self) -> None:
-        """Sync internal remaining from actual API headers."""
-        header_remaining = int(
-            RATE_LIMIT_DATA.get("remaining", self._internal_remaining)
-        )
-        if header_remaining != self._internal_remaining:
-            _LOGGER.debug(
-                "Syncing internal remaining: %d -> %d",
-                self._internal_remaining,
-                header_remaining,
-            )
-            self._internal_remaining = header_remaining
+    def client(self) -> TadoHijackClient:
+        """Return the Tado client."""
+        return cast("TadoHijackClient", self._tado)
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch update via DataManager."""
@@ -141,61 +107,41 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
             self.zones_meta = self.data_manager.zones_meta
             self.devices_meta = self.data_manager.devices_meta
 
-            # Sync rotated token
-            if self._tado.refresh_token != self._refresh_token:
-                self._refresh_token = self._tado.refresh_token
-                if self.config_entry is None:
-                    raise UpdateFailed("Config entry not available for token sync")
-                self.hass.config_entries.async_update_entry(
-                    self.config_entry,
-                    data={
-                        **self.config_entry.data,
-                        CONF_REFRESH_TOKEN: self._refresh_token,
-                    },
-                )
+            self.auth_manager.check_and_update_token()
 
-            self._cleanup_optimistic()
+            self.optimistic.cleanup()
 
-            # Sync internal remaining from headers
-            self.sync_remaining_from_headers()
+            self.rate_limit.sync_from_headers()
 
-            # Inject real-time RateLimit and API status
             data["rate_limit"] = RateLimit(
-                limit=int(RATE_LIMIT_DATA.get("limit", 0)),
-                remaining=self._internal_remaining,
+                limit=self.rate_limit.limit,
+                remaining=self.rate_limit.remaining,
             )
-            data["api_status"] = self.api_status
+            data["api_status"] = self.rate_limit.api_status
             return data
         except TadoError as err:
             raise UpdateFailed(f"Tado API error: {err}") from err
 
-    def _cleanup_optimistic(self):
-        """Clean up expired optimistic states."""
-        now = time.monotonic()
-        if (now - self.optimistic_time) > OPTIMISTIC_GRACE_PERIOD_S:
-            self.optimistic_presence = None
-
-        to_delete = [
-            z_id
-            for z_id, d in self.optimistic_zones.items()
-            if (now - d["time"]) > OPTIMISTIC_GRACE_PERIOD_S
-        ]
-        for z_id in to_delete:
-            del self.optimistic_zones[z_id]
-
-    async def async_manual_poll(self) -> None:
-        """Trigger a manual poll."""
+    async def _execute_manual_poll(self) -> None:
+        """Execute the manual poll logic (worker target)."""
         self.data_manager.invalidate_cache()
         await self.async_refresh()
 
+    async def async_manual_poll(self) -> None:
+        """Trigger a manual poll (debounced)."""
+        _LOGGER.info("Queued manual poll")
+        self.api_manager.queue_command(
+            "manual_poll", TadoCommand(CommandType.MANUAL_POLL)
+        )
+
     def update_rate_limit_local(self, silent: bool = False) -> None:
         """Update local stats and sync internal remaining from headers."""
-        self.sync_remaining_from_headers()
+        self.rate_limit.sync_from_headers()
         self.data["rate_limit"] = RateLimit(
-            limit=int(RATE_LIMIT_DATA.get("limit", 0)),
-            remaining=self._internal_remaining,
+            limit=self.rate_limit.limit,
+            remaining=self.rate_limit.remaining,
         )
-        self.data["api_status"] = self.api_status
+        self.data["api_status"] = self.rate_limit.api_status
         if not silent:
             self.async_update_listeners()
 
@@ -210,40 +156,157 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
 
     async def async_set_zone_auto(self, zone_id: int):
         """Set zone to auto mode."""
-        self.optimistic_zones[zone_id] = {"overlay": False, "time": time.monotonic()}
+        self.optimistic.set_zone(zone_id, False)
         self.async_update_listeners()
-        self.api_manager.queue_action(
+        self.api_manager.queue_command(
             f"zone_{zone_id}",
-            "zone",
-            functools.partial(self._tado.reset_zone_overlay, zone_id),
+            TadoCommand(CommandType.RESUME_SCHEDULE, zone_id=zone_id),
         )
 
     async def async_set_zone_heat(self, zone_id: int, temp: float = 25.0):
         """Set zone to manual heat mode."""
-        self.optimistic_zones[zone_id] = {"overlay": True, "time": time.monotonic()}
+        self.optimistic.set_zone(zone_id, True)
         self.async_update_listeners()
-        self.api_manager.queue_action(
+        self.api_manager.queue_command(
             f"zone_{zone_id}",
-            "zone",
-            functools.partial(
-                self._tado.set_zone_overlay,
-                zone_id,
-                "MANUAL",
-                set_temp=temp,
-                power="ON",
+            TadoCommand(
+                CommandType.SET_OVERLAY,
+                zone_id=zone_id,
+                data={
+                    "setting": {
+                        "type": "HEATING",
+                        "power": "ON",
+                        "temperature": {"celsius": temp},
+                    },
+                    "termination": {"typeSkillBasedApp": "MANUAL"},
+                },
             ),
         )
 
     async def async_set_presence_debounced(self, presence: str):
         """Set presence state."""
-        self.optimistic_presence = presence
-        self.optimistic_time = time.monotonic()
+        self.optimistic.set_presence(presence)
         self.async_update_listeners()
-        self.api_manager.queue_action(
-            "presence", "presence", functools.partial(self._tado.set_presence, presence)
+        self.api_manager.queue_command(
+            "presence",
+            TadoCommand(CommandType.SET_PRESENCE, data={"presence": presence}),
+        )
+
+    async def async_set_child_lock(self, serial_no: str, enabled: bool) -> None:
+        """Set child lock for a device."""
+        self.optimistic.set_child_lock(serial_no, enabled)
+        self.async_update_listeners()
+        self.api_manager.queue_command(
+            f"child_lock_{serial_no}",
+            TadoCommand(
+                CommandType.SET_CHILD_LOCK,
+                data={"serial": serial_no, "enabled": enabled},
+            ),
         )
 
     async def async_resume_all_schedules(self) -> None:
-        """Resume all zone schedules."""
+        """Resume all zone schedules using bulk API endpoint (single call)."""
+        _LOGGER.debug("Resume all schedules triggered")
+
+        if not self.zones_meta:
+            _LOGGER.warning("No zones to resume")
+            return
+
         for zone_id in self.zones_meta:
-            await self.async_set_zone_auto(zone_id)
+            self.optimistic.set_zone(zone_id, None)
+        self.async_update_listeners()
+
+        _LOGGER.info("Queued resume schedules for all %d zones", len(self.zones_meta))
+
+        self.api_manager.queue_command(
+            "resume_all",
+            TadoCommand(CommandType.RESUME_SCHEDULE, zone_id=None),
+        )
+
+    async def async_turn_off_all_zones(self) -> None:
+        """Turn off all heating zones using bulk API endpoint."""
+        _LOGGER.debug("Turn off all zones triggered")
+        if not self.zones_meta:
+            _LOGGER.warning("No zones to turn off")
+            return
+
+        overlays = [
+            {
+                "overlay": {
+                    "setting": {"power": "OFF", "type": "HEATING"},
+                    "termination": {"typeSkillBasedApp": "MANUAL"},
+                },
+                "room": zone_id,
+            }
+            for zone_id, zone in self.zones_meta.items()
+            if getattr(zone, "type", "HEATING") == "HEATING"
+        ]
+        if not overlays:
+            return
+
+        # Optimistic update (UI Feedback)
+        for item in overlays:
+            self.optimistic.set_zone(cast(int, item["room"]), True)
+        self.async_update_listeners()
+
+        _LOGGER.info("Queued turn off for %d zones", len(overlays))
+
+        self.api_manager.queue_command(
+            "turn_off_all",
+            TadoCommand(
+                CommandType.SET_OVERLAY,
+                zone_id=None,
+                data={
+                    "setting": {"power": "OFF", "type": "HEATING"},
+                    "termination": {"typeSkillBasedApp": "MANUAL"},
+                },
+            ),
+        )
+
+    async def async_boost_all_zones(self) -> None:
+        """Boost all heating zones (25C) via bulk API."""
+        _LOGGER.debug("Boost all zones triggered")
+        if not self.zones_meta:
+            _LOGGER.warning("No zones to boost")
+            return
+
+        overlays = [
+            {
+                "overlay": {
+                    "setting": {
+                        "power": "ON",
+                        "type": "HEATING",
+                        "temperature": {"celsius": BOOST_MODE_TEMP},
+                    },
+                    "termination": {"typeSkillBasedApp": "MANUAL"},
+                },
+                "room": zone_id,
+            }
+            for zone_id, zone in self.zones_meta.items()
+            if getattr(zone, "type", "HEATING") == "HEATING"
+        ]
+        if not overlays:
+            return
+
+        # Optimistic update (UI Feedback)
+        for item in overlays:
+            self.optimistic.set_zone(cast(int, item["room"]), True)
+        self.async_update_listeners()
+
+        _LOGGER.info("Queued boost for %d zones", len(overlays))
+
+        self.api_manager.queue_command(
+            "boost_all",
+            TadoCommand(
+                CommandType.SET_OVERLAY,
+                zone_id=None,
+                data={
+                    "setting": {
+                        "power": "ON",
+                        "type": "HEATING",
+                        "temperature": {"celsius": BOOST_MODE_TEMP},
+                    },
+                    "termination": {"typeSkillBasedApp": "MANUAL"},
+                },
+            ),
+        )
