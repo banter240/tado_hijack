@@ -23,6 +23,7 @@ class CommandType(StrEnum):
     SET_PRESENCE = "set_presence"
     MANUAL_POLL = "manual_poll"
     SET_CHILD_LOCK = "set_child_lock"
+    SET_OFFSET = "set_offset"
 
 
 @dataclass

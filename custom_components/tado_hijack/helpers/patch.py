@@ -5,6 +5,7 @@ from __future__ import annotations
 import sys
 from typing import Any
 
+
 from ..const import TADO_VERSION_PATCH
 from .logging_utils import get_redacted_logger
 from .tado_request_handler import TadoRequestHandler
@@ -21,9 +22,11 @@ def get_handler() -> TadoRequestHandler:
 
 def apply_patch() -> None:
     """Apply global library patches."""
+
     _LOGGER.debug("Applying tadoasync patches")
 
     _patch_version()
+
     _patch_zone_state()
 
 

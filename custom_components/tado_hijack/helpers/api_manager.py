@@ -135,7 +135,10 @@ class TadoApiManager:
         # 3. Execute Child Lock Actions
         await self._execute_child_locks(merged["child_lock"])
 
-        # 4. Execute Zone Actions (Bulk)
+        # 4. Execute Offset Actions
+        await self._execute_offset_actions(merged["offsets"])
+
+        # 5. Execute Zone Actions (Bulk)
         await self._execute_zone_actions(merged["zones"])
 
         # 5. Manual Poll / Update Rate Limit
@@ -155,6 +158,17 @@ class TadoApiManager:
                 await self.coordinator.client.set_child_lock(serial, child_lock=enabled)
             except Exception as e:
                 _LOGGER.error("Failed to set child lock for %s: %s", serial, e)
+
+    async def _execute_offset_actions(self, actions: dict[str, float]) -> None:
+        """Execute offset actions sequentially."""
+        for serial, offset in actions.items():
+            _LOGGER.debug(
+                "Worker: Setting temperature offset for %s to %.1f", serial, offset
+            )
+            try:
+                await self.coordinator.client.set_temperature_offset(serial, offset)
+            except Exception as e:
+                _LOGGER.error("Failed to set temperature offset for %s: %s", serial, e)
 
     async def _execute_zone_actions(
         self, actions: dict[int, dict[str, Any] | None]

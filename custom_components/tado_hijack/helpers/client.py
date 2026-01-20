@@ -46,3 +46,11 @@ class TadoHijackClient(Tado):
             data={"overlays": overlays},
             method=HttpMethod.POST,
         )
+
+    async def set_temperature_offset(self, serial_no: str, offset: float) -> None:
+        """Set the temperature offset for a device."""
+        await self._request(
+            f"devices/{serial_no}/temperatureOffset",
+            data={"celsius": offset},
+            method=HttpMethod.PUT,
+        )

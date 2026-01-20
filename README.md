@@ -41,12 +41,16 @@ It's designed to give you back control.
 **We don't replace HomeKit. We supercharge it.**
 Almost no other integration does this: Tado Hijack automatically detects your existing HomeKit devices and **injects** the missing features directly into them.
 You get the rock-solid local control of HomeKit combined with the advanced cloud features of Tado (Battery, Offset, Child Lock) in **one single unified device**.
+
+> [!NOTE]
+> **Entity Locations:** While hardware-specific entities (Battery, Offset, Child Lock) are linked directly into your HomeKit-originated devices, the **Zone Controls** (Schedule & Resume) remain within the Tado Hijack "Zone" devices. This is because HomeKit does not have a technical equivalent for Tado's cloud-based "Zones" to link against.
+
 It's the best of both worlds.
 
 ### 🛠️ Missing Features Restored
 HomeKit is great for local control, but it lacks deep system access. We add:
 *   **🔋 Battery Status:** Real-time battery health for every valve.
-*   **🌡️ Temperature Offset:** Monitor configured offsets.
+*   **🌡️ Temperature Offset:** Interactive control to calibrate your thermostats.
 *   **🔒 Child Lock:** Toggle child lock directly from HA.
 *   **🏠 Presence Control:** Force Home/Away mode.
 *   **🔥 Boost & Off:** Global controls to Boost or Turn Off the entire house.
@@ -63,14 +67,14 @@ Tado limits API calls per day. Tado Hijack is engineered to stay well below the 
 | :--- | :---: | :--- | :--- | :--- |
 | **Periodic Poll** | **2** | 30m (Default) | Fetches global state & zones. | `GET /homes/{id}/state`<br>`GET /homes/{id}/zoneStates` |
 | **Battery Update** | **2** | 24h | Fetches device list & metadata. | `GET /homes/{id}/zones`<br>`GET /homes/{id}/devices` |
-| **Toggle Schedule** | **1** | On Demand | Switches single zone mode. | `DELETE /zones/{z}/overlay` |
-| **Set Temperature** | **1** | On Demand | Sets manual overlay. | `PUT /zones/{z}/overlay` |
+| **Toggle Schedule** | **1** | On Demand | Switches single zone mode. | `DELETE /zones/{z}/overlay` (On)<br>`PUT /zones/{z}/overlay` (Off) |
 | **Turn Off ALL** | **1** | On Demand | Bulk OFF via Bulk API. | `POST /homes/{id}/overlay` |
 | **Boost ALL** | **1** | On Demand | Bulk Boost via Bulk API. | `POST /homes/{id}/overlay` |
 | **Resume ALL** | **1** | On Demand | Bulk Resume via Bulk API. | `DELETE /homes/{id}/overlay?rooms=...` |
 | **Home/Away** | **1** | On Demand | Force presence lock. | `PUT /homes/{id}/presenceLock` |
 | **Child Lock** | **1** | On Demand | Toggle child lock per device. | `PUT /devices/{s}/childLock` |
-| **Offset Check** | **N** | Disabled | Fetches offset config. | `GET /devices/{s}/temperatureOffset` |
+| **Offset Control** | **1** | On Demand | Interactive calibration per device. | `PUT /devices/{s}/temperatureOffset` |
+| **Offset Check** | **N** | Disabled | Fetches current offset config. | `GET /devices/{s}/temperatureOffset` |
 
 > [!TIP]
 > **Throttled Mode:** When API quota runs low, the integration can automatically disable periodic polling to preserve remaining quota for your automations.
@@ -144,7 +148,7 @@ Hardware-specific entities. *Linked to your HomeKit devices.*
 | :--- | :--- | :--- |
 | `binary_sensor.battery` | Binary Sensor | Battery health (Normal/Low). |
 | `switch.child_lock` | Switch | Toggle Child Lock on the device. |
-| `sensor.temperature_offset` | Sensor | Current temperature offset. |
+| `number.temperature_offset` | Number | Interactive temperature calibration (-10 to +10°C). |
 
 ---
 

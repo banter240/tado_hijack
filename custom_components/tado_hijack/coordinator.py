@@ -204,6 +204,18 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
             ),
         )
 
+    async def async_set_temperature_offset(self, serial_no: str, offset: float) -> None:
+        """Set temperature offset for a device."""
+        self.optimistic.set_offset(serial_no, offset)
+        self.async_update_listeners()
+        self.api_manager.queue_command(
+            f"offset_{serial_no}",
+            TadoCommand(
+                CommandType.SET_OFFSET,
+                data={"serial": serial_no, "offset": offset},
+            ),
+        )
+
     async def async_resume_all_schedules(self) -> None:
         """Resume all zone schedules using bulk API endpoint (single call)."""
         _LOGGER.debug("Resume all schedules triggered")

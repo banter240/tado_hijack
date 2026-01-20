@@ -88,9 +88,6 @@
           "throttled": "Throttled",
           "rate_limited": "Rate Limited"
         }
-      },
-      "temperature_offset": {
-        "name": "Temperature Offset"
       }
     },
     "switch": {
@@ -119,6 +116,11 @@
       },
       "resume_schedule": {
         "name": "Resume Schedule"
+      }
+    },
+    "number": {
+      "temperature_offset": {
+        "name": "Temperature Offset"
       }
     }
   },

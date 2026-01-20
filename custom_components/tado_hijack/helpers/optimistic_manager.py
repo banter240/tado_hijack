@@ -29,7 +29,15 @@ class OptimisticManager:
 
     def set_child_lock(self, serial_no: str, enabled: bool) -> None:
         """Set optimistic child lock state."""
-        self.devices[serial_no] = {"child_lock": enabled, "time": time.monotonic()}
+        self.devices[serial_no] = self.devices.get(serial_no, {})
+        self.devices[serial_no].update(
+            {"child_lock": enabled, "time": time.monotonic()}
+        )
+
+    def set_offset(self, serial_no: str, offset: float) -> None:
+        """Set optimistic temperature offset state."""
+        self.devices[serial_no] = self.devices.get(serial_no, {})
+        self.devices[serial_no].update({"offset": offset, "time": time.monotonic()})
 
     def get_presence(self) -> str | None:
         """Return optimistic presence if not expired."""
@@ -57,8 +65,25 @@ class OptimisticManager:
             return None
 
         opt = self.devices[serial_no]
-        if (time.monotonic() - opt["time"]) < OPTIMISTIC_GRACE_PERIOD_S:
+        if (
+            "child_lock" in opt
+            and (time.monotonic() - opt["time"]) < OPTIMISTIC_GRACE_PERIOD_S
+        ):
             return cast("bool", opt["child_lock"])
+
+        return None
+
+    def get_offset(self, serial_no: str) -> float | None:
+        """Return optimistic temperature offset if not expired."""
+        if serial_no not in self.devices:
+            return None
+
+        opt = self.devices[serial_no]
+        if (
+            "offset" in opt
+            and (time.monotonic() - opt["time"]) < OPTIMISTIC_GRACE_PERIOD_S
+        ):
+            return cast("float", opt["offset"])
 
         return None
 

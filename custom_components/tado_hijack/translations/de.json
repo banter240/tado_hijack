@@ -88,9 +88,6 @@
           "throttled": "Gedrosselt",
           "rate_limited": "Limit erreicht"
         }
-      },
-      "temperature_offset": {
-        "name": "Temperatur-Offset"
       }
     },
     "switch": {
@@ -119,6 +116,11 @@
       },
       "resume_schedule": {
         "name": "Zeitplan fortsetzen"
+      }
+    },
+    "number": {
+      "temperature_offset": {
+        "name": "Temperatur-Offset"
       }
     }
   },
