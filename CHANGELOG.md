@@ -1,3 +1,21 @@
+## [3.1.0-dev.1](https://github.com/banter240/tado_hijack/compare/v3.0.0...v3.1.0-dev.1) (2026-01-21)
+
+### ✨ New Features
+
+* feat(core): unleash hot water, ac pro and extreme batching
+
+Major release introducing Extreme Batching, Cloud Features, and API Efficiency.
+
+Features:
+- Extreme Batching: Fusion of Heating, AC, and Hot Water commands into single API calls.
+- Hot Water Control: New switch entity for boiler power.
+- AC Pro: Select entities for Fan Speed and Swing modes.
+- Away Temperature: Per-zone configuration via number entity.
+- Dazzle Mode: Display control for V3+ devices.
+- API Proxy Support: Experimental option to use local tado-api-proxy to bypass rate limits.
+- Granular Refresh: Split manual poll into specific buttons to save quota.
+- Efficiency: Increased default polling to 60m (with auto-migration).
+
 ## [3.0.0](https://github.com/banter240/tado_hijack/compare/v2.0.0...v3.0.0) (2026-01-20)
 
 ### ⚠ BREAKING CHANGES
