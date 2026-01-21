@@ -6,48 +6,50 @@
     "abort": {
       "already_configured": "Konto ist bereits konfiguriert.",
       "could_not_authenticate": "Authentifizierung bei Tado fehlgeschlagen.",
-      "no_homes": "Mit diesem Tado-Konto sind keine Häuser verknüpft.",
+      "no_homes": "Mit diesem Tado-Konto sind keine H\u00e4user verkn\u00fcpft.",
       "cannot_connect": "Verbindung fehlgeschlagen.",
       "reauth_successful": "Die Re-Authentifizierung war erfolgreich.",
       "reconfigure_successful": "Die Neukonfiguration war erfolgreich.",
-      "reauth_account_mismatch": "Das verwendete Tado-Konto stimmt nicht mit der bestehenden Integration überein."
+      "reauth_account_mismatch": "Das verwendete Tado-Konto stimmt nicht mit der bestehenden Integration \u00fcberein."
     },
     "step": {
       "user": {
-        "title": "Tado Hijack verknüpfen"
+        "title": "Tado Hijack verkn\u00fcpfen"
       },
       "reauth_confirm": {
         "title": "Tado Hijack neu authentifizieren",
-        "description": "Deine Tado-Sitzung ist abgelaufen oder der Token ist ungültig. Klicke auf ABSENDEN, um den Re-Authentifizierungsprozess zu starten."
+        "description": "Deine Tado-Sitzung ist abgelaufen oder der Token ist ung\u00fcltig. Klicke auf ABSENDEN, um den Re-Authentifizierungsprozess zu starten."
       },
       "timeout": {
-        "title": "Zeitüberschreitung bei der Aktivierung",
-        "description": "Die Authentifizierung ist abgelaufen. Dies passiert häufig, wenn das Tado API-Limit erschöpft ist. Das Limit wird täglich um 12:00 Uhr MEZ zurückgesetzt. Klicke auf ABSENDEN, um es erneut zu versuchen."
+        "title": "Zeit\u00fcberschreitung bei der Aktivierung",
+        "description": "Die Authentifizierung ist abgelaufen. Dies passiert h\u00e4ufig, wenn das Tado API-Limit ersch\u00f6pft ist. Das Limit wird t\u00e4glich um 12:00 Uhr MEZ zur\u00fcckgesetzt. Klicke auf ABSENDEN, um es erneut zu versuchen."
       },
       "config": {
         "title": "Tado Hijack Konfiguration",
-        "description": "Wähle die Intervalle für die Datenaktualisierung und Drosselungseinstellungen.",
+        "description": "W\u00e4hle die Intervalle f\u00fcr die Datenaktualisierung und Drosselungseinstellungen.",
         "data": {
-          "scan_interval": "Intervall für Schnelles Polling (Sekunden)",
-          "slow_poll_interval": "Intervall für Batterie-Update (Stunden)",
-          "offset_poll_interval": "Intervall für Offset-Update (Stunden)",
+          "scan_interval": "Intervall f\u00fcr Schnelles Polling (Sekunden)",
+          "slow_poll_interval": "Intervall f\u00fcr Batterie-Update (Stunden)",
+          "offset_poll_interval": "Intervall f\u00fcr Offset-Update (Stunden)",
           "throttle_threshold": "Drosselungsschwelle",
           "disable_polling_when_throttled": "Polling bei Drosselung deaktivieren",
-          "debounce_time": "Debounce Zeit (Sekunden)"
+          "debounce_time": "Debounce Zeit (Sekunden)",
+          "api_proxy_url": "API Proxy URL (Optional)"
         },
         "data_description": {
-          "scan_interval": "Wie oft Anwesenheit und Heizstatus geprüft werden. Auf 0 setzen um periodisches Polling zu deaktivieren (nur manuell). 1800s (30m) wird empfohlen.",
-          "slow_poll_interval": "Wie oft Batterien und Gerätedaten geprüft werden. 24h wird dringend empfohlen. Kostet nur 2 API-Aufrufe insgesamt.",
+          "scan_interval": "Wie oft Anwesenheit und Heizstatus gepr\u00fcft werden. Auf 0 setzen um periodisches Polling zu deaktivieren (nur manuell). 1800s (30m) wird empfohlen.",
+          "slow_poll_interval": "Wie oft Batterien und Ger\u00e4tedaten gepr\u00fcft werden. 24h wird dringend empfohlen. Kostet nur 2 API-Aufrufe insgesamt.",
           "offset_poll_interval": "Wie oft Temperatur-Offsets abgerufen werden. Kostet 1 API-Aufruf PRO VENTIL. Auf 0 setzen um zu deaktivieren (nur manuell).",
-          "throttle_threshold": "Bestätigungs-API-Aufrufe überspringen wenn Restkontingent unter diesen Wert fällt. 0 = deaktiviert.",
+          "throttle_threshold": "Best\u00e4tigungs-API-Aufrufe \u00fcberspringen wenn Restkontingent unter diesen Wert f\u00e4llt. 0 = deaktiviert.",
           "disable_polling_when_throttled": "Periodisches Polling komplett stoppen wenn im Drosselungsmodus.",
-          "debounce_time": "Zeitfenster um schnelle Änderungen zu sammeln bevor sie gesendet werden. Standard 5s."
+          "debounce_time": "Zeitfenster um schnelle \u00c4nderungen zu sammeln bevor sie gesendet werden. Standard 5s.",
+          "api_proxy_url": "F\u00fcr Fortgeschrittene: URL einer lokalen [tado-api-proxy](https://github.com/s1adem4n/tado-api-proxy) Instanz (z.B. http://192.168.1.5:8080) um API-Limits zu umgehen."
         }
       }
     },
     "error": {
       "cannot_connect": "Verbindung zu Tado fehlgeschlagen.",
-      "invalid_auth": "Ungültige Authentifizierung.",
+      "invalid_auth": "Ung\u00fcltige Authentifizierung.",
       "activation_failed": "Authentifizierung fehlgeschlagen. Bitte versuche es erneut.",
       "unknown": "Ein unbekannter Fehler ist aufgetreten."
     }
@@ -58,17 +60,19 @@
         "title": "Tado Hijack Optionen",
         "data": {
           "scan_interval": "Aktualisierungsintervall (Sekunden)",
-          "slow_poll_interval": "Intervall für Batterie-Update (Stunden)",
-          "offset_poll_interval": "Intervall für Offset-Update (Stunden)",
+          "slow_poll_interval": "Intervall f\u00fcr Batterie-Update (Stunden)",
+          "offset_poll_interval": "Intervall f\u00fcr Offset-Update (Stunden)",
           "throttle_threshold": "Drosselungsschwelle",
-          "disable_polling_when_throttled": "Polling bei Drosselung deaktivieren"
+          "disable_polling_when_throttled": "Polling bei Drosselung deaktivieren",
+          "api_proxy_url": "API Proxy URL (Optional)"
         },
         "data_description": {
-          "scan_interval": "Intervall für Anwesenheit und Heizstatus. Auf 0 setzen um periodisches Polling zu deaktivieren.",
-          "slow_poll_interval": "Intervall für Batterien und Metadaten. 24h ist meist völlig ausreichend.",
-          "offset_poll_interval": "Intervall für Temperatur-Offsets. Kostet 1 API-Aufruf PRO VENTIL. 0 = deaktiviert.",
-          "throttle_threshold": "Bestätigungs-API-Aufrufe überspringen wenn Restkontingent unter diesen Wert fällt. 0 = deaktiviert.",
-          "disable_polling_when_throttled": "Periodisches Polling stoppen wenn gedrosselt."
+          "scan_interval": "Intervall f\u00fcr Anwesenheit und Heizstatus. Auf 0 setzen um periodisches Polling zu deaktivieren.",
+          "slow_poll_interval": "Intervall f\u00fcr Batterien und Metadaten. 24h ist meist v\u00f6llig ausreichend.",
+          "offset_poll_interval": "Intervall f\u00fcr Temperatur-Offsets. Kostet 1 API-Aufruf PRO VENTIL. 0 = deaktiviert.",
+          "throttle_threshold": "Best\u00e4tigungs-API-Aufrufe \u00fcberspringen wenn Restkontingent unter diesen Wert f\u00e4llt. 0 = deaktiviert.",
+          "disable_polling_when_throttled": "Periodisches Polling stoppen wenn gedrosselt.",
+          "api_proxy_url": "Fortgeschritten: URL einer lokalen tado-api-proxy Instanz (z.B. http://192.168.1.5:8080) um Limits zu umgehen. Projekt: https://github.com/s1adem4n/tado-api-proxy"
         }
       }
     }
@@ -99,14 +103,29 @@
       },
       "child_lock": {
         "name": "Kindersicherung"
+      },
+      "hot_water": {
+        "name": "Warmwasser"
+      },
+      "dazzle_mode": {
+        "name": "Dazzle Modus"
       }
     },
     "button": {
-      "manual_poll": {
-        "name": "Manueller Abruf"
+      "full_manual_poll": {
+        "name": "Vollst\u00e4ndiger Abruf"
+      },
+      "refresh_metadata": {
+        "name": "Zonen/Ger\u00e4te aktualisieren"
+      },
+      "refresh_offsets": {
+        "name": "Offsets aktualisieren"
+      },
+      "refresh_away": {
+        "name": "Away-Temperaturen aktualisieren"
       },
       "resume_all_schedules": {
-        "name": "Alle Zeitpläne fortsetzen"
+        "name": "Alle Zeitpl\u00e4ne fortsetzen"
       },
       "turn_off_all_zones": {
         "name": "Alle Zonen ausschalten"
@@ -121,6 +140,36 @@
     "number": {
       "temperature_offset": {
         "name": "Temperatur-Offset"
+      },
+      "away_temperature": {
+        "name": "Away-Temperatur"
+      }
+    },
+    "select": {
+      "fan_speed": {
+        "name": "L\u00fcftergeschwindigkeit",
+        "state": {
+          "auto": "Automatisch",
+          "low": "Niedrig",
+          "middle": "Mittel",
+          "high": "Hoch"
+        }
+      },
+      "vertical_swing": {
+        "name": "Vertikaler Swing",
+        "state": {
+          "on": "An",
+          "off": "Aus",
+          "auto": "Automatisch"
+        }
+      },
+      "horizontal_swing": {
+        "name": "Horizontaler Swing",
+        "state": {
+          "on": "An",
+          "off": "Aus",
+          "auto": "Automatisch"
+        }
       }
     }
   },
@@ -130,8 +179,8 @@
       "description": "Erzwingt eine sofortige Aktualisierung der Daten von der Tado API."
     },
     "resume_all_schedules": {
-      "name": "Zeitpläne fortsetzen",
-      "description": "Entfernt alle manuellen Änderungen in allen Zonen und kehrt zum Smart Schedule zurück."
+      "name": "Zeitpl\u00e4ne fortsetzen",
+      "description": "Entfernt alle manuellen \u00c4nderungen in allen Zonen und kehrt zum Smart Schedule zur\u00fcck."
     },
     "turn_off_all_zones": {
       "name": "Alle Zonen ausschalten",
@@ -139,7 +188,7 @@
     },
     "boost_all_zones": {
       "name": "Alle Zonen aufheizen",
-      "description": "Heizt alle Zonen auf 25°C auf."
+      "description": "Heizt alle Zonen auf 25\u00b0C auf."
     }
   }
 }

@@ -39,14 +39,17 @@ class TadoRequestHandler:
         endpoint: str = API_URL,
         data: dict[str, object] | None = None,
         method: HttpMethod = HttpMethod.GET,
+        proxy_url: str | None = None,
     ) -> str:
         """Execute a robust request mimicking browser behavior."""
-        await instance._refresh_auth()  # noqa: SLF001
+        # Only refresh auth if NOT using a proxy (proxy handles auth)
+        if not proxy_url:
+            await instance._refresh_auth()  # noqa: SLF001
 
-        url = self._build_url(uri, endpoint)
+        url = self._build_url(uri, endpoint, proxy_url)
         headers = self._build_headers(instance._access_token, method)  # noqa: SLF001
 
-        _LOGGER.debug("Tado Request: %s %s", method.value, url)
+        _LOGGER.debug("Tado Request: %s %s (Proxy: %s)", method.value, url, proxy_url)
 
         try:
             async with asyncio.timeout(instance._request_timeout):  # noqa: SLF001
@@ -71,12 +74,37 @@ class TadoRequestHandler:
         except TimeoutError as err:
             raise TadoConnectionError("Timeout connecting to Tado") from err
         except ClientResponseError as err:
-            await instance.check_request_status(err)
+            # Only check request status if NOT using proxy, or if proxy passes through Tado errors 1:1
+            # But we can't refresh auth via proxy, so we just raise.
+            if not proxy_url:
+                await instance.check_request_status(err)
             raise
 
-    def _build_url(self, uri: str | None, endpoint: str) -> URL:
+    def _build_url(
+        self, uri: str | None, endpoint: str, proxy_url: str | None = None
+    ) -> URL:
         """Construct URL handling query parameters manually to avoid encoding issues."""
-        if endpoint == EIQ_HOST_URL:
+        if proxy_url:
+            # Proxy handles base URL. We assume proxy_url points to root (e.g. http://localhost:8080)
+            # Tado API paths start with /api/v2
+            # EIQ paths start with /api
+            # We need to map endpoint to correct path on proxy if proxy mirrors structure.
+            # Proxy doc says: "Replace https://my.tado.com with http://localhost:8080 in your API calls."
+            # and "http://localhost:8080/api/v2/me".
+            # So we just swap the host part.
+
+            # Parse proxy URL to get scheme/host/port
+            parsed_proxy = URL(proxy_url)
+
+            if endpoint == EIQ_HOST_URL:
+                # Proxy might not support EIQ? Docs only mention /api/v2.
+                # Assuming it proxies everything or we fallback/fail for EIQ.
+                # Let's try to map it to /api if EIQ.
+                url = parsed_proxy.with_path(EIQ_API_PATH)
+            else:
+                url = parsed_proxy.with_path(TADO_API_PATH)
+
+        elif endpoint == EIQ_HOST_URL:
             url = URL.build(scheme="https", host=EIQ_HOST_URL, path=EIQ_API_PATH)
         else:
             url = URL.build(scheme="https", host=TADO_HOST_URL, path=TADO_API_PATH)

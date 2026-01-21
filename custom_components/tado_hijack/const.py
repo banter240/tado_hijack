@@ -15,9 +15,10 @@ CONF_OFFSET_POLL_INTERVAL: Final = "offset_poll_interval"
 CONF_THROTTLE_THRESHOLD: Final = "throttle_threshold"
 CONF_DISABLE_POLLING_WHEN_THROTTLED: Final = "disable_polling_when_throttled"
 CONF_DEBOUNCE_TIME: Final = "debounce_time"
+CONF_API_PROXY_URL: Final = "api_proxy_url"
 
 # Default Intervals
-DEFAULT_SCAN_INTERVAL: Final = 1800
+DEFAULT_SCAN_INTERVAL: Final = 3600
 DEFAULT_SLOW_POLL_INTERVAL: Final = 24  # Hours
 DEFAULT_OFFSET_POLL_INTERVAL: Final = 0  # Hours (0 = disabled)
 DEFAULT_DEBOUNCE_TIME: Final = 5  # Seconds

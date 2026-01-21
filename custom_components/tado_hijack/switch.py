@@ -31,7 +31,21 @@ async def async_setup_entry(
     entities.extend(
         TadoZoneScheduleSwitch(coordinator, zone.id, zone.name)
         for zone in coordinator.zones_meta.values()
-        if zone.type == "HEATING"
+        if zone.type in ("HEATING", "AIR_CONDITIONING", "HOT_WATER")
+    )
+
+    # Hot Water Switches -> Zone Devices
+    entities.extend(
+        TadoHotWaterSwitch(coordinator, zone.id, zone.name)
+        for zone in coordinator.zones_meta.values()
+        if zone.type == "HOT_WATER"
+    )
+
+    # Dazzle Mode Switches -> Zone Devices (Tado dazzle is per zone)
+    entities.extend(
+        TadoDazzleModeSwitch(coordinator, zone.id, zone.name)
+        for zone in coordinator.zones_meta.values()
+        if getattr(zone, "supports_dazzle", False)
     )
 
     # Child Lock Switches -> Device Entities
@@ -152,3 +166,64 @@ class TadoChildLockSwitch(TadoDeviceEntity, SwitchEntity):
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Disable child lock."""
         await self.tado_coordinator.async_set_child_lock(self._serial_no, False)
+
+
+class TadoHotWaterSwitch(TadoZoneEntity, SwitchEntity):
+    """Switch for Tado Hot Water power control."""
+
+    def __init__(self, coordinator: Any, zone_id: int, zone_name: str) -> None:
+        """Initialize hot water switch."""
+        super().__init__(coordinator, "hot_water", zone_id, zone_name)
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_hw_{zone_id}"
+
+    @property
+    def is_on(self) -> bool:
+        """Return true if hot water is ON."""
+        if (
+            optimistic_overlay := self.tado_coordinator.optimistic.get_zone_overlay(
+                self._zone_id
+            )
+        ) is not None:
+            return not optimistic_overlay
+
+        state = self.tado_coordinator.data.get("zone_states", {}).get(
+            str(self._zone_id)
+        )
+        return False if state is None else getattr(state, "power", "OFF") == "ON"
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Turn hot water ON."""
+        await self.tado_coordinator.async_set_hot_water_power(self._zone_id, True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Turn hot water OFF."""
+        await self.tado_coordinator.async_set_hot_water_power(self._zone_id, False)
+
+
+class TadoDazzleModeSwitch(TadoZoneEntity, SwitchEntity):
+    """Switch for Tado Dazzle Mode control."""
+
+    def __init__(self, coordinator: Any, zone_id: int, zone_name: str) -> None:
+        """Initialize dazzle mode switch."""
+        super().__init__(coordinator, "dazzle_mode", zone_id, zone_name)
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_dazzle_{zone_id}"
+
+    @property
+    def is_on(self) -> bool:
+        """Return true if dazzle mode is enabled."""
+        if (
+            optimistic := self.tado_coordinator.optimistic.get_dazzle(self._zone_id)
+        ) is not None:
+            return optimistic
+
+        # Dazzle mode info is in self.zones_meta (SLOW POLL)
+        zone = self.tado_coordinator.zones_meta.get(self._zone_id)
+        return bool(getattr(zone, "dazzle_enabled", False))
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Enable dazzle mode."""
+        await self.tado_coordinator.async_set_dazzle_mode(self._zone_id, True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Disable dazzle mode."""
+        await self.tado_coordinator.async_set_dazzle_mode(self._zone_id, False)

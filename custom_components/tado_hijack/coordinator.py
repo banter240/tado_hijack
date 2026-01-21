@@ -122,16 +122,17 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
         except TadoError as err:
             raise UpdateFailed(f"Tado API error: {err}") from err
 
-    async def _execute_manual_poll(self) -> None:
+    async def _execute_manual_poll(self, refresh_type: str = "all") -> None:
         """Execute the manual poll logic (worker target)."""
-        self.data_manager.invalidate_cache()
+        self.data_manager.invalidate_cache(refresh_type)
         await self.async_refresh()
 
-    async def async_manual_poll(self) -> None:
+    async def async_manual_poll(self, refresh_type: str = "all") -> None:
         """Trigger a manual poll (debounced)."""
-        _LOGGER.info("Queued manual poll")
+        _LOGGER.info("Queued manual poll (type: %s)", refresh_type)
         self.api_manager.queue_command(
-            "manual_poll", TadoCommand(CommandType.MANUAL_POLL)
+            f"manual_poll_{refresh_type}",
+            TadoCommand(CommandType.MANUAL_POLL, data={"type": refresh_type}),
         )
 
     def update_rate_limit_local(self, silent: bool = False) -> None:
@@ -213,6 +214,89 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
             TadoCommand(
                 CommandType.SET_OFFSET,
                 data={"serial": serial_no, "offset": offset},
+            ),
+        )
+
+    async def async_set_away_temperature(self, zone_id: int, temp: float) -> None:
+        """Set away temperature for a zone."""
+        self.optimistic.set_away_temp(zone_id, temp)
+        self.async_update_listeners()
+        self.api_manager.queue_command(
+            f"away_temp_{zone_id}",
+            TadoCommand(
+                CommandType.SET_AWAY_TEMP,
+                data={"zone_id": zone_id, "temp": temp},
+            ),
+        )
+
+    async def async_set_hot_water_power(self, zone_id: int, on: bool) -> None:
+        """Set hot water power state."""
+        self.optimistic.set_zone(zone_id, not on)
+        self.async_update_listeners()
+        self.api_manager.queue_command(
+            f"zone_{zone_id}",
+            TadoCommand(
+                CommandType.SET_OVERLAY,
+                zone_id=zone_id,
+                data={
+                    "setting": {"type": "HOT_WATER", "power": "ON" if on else "OFF"},
+                    "termination": {"typeSkillBasedApp": "MANUAL"},
+                },
+            ),
+        )
+
+    async def async_set_dazzle_mode(self, zone_id: int, enabled: bool) -> None:
+        """Set dazzle mode for a zone."""
+        self.optimistic.set_dazzle(zone_id, enabled)
+        self.async_update_listeners()
+        self.api_manager.queue_command(
+            f"dazzle_{zone_id}",
+            TadoCommand(
+                CommandType.SET_DAZZLE,
+                data={"zone_id": zone_id, "enabled": enabled},
+            ),
+        )
+
+    async def async_set_ac_setting(self, zone_id: int, key: str, value: str) -> None:
+        """Set an AC specific setting (fan speed, swing, etc.)."""
+        state = self.data.get("zone_states", {}).get(str(zone_id))
+        if not state or not state.setting:
+            _LOGGER.error("Cannot set AC setting: No state for zone %d", zone_id)
+            return
+
+        # Map internal keys to API keys
+        api_key_map = {
+            "fan_speed": "fanSpeed",
+            "vertical_swing": "verticalSwing",
+            "horizontal_swing": "horizontalSwing",
+            "swing": "swing",
+        }
+
+        # Build combined setting from current state
+        setting = {
+            "type": state.setting.type,
+            "power": state.setting.power,
+            "mode": state.setting.mode,
+            api_key_map.get("fan_speed"): state.setting.fan_speed,
+            api_key_map.get("vertical_swing"): state.setting.vertical_swing,
+            api_key_map.get("horizontal_swing"): state.setting.horizontal_swing,
+            api_key_map.get("swing"): state.setting.swing,
+        }
+        if state.setting.temperature:
+            setting["temperature"] = {"celsius": state.setting.temperature.celsius}
+
+        # Override the changed value
+        setting[api_key_map.get(key, key)] = value
+
+        self.api_manager.queue_command(
+            f"zone_{zone_id}",
+            TadoCommand(
+                CommandType.SET_OVERLAY,
+                zone_id=zone_id,
+                data={
+                    "setting": {k: v for k, v in setting.items() if v is not None},
+                    "termination": {"typeSkillBasedApp": "MANUAL"},
+                },
             ),
         )
 

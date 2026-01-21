@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
+import orjson
 from tadoasync import Tado
 from tadoasync.const import HttpMethod
 from tadoasync.tadoasync import API_URL
@@ -17,6 +18,16 @@ _LOGGER = get_redacted_logger(__name__)
 class TadoHijackClient(Tado):
     """Custom Tado client that uses TadoRequestHandler and adds bulk methods."""
 
+    def __init__(
+        self,
+        *args: Any,
+        proxy_url: str | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """Initialize the client with optional proxy URL."""
+        super().__init__(*args, **kwargs)
+        self.proxy_url = proxy_url
+
     async def _request(
         self,
         uri: str | None = None,
@@ -25,7 +36,9 @@ class TadoHijackClient(Tado):
         method: HttpMethod = HttpMethod.GET,
     ) -> str:
         """Override _request to use our robust TadoRequestHandler."""
-        return await get_handler().robust_request(self, uri, endpoint, data, method)
+        return await get_handler().robust_request(
+            self, uri, endpoint, data, method, self.proxy_url
+        )
 
     async def reset_all_zones_overlay(self, zones: list[int]) -> None:
         """Reset overlay for multiple zones (Bulk API)."""
@@ -52,5 +65,38 @@ class TadoHijackClient(Tado):
         await self._request(
             f"devices/{serial_no}/temperatureOffset",
             data={"celsius": offset},
+            method=HttpMethod.PUT,
+        )
+
+    async def get_away_configuration(self, zone_id: int) -> dict[str, Any]:
+        """Get the away configuration for a zone."""
+        response = await self._request(
+            f"homes/{self._home_id}/zones/{zone_id}/awayConfiguration"
+        )
+        return cast(dict[str, Any], orjson.loads(response))
+
+    async def set_away_configuration(
+        self,
+        zone_id: int,
+        temp: float,
+        preheating_level: str = "OFF",
+        mode: str = "HEATING",
+    ) -> None:
+        """Set the away configuration for a zone."""
+        await self._request(
+            f"homes/{self._home_id}/zones/{zone_id}/awayConfiguration",
+            data={
+                "type": mode,
+                "preheatingLevel": preheating_level,
+                "minimumAwayTemperature": {"celsius": temp},
+            },
+            method=HttpMethod.PUT,
+        )
+
+    async def set_dazzle_mode(self, zone_id: int, enabled: bool) -> None:
+        """Set dazzle mode for a zone."""
+        await self._request(
+            f"homes/{self._home_id}/zones/{zone_id}/dazzleMode",
+            data={"enabled": enabled},
             method=HttpMethod.PUT,
         )

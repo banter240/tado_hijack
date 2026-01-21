@@ -28,8 +28,9 @@ async def async_setup_services(
 
     async def handle_manual_poll(call: ServiceCall) -> None:
         """Service to force refresh."""
-        _LOGGER.debug("Service call: manual_poll")
-        await coordinator.async_manual_poll()
+        refresh_type = call.data.get("refresh_type", "all")
+        _LOGGER.debug("Service call: manual_poll (type: %s)", refresh_type)
+        await coordinator.async_manual_poll(refresh_type)
 
     async def handle_resume_schedules(call: ServiceCall) -> None:
         """Service to resume all schedules."""

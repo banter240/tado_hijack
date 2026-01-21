@@ -1,5 +1,16 @@
 manual_poll:
   description: "Force a refresh of data from Tado API."
+  fields:
+    refresh_type:
+      description: "Type of refresh (all, metadata, offsets, away)."
+      example: "offsets"
+      selector:
+        select:
+          options:
+            - "all"
+            - "metadata"
+            - "offsets"
+            - "away"
 
 resume_all_schedules:
   description: "Resume smart schedule for all heating zones."

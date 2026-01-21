@@ -11,7 +11,7 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from tadoasync import TadoAuthenticationError
 
-from .const import CONF_REFRESH_TOKEN, DEFAULT_SCAN_INTERVAL
+from .const import CONF_API_PROXY_URL, CONF_REFRESH_TOKEN, DEFAULT_SCAN_INTERVAL
 from .coordinator import TadoDataUpdateCoordinator
 from .helpers.client import TadoHijackClient
 from .helpers.logging_utils import TadoRedactionFilter
@@ -38,7 +38,30 @@ PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
     Platform.BUTTON,
     Platform.NUMBER,
+    Platform.SELECT,
 ]
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bool:
+    """Migrate old entry."""
+    _LOGGER.debug("Migrating from version %s", entry.version)
+
+    if entry.version == 1:
+        entry.version = 2
+
+    if entry.version == 2:
+        # Migrate scan_interval from 1800 to 3600 if it was set to legacy default
+        new_data = {**entry.data}
+        if new_data.get(CONF_SCAN_INTERVAL) == 1800:
+            _LOGGER.info(
+                "Migrating scan_interval from legacy default (1800s) to new default (3600s)"
+            )
+            new_data[CONF_SCAN_INTERVAL] = 3600
+
+        hass.config_entries.async_update_entry(entry, data=new_data, version=3)
+
+    _LOGGER.info("Migration to version %s successful", entry.version)
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bool:
@@ -50,11 +73,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bool
     _LOGGER.debug("Setting up Tado connection")
 
     scan_interval = entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+    proxy_url = entry.data.get(CONF_API_PROXY_URL)
+
+    if proxy_url:
+        _LOGGER.info("Using Tado API Proxy at %s", proxy_url)
 
     client = TadoHijackClient(
         refresh_token=entry.data[CONF_REFRESH_TOKEN],
         session=async_get_clientsession(hass),
         debug=True,
+        proxy_url=proxy_url,
     )
 
     try:

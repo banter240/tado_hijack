@@ -14,7 +14,7 @@ from homeassistant.const import UnitOfTemperature
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import CAPABILITY_INSIDE_TEMP
-from .entity import TadoDeviceEntity
+from .entity import TadoDeviceEntity, TadoZoneEntity
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -31,11 +31,13 @@ async def async_setup_entry(
     """Set up the Tado number platform."""
     coordinator: TadoDataUpdateCoordinator = entry.runtime_data
 
-    entities: list[TadoNumberEntity] = []
+    entities: list[NumberEntity] = []
 
     for zone in coordinator.zones_meta.values():
         if zone.type != "HEATING":
             continue
+
+        # Temperature Offset per Device
         entities.extend(
             TadoNumberEntity(
                 coordinator,
@@ -48,6 +50,10 @@ async def async_setup_entry(
             for device in zone.devices
             if CAPABILITY_INSIDE_TEMP in (device.characteristics.capabilities or [])
         )
+
+        # Away Temperature per Zone
+        entities.append(TadoAwayTempNumberEntity(coordinator, zone.id, zone.name))
+
     if entities:
         async_add_entities(entities)
 
@@ -117,3 +123,59 @@ class TadoNumberEntity(TadoDeviceEntity, RestoreEntity, NumberEntity):
     async def async_set_native_value(self, value: float) -> None:
         """Set a new temperature offset."""
         await self.coordinator.async_set_temperature_offset(self._serial_no, value)
+
+
+class TadoAwayTempNumberEntity(TadoZoneEntity, RestoreEntity, NumberEntity):
+    """Representation of a Tado Away Temperature number."""
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "away_temperature"
+    _attr_native_min_value = 5.0
+    _attr_native_max_value = 25.0
+    _attr_native_step = 0.1
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_mode = NumberMode.BOX
+
+    def __init__(
+        self,
+        coordinator: TadoDataUpdateCoordinator,
+        zone_id: int,
+        zone_name: str,
+    ) -> None:
+        """Initialize the number entity."""
+        super().__init__(coordinator, "away_temperature", zone_id, zone_name)
+        self.entity_description = NumberEntityDescription(
+            key="away_temperature",
+            translation_key="away_temperature",
+            native_min_value=5.0,
+            native_max_value=25.0,
+            native_step=0.1,
+            native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+            mode=NumberMode.BOX,
+        )
+        self._attr_unique_id = f"zone_{zone_id}_away_temperature"
+        self._restored_value: float | None = None
+
+    async def async_added_to_hass(self) -> None:
+        """Restore previous state on startup."""
+        await super().async_added_to_hass()
+        if (last_state := await self.async_get_last_state()) is not None:
+            if last_state.state not in (None, "unknown", "unavailable"):
+                with contextlib.suppress(ValueError, TypeError):
+                    self._restored_value = float(last_state.state)
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the away temperature value."""
+        if (
+            opt_temp := self.coordinator.optimistic.get_away_temp(self._zone_id)
+        ) is not None:
+            return float(opt_temp)
+
+        away_configs: dict[int, float] = self.coordinator.data.get("away_config", {})
+        temp = away_configs.get(self._zone_id)
+        return float(temp) if temp is not None else self._restored_value
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Set a new away temperature."""
+        await self.coordinator.async_set_away_temperature(self._zone_id, value)

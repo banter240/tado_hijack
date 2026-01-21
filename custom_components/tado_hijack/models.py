@@ -24,6 +24,8 @@ class CommandType(StrEnum):
     MANUAL_POLL = "manual_poll"
     SET_CHILD_LOCK = "set_child_lock"
     SET_OFFSET = "set_offset"
+    SET_AWAY_TEMP = "set_away_temp"
+    SET_DAZZLE = "set_dazzle"
 
 
 @dataclass

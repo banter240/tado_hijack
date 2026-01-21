@@ -25,6 +25,7 @@ from homeassistant.helpers.selector import (
 )
 
 from .const import (
+    CONF_API_PROXY_URL,
     CONF_DEBOUNCE_TIME,
     CONF_DISABLE_POLLING_WHEN_THROTTLED,
     CONF_OFFSET_POLL_INTERVAL,
@@ -53,7 +54,7 @@ _LOGGER = logging.getLogger(__name__)
 class TadoHijackConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
     """Handle a config flow for Tado Hijack."""
 
-    VERSION = 2
+    VERSION = 3
     login_task: asyncio.Task | None = None
     refresh_token: str | None = None
     tado: Tado | None = None
@@ -172,6 +173,7 @@ class TadoHijackConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     CONF_DEBOUNCE_TIME: user_input.get(
                         CONF_DEBOUNCE_TIME, DEFAULT_DEBOUNCE_TIME
                     ),
+                    CONF_API_PROXY_URL: user_input.get(CONF_API_PROXY_URL),
                 },
             )
 
@@ -203,6 +205,7 @@ class TadoHijackConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     vol.Optional(
                         CONF_DEBOUNCE_TIME, default=DEFAULT_DEBOUNCE_TIME
                     ): vol.All(vol.Coerce(int), vol.Range(min=MIN_DEBOUNCE_TIME)),
+                    vol.Optional(CONF_API_PROXY_URL): str,
                 }
             ),
         )
@@ -293,6 +296,10 @@ class TadoHijackOptionsFlowHandler(config_entries.OptionsFlow):
                             CONF_DEBOUNCE_TIME, DEFAULT_DEBOUNCE_TIME
                         ),
                     ): vol.All(vol.Coerce(int), vol.Range(min=MIN_DEBOUNCE_TIME)),
+                    vol.Optional(
+                        CONF_API_PROXY_URL,
+                        default=self.config_entry.data.get(CONF_API_PROXY_URL, ""),
+                    ): str,
                 }
             ),
         )

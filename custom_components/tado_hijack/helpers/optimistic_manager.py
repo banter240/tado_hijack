@@ -39,6 +39,16 @@ class OptimisticManager:
         self.devices[serial_no] = self.devices.get(serial_no, {})
         self.devices[serial_no].update({"offset": offset, "time": time.monotonic()})
 
+    def set_away_temp(self, zone_id: int, temp: float) -> None:
+        """Set optimistic away temperature state."""
+        self.zones[zone_id] = self.zones.get(zone_id, {})
+        self.zones[zone_id].update({"away_temp": temp, "time": time.monotonic()})
+
+    def set_dazzle(self, zone_id: int, enabled: bool) -> None:
+        """Set optimistic dazzle mode state."""
+        self.zones[zone_id] = self.zones.get(zone_id, {})
+        self.zones[zone_id].update({"dazzle": enabled, "time": time.monotonic()})
+
     def get_presence(self) -> str | None:
         """Return optimistic presence if not expired."""
         if (
@@ -84,6 +94,34 @@ class OptimisticManager:
             and (time.monotonic() - opt["time"]) < OPTIMISTIC_GRACE_PERIOD_S
         ):
             return cast("float", opt["offset"])
+
+        return None
+
+    def get_away_temp(self, zone_id: int) -> float | None:
+        """Return optimistic away temperature if not expired."""
+        if zone_id not in self.zones:
+            return None
+
+        opt = self.zones[zone_id]
+        if (
+            "away_temp" in opt
+            and (time.monotonic() - opt["time"]) < OPTIMISTIC_GRACE_PERIOD_S
+        ):
+            return cast("float", opt["away_temp"])
+
+        return None
+
+    def get_dazzle(self, zone_id: int) -> bool | None:
+        """Return optimistic dazzle mode if not expired."""
+        if zone_id not in self.zones:
+            return None
+
+        opt = self.zones[zone_id]
+        if (
+            "dazzle" in opt
+            and (time.monotonic() - opt["time"]) < OPTIMISTIC_GRACE_PERIOD_S
+        ):
+            return cast("bool", opt["dazzle"])
 
         return None
 

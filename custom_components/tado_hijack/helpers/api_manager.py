@@ -88,22 +88,21 @@ class TadoApiManager:
 
         while True:
             try:
-                # 1. Fetch first item (blocking)
+                # Fetch first item (blocking)
                 cmd = await self._api_queue.get()
                 batch.append(cmd)
                 self._api_queue.task_done()
 
-                # 2. Linger to catch stragglers
-                # Wait briefly to see if more commands arrive
+                # Linger to catch stragglers
                 await asyncio.sleep(BATCH_LINGER_S)
 
-                # 3. Drain queue (non-blocking)
+                # Drain queue (non-blocking)
                 while not self._api_queue.empty():
                     cmd = self._api_queue.get_nowait()
                     batch.append(cmd)
                     self._api_queue.task_done()
 
-                # 4. Process the batch
+                # Process the batch
                 if batch:
                     _LOGGER.debug("Worker: Processing batch of %d commands", len(batch))
                     await self._process_batch(batch)
@@ -124,7 +123,7 @@ class TadoApiManager:
 
         merged = merger.result
 
-        # 2. Execute Presence (Global, independent)
+        # Execute Presence (Global, independent)
         if merged["presence"]:
             _LOGGER.debug("Worker: Setting presence to %s", merged["presence"])
             try:
@@ -132,21 +131,27 @@ class TadoApiManager:
             except Exception as e:
                 _LOGGER.error("Failed to set presence: %s", e)
 
-        # 3. Execute Child Lock Actions
+        # Execute Child Lock Actions
         await self._execute_child_locks(merged["child_lock"])
 
-        # 4. Execute Offset Actions
+        # Execute Offset Actions
         await self._execute_offset_actions(merged["offsets"])
 
-        # 5. Execute Zone Actions (Bulk)
+        # Execute Away Temp Actions
+        await self._execute_away_actions(merged["away_temps"])
+
+        # Execute Dazzle Actions
+        await self._execute_dazzle_actions(merged["dazzle_modes"])
+
+        # Execute Zone Actions (Bulk)
         await self._execute_zone_actions(merged["zones"])
 
-        # 5. Manual Poll / Update Rate Limit
+        # Manual Poll / Update Rate Limit
         self.coordinator.update_rate_limit_local(silent=False)
 
         if merged["manual_poll"]:
-            _LOGGER.debug("Worker: Executing manual poll")
-            await self.coordinator._execute_manual_poll()
+            _LOGGER.debug("Worker: Executing manual poll (%s)", merged["manual_poll"])
+            await self.coordinator._execute_manual_poll(merged["manual_poll"])
         elif self.coordinator.rate_limit.is_throttled:
             self.coordinator.rate_limit.decrement(len(commands))
 
@@ -169,6 +174,30 @@ class TadoApiManager:
                 await self.coordinator.client.set_temperature_offset(serial, offset)
             except Exception as e:
                 _LOGGER.error("Failed to set temperature offset for %s: %s", serial, e)
+
+    async def _execute_away_actions(self, actions: dict[int, float]) -> None:
+        """Execute away temperature actions sequentially."""
+        for zone_id, temp in actions.items():
+            _LOGGER.debug(
+                "Worker: Setting away temperature for zone %d to %.1f", zone_id, temp
+            )
+            try:
+                await self.coordinator.client.set_away_configuration(zone_id, temp)
+            except Exception as e:
+                _LOGGER.error(
+                    "Failed to set away temperature for zone %d: %s", zone_id, e
+                )
+
+    async def _execute_dazzle_actions(self, actions: dict[int, bool]) -> None:
+        """Execute dazzle mode actions sequentially."""
+        for zone_id, enabled in actions.items():
+            _LOGGER.debug(
+                "Worker: Setting dazzle mode for zone %d to %s", zone_id, enabled
+            )
+            try:
+                await self.coordinator.client.set_dazzle_mode(zone_id, enabled)
+            except Exception as e:
+                _LOGGER.error("Failed to set dazzle mode for zone %d: %s", zone_id, e)
 
     async def _execute_zone_actions(
         self, actions: dict[int, dict[str, Any] | None]

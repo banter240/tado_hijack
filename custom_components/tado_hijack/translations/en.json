@@ -33,7 +33,8 @@
           "offset_poll_interval": "Offset Update Interval (Hours)",
           "throttle_threshold": "Throttle Threshold",
           "disable_polling_when_throttled": "Disable Polling When Throttled",
-          "debounce_time": "Debounce Time (Seconds)"
+          "debounce_time": "Debounce Time (Seconds)",
+          "api_proxy_url": "API Proxy URL (Optional)"
         },
         "data_description": {
           "scan_interval": "How often to check Home/Away and HVAC state. Set to 0 to disable periodic polling (manual only). 1800s (30m) is recommended.",
@@ -41,7 +42,8 @@
           "offset_poll_interval": "How often to fetch temperature offsets. Costs 1 API call PER VALVE. Set to 0 to disable (manual poll only).",
           "throttle_threshold": "Skip confirmation API calls when remaining quota drops below this value. Set to 0 to disable throttling.",
           "disable_polling_when_throttled": "Stop periodic polling entirely when in throttled mode.",
-          "debounce_time": "Time window to collect rapid changes before sending to API. Default 5s."
+          "debounce_time": "Time window to collect rapid changes before sending to API. Default 5s.",
+          "api_proxy_url": "Advanced: URL of a local tado-api-proxy instance (e.g. http://192.168.1.5:8080). Enables bypassing rate limits. Repo: https://github.com/s1adem4n/tado-api-proxy"
         }
       }
     },
@@ -61,14 +63,16 @@
           "slow_poll_interval": "Battery Update Interval (Hours)",
           "offset_poll_interval": "Offset Update Interval (Hours)",
           "throttle_threshold": "Throttle Threshold",
-          "disable_polling_when_throttled": "Disable Polling When Throttled"
+          "disable_polling_when_throttled": "Disable Polling When Throttled",
+          "api_proxy_url": "API Proxy URL (Optional)"
         },
         "data_description": {
           "scan_interval": "Interval for presence and heating state. Set to 0 to disable periodic polling.",
           "slow_poll_interval": "Interval for battery and metadata. 24h is sufficient.",
           "offset_poll_interval": "Interval for temperature offsets. Costs 1 API call PER VALVE. 0 = disabled.",
           "throttle_threshold": "Skip confirmation API calls when remaining quota drops below this value. 0 = disabled.",
-          "disable_polling_when_throttled": "Stop periodic polling when throttled."
+          "disable_polling_when_throttled": "Stop periodic polling when throttled.",
+          "api_proxy_url": "Advanced: URL of a local tado-api-proxy instance (e.g., http://192.168.1.5:8080) to bypass rate limits. Project Repo: https://github.com/s1adem4n/tado-api-proxy"
         }
       }
     }
@@ -99,11 +103,26 @@
       },
       "child_lock": {
         "name": "Child Lock"
+      },
+      "hot_water": {
+        "name": "Hot Water"
+      },
+      "dazzle_mode": {
+        "name": "Dazzle Mode"
       }
     },
     "button": {
-      "manual_poll": {
-        "name": "Manual Poll"
+      "full_manual_poll": {
+        "name": "Full Manual Poll"
+      },
+      "refresh_metadata": {
+        "name": "Refresh Zones/Devices"
+      },
+      "refresh_offsets": {
+        "name": "Refresh Offsets"
+      },
+      "refresh_away": {
+        "name": "Refresh Away Temperatures"
       },
       "resume_all_schedules": {
         "name": "Resume All Schedules"
@@ -121,6 +140,36 @@
     "number": {
       "temperature_offset": {
         "name": "Temperature Offset"
+      },
+      "away_temperature": {
+        "name": "Away Temperature"
+      }
+    },
+    "select": {
+      "fan_speed": {
+        "name": "Fan Speed",
+        "state": {
+          "auto": "Auto",
+          "low": "Low",
+          "middle": "Middle",
+          "high": "High"
+        }
+      },
+      "vertical_swing": {
+        "name": "Vertical Swing",
+        "state": {
+          "on": "On",
+          "off": "Off",
+          "auto": "Auto"
+        }
+      },
+      "horizontal_swing": {
+        "name": "Horizontal Swing",
+        "state": {
+          "on": "On",
+          "off": "Off",
+          "auto": "Auto"
+        }
       }
     }
   },
@@ -139,7 +188,7 @@
     },
     "boost_all_zones": {
       "name": "Boost All Zones",
-      "description": "Boost heating in all zones to 25°C."
+      "description": "Boost heating in all zones to 25\u00b0C."
     }
   }
 }
