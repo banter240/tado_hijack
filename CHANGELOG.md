@@ -1,3 +1,24 @@
+## [3.1.0-dev.2](https://github.com/banter240/tado_hijack/compare/v3.1.0-dev.1...v3.1.0-dev.2) (2026-01-22)
+
+### ✨ New Features
+
+* feat(core): unleash valves, early start, and ac temperature control
+
+Significant update introducing Valve Insights, Advanced Zone Config, and HomeKit Bridging.
+
+New Features:
+- Monitoring: Valve Opening (%) (Insight).
+- Monitoring: Humidity sensor for AC zones.
+- Control: Early Start (Preparation) and Open Window Detection toggles.
+- Control: Target Temperature number entities for AC and Hot Water.
+- HomeKit: Smart "Hijack" logic (optimistic manual mode) when detecting HomeKit events.
+
+Improvements:
+- Architecture: Unified OptimisticMixin for robust state handling.
+- Documentation: Added Batching Capability Matrix and clarified Fused/Debounced logic.
+- Fixes: Corrected Proxy URL handling (indentation) and translation keys.
+- Cleanup: Removed redundant sensors and finalized README.
+
 ## [3.1.0-dev.1](https://github.com/banter240/tado_hijack/compare/v3.0.0...v3.1.0-dev.1) (2026-01-21)
 
 ### ✨ New Features
