@@ -1,3 +1,15 @@
+## [3.1.0-dev.3](https://github.com/banter240/tado_hijack/compare/v3.1.0-dev.2...v3.1.0-dev.3) (2026-01-22)
+
+### ✨ New Features
+
+* feat(core): extreme batching, hot water, AC pro, and connectivity sensors
+
+- Smart batching with CommandMerger (10 zones = 2 API calls)
+- Hot Water temperature control with proper optimistic handling
+- AC temperature and mode control
+- Device and Bridge cloud connectivity sensors
+- Sourcery code style improvements
+
 ## [3.1.0-dev.2](https://github.com/banter240/tado_hijack/compare/v3.1.0-dev.1...v3.1.0-dev.2) (2026-01-22)
 
 ### ✨ New Features
