@@ -72,7 +72,7 @@
           "offset_poll_interval": "Interval for temperature offsets. Costs 1 API call PER VALVE. 0 = disabled.",
           "throttle_threshold": "Skip confirmation API calls when remaining quota drops below this value. 0 = disabled.",
           "disable_polling_when_throttled": "Stop periodic polling when throttled.",
-          "api_proxy_url": "Advanced: URL of a local tado-api-proxy instance (e.g., http://192.168.1.5:8080) to bypass rate limits. Project Repo: https://github.com/s1adem4n/tado-api-proxy"
+          "api_proxy_url": "Advanced: URL of a local tado-api-proxy instance (e.g. http://192.168.1.5:8080). Repo: https://github.com/s1adem4n/tado-api-proxy"
         }
       }
     }
@@ -92,6 +92,20 @@
           "throttled": "Throttled",
           "rate_limited": "Rate Limited"
         }
+      },
+      "heating_power": {
+        "name": "Heating Power"
+      },
+      "humidity": {
+        "name": "Humidity"
+      }
+    },
+    "binary_sensor": {
+      "battery_state": {
+        "name": "Battery"
+      },
+      "link_state": {
+        "name": "Connectivity"
       }
     },
     "switch": {
@@ -109,6 +123,12 @@
       },
       "dazzle_mode": {
         "name": "Dazzle Mode"
+      },
+      "early_start": {
+        "name": "Early Start"
+      },
+      "open_window": {
+        "name": "Open Window Detection"
       }
     },
     "button": {
@@ -143,6 +163,9 @@
       },
       "away_temperature": {
         "name": "Away Temperature"
+      },
+      "target_temperature": {
+        "name": "Target Temperature"
       }
     },
     "select": {
@@ -188,7 +211,7 @@
     },
     "boost_all_zones": {
       "name": "Boost All Zones",
-      "description": "Boost heating in all zones to 25\u00b0C."
+      "description": "Boost heating in all zones to 25°C."
     }
   }
 }

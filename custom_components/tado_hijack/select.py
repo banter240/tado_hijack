@@ -108,7 +108,6 @@ class TadoAcSelect(TadoZoneEntity, SelectEntity):
     @property
     def current_option(self) -> str | None:
         """Return the current selected option."""
-        # TODO: Implement optimistic state for AC selects if needed
         state = self.tado_coordinator.data.get("zone_states", {}).get(
             str(self._zone_id)
         )

@@ -100,3 +100,26 @@ class TadoHijackClient(Tado):
             data={"enabled": enabled},
             method=HttpMethod.PUT,
         )
+
+    async def set_early_start(self, zone_id: int, enabled: bool) -> None:
+        """Set early start configuration for a zone."""
+        await self._request(
+            f"homes/{self._home_id}/zones/{zone_id}/earlyStart",
+            data={"enabled": enabled},
+            method=HttpMethod.PUT,
+        )
+
+    async def set_open_window_detection(self, zone_id: int, enabled: bool) -> None:
+        """Set open window detection configuration for a zone."""
+        await self._request(
+            f"homes/{self._home_id}/zones/{zone_id}/openWindowDetection",
+            data={"enabled": enabled},
+            method=HttpMethod.PUT,
+        )
+
+    async def identify_device(self, serial_no: str) -> None:
+        """Identify a device (make it flash)."""
+        await self._request(
+            f"devices/{serial_no}/identify",
+            method=HttpMethod.POST,
+        )

@@ -6,7 +6,7 @@ repos:
       - id: check-yaml
       - id: check-json
       - id: pretty-format-json
-        args: [--autofix, --no-sort-keys, --indent=2]
+        args: [--autofix, --no-sort-keys, --indent=2, --no-ensure-ascii]
       - id: end-of-file-fixer
       - id: trailing-whitespace
 
@@ -24,7 +24,7 @@ repos:
     hooks:
       - id: mypy
         args: [--ignore-missing-imports, --explicit-package-bases]
-        additional_dependencies: []
+        additional_dependencies: ["tadoasync>=0.2.2"]
 
   # Sourcery hook for AI-powered refactoring.
   - repo: https://github.com/sourcery-ai/sourcery

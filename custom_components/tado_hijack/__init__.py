@@ -111,6 +111,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bool
 
 async def async_unload_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bool:
     """Unload a config entry."""
+    entry.runtime_data.shutdown()
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         await async_unload_services(hass)

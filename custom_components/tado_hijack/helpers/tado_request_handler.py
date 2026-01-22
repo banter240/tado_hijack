@@ -97,9 +97,6 @@ class TadoRequestHandler:
             parsed_proxy = URL(proxy_url)
 
             if endpoint == EIQ_HOST_URL:
-                # Proxy might not support EIQ? Docs only mention /api/v2.
-                # Assuming it proxies everything or we fallback/fail for EIQ.
-                # Let's try to map it to /api if EIQ.
                 url = parsed_proxy.with_path(EIQ_API_PATH)
             else:
                 url = parsed_proxy.with_path(TADO_API_PATH)

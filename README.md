@@ -10,7 +10,12 @@
 
 Tado restricted their API? They think you shouldn't control your own heating? **Tado Hijack begs to differ.**
 
-I engineered this integration with one goal: **To squeeze every drop of functionality out of Tado's cloud without triggering their rate limits.**
+I engineered this integration with one goal: **To squeeze every drop of functionality out of Tado's cloud without triggering their rate limits.** We bridge the gap between Tado's restricted API and your smart home, unlocking features that Tado keeps hidden, all while treating every single API call like gold.
+
+> [!WARNING]
+> **Compatibility Note (Tado X / Matter):**
+> This integration is currently optimized for **Tado V3+** (IB01) systems.
+> **Tado X** devices use the new Matter architecture and a different API which is **not yet supported**. Support is planned for a future release; current focus is on perfecting the V3+ and HomeKit experience.
 
 ---
 
@@ -29,7 +34,7 @@ I engineered this integration with one goal: **To squeeze every drop of function
 ## 🚀 Key Highlights
 
 ### 🧠 Extreme Batching Technology
-While other integrations waste your precious API quota for every tiny click, Tado Hijack features **Deep Command Merging**. We collect your interactions and fuse them into the most efficient bulk requests possible.
+While other integrations waste your precious API quota for every tiny click, Tado Hijack features **Deep Command Merging**. I collect your interactions and fuse them into the most efficient bulk requests possible.
 
 > [!TIP]
 > **Extreme Scenario (Maximum Fusion):**
@@ -48,14 +53,15 @@ You get the rock-solid local control of HomeKit combined with advanced cloud fea
 > **No Redundancy:** Tado Hijack does **not** provide temperature control for regular heating valves (TRVs), as HomeKit already handles this perfectly. We focus on the "Missing Links": **Cloud-only features** (Hot Water, AC controls, and logical Zone Schedules) that HomeKit cannot see.
 
 ### 🛠️ Unleashed Features (Non-HomeKit)
-I bring back the controls that Tado and Apple "forgot" to give you:
-*   **🚿 Hot Water Power:** Full On/Off control for your boiler.
+I bring back the controls that Tado "forgot" to give you:
+*   **🚿 Hot Water & AC Unleashed:** Full temperature and power control for boilers and AC units.
 *   **❄️ AC Pro Features:** Precise Fan Speed and Swing (Horizontal/Vertical) selection.
+*   **🔥 Valve Opening Insight:** View the percentage of how far your valves are open (updated during state polls).
 *   **🔋 Real Battery Status:** Don't guess; see the actual health of every valve.
 *   **🌡️ Temperature Offset:** Interactive calibration for your thermostats.
 *   **✨ Dazzle Mode:** Control the display behavior of your V3+ hardware.
 *   **🏠 Presence Lock:** Force Home/Away modes regardless of what Tado thinks.
-*   **🔓 Rate Limit Bypass:** Experimental support for local [tado-api-proxy](https://github.com/s1adem4n/tado-api-proxy) to bypass daily limits (Use at your own risk).
+*   **🔓 Rate Limit Bypass:** Experimental support for local [tado-api-proxy](https://github.com/s1adem4n/tado-api-proxy) to bypass daily limits.
 
 ---
 
@@ -67,7 +73,7 @@ Tado's **100-call daily limit** is pathetic. That's why Tado Hijack uses a **Zer
 
 | Action | Cost | Frequency | Description | Detailed API Calls |
 | :--- | :---: | :--- | :--- | :--- |
-| **State Poll** | **2** | 60m (Default) | Fetches global state & zones. | `GET /homes/{id}/state`<br>`GET /homes/{id}/zoneStates` |
+| **State Poll** | **2** | 60m (Default) | State, HVAC, **Valve %**, Humidity. | `GET /homes/{id}/state`<br>`GET /homes/{id}/zoneStates` |
 | **Refresh Zones** | **2** | On Demand | Updates Zid/Device metadata. | `GET /homes/{id}/zones`<br>`GET /homes/{id}/devices` |
 | **Refresh Offsets** | **N** | On Demand | Fetches all device offsets. | `GET /devices/{s}/temperatureOffset` (xN) |
 | **Refresh Away** | **M** | On Demand | Fetches all zone away temps. | `GET /zones/{z}/awayConfiguration` (xM) |
@@ -75,24 +81,47 @@ Tado's **100-call daily limit** is pathetic. That's why Tado Hijack uses a **Zer
 | **Settings Set** | **1** | On Demand | Every action uses exactly 1 call. | `PUT /zones/{z}/overlay` (Fused!) |
 | **Home/Away** | **1** | On Demand | Force presence lock. | `PUT /homes/{id}/presenceLock` |
 
+> [!TIP]
+> **Throttled Mode:** When API quota runs low, the integration can automatically disable periodic polling to preserve remaining quota for your automations.
+
 > [!IMPORTANT]
 > **Granular Refresh Strategy:** To keep your quota green, hardware configurations (Offsets, Away Temperatures) are **never** fetched automatically. They remain empty until you manually trigger a specific refresh button or set a value.
 
-> [!TIP]
-> **Throttled Mode:** When API quota runs low, the integration can automatically disable periodic polling to preserve remaining quota for your automations.
+### 🧠 Batching Capability Matrix
+
+Not all API calls are created equal. Tado Hijack optimizes everything, but physics (and the Tado API) sets limits.
+
+| Action Type | Examples | Strategy | API Cost |
+| :--- | :--- | :--- | :--- |
+| **State Control** | Target Temp, Turn Off All, Resume Schedule, Hot Water Power, AC Fan | **FUSED** | **1 Call Total** (regardless of zone count) |
+| **Global Mode** | Home/Away Presence | **DIRECT** | **1 Call** |
+| **Zone Config** | Early Start, Open Window, Dazzle Mode | **DEBOUNCED** | **1 Call per Zone** (Sequentially executed) |
+| **Device Config** | Child Lock, Temperature Offset | **DEBOUNCED** | **1 Call per Device** (Sequentially executed) |
+
+> **Fused (True Batching):**
+> Multiple actions across multiple zones are merged into a **single** API request.
+> *Example:* Turning off 10 rooms at once = **1 API Call**.
+>
+> **Debounced (Rapid Update Protection):**
+> Prevents spamming the API while dragging sliders. Only the final value is sent.
+> *Example:* Dragging a slider from 18°C to 22°C generates 20 intermediate events, but only **1 API Call** is sent.
+
+> [!NOTE]
+> **Why not batch everything?**
+> Tado does **not** provide bulk API endpoints for device configurations (Child Lock, Offset, Window Detection). We must send these commands individually per device. We optimize what we can, but we cannot invent endpoints that don't exist.
 
 ---
 
 ## 🛠️ Architecture
 
 ### Physical Device Mapping
-We map entities to **physical devices** (Valves/Thermostats), not just abstract "Zones".
-*   **Matched via Serial Number:** Automatic injection into HomeKit devices.
-*   **No HomeKit?** We create clean, dedicated devices for each valve.
+Unlike other integrations that group everything by "Zone", Tado Hijack maps entities to their **physical devices** (Valves/Thermostats).
+*   **Matched via Serial Number:** Automatic injection into existing HomeKit devices.
+*   **No HomeKit?** We create clean, dedicated devices for each piece of hardware.
 
 ### Robustness & Security
-*   **Custom Client:** A hardened communication layer that handles Tado's API quirks.
-*   **Privacy:** All logs are auto-redacted. Your IDs and Serials never leave your machine.
+*   **Custom Client Layer:** I extend the underlying library via inheritance to handle API communication reliably and fix common deserialization errors.
+*   **Privacy by Design:** All logs are automatically redacted. Sensitive data (User Codes, Serial Numbers, Home IDs) is stripped before writing to disk.
 
 ---
 
@@ -115,7 +144,7 @@ We map entities to **physical devices** (Valves/Thermostats), not just abstract 
 | **Slow Polling** | `24h` | Interval for battery and device metadata. |
 | **Debounce Time**| `5s` | **Batching Window:** Fuses actions into single calls. |
 | **Throttle Threshold** | `0` | Auto-skip calls when quota is dangerously low. |
-| **API Proxy URL** | `None` | **Advanced:** URL of local `tado-api-proxy` to bypass limits. |
+| **API Proxy URL** | `None` | **Advanced:** URL of local `tado-api-proxy` workaround. |
 
 ---
 
@@ -130,23 +159,28 @@ Global controls for the entire home. *Will be linked to your Internet Bridge dev
 | `button.turn_off_all_zones` | Button | **Bulk:** Turns off heating in ALL zones. |
 | `button.boost_all_zones` | Button | **Bulk:** Boosts all zones to 25°C. |
 | `button.resume_all_schedules` | Button | **Bulk:** Returns all zones to Smart Schedule. |
-| `button.refresh_zones_devices` | Button | Updates zone and device metadata (2 calls). |
+| `button.refresh_metadata` | Button | Updates zone and device metadata (2 calls). |
 | `button.refresh_offsets` | Button | Fetches all hardware offsets (N calls). |
-| `button.refresh_away_temperatures` | Button | Fetches all zone away temps (M calls). |
+| `button.refresh_away` | Button | Fetches all zone away temps (M calls). |
 | `button.full_manual_poll` | Button | **Expensive:** Refreshes everything at once. |
 | `sensor.api_calls_remaining` | Sensor | Your precious daily API gold. |
 | `sensor.api_status` | Sensor | Connection health (`connected`, `throttled`). |
 
 ### 🌡️ Zone Devices (Rooms / Hot Water / AC)
-These devices only exist in Tado Hijack as HomeKit does not support these logical concepts or specific hardware controls.
+Cloud-only features that HomeKit does not support.
 
 | Entity | Type | Description |
 | :--- | :--- | :--- |
 | `switch.schedule` | Switch | **ON** = Smart Schedule, **OFF** = Manual. |
 | `switch.hot_water` | Switch | **Cloud Only:** Direct boiler power control. |
+| `switch.early_start` | Switch | **Cloud Only:** Toggle vorzeitiges Aufheizen. |
+| `switch.open_window` | Switch | **Cloud Only:** Toggle window detection. |
+| `number.target_temperature` | Number | **Cloud Only:** Set target temp for AC/HW. |
 | `number.away_temperature` | Number | **Cloud Only:** Set away mode temperature. |
 | `select.fan_speed` | Select | **AC Only:** Full fan speed control. |
 | `select.swing` | Select | **AC Only:** Full swing control. |
+| `sensor.heating_power` | Sensor | **Insight:** Valve opening percentage. |
+| `sensor.humidity` | Sensor | **AC Only:** Humidity reported by AC unit. |
 | `button.resume_schedule` | Button | Force resume schedule (stateless). |
 
 ### 🔧 Physical Devices (Valves/Thermostats)

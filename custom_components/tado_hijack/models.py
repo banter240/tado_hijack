@@ -26,6 +26,9 @@ class CommandType(StrEnum):
     SET_OFFSET = "set_offset"
     SET_AWAY_TEMP = "set_away_temp"
     SET_DAZZLE = "set_dazzle"
+    SET_EARLY_START = "set_early_start"
+    SET_OPEN_WINDOW = "set_open_window"
+    IDENTIFY = "identify"
 
 
 @dataclass

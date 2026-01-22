@@ -14,11 +14,14 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.core import HomeAssistant
 
-from .entity import TadoHomeEntity
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
+from .entity import TadoHomeEntity, TadoZoneEntity
 from .helpers.logging_utils import get_redacted_logger
 
 if TYPE_CHECKING:
     from . import TadoConfigEntry
+    from .coordinator import TadoDataUpdateCoordinator
 
 _LOGGER = get_redacted_logger(__name__)
 
@@ -27,7 +30,7 @@ _LOGGER = get_redacted_logger(__name__)
 class TadoSensorEntityDescription(SensorEntityDescription):
     """Describes Tado sensor entity."""
 
-    value_fn: Callable[[dict[str, Any]], int]
+    value_fn: Callable[[Any], Any]
 
 
 SENSORS: tuple[TadoSensorEntityDescription, ...] = (
@@ -53,14 +56,25 @@ SENSORS: tuple[TadoSensorEntityDescription, ...] = (
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: TadoConfigEntry,
-    async_add_entities: Any,
+    async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Tado sensors based on a config entry."""
-    coordinator = entry.runtime_data
+    coordinator: TadoDataUpdateCoordinator = entry.runtime_data
     entities: list[SensorEntity] = [
         TadoRateLimitSensor(coordinator, description) for description in SENSORS
     ]
     entities.append(TadoApiStatusSensor(coordinator))
+
+    # Per-Zone Sensors
+    for zone in coordinator.zones_meta.values():
+        # Heating Power (Percentage)
+        if zone.type == "HEATING":
+            entities.append(TadoHeatingPowerSensor(coordinator, zone.id, zone.name))
+
+        # Humidity (Percentage) - AC only, TRVs get it via HomeKit
+        if zone.type == "AIR_CONDITIONING":
+            entities.append(TadoHumiditySensor(coordinator, zone.id, zone.name))
+
     async_add_entities(entities)
 
 
@@ -105,3 +119,50 @@ class TadoApiStatusSensor(TadoHomeEntity, SensorEntity):
     def native_value(self) -> str:
         """Return the current API status."""
         return str(self.coordinator.data.get("api_status", "connected"))
+
+
+class TadoHeatingPowerSensor(TadoZoneEntity, SensorEntity):
+    """Sensor for Tado heating power (valve opening)."""
+
+    _attr_native_unit_of_measurement = "%"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 1
+
+    def __init__(self, coordinator: Any, zone_id: int, zone_name: str) -> None:
+        """Initialize heating power sensor."""
+        super().__init__(coordinator, "heating_power", zone_id, zone_name)
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_pwr_{zone_id}"
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the current heating power percentage."""
+        state = self.coordinator.data.get("zone_states", {}).get(str(self._zone_id))
+        if (
+            state
+            and state.activity_data_points
+            and state.activity_data_points.heating_power
+        ):
+            return float(state.activity_data_points.heating_power.percentage)
+        return 0.0
+
+
+class TadoHumiditySensor(TadoZoneEntity, SensorEntity):
+    """Sensor for Tado zone humidity."""
+
+    _attr_device_class = SensorDeviceClass.HUMIDITY
+    _attr_native_unit_of_measurement = "%"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 1
+
+    def __init__(self, coordinator: Any, zone_id: int, zone_name: str) -> None:
+        """Initialize humidity sensor."""
+        super().__init__(coordinator, "humidity", zone_id, zone_name)
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_hum_{zone_id}"
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the current humidity percentage."""
+        state = self.coordinator.data.get("zone_states", {}).get(str(self._zone_id))
+        if state and state.sensor_data_points and state.sensor_data_points.humidity:
+            return float(state.sensor_data_points.humidity.percentage)
+        return None

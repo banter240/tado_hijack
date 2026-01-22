@@ -15,6 +15,7 @@ from .entity import TadoDeviceEntity
 
 if TYPE_CHECKING:
     from . import TadoConfigEntry
+    from .coordinator import TadoDataUpdateCoordinator
 
 
 async def async_setup_entry(
@@ -22,14 +23,15 @@ async def async_setup_entry(
     entry: TadoConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up Tado battery sensors."""
-    coordinator = entry.runtime_data
-    entities: list[TadoBatterySensor] = []
+    """Set up Tado binary sensors."""
+    coordinator: TadoDataUpdateCoordinator = entry.runtime_data
+    entities: list[BinarySensorEntity] = []
 
     for zone in coordinator.zones_meta.values():
         if zone.type != "HEATING":
             continue
 
+        # Battery Sensor per Device
         entities.extend(
             TadoBatterySensor(
                 coordinator,

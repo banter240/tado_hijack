@@ -11,7 +11,26 @@ from .const import DEVICE_TYPE_MAP, DOMAIN
 from .helpers.device_linker import get_homekit_identifiers
 
 if TYPE_CHECKING:
+    from typing import Any
     from .coordinator import TadoDataUpdateCoordinator
+
+
+class TadoOptimisticMixin:
+    """Mixin for entities checking optimistic state before actual state."""
+
+    def _get_optimistic_value(self) -> Any | None:
+        """Return optimistic value if set."""
+        raise NotImplementedError
+
+    def _get_actual_value(self) -> Any:
+        """Return actual value from coordinator data."""
+        raise NotImplementedError
+
+    def _resolve_state(self) -> Any:
+        """Resolve state: Optimistic > Actual."""
+        if (opt := self._get_optimistic_value()) is not None:
+            return opt
+        return self._get_actual_value()
 
 
 class TadoEntity(CoordinatorEntity):

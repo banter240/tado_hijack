@@ -49,6 +49,16 @@ class OptimisticManager:
         self.zones[zone_id] = self.zones.get(zone_id, {})
         self.zones[zone_id].update({"dazzle": enabled, "time": time.monotonic()})
 
+    def set_early_start(self, zone_id: int, enabled: bool) -> None:
+        """Set optimistic early start state."""
+        self.zones[zone_id] = self.zones.get(zone_id, {})
+        self.zones[zone_id].update({"early_start": enabled, "time": time.monotonic()})
+
+    def set_open_window(self, zone_id: int, enabled: bool) -> None:
+        """Set optimistic open window detection state."""
+        self.zones[zone_id] = self.zones.get(zone_id, {})
+        self.zones[zone_id].update({"open_window": enabled, "time": time.monotonic()})
+
     def get_presence(self) -> str | None:
         """Return optimistic presence if not expired."""
         if (
@@ -64,8 +74,9 @@ class OptimisticManager:
             return None
 
         opt = self.zones[zone_id]
-        if (time.monotonic() - opt["time"]) < OPTIMISTIC_GRACE_PERIOD_S:
-            return cast("bool | None", opt["overlay"])
+        if (time.monotonic() - opt.get("time", 0)) < OPTIMISTIC_GRACE_PERIOD_S:
+            val = opt.get("overlay")
+            return cast("bool | None", val) if val is not None else None
 
         return None
 
@@ -75,11 +86,9 @@ class OptimisticManager:
             return None
 
         opt = self.devices[serial_no]
-        if (
-            "child_lock" in opt
-            and (time.monotonic() - opt["time"]) < OPTIMISTIC_GRACE_PERIOD_S
-        ):
-            return cast("bool", opt["child_lock"])
+        if (time.monotonic() - opt.get("time", 0)) < OPTIMISTIC_GRACE_PERIOD_S:
+            val = opt.get("child_lock")
+            return cast("bool", val) if val is not None else None
 
         return None
 
@@ -89,11 +98,9 @@ class OptimisticManager:
             return None
 
         opt = self.devices[serial_no]
-        if (
-            "offset" in opt
-            and (time.monotonic() - opt["time"]) < OPTIMISTIC_GRACE_PERIOD_S
-        ):
-            return cast("float", opt["offset"])
+        if (time.monotonic() - opt.get("time", 0)) < OPTIMISTIC_GRACE_PERIOD_S:
+            val = opt.get("offset")
+            return cast("float", val) if val is not None else None
 
         return None
 
@@ -103,11 +110,9 @@ class OptimisticManager:
             return None
 
         opt = self.zones[zone_id]
-        if (
-            "away_temp" in opt
-            and (time.monotonic() - opt["time"]) < OPTIMISTIC_GRACE_PERIOD_S
-        ):
-            return cast("float", opt["away_temp"])
+        if (time.monotonic() - opt.get("time", 0)) < OPTIMISTIC_GRACE_PERIOD_S:
+            val = opt.get("away_temp")
+            return cast("float", val) if val is not None else None
 
         return None
 
@@ -117,11 +122,33 @@ class OptimisticManager:
             return None
 
         opt = self.zones[zone_id]
-        if (
-            "dazzle" in opt
-            and (time.monotonic() - opt["time"]) < OPTIMISTIC_GRACE_PERIOD_S
-        ):
-            return cast("bool", opt["dazzle"])
+        if (time.monotonic() - opt.get("time", 0)) < OPTIMISTIC_GRACE_PERIOD_S:
+            val = opt.get("dazzle")
+            return cast("bool", val) if val is not None else None
+
+        return None
+
+    def get_early_start(self, zone_id: int) -> bool | None:
+        """Return optimistic early start if not expired."""
+        if zone_id not in self.zones:
+            return None
+
+        opt = self.zones[zone_id]
+        if (time.monotonic() - opt.get("time", 0)) < OPTIMISTIC_GRACE_PERIOD_S:
+            val = opt.get("early_start")
+            return cast("bool", val) if val is not None else None
+
+        return None
+
+    def get_open_window(self, zone_id: int) -> bool | None:
+        """Return optimistic open window detection if not expired."""
+        if zone_id not in self.zones:
+            return None
+
+        opt = self.zones[zone_id]
+        if (time.monotonic() - opt.get("time", 0)) < OPTIMISTIC_GRACE_PERIOD_S:
+            val = opt.get("open_window")
+            return cast("bool", val) if val is not None else None
 
         return None
 

@@ -5,13 +5,14 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING, Any
 
+from homeassistant.helpers import entity_registry as er
 from tadoasync import Tado, TadoConnectionError
 from tadoasync.models import TemperatureOffset
 
 if TYPE_CHECKING:
     from ..coordinator import TadoDataUpdateCoordinator
 
-from ..const import CAPABILITY_INSIDE_TEMP, TEMP_OFFSET_ATTR
+from ..const import CAPABILITY_INSIDE_TEMP, DOMAIN, TEMP_OFFSET_ATTR
 from .logging_utils import get_redacted_logger
 
 _LOGGER = get_redacted_logger(__name__)
@@ -119,6 +120,15 @@ class TadoDataManager:
         if refresh_type in {"all", "away"}:
             self._away_invalidated = True
 
+    def _is_entity_disabled(self, platform: str, unique_id: str) -> bool:
+        """Check if an entity is disabled in the registry."""
+        ent_reg = er.async_get(self.coordinator.hass)
+        if entity_id := ent_reg.async_get_entity_id(platform, DOMAIN, unique_id):
+            entry = ent_reg.async_get(entity_id)
+            if entry and entry.disabled:
+                return True
+        return False
+
     async def _fetch_offsets(self) -> None:
         """Fetch temperature offsets for all devices with temp sensor capability."""
         if not self.devices_meta:
@@ -131,14 +141,25 @@ class TadoDataManager:
             if CAPABILITY_INSIDE_TEMP in (dev.characteristics.capabilities or [])
         ]
 
-        if not devices_with_temp:
+        # Filter out disabled entities to save API calls
+        active_devices = []
+        for dev in devices_with_temp:
+            unique_id = f"{dev.serial_no}_temperature_offset"
+            if self._is_entity_disabled("number", unique_id):
+                _LOGGER.debug(
+                    "Skipping offset fetch for disabled device %s", dev.short_serial_no
+                )
+                continue
+            active_devices.append(dev)
+
+        if not active_devices:
             return
 
         _LOGGER.info(
-            "DataManager: Fetching offsets for %d devices", len(devices_with_temp)
+            "DataManager: Fetching offsets for %d devices", len(active_devices)
         )
 
-        for device in devices_with_temp:
+        for device in active_devices:
             try:
                 offset = await self.coordinator.client.get_device_info(
                     device.serial_no, TEMP_OFFSET_ATTR
@@ -162,14 +183,25 @@ class TadoDataManager:
             z for z in self.zones_meta.values() if getattr(z, "type", "") == "HEATING"
         ]
 
-        if not heating_zones:
+        # Filter out disabled entities to save API calls
+        active_zones = []
+        for zone in heating_zones:
+            unique_id = f"zone_{zone.id}_away_temperature"
+            if self._is_entity_disabled("number", unique_id):
+                _LOGGER.debug(
+                    "Skipping away config fetch for disabled zone %s", zone.name
+                )
+                continue
+            active_zones.append(zone)
+
+        if not active_zones:
             return
 
         _LOGGER.info(
-            "DataManager: Fetching away config for %d zones", len(heating_zones)
+            "DataManager: Fetching away config for %d zones", len(active_zones)
         )
 
-        for zone in heating_zones:
+        for zone in active_zones:
             try:
                 config = await self.coordinator.client.get_away_configuration(zone.id)
                 if "minimumAwayTemperature" in config:

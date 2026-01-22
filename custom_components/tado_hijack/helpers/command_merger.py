@@ -21,6 +21,9 @@ class CommandMerger:
         self.offsets: dict[str, float] = {}
         self.away_temps: dict[int, float] = {}
         self.dazzle_modes: dict[int, bool] = {}
+        self.early_starts: dict[int, bool] = {}
+        self.open_windows: dict[int, bool] = {}
+        self.identifies: set[str] = set()
         self.presence: str | None = None
         self.manual_poll: str | None = None
 
@@ -41,6 +44,12 @@ class CommandMerger:
             self._merge_away_temp(cmd)
         elif cmd.cmd_type == CommandType.SET_DAZZLE:
             self._merge_dazzle(cmd)
+        elif cmd.cmd_type == CommandType.SET_EARLY_START:
+            self._merge_early_start(cmd)
+        elif cmd.cmd_type == CommandType.SET_OPEN_WINDOW:
+            self._merge_open_window(cmd)
+        elif cmd.cmd_type == CommandType.IDENTIFY:
+            self._merge_identify(cmd)
         elif cmd.cmd_type == CommandType.SET_PRESENCE:
             self._merge_presence(cmd)
         elif cmd.cmd_type == CommandType.RESUME_SCHEDULE:
@@ -63,6 +72,18 @@ class CommandMerger:
     def _merge_dazzle(self, cmd: TadoCommand) -> None:
         if cmd.data and "zone_id" in cmd.data and "enabled" in cmd.data:
             self.dazzle_modes[int(cmd.data["zone_id"])] = bool(cmd.data["enabled"])
+
+    def _merge_early_start(self, cmd: TadoCommand) -> None:
+        if cmd.data and "zone_id" in cmd.data and "enabled" in cmd.data:
+            self.early_starts[int(cmd.data["zone_id"])] = bool(cmd.data["enabled"])
+
+    def _merge_open_window(self, cmd: TadoCommand) -> None:
+        if cmd.data and "zone_id" in cmd.data and "enabled" in cmd.data:
+            self.open_windows[int(cmd.data["zone_id"])] = bool(cmd.data["enabled"])
+
+    def _merge_identify(self, cmd: TadoCommand) -> None:
+        if cmd.data and "serial" in cmd.data:
+            self.identifies.add(str(cmd.data["serial"]))
 
     def _merge_presence(self, cmd: TadoCommand) -> None:
         if cmd.data and "presence" in cmd.data:
@@ -108,6 +129,9 @@ class CommandMerger:
             "offsets": self.offsets,
             "away_temps": self.away_temps,
             "dazzle_modes": self.dazzle_modes,
+            "early_starts": self.early_starts,
+            "open_windows": self.open_windows,
+            "identifies": self.identifies,
             "presence": self.presence,
             "manual_poll": self.manual_poll,
         }

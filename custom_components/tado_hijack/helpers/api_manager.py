@@ -143,6 +143,15 @@ class TadoApiManager:
         # Execute Dazzle Actions
         await self._execute_dazzle_actions(merged["dazzle_modes"])
 
+        # Execute Early Start Actions
+        await self._execute_early_start_actions(merged["early_starts"])
+
+        # Execute Open Window Actions
+        await self._execute_open_window_actions(merged["open_windows"])
+
+        # Execute Identify Actions
+        await self._execute_identify_actions(merged["identifies"])
+
         # Execute Zone Actions (Bulk)
         await self._execute_zone_actions(merged["zones"])
 
@@ -198,6 +207,43 @@ class TadoApiManager:
                 await self.coordinator.client.set_dazzle_mode(zone_id, enabled)
             except Exception as e:
                 _LOGGER.error("Failed to set dazzle mode for zone %d: %s", zone_id, e)
+
+    async def _execute_early_start_actions(self, actions: dict[int, bool]) -> None:
+        """Execute early start actions sequentially."""
+        for zone_id, enabled in actions.items():
+            _LOGGER.debug(
+                "Worker: Setting early start for zone %d to %s", zone_id, enabled
+            )
+            try:
+                await self.coordinator.client.set_early_start(zone_id, enabled)
+            except Exception as e:
+                _LOGGER.error("Failed to set early start for zone %d: %s", zone_id, e)
+
+    async def _execute_open_window_actions(self, actions: dict[int, bool]) -> None:
+        """Execute open window detection actions sequentially."""
+        for zone_id, enabled in actions.items():
+            _LOGGER.debug(
+                "Worker: Setting open window detection for zone %d to %s",
+                zone_id,
+                enabled,
+            )
+            try:
+                await self.coordinator.client.set_open_window_detection(
+                    zone_id, enabled
+                )
+            except Exception as e:
+                _LOGGER.error(
+                    "Failed to set open window detection for zone %d: %s", zone_id, e
+                )
+
+    async def _execute_identify_actions(self, actions: set[str]) -> None:
+        """Execute identify actions sequentially."""
+        for serial in actions:
+            _LOGGER.debug("Worker: Identifying device %s", serial)
+            try:
+                await self.coordinator.client.identify_device(serial)
+            except Exception as e:
+                _LOGGER.error("Failed to identify device %s: %s", serial, e)
 
     async def _execute_zone_actions(
         self, actions: dict[int, dict[str, Any] | None]
