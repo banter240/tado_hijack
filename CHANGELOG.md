@@ -1,3 +1,12 @@
+## [3.1.0-dev.9](https://github.com/banter240/tado_hijack/compare/v3.1.0-dev.8...v3.1.0-dev.9) (2026-01-23)
+
+### 🐛 Bug Fixes
+
+* fix(sensor): enable boiler load monitoring for hot water zones
+
+- fix(sensor): Enable 'heating_power' sensor for Hot Water zones to monitor Boiler Load/Modulation.
+- fix(sensor): Implement dynamic translation keys ('hot_water_power' vs 'heating_power') based on zone type.
+
 ## [3.1.0-dev.8](https://github.com/banter240/tado_hijack/compare/v3.1.0-dev.7...v3.1.0-dev.8) (2026-01-23)
 
 ### 🐛 Bug Fixes
