@@ -402,6 +402,16 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
         usable_remaining = max(0, remaining - throttle_threshold)
         remaining_budget = min(remaining_budget, usable_remaining)
 
+        _LOGGER.debug(
+            "Quota breakdown: Limit=%d, Throttle=%d, Target=%d, Used=%d, TotalLeft=%d, TurboBudget=%d",
+            limit,
+            throttle_threshold,
+            target_api_calls,
+            used_total_calls,
+            total_budget_left,
+            remaining_budget,
+        )
+
         if remaining_budget <= 0:
             # Budget exhausted - return to base interval or stop if base is 0
             if self._base_scan_interval <= 0:
@@ -425,7 +435,6 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
         predicted_cost = self.data_manager.predict_next_poll_cost()
 
         # How many polls of this predicted size can we afford?
-        # (If the next poll is huge, this number drops, and interval increases)
         remaining_polls = remaining_budget / predicted_cost
 
         if remaining_polls <= 0:
@@ -624,7 +633,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
 
     async def async_set_hot_water_power(self, zone_id: int, on: bool) -> None:
         """Set hot water power state."""
-        self.optimistic.set_zone(zone_id, not on)
+        self.optimistic.set_zone(zone_id, True, power="ON" if on else "OFF")
         self.async_update_listeners()
         self.api_manager.queue_command(
             f"zone_{zone_id}",
@@ -752,7 +761,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
         )
 
         # Optimistic Update
-        self.optimistic.set_zone(zone_id, optimistic_value)
+        self.optimistic.set_zone(zone_id, optimistic_value, power=power)
         self.async_update_listeners()
 
         # Queue Command
@@ -809,7 +818,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
 
         # 1. Trigger Optimistic Updates for all zones
         for zone_id in zone_ids:
-            self.optimistic.set_zone(zone_id, True)
+            self.optimistic.set_zone(zone_id, True, power=power)
         self.async_update_listeners()
 
         # 2. Queue Commands

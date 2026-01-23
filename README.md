@@ -55,6 +55,14 @@ While other integrations waste your precious API quota for every tiny click, Tad
 Almost no other integration does this: Tado Hijack automatically detects your existing HomeKit devices and **injects** the missing cloud-only power-features directly into them.
 You get the rock-solid local control of HomeKit combined with advanced cloud features in **one single unified device**.
 
+> [!IMPORTANT]
+> **Requirement:**
+> This integration is designed to work **alongside** the native HomeKit Device integration.
+> *   **HomeKit** provides the `climate` entity (Local Temperature Control & Current Temp).
+> *   **Tado Hijack** provides the rest (Schedules, Hot Water, AC Modes, Hardware Settings).
+>
+> **Without HomeKit, you will NOT have a climate entity to control heating temperatures.**
+
 > [!NOTE]
 > **No Redundancy:** Tado Hijack does **not** provide temperature control for regular heating valves (TRVs), as HomeKit already handles this perfectly. We focus on the "Missing Links": **Cloud-only features** (Hot Water, AC controls, and logical Zone Schedules) that HomeKit cannot see.
 
@@ -153,7 +161,7 @@ Not all API calls are created equal. Tado Hijack optimizes everything, but physi
 ### Physical Device Mapping
 Unlike other integrations that group everything by "Zone", Tado Hijack maps entities to their **physical devices** (Valves/Thermostats).
 *   **Matched via Serial Number:** Automatic injection into existing HomeKit devices.
-*   **No HomeKit?** We create clean, dedicated devices for each piece of hardware.
+*   **No HomeKit?** We create dedicated devices containing **only** the cloud features (Battery, Offset, Child Lock, etc.), but **no** temperature control.
 
 ### Robustness & Security
 *   **Custom Client Layer:** I extend the underlying library via inheritance to handle API communication reliably and fix common deserialization errors.

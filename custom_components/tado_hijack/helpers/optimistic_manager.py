@@ -23,9 +23,14 @@ class OptimisticManager:
         self.presence = presence
         self.presence_time = time.monotonic()
 
-    def set_zone(self, zone_id: int, overlay: bool | None) -> None:
+    def set_zone(
+        self, zone_id: int, overlay: bool | None, power: str | None = None
+    ) -> None:
         """Set optimistic zone overlay state."""
-        self.zones[zone_id] = {"overlay": overlay, "time": time.monotonic()}
+        data: dict[str, Any] = {"overlay": overlay, "time": time.monotonic()}
+        if power is not None:
+            data["power"] = power
+        self.zones[zone_id] = data
 
     def set_child_lock(self, serial_no: str, enabled: bool) -> None:
         """Set optimistic child lock state."""
@@ -77,6 +82,17 @@ class OptimisticManager:
         if (time.monotonic() - opt.get("time", 0)) < OPTIMISTIC_GRACE_PERIOD_S:
             val = opt.get("overlay")
             return cast("bool | None", val) if val is not None else None
+
+        return None
+
+    def get_zone_power(self, zone_id: int) -> str | None:
+        """Return optimistic zone power state if not expired."""
+        if zone_id not in self.zones:
+            return None
+
+        opt = self.zones[zone_id]
+        if (time.monotonic() - opt.get("time", 0)) < OPTIMISTIC_GRACE_PERIOD_S:
+            return cast("str | None", opt.get("power"))
 
         return None
 

@@ -11,7 +11,7 @@ from tadoasync.models import TemperatureOffset
 
 if TYPE_CHECKING:
     from ..coordinator import TadoDataUpdateCoordinator
-    from .client import TadoHijackClient  # Import for type casting
+    from .client import TadoHijackClient
 
 from ..const import CAPABILITY_INSIDE_TEMP, DOMAIN, TEMP_OFFSET_ATTR
 from .logging_utils import get_redacted_logger

@@ -212,9 +212,9 @@ class TadoHotWaterSwitch(TadoZoneEntity, TadoOptimisticSwitch):
 
     def _get_optimistic_value(self) -> bool | None:
         if (
-            opt := self.tado_coordinator.optimistic.get_zone_overlay(self._zone_id)
+            power := self.tado_coordinator.optimistic.get_zone_power(self._zone_id)
         ) is not None:
-            return not opt
+            return power == "ON"
 
         return None
 
