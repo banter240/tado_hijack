@@ -199,37 +199,39 @@ Tado's API limits are restrictive. That's why Tado Hijack uses a **Zero-Waste Po
 
 <br>
 
-### 📈 Auto API Quota
+### 📈 Auto API Quota (The Brain)
 
-Automatically distributes your API calls evenly throughout the day. Set a percentage of your **FREE** daily quota for status polling.
+Tado Hijack doesn't just guess. It uses a **Predictive Consumption Model** to distribute your API calls evenly throughout the day. 
 
-**How FREE quota is calculated:**
+*   **⚡ Real-Time Cost Measurement:** The system measures the *actual* cost of every polling cycle and uses a smoothed moving average to predict future consumption.
+*   **🕒 Dynamic Reset-Sync:** It calculates the exact seconds remaining until the next API reset (**12:01 CET**) and adjusts your polling interval on-the-fly.
+*   **📉 Adaptive Stretching:** If you consume more quota (e.g., through heavy manual interaction), the system automatically stretches the polling interval to ensure you never hit the hard wall before the reset. If quota is abundant, it speeds up for maximum responsiveness.
+
+<br>
+
+**How your "API Gold" is managed:**
 
 ```
-FREE = Daily Limit - Throttle Reserve - Battery Updates/Day - Offset Updates/Day
+FREE_QUOTA = Daily_Limit - Throttle_Reserve - (Predicted_Daily_Maintenance_Cost)
 ```
 
 <br>
 
-**Example Calculation:**
-
-| Setting | Value | Daily Cost |
-| :--- | :--- | :--- |
-| Daily API Limit | 5000 | - |
-| Throttle Reserve | 30 | -30 |
-| Battery Update (24h interval) | 2 calls × 1/day | -2 |
-| Offset Update (24h interval, 5 valves) | 5 calls × 1/day | -5 |
-| **FREE Quota** | **4963** | |
-| Auto Quota Setting | 50% | |
-| **Status Polls Budget** | **2481** | |
-| **Calculated Interval** | ~35 seconds | |
+**Example Adaptive Logic:**
+| Situation | Remaining Quota | Time to Reset | Resulting Interval |
+| :--- | :--- | :--- | :--- |
+| **Normal** | 3000 | 12h | **~45s** |
+| **Heavy Usage** | 500 | 8h | **~180s** (Auto-Stretch) |
+| **Emergency** | < Threshold | Any | **Throttled** (Polling Suspended) |
 
 <br>
 
 > [!NOTE]
-> The interval auto-adjusts dynamically based on remaining quota and time until reset (12:01 CET). If you consume more than expected, intervals slow down. If you use less, they speed up.
+> The internal math uses a 15-second safety floor and a 1-hour ceiling. It accounts for your custom `Auto API Quota %` setting to leave plenty of room for your own automations and manual "boosts".
 
 <br>
+
+---
 
 ### 🧠 Batching Capability Matrix
 
