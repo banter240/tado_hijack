@@ -205,7 +205,10 @@ Tado Hijack doesn't just guess. It uses a **Predictive Consumption Model** to di
 
 *   **⚡ Real-Time Cost Measurement:** The system measures the *actual* cost of every polling cycle and uses a smoothed moving average to predict future consumption.
 *   **🕒 Dynamic Reset-Sync:** It calculates the exact seconds remaining until the next API reset (**12:01 CET**) and adjusts your polling interval on-the-fly.
-*   **📉 Adaptive Stretching:** If you consume more quota (e.g., through heavy manual interaction), the system automatically stretches the polling interval to ensure you never hit the hard wall before the reset. If quota is abundant, it speeds up for maximum responsiveness.
+*   **📉 Hybrid Budget Strategy:** The system uses **two strategies** and picks the more generous one:
+    *   **Long-term:** Distribute your daily target evenly across the day
+    *   **Short-term:** Always keep polling with X% of currently remaining quota
+    *   This ensures the system **never stops polling** when quota runs low, while still respecting your daily budget when possible.
 
 <br>
 
@@ -213,6 +216,11 @@ Tado Hijack doesn't just guess. It uses a **Predictive Consumption Model** to di
 
 ```
 FREE_QUOTA = Daily_Limit - Throttle_Reserve - (Predicted_Daily_Maintenance_Cost)
+TARGET_BUDGET = FREE_QUOTA * Auto_API_Quota_%
+REMAINING_BUDGET = MAX(
+    TARGET_BUDGET - Used_Today,           # Long-term: Daily plan
+    (Remaining - Throttle_Reserve) * %    # Short-term: Always use X% of what's left
+)
 ```
 
 <br>
@@ -227,7 +235,7 @@ FREE_QUOTA = Daily_Limit - Throttle_Reserve - (Predicted_Daily_Maintenance_Cost)
 <br>
 
 > [!NOTE]
-> The internal math uses a 15-second safety floor and a 1-hour ceiling. It accounts for your custom `Auto API Quota %` setting to leave plenty of room for your own automations and manual "boosts".
+> The internal math uses a 15-second safety floor and a 1-hour ceiling. The **hybrid strategy** ensures polling continues even when you've exceeded your daily budget—it will always use X% of remaining quota as a fallback. This prevents self-throttling when quota is low (e.g., 100 calls remaining).
 
 <br>
 
@@ -306,7 +314,7 @@ Unlike other integrations that group everything by "Zone", Tado Hijack maps enti
 | Option | Default | Description |
 | :--- | :--- | :--- |
 | **Status Polling** | `60m` | Interval for heating state and presence. (2 API calls) |
-| **Auto API Quota** | `0%` (Off) | Use X% of FREE quota for status polls. |
+| **Auto API Quota** | `0%` (Off) | Target X% of FREE quota. Uses hybrid strategy: daily budget OR X% of remaining (whichever is higher). |
 | **Battery Update** | `24h` | Interval for battery and device metadata. (2 API calls) |
 | **Offset Update** | `0` (Off) | Interval for temperature offsets. (1 API call per valve) |
 | **Debounce Time** | `5s` | **Batching Window:** Fuses actions into single calls. |

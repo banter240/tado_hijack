@@ -391,24 +391,26 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
         # Total calls used so far today
         used_total_calls = max(0, limit - remaining)
 
-        # Total budget left for the rest of the day
-        total_budget_left = max(0, target_api_calls - used_total_calls)
+        # HYBRID STRATEGY: Use the more generous of two approaches
+        # Strategy A: Long-term daily budget planning
+        budget_from_target = max(0, target_api_calls - used_total_calls)
 
-        # Budget for fast polls = Total Budget Left
-        # (We trust the planner to account for expensive polls when they happen)
-        remaining_budget = max(0, total_budget_left)
-
-        # Safety: Double check against absolute remaining minus threshold
+        # Strategy B: Short-term remaining-based fallback
         usable_remaining = max(0, remaining - throttle_threshold)
-        remaining_budget = min(remaining_budget, usable_remaining)
+        budget_from_remaining = int(usable_remaining * self._auto_api_quota_percent / 100)
+
+        # Use MAX to ensure system continues polling even when over daily budget
+        # This prevents self-throttling when low on quota (e.g., 100 remaining)
+        remaining_budget = max(budget_from_target, budget_from_remaining)
 
         _LOGGER.debug(
-            "Quota breakdown: Limit=%d, Throttle=%d, Target=%d, Used=%d, TotalLeft=%d, TurboBudget=%d",
+            "Quota breakdown: Limit=%d, Throttle=%d, Target=%d, Used=%d, BudgetTarget=%d, BudgetRemaining=%d, FinalBudget=%d",
             limit,
             throttle_threshold,
             target_api_calls,
             used_total_calls,
-            total_budget_left,
+            budget_from_target,
+            budget_from_remaining,
             remaining_budget,
         )
 

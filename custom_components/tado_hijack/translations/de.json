@@ -40,7 +40,7 @@
         },
         "data_description": {
           "scan_interval": "Wie oft Anwesenheit und Heizstatus geprüft werden. Auf 0 setzen um periodisches Polling zu deaktivieren (nur manuell). 1800s (30m) wird empfohlen.",
-          "auto_api_quota_percent": "Nutze X% der FREIEN Tagesquota für Status-Polling (0 = deaktiviert). FREI = Limit - Throttle-Reserve - Batterie-Updates - Offset-Updates. Beispiel: 5000 Limit, 30 Throttle, 2 Batterie/Tag, 10 Offset/Tag → FREI = 4958, bei 50% = 2479 Status-Polls/Tag.",
+          "auto_api_quota_percent": "Nutze X% der FREIEN Tagesquota für Status-Polling (0 = deaktiviert). FREI = Limit - Throttle-Reserve - Batterie-Updates - Offset-Updates. Hybrid-Strategie: Nutzt MAX(Tagesbudget - Verbraucht, Verbleibend * X%) → System pollt IMMER weiter, auch wenn Tagesbudget überschritten.",
           "slow_poll_interval": "Wie oft Batterien und Gerätedaten geprüft werden. 24h wird dringend empfohlen. Kostet nur 2 API-Aufrufe insgesamt.",
           "offset_poll_interval": "Wie oft Temperatur-Offsets abgerufen werden. Kostet 1 API-Aufruf PRO VENTIL. Auf 0 setzen um zu deaktivieren (nur manuell).",
           "debounce_time": "Zeitfenster um schnelle Änderungen zu sammeln bevor sie gesendet werden. Standard 5s.",
@@ -75,7 +75,7 @@
         },
         "data_description": {
           "scan_interval": "Intervall für Anwesenheit und Heizstatus. Auf 0 setzen um periodisches Polling zu deaktivieren.",
-          "auto_api_quota_percent": "Nutze X% der FREIEN Tagesquota für Status-Polling (0 = deaktiviert). FREI = Limit - Throttle - Geplante Updates. Intervall passt sich automatisch bis 12:00 MEZ Reset an.",
+          "auto_api_quota_percent": "Nutze X% der FREIEN Tagesquota für Status-Polling (0 = deaktiviert). FREI = Limit - Throttle - Geplante Updates. Hybrid-Strategie verhindert Selbst-Drosselung bei wenig Quota. Intervall passt sich automatisch bis 12:00 MEZ Reset an.",
           "slow_poll_interval": "Intervall für Batterien und Metadaten. 24h ist meist völlig ausreichend.",
           "offset_poll_interval": "Intervall für Temperatur-Offsets. Kostet 1 API-Aufruf PRO VENTIL. 0 = deaktiviert.",
           "debounce_time": "Zeitfenster um schnelle Änderungen zu sammeln bevor sie gesendet werden. Standard 5s.",
