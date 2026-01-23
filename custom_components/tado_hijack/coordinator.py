@@ -30,7 +30,6 @@ if TYPE_CHECKING:
     from .helpers.client import TadoHijackClient
 
 from .const import (
-    API_CALLS_PER_FAST_POLL,
     API_RESET_BUFFER_MINUTES,
     API_RESET_HOUR,
     BOOST_MODE_TEMP,
@@ -291,6 +290,10 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
     def _calculate_auto_quota_interval(self) -> int | None:
         """Calculate optimal polling interval based on quota settings.
 
+        Respects throttle threshold - if enabled and remaining calls drop below
+        threshold, polling is disabled or slowed significantly regardless of
+        auto quota settings.
+
         Returns:
             Interval in seconds, or None if auto quota is disabled
         """
@@ -303,6 +306,27 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
         if limit <= 0:
             _LOGGER.warning("Auto quota: API limit is 0, cannot calculate interval")
             return None
+
+        # Check throttle threshold - this takes priority over auto quota
+        if self.rate_limit.is_throttled:
+            if self._disable_polling_when_throttled:
+                # Polling disabled when throttled - return very long interval
+                _LOGGER.warning(
+                    "Auto quota: Throttled (remaining=%d < threshold=%d) and "
+                    "disable_polling_when_throttled=True. Stopping polling.",
+                    remaining,
+                    self.rate_limit.throttle_threshold,
+                )
+                return 86400  # 24 hours - effectively disabled
+            else:
+                # Throttled but polling still allowed - slow down significantly
+                _LOGGER.warning(
+                    "Auto quota: Throttled (remaining=%d < threshold=%d). "
+                    "Slowing to 1h intervals to preserve remaining calls.",
+                    remaining,
+                    self.rate_limit.throttle_threshold,
+                )
+                return 3600  # 1 hour
 
         # Calculate time until next reset
         next_reset = self._get_next_reset_time()
@@ -318,26 +342,40 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
         # Calculate remaining API calls we want to make
         remaining_api_calls = max(0, target_api_calls - used_api_calls)
 
+        # Reserve throttle threshold calls if configured
+        if self.rate_limit.throttle_threshold > 0:
+            # Don't plan to use calls that would put us below threshold
+            usable_remaining = remaining - self.rate_limit.throttle_threshold
+            remaining_api_calls = min(remaining_api_calls, max(0, usable_remaining))
+
         if remaining_api_calls <= 0:
-            # Quota target reached - slow down significantly
+            # Quota target reached or would hit throttle threshold
             new_interval = max(3600, int(seconds_until_reset))
             _LOGGER.info(
-                "Auto quota: Target reached (%d%% of %d = %d API calls). "
+                "Auto quota: Target reached or throttle protection active "
+                "(target=%d%% of %d = %d API calls, remaining=%d, threshold=%d). "
                 "Slowing to %ds until reset",
                 self._auto_api_quota_percent,
                 limit,
                 target_api_calls,
+                remaining,
+                self.rate_limit.throttle_threshold,
                 new_interval,
             )
             return new_interval
 
-        # Each poll costs API_CALLS_PER_FAST_POLL (get_home_state + get_zone_states)
-        remaining_polls = remaining_api_calls // API_CALLS_PER_FAST_POLL
+        # Get dynamic API cost per poll from data manager
+        api_cost_per_poll = self.data_manager.get_fast_poll_api_cost()
+
+        # Calculate how many polls we can do with remaining calls
+        remaining_polls = remaining_api_calls // api_cost_per_poll
 
         if remaining_polls <= 0:
             _LOGGER.warning(
-                "Auto quota: Insufficient API calls for even one poll. "
-                "Slowing to 1h intervals"
+                "Auto quota: Insufficient API calls for even one poll "
+                "(need %d per poll, have %d usable). Slowing to 1h intervals",
+                api_cost_per_poll,
+                remaining_api_calls,
             )
             return 3600
 
@@ -349,14 +387,17 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
 
         _LOGGER.info(
             "Auto quota: Interval=%ds (target=%d%% → %d API calls → %d polls, "
-            "used=%d API calls, remaining=%d API calls → %d polls, reset in %.1fh)",
+            "cost=%d per poll, used=%d API calls, remaining=%d API calls → %d polls, "
+            "threshold=%d, reset in %.1fh)",
             bounded_interval,
             self._auto_api_quota_percent,
             target_api_calls,
-            target_api_calls // API_CALLS_PER_FAST_POLL,
+            target_api_calls // api_cost_per_poll,
+            api_cost_per_poll,
             used_api_calls,
             remaining_api_calls,
             remaining_polls,
+            self.rate_limit.throttle_threshold,
             seconds_until_reset / 3600,
         )
 

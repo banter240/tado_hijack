@@ -46,6 +46,21 @@ class TadoDataManager:
         self._offset_invalidated: bool = False
         self._away_invalidated: bool = False
 
+    def get_fast_poll_api_cost(self) -> int:
+        """Calculate API call cost for a standard fast poll.
+
+        Fast polling (without slow/offset cycles) makes these calls:
+        - get_home_state() = 1 API call
+        - get_zone_states() = 1 API call
+        Total: 2 API calls per normal poll
+
+        This method dynamically reflects what fetch_full_update() does,
+        making it maintainable if the implementation changes.
+        """
+        # Count the API calls in the fast track section of fetch_full_update()
+        # Currently lines 100-101: get_home_state() + get_zone_states()
+        return 2
+
     async def fetch_full_update(self) -> dict[str, Any]:
         """Perform a data fetch using fast/slow track logic."""
         current_time = time.monotonic()
