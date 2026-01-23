@@ -49,7 +49,10 @@ async def async_setup_services(
         await coordinator.async_boost_all_zones()
 
     async def handle_set_timer(call: ServiceCall) -> None:
-        """Service to set a manual overlay with duration (batched)."""
+        """Service to set a manual overlay with duration (batched).
+
+        Supports both duration (minutes) and time_period (HH:MM:SS) formats.
+        """
         entity_ids = call.data.get("entity_id")
         if not entity_ids:
             return
@@ -57,9 +60,52 @@ async def async_setup_services(
         if isinstance(entity_ids, str):
             entity_ids = [entity_ids]
 
-        duration = int(call.data.get("duration", 30))
+        # Parse duration: Support both 'duration' (int, minutes) and 'time_period' (str, HH:MM:SS)
+        duration_minutes: int | None = None
+        if time_period := call.data.get("time_period"):
+            # Parse HH:MM:SS format
+            try:
+                parts = time_period.split(":")
+                if len(parts) == 3:
+                    hours, minutes, seconds = map(int, parts)
+                    duration_minutes = hours * 60 + minutes + (seconds // 60)
+                elif len(parts) == 2:
+                    hours, minutes = map(int, parts)
+                    duration_minutes = hours * 60 + minutes
+                else:
+                    _LOGGER.warning(
+                        "Invalid time_period format: %s (expected HH:MM:SS)",
+                        time_period,
+                    )
+                    duration_minutes = 30
+            except (ValueError, AttributeError):
+                _LOGGER.warning(
+                    "Failed to parse time_period: %s, using default 30min", time_period
+                )
+                duration_minutes = 30
+        elif duration := call.data.get("duration"):
+            # Fallback to 'duration' for backwards compatibility
+            duration_minutes = int(duration)
+        else:
+            # Neither provided, use default
+            duration_minutes = 30
+
         power = call.data.get("power", "ON")
         temperature = call.data.get("temperature")
+        overlay = call.data.get(
+            "overlay"
+        )  # "manual", "timer", or "auto" (next_time_block)
+
+        # Resolve overlay_mode
+        overlay_mode = None
+        if overlay in ["next_time_block", "auto"]:
+            overlay_mode = "auto"
+        elif overlay == "presence":
+            overlay_mode = "presence"
+        elif overlay == "timer" or duration_minutes:
+            overlay_mode = "timer"
+        elif overlay == "manual":
+            overlay_mode = "manual"
 
         # Resolve all zone IDs first
         zone_ids: list[int] = []
@@ -73,12 +119,35 @@ async def async_setup_services(
             return
 
         # Batch operation - The coordinator and ApiManager handle the fusion
-        await coordinator.async_set_multiple_zone_overlays(
-            zone_ids=zone_ids,
-            power=power,
-            temperature=temperature,
-            duration=duration,
-        )
+        if temperature is not None:
+            # We iterate and cap temperature per zone type to prevent 80C on thermostats
+            for zone_id in zone_ids:
+                zone = coordinator.zones_meta.get(zone_id)
+                zone_type = getattr(zone, "type", "HEATING") if zone else "HEATING"
+
+                capped_temp = float(temperature)
+                if zone_type == "HEATING":
+                    capped_temp = min(capped_temp, 25.0)
+                elif zone_type == "AIR_CONDITIONING":
+                    capped_temp = min(capped_temp, 30.0)
+                elif zone_type == "HOT_WATER":
+                    capped_temp = min(capped_temp, 80.0)
+
+                await coordinator.async_set_multiple_zone_overlays(
+                    zone_ids=[zone_id],
+                    power=power,
+                    temperature=capped_temp,
+                    duration=duration_minutes,
+                    overlay_mode=overlay_mode,
+                )
+        else:
+            await coordinator.async_set_multiple_zone_overlays(
+                zone_ids=zone_ids,
+                power=power,
+                temperature=None,
+                duration=duration_minutes,
+                overlay_mode=overlay_mode,
+            )
 
     hass.services.async_register(DOMAIN, SERVICE_MANUAL_POLL, handle_manual_poll)
     hass.services.async_register(

@@ -22,7 +22,7 @@ boost_all_zones:
   description: "Boost all heating zones to 25°C."
 
 set_timer:
-  description: "Set a manual overlay with a timer duration."
+  description: "Set a manual overlay with a timer duration or auto-return to schedule."
   fields:
     entity_id:
       description: "Any Tado Hijack zone entity (e.g. switch.hot_water_power or climate.living_room)."
@@ -31,13 +31,25 @@ set_timer:
         entity:
           integration: tado_hijack
     duration:
-      description: "Duration in minutes after which the timer ends."
-      required: true
+      description: "Duration in minutes after which the timer ends (alternative to time_period)."
       selector:
         number:
           min: 1
-          max: 720
+          max: 1440
           unit_of_measurement: "min"
+    time_period:
+      description: "Duration in HH:MM:SS format (alternative to duration). Example: '01:30:00' for 90 minutes."
+      selector:
+        text:
+    overlay:
+      description: "Termination mode: 'manual' (indefinite), 'timer' (with duration), 'auto' (return to schedule at next time block), or 'presence' (until presence change)."
+      selector:
+        select:
+          options:
+            - "manual"
+            - "timer"
+            - "auto"
+            - "presence"
     power:
       description: "Power state during timer (ON/OFF)."
       default: "ON"
@@ -47,10 +59,10 @@ set_timer:
             - "ON"
             - "OFF"
     temperature:
-      description: "Target temperature (optional, for Heating/AC)."
+      description: "Target temperature (optional, for Heating/AC/Hot Water)."
       selector:
         number:
           min: 5
-          max: 30
+          max: 80
           step: 0.1
           unit_of_measurement: "°C"

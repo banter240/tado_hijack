@@ -1,92 +1,4 @@
 {
-  "config": {
-    "progress": {
-      "wait_for_device": "To authenticate, open the following URL and login at Tado:\n{url}\nIf the code is not automatically copied, paste the following code to authorize the integration:\n\n```{code}```\n\n\nThe login attempt will time out after five minutes."
-    },
-    "abort": {
-      "already_configured": "Account is already configured.",
-      "could_not_authenticate": "Could not authenticate with Tado.",
-      "no_homes": "There are no homes linked to this Tado account.",
-      "cannot_connect": "Failed to connect.",
-      "reauth_successful": "Re-authentication was successful.",
-      "reconfigure_successful": "Re-configuration was successful.",
-      "reauth_account_mismatch": "The Tado account used does not match the existing integration."
-    },
-    "step": {
-      "user": {
-        "title": "Link Tado Hijack"
-      },
-      "reauth_confirm": {
-        "title": "Re-authenticate Tado Hijack",
-        "description": "Your Tado session has expired or the token is invalid. Click SUBMIT to start the re-authentication process."
-      },
-      "timeout": {
-        "title": "Activation Timeout",
-        "description": "Authentication timed out. This often happens when the Tado API rate limit is exhausted. The limit resets daily at 12:00 CET. Click SUBMIT to try again."
-      },
-      "config": {
-        "title": "Tado Hijack Configuration",
-        "description": "Choose the data update intervals and throttle settings.",
-        "data": {
-          "scan_interval": "Fast Polling Interval (Seconds)",
-          "auto_api_quota_percent": "Auto API Quota (%)",
-          "slow_poll_interval": "Battery Update Interval (Hours)",
-          "offset_poll_interval": "Offset Update Interval (Hours)",
-          "debounce_time": "Debounce Time (Seconds)",
-          "throttle_threshold": "Throttle Threshold",
-          "disable_polling_when_throttled": "Disable Polling When Throttled",
-          "api_proxy_url": "API Proxy URL (Optional)",
-          "debug_logging": "Enable Debug Logging"
-        },
-        "data_description": {
-          "scan_interval": "How often to check Home/Away and HVAC state. Set to 0 to disable periodic polling (manual only). 1800s (30m) is recommended.",
-          "auto_api_quota_percent": "Use X% of FREE daily quota for status polling (0 = disabled). FREE = Limit - Throttle Reserve - Battery Updates - Offset Updates. Example: 5000 limit, 30 throttle, 2 battery/day, 10 offset/day → FREE = 4958, at 50% = 2479 status polls/day.",
-          "slow_poll_interval": "How often to check batteries and device info. 24h is highly recommended. Costs only 2 API calls total.",
-          "offset_poll_interval": "How often to fetch temperature offsets. Costs 1 API call PER VALVE. Set to 0 to disable (manual poll only).",
-          "debounce_time": "Time window to collect rapid changes before sending to API. Default 5s.",
-          "throttle_threshold": "Skip confirmation API calls when remaining quota drops below this value. Set to 0 to disable throttling.",
-          "disable_polling_when_throttled": "Stop periodic polling entirely when in throttled mode.",
-          "api_proxy_url": "Advanced: URL of a local tado-api-proxy instance (e.g. http://192.168.1.5:8080). Enables bypassing rate limits. Repo: https://github.com/s1adem4n/tado-api-proxy",
-          "debug_logging": "Enable verbose debug logging for troubleshooting. WARNING: This will generate large log files."
-        }
-      }
-    },
-    "error": {
-      "cannot_connect": "Failed to connect to Tado.",
-      "invalid_auth": "Invalid authentication.",
-      "activation_failed": "Authentication failed. Please try again.",
-      "unknown": "An unknown error occurred."
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Tado Hijack Options",
-        "data": {
-          "scan_interval": "Update Interval (Seconds)",
-          "auto_api_quota_percent": "Auto API Quota (%)",
-          "slow_poll_interval": "Battery Update Interval (Hours)",
-          "offset_poll_interval": "Offset Update Interval (Hours)",
-          "debounce_time": "Debounce Time (Seconds)",
-          "throttle_threshold": "Throttle Threshold",
-          "disable_polling_when_throttled": "Disable Polling When Throttled",
-          "api_proxy_url": "API Proxy URL (Optional)",
-          "debug_logging": "Enable Debug Logging"
-        },
-        "data_description": {
-          "scan_interval": "Interval for presence and heating state. Set to 0 to disable periodic polling.",
-          "auto_api_quota_percent": "Use X% of FREE daily quota for status polling (0 = disabled). FREE = Limit - Throttle - Scheduled Updates. Interval auto-adjusts until 12:00 CET reset.",
-          "slow_poll_interval": "Interval for battery and metadata. 24h is sufficient.",
-          "offset_poll_interval": "Interval for temperature offsets. Costs 1 API call PER VALVE. 0 = disabled.",
-          "debounce_time": "Time window to collect rapid changes before sending to API. Default 5s.",
-          "throttle_threshold": "Skip confirmation API calls when remaining quota drops below this value. 0 = disabled.",
-          "disable_polling_when_throttled": "Stop periodic polling when throttled.",
-          "api_proxy_url": "Advanced: URL of a local tado-api-proxy instance. Repo: https://github.com/s1adem4n/tado-api-proxy",
-          "debug_logging": "Enable verbose debug logging. WARNING: Generates large log files."
-        }
-      }
-    }
-  },
   "entity": {
     "sensor": {
       "api_limit": {
@@ -213,6 +125,108 @@
           "auto": "Auto"
         }
       }
+    },
+    "climate": {
+      "hot_water": {
+        "name": "Hot Water",
+        "state_attributes": {
+          "hvac_mode": {
+            "state": {
+              "auto": "Schedule",
+              "heat": "Manual",
+              "off": "Off"
+            }
+          }
+        }
+      }
+    }
+  },
+  "config": {
+    "progress": {
+      "wait_for_device": "To authenticate, open the following URL and login at Tado:\n{url}\nIf the code is not automatically copied, paste the following code to authorize the integration:\n\n```{code}```\n\n\nThe login attempt will time out after five minutes."
+    },
+    "abort": {
+      "already_configured": "Account is already configured.",
+      "could_not_authenticate": "Could not authenticate with Tado.",
+      "no_homes": "There are no homes linked to this Tado account.",
+      "cannot_connect": "Failed to connect.",
+      "reauth_successful": "Re-authentication was successful.",
+      "reconfigure_successful": "Re-configuration was successful.",
+      "reauth_account_mismatch": "The Tado account used does not match the existing integration."
+    },
+    "step": {
+      "user": {
+        "title": "Link Tado Hijack"
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate Tado Hijack",
+        "description": "Your Tado session has expired or the token is invalid. Click SUBMIT to start the re-authentication process."
+      },
+      "timeout": {
+        "title": "Activation Timeout",
+        "description": "Authentication timed out. This often happens when the Tado API rate limit is exhausted. The limit resets daily at 12:00 CET. Click SUBMIT to try again."
+      },
+      "config": {
+        "title": "Tado Hijack Configuration",
+        "description": "Choose the data update intervals and throttle settings.",
+        "data": {
+          "scan_interval": "Fast Polling Interval (Seconds)",
+          "auto_api_quota_percent": "Auto API Quota (%)",
+          "slow_poll_interval": "Battery Update Interval (Hours)",
+          "offset_poll_interval": "Offset Update Interval (Hours)",
+          "debounce_time": "Debounce Time (Seconds)",
+          "throttle_threshold": "Throttle Threshold",
+          "disable_polling_when_throttled": "Disable Polling When Throttled",
+          "api_proxy_url": "API Proxy URL (Optional)",
+          "debug_logging": "Enable Debug Logging"
+        },
+        "data_description": {
+          "scan_interval": "How often to check Home/Away and HVAC state. Set to 0 to disable periodic polling (manual only). 1800s (30m) is recommended.",
+          "auto_api_quota_percent": "Use X% of FREE daily quota for status polling (0 = disabled). FREE = Limit - Throttle Reserve - Battery Updates - Offset Updates. Hybrid strategy: Uses MAX(Daily Budget - Used, Remaining * X%) → System ALWAYS continues polling even when over daily budget.",
+          "slow_poll_interval": "How often to check batteries and device info. 24h is highly recommended. Costs only 2 API calls total.",
+          "offset_poll_interval": "How often to fetch temperature offsets. Costs 1 API call PER VALVE. Set to 0 to disable (manual poll only).",
+          "debounce_time": "Time window to collect rapid changes before sending to API. Default 5s.",
+          "throttle_threshold": "Skip confirmation API calls when remaining quota drops below this value. Set to 0 to disable throttling.",
+          "disable_polling_when_throttled": "Stop periodic polling entirely when in throttled mode.",
+          "api_proxy_url": "Advanced: URL of a local tado-api-proxy instance (e.g. http://192.168.1.5:8080). Enables bypassing rate limits. Repo: https://github.com/s1adem4n/tado-api-proxy",
+          "debug_logging": "Enable verbose debug logging for troubleshooting. WARNING: This will generate large log files."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to Tado.",
+      "invalid_auth": "Invalid authentication.",
+      "activation_failed": "Authentication failed. Please try again.",
+      "unknown": "An unknown error occurred."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Tado Hijack Options",
+        "data": {
+          "scan_interval": "Update Interval (Seconds)",
+          "auto_api_quota_percent": "Auto API Quota (%)",
+          "slow_poll_interval": "Battery Update Interval (Hours)",
+          "offset_poll_interval": "Offset Update Interval (Hours)",
+          "debounce_time": "Debounce Time (Seconds)",
+          "throttle_threshold": "Throttle Threshold",
+          "disable_polling_when_throttled": "Disable Polling When Throttled",
+          "api_proxy_url": "API Proxy URL (Optional)",
+          "debug_logging": "Enable Debug Logging"
+        },
+        "data_description": {
+          "scan_interval": "Interval for presence and heating state. Set to 0 to disable periodic polling.",
+          "auto_api_quota_percent": "Use X% of FREE daily quota for status polling (0 = disabled). FREE = Limit - Throttle - Scheduled Updates. Hybrid strategy prevents self-throttling when quota is low. Interval auto-adjusts until 12:00 CET reset.",
+          "slow_poll_interval": "Interval for battery and metadata. 24h is sufficient.",
+          "offset_poll_interval": "Interval for temperature offsets. Costs 1 API call PER VALVE. 0 = disabled.",
+          "debounce_time": "Time window to collect rapid changes before sending to API. Default 5s.",
+          "throttle_threshold": "Skip confirmation API calls when remaining quota drops below this value. 0 = disabled.",
+          "disable_polling_when_throttled": "Stop periodic polling when throttled.",
+          "api_proxy_url": "Advanced: URL of a local tado-api-proxy instance. Repo: https://github.com/s1adem4n/tado-api-proxy",
+          "debug_logging": "Enable verbose debug logging. WARNING: Generates large log files."
+        }
+      }
     }
   },
   "services": {
@@ -234,15 +248,23 @@
     },
     "set_timer": {
       "name": "Set Timer",
-      "description": "Set a manual overlay with a duration (timer) for a zone.",
+      "description": "Set a manual overlay with timer duration or auto-return to schedule.",
       "fields": {
         "entity_id": {
           "name": "Entity",
           "description": "Any zone entity from Tado Hijack."
         },
         "duration": {
-          "name": "Duration",
-          "description": "Duration in minutes."
+          "name": "Duration (Minutes)",
+          "description": "Duration in minutes (alternative to time_period)."
+        },
+        "time_period": {
+          "name": "Time Period (HH:MM:SS)",
+          "description": "Duration in HH:MM:SS format (alternative to duration). Example: '01:30:00' for 90 minutes."
+        },
+        "overlay": {
+          "name": "Overlay Mode",
+          "description": "Termination mode: 'manual' (indefinite), 'timer' (with duration), 'auto' (return to next schedule block), or 'presence' (until presence change)."
         },
         "power": {
           "name": "Power",

@@ -149,15 +149,30 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
             if isinstance(entity_ids, str):
                 entity_ids = [entity_ids]
 
+            # Check if this is AUTO mode (resume schedule)
+            hvac_mode = service_data.get("hvac_mode")
+            is_auto_mode = hvac_mode == "auto"
+
             for eid in entity_ids:
                 if zone_id := self._climate_to_zone.get(eid):
-                    _LOGGER.debug(
-                        "Intercepted climate change on %s. Setting optimistic MANUAL for zone %d.",
-                        eid,
-                        zone_id,
-                    )
-                    self.optimistic.set_zone(zone_id, True)
-                    self.async_update_listeners()
+                    if is_auto_mode:
+                        # AUTO mode = Resume Schedule
+                        _LOGGER.debug(
+                            "Intercepted AUTO mode on HomeKit climate %s. Resuming schedule for zone %d.",
+                            eid,
+                            zone_id,
+                        )
+                        # Schedule resume (async call handled by coordinator)
+                        self.hass.async_create_task(self.async_resume_schedule(zone_id))
+                    else:
+                        # Normal temp change or other HVAC mode = Manual override
+                        _LOGGER.debug(
+                            "Intercepted climate change on %s. Setting optimistic MANUAL for zone %d.",
+                            eid,
+                            zone_id,
+                        )
+                        self.optimistic.set_zone(zone_id, True)
+                        self.async_update_listeners()
 
         self._unsub_listener = self.hass.bus.async_listen(
             EVENT_CALL_SERVICE, _handle_service_call
@@ -391,24 +406,28 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
         # Total calls used so far today
         used_total_calls = max(0, limit - remaining)
 
-        # Total budget left for the rest of the day
-        total_budget_left = max(0, target_api_calls - used_total_calls)
+        # HYBRID STRATEGY: Use the more generous of two approaches
+        # Strategy A: Long-term daily budget planning
+        budget_from_target = max(0, target_api_calls - used_total_calls)
 
-        # Budget for fast polls = Total Budget Left
-        # (We trust the planner to account for expensive polls when they happen)
-        remaining_budget = max(0, total_budget_left)
-
-        # Safety: Double check against absolute remaining minus threshold
+        # Strategy B: Short-term remaining-based fallback
         usable_remaining = max(0, remaining - throttle_threshold)
-        remaining_budget = min(remaining_budget, usable_remaining)
+        budget_from_remaining = int(
+            usable_remaining * self._auto_api_quota_percent / 100
+        )
+
+        # Use MAX to ensure system continues polling even when over daily budget
+        # This prevents self-throttling when low on quota (e.g., 100 remaining)
+        remaining_budget = max(budget_from_target, budget_from_remaining)
 
         _LOGGER.debug(
-            "Quota breakdown: Limit=%d, Throttle=%d, Target=%d, Used=%d, TotalLeft=%d, TurboBudget=%d",
+            "Quota breakdown: Limit=%d, Throttle=%d, Target=%d, Used=%d, BudgetTarget=%d, BudgetRemaining=%d, FinalBudget=%d",
             limit,
             throttle_threshold,
             target_api_calls,
             used_total_calls,
-            total_budget_left,
+            budget_from_target,
+            budget_from_remaining,
             remaining_budget,
         )
 
@@ -785,20 +804,42 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
         temperature: float | None = None,
         duration: int | None = None,
         overlay_type: str | None = None,
+        overlay_mode: str | None = None,
     ) -> dict[str, Any]:
-        """Build the overlay data dictionary (DRY helper)."""
+        """Build the overlay data dictionary (DRY helper).
+
+        Args:
+            zone_id: Zone ID
+            power: Power state (ON/OFF)
+            temperature: Target temperature (optional)
+            duration: Duration in minutes (optional)
+            overlay_type: Zone type (HEATING/AIR_CONDITIONING/HOT_WATER)
+            overlay_mode: Termination mode - "manual", "timer", or "auto" (next_time_block)
+
+        """
         # 1. Determine Type
         if not overlay_type:
             zone = self.zones_meta.get(zone_id)
             overlay_type = getattr(zone, "type", "HEATING") if zone else "HEATING"
 
         # 2. Build Termination
-        termination: dict[str, Any] = {"typeSkillBasedApp": "MANUAL"}
-        if duration:
+        # Priority: overlay_mode > duration > default (MANUAL)
+        if overlay_mode == "auto":
+            # Auto-return to schedule at next time block
+            termination: dict[str, Any] = {"type": "NEXT_TIME_BLOCK"}
+        elif overlay_mode == "presence":
+            # While in current Presence Mode (indefinite until presence change or manual change)
+            termination = {"type": "TADO_MODE"}
+        elif overlay_mode == "timer" or duration:
+            # Timer with specific duration
+            duration_seconds = duration * 60 if duration else 1800  # Default 30min
             termination = {
                 "typeSkillBasedApp": "TIMER",
-                "durationInSeconds": duration * 60,
+                "durationInSeconds": duration_seconds,
             }
+        else:
+            # Manual (indefinite until user changes)
+            termination = {"typeSkillBasedApp": "MANUAL"}
 
         # 3. Build Setting
         setting: dict[str, Any] = {"type": overlay_type, "power": power}
@@ -813,12 +854,26 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
         power: str = "ON",
         temperature: float | None = None,
         duration: int | None = None,
+        overlay_mode: str | None = None,
     ) -> None:
-        """Set manual overlays for multiple zones in a single batched process."""
+        """Set manual overlays for multiple zones in a single batched process.
+
+        Args:
+            zone_ids: List of zone IDs to set
+            power: Power state (ON/OFF)
+            temperature: Target temperature (optional)
+            duration: Duration in minutes (optional)
+            overlay_mode: "manual", "timer", or "auto" (next_time_block)
+
+        """
         if not zone_ids:
             return
 
-        _LOGGER.debug("Batched set_timer requested for zones: %s", zone_ids)
+        _LOGGER.debug(
+            "Batched set_timer requested for zones: %s (mode: %s)",
+            zone_ids,
+            overlay_mode or "default",
+        )
 
         # 1. Trigger Optimistic Updates for all zones
         for zone_id in zone_ids:
@@ -834,6 +889,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
                 power=power,
                 temperature=temperature,
                 duration=duration,
+                overlay_mode=overlay_mode,
             )
             self.api_manager.queue_command(
                 f"zone_{zone_id}",
