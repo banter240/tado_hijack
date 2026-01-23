@@ -1,3 +1,14 @@
+## [3.1.0-dev.4](https://github.com/banter240/tado_hijack/compare/v3.1.0-dev.3...v3.1.0-dev.4) (2026-01-23)
+
+### 🐛 Bug Fixes
+
+* fix(entity): use compact Internet Bridge entity IDs
+
+- Device name: tado Internet Bridge {serial_no} (matches HomeKit)
+- Home entities: tado_{home_slug}_{key}
+- Bridge connection: tado_ib_{home_slug}_cloud_connection
+- Debug logging level configuration restored
+
 ## [3.1.0-dev.3](https://github.com/banter240/tado_hijack/compare/v3.1.0-dev.2...v3.1.0-dev.3) (2026-01-22)
 
 ### ✨ New Features
