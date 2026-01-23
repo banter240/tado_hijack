@@ -44,6 +44,11 @@ BATCH_LINGER_S: Final = 1.0  # Time to wait for more commands in batch
 INITIAL_RATE_LIMIT_GUESS: Final = 100  # Pessimistic initial guess
 SLOW_POLL_CYCLE_S: Final = 86400  # 24 Hours in seconds
 
+# Auto API Quota
+API_RESET_HOUR: Final = 12  # Hour when Tado resets API quota (CET/CEST)
+API_RESET_BUFFER_MINUTES: Final = 5  # Buffer after reset to ensure fresh data
+API_CALLS_PER_FAST_POLL: Final = 2  # get_home_state() + get_zone_states()
+
 # Service Names
 SERVICE_MANUAL_POLL = "manual_poll"
 SERVICE_RESUME_ALL_SCHEDULES = "resume_all_schedules"
