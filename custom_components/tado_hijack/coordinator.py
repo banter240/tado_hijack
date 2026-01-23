@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, cast
+from zoneinfo import ZoneInfo
 
 from homeassistant.core import (
     CALLBACK_TYPE,
@@ -29,12 +30,16 @@ if TYPE_CHECKING:
     from .helpers.client import TadoHijackClient
 
 from .const import (
+    API_RESET_BUFFER_MINUTES,
+    API_RESET_HOUR,
     BOOST_MODE_TEMP,
+    CONF_AUTO_API_QUOTA_PERCENT,
     CONF_DEBOUNCE_TIME,
     CONF_DISABLE_POLLING_WHEN_THROTTLED,
     CONF_OFFSET_POLL_INTERVAL,
     CONF_SLOW_POLL_INTERVAL,
     CONF_THROTTLE_THRESHOLD,
+    DEFAULT_AUTO_API_QUOTA_PERCENT,
     DEFAULT_DEBOUNCE_TIME,
     DEFAULT_OFFSET_POLL_INTERVAL,
     DEFAULT_SLOW_POLL_INTERVAL,
@@ -88,6 +93,10 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
         self._debounce_time = int(
             entry.data.get(CONF_DEBOUNCE_TIME, DEFAULT_DEBOUNCE_TIME)
         )
+        self._auto_api_quota_percent = int(
+            entry.data.get(CONF_AUTO_API_QUOTA_PERCENT, DEFAULT_AUTO_API_QUOTA_PERCENT)
+        )
+        self._base_scan_interval = scan_interval  # Store original interval
 
         self.rate_limit = RateLimitManager(throttle_threshold, get_handler())
         self.auth_manager = AuthManager(hass, entry, client)
@@ -108,9 +117,12 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
         self.bridges: list[Device] = []
         self._climate_to_zone: dict[str, int] = {}
         self._unsub_listener: CALLBACK_TYPE | None = None
+        self._reset_poll_unsub: CALLBACK_TYPE | None = None
+        self._force_next_update: bool = False
 
         self.api_manager.start(entry)
         self._setup_event_listener()
+        self._schedule_reset_poll()
 
     def _setup_event_listener(self) -> None:
         """Listen for climate service calls to trigger optimistic updates."""
@@ -181,15 +193,27 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
         return None
 
     def _parse_zone_id_from_unique_id(self, unique_id: str) -> int | None:
-        """Extract zone ID from unique_id with support for multiple formats."""
+        """Extract zone ID from unique_id with support for multiple formats.
+
+        Supported formats:
+        - {entry_id}_hw_{zone_id}     (hot water switch)
+        - {entry_id}_sch_{zone_id}    (schedule switch)
+        - {entry_id}_.._{zone_id}     (any suffix ending in zone_id)
+        - zone_{zone_id}_...          (zone entities like target_temp)
+        """
         try:
             parts = unique_id.split("_")
-            # Pattern: {entry_id}_..._{zone_id}
+
+            # Pattern 1: Ends with zone_id (e.g., entry_hw_5, entry_sch_5)
             if parts[-1].isdigit():
                 return int(parts[-1])
-            # Pattern: zone_{zone_id}
-            if len(parts) >= 2 and parts[-2] == "zone" and parts[-1].isdigit():
-                return int(parts[-1])
+
+            # Pattern 2: zone_{id}_suffix (e.g., zone_5_target_temp)
+            # Find "zone" and check if next part is the zone_id
+            for i, part in enumerate(parts):
+                if part == "zone" and i + 1 < len(parts) and parts[i + 1].isdigit():
+                    return int(parts[i + 1])
+
         except (ValueError, IndexError, AttributeError):
             pass
         return None
@@ -216,33 +240,50 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
         the feature is enabled.
         """
         # 1. Check if polling should be disabled when throttled
-        if self._disable_polling_when_throttled and self.rate_limit.is_throttled:
+        # We allow the fetch if it's forced (reset poll) or no data exists yet
+        if (
+            self._disable_polling_when_throttled
+            and self.rate_limit.is_throttled
+            and not self._force_next_update
+        ):
             _LOGGER.warning(
-                "Polling disabled due to throttling (remaining: %d, threshold: %d)",
+                "Throttled (remaining: %d, threshold: %d). Polling suspended.",
                 self.rate_limit.remaining,
                 self.rate_limit.throttle_threshold,
             )
             # Return existing data without making new API calls
             if self.data:
                 return cast(TadoCoordinatorData, self.data)
+
             # If no data exists yet, allow first fetch
             _LOGGER.info("No data exists, allowing initial fetch despite throttling")
 
+        # Reset force flag
+        self._force_next_update = False
+
         try:
-            # 2. Execute full data fetch
+            # 2. Capture starting quota to measure actual poll cost
+            quota_start = self.rate_limit.remaining
+
+            # 3. Execute full data fetch
             data = await self.data_manager.fetch_full_update()
 
-            # 3. Synchronize metadata
+            # 4. Synchronize metadata
             self.zones_meta = self.data_manager.zones_meta
             self.devices_meta = self.data_manager.devices_meta
             self._update_climate_map()
 
-            # 4. Maintenance tasks
+            # 5. Maintenance tasks
             self.auth_manager.check_and_update_token()
             self.optimistic.cleanup()
 
-            # 5. Rate limit tracking
+            # 6. Rate limit tracking & cost measurement
             self.rate_limit.sync_from_headers()
+
+            # Measure exactly how many calls this poll used
+            actual_cost = quota_start - self.rate_limit.remaining
+            if actual_cost > 0:
+                self.rate_limit.last_poll_cost = float(actual_cost)
 
             data["rate_limit"] = RateLimit(
                 limit=self.rate_limit.limit,
@@ -250,15 +291,223 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
             )
             data["api_status"] = self.rate_limit.api_status
 
+            # 7. Auto API Quota: Adjust polling interval dynamically
+            self._adjust_interval_for_auto_quota()
+
             return cast(TadoCoordinatorData, data)
         except TadoError as err:
             raise UpdateFailed(f"Tado API error: {err}") from err
+
+    def _get_next_reset_time(self) -> datetime:
+        """Calculate next API quota reset time (12:01 CET with buffer)."""
+        berlin_tz = ZoneInfo("Europe/Berlin")
+        now = datetime.now(berlin_tz)
+
+        # Reset happens at API_RESET_HOUR:API_RESET_BUFFER_MINUTES
+        reset_today = now.replace(
+            hour=API_RESET_HOUR,
+            minute=API_RESET_BUFFER_MINUTES,
+            second=0,
+            microsecond=0,
+        )
+
+        # If we are within 5 minutes of today's reset or already past it,
+        # the NEXT reset is tomorrow.
+        if now >= (reset_today - timedelta(minutes=5)):
+            return reset_today + timedelta(days=1)
+
+        return reset_today
+
+    def _calculate_auto_quota_interval(self) -> int | None:
+        """Calculate optimal polling interval based on quota settings.
+
+        Respects throttle threshold - if enabled and remaining calls drop below
+        threshold, polling is disabled or slowed significantly regardless of
+        auto quota settings.
+
+        Returns:
+            Interval in seconds, or None if auto quota is disabled
+
+        """
+        if self._auto_api_quota_percent <= 0:
+            return None
+
+        limit = self.rate_limit.limit
+        remaining = self.rate_limit.remaining
+
+        if limit <= 0:
+            _LOGGER.warning("API limit is 0, cannot calculate interval")
+            return None
+
+        # Calculate time until next reset
+        next_reset = self._get_next_reset_time()
+        now = datetime.now(ZoneInfo("Europe/Berlin"))
+        seconds_until_reset = int((next_reset - now).total_seconds())
+
+        # Throttling has absolute priority
+        if self.rate_limit.is_throttled:
+            if self._disable_polling_when_throttled:
+                _LOGGER.warning(
+                    "Throttled (remaining=%d < threshold=%d). Polling suspended until %s.",
+                    remaining,
+                    self.rate_limit.throttle_threshold,
+                    next_reset.strftime("%H:%M"),
+                )
+                return max(3600, seconds_until_reset)
+
+            _LOGGER.warning(
+                "Throttled (remaining=%d < threshold=%d). Slowing to 1h.",
+                remaining,
+                self.rate_limit.throttle_threshold,
+            )
+            return 3600
+
+        # Calculate FREE quota after all reservations
+        # 1. Throttle threshold (emergency reserve)
+        # 2. Scheduled updates (slow poll, offset poll) - measured, not hardcoded
+        throttle_threshold = self.rate_limit.throttle_threshold
+        reserved_daily, reserved_breakdown = (
+            self.data_manager.estimate_daily_reserved_cost()
+        )
+
+        # FREE QUOTA = Limit - Throttle Reserve - Scheduled Updates
+        free_quota = max(0, limit - throttle_threshold - reserved_daily)
+
+        # Target = X% of FREE quota (not total!)
+        target_api_calls = int(free_quota * self._auto_api_quota_percent / 100)
+
+        _LOGGER.debug(
+            "Quota breakdown: Limit=%d, Throttle=%d, Reserved=%d (slow=%d, offset=%d), Free=%d, Target=%d%%=%d",
+            limit,
+            throttle_threshold,
+            reserved_daily,
+            reserved_breakdown.get("slow_poll_total", 0),
+            reserved_breakdown.get("offset_poll_total", 0),
+            free_quota,
+            self._auto_api_quota_percent,
+            target_api_calls,
+        )
+
+        # Total calls used so far today
+        used_total_calls = max(0, limit - remaining)
+
+        # Total budget left for the rest of the day
+        total_budget_left = max(0, target_api_calls - used_total_calls)
+
+        # Budget for fast polls = Total Budget Left
+        # (We trust the planner to account for expensive polls when they happen)
+        remaining_budget = max(0, total_budget_left)
+
+        # Safety: Double check against absolute remaining minus threshold
+        usable_remaining = max(0, remaining - throttle_threshold)
+        remaining_budget = min(remaining_budget, usable_remaining)
+
+        if remaining_budget <= 0:
+            # Budget exhausted - return to base interval or stop if base is 0
+            if self._base_scan_interval <= 0:
+                _LOGGER.info(
+                    "Budget reached (%d/%d used). Stopping polling.",
+                    used_total_calls,
+                    target_api_calls,
+                )
+                return None
+
+            new_interval = max(15, int(self._base_scan_interval))
+            _LOGGER.info(
+                "Budget reached (%d/%d used). Falling back to base interval (%ds).",
+                used_total_calls,
+                target_api_calls,
+                new_interval,
+            )
+            return new_interval
+
+        # Calculate interval based on predicted cost of the upcoming poll
+        predicted_cost = self.data_manager.predict_next_poll_cost()
+
+        # How many polls of this predicted size can we afford?
+        # (If the next poll is huge, this number drops, and interval increases)
+        remaining_polls = remaining_budget / predicted_cost
+
+        if remaining_polls <= 0:
+            return 3600
+
+        # Adaptive interval calculation with 15s safety floor
+        adaptive_interval = seconds_until_reset / remaining_polls
+        bounded_interval = int(max(15, min(3600, adaptive_interval)))
+
+        _LOGGER.info(
+            "Quota: Interval=%ds (Budget: %d/%d used, Next Cost: %d, Rem: %d calls -> %d polls, Reset in %.1fh)",
+            bounded_interval,
+            used_total_calls,
+            target_api_calls,
+            predicted_cost,
+            remaining_budget,
+            int(remaining_polls),
+            seconds_until_reset / 3600,
+        )
+
+        return bounded_interval
+
+    def _adjust_interval_for_auto_quota(self) -> None:
+        """Adjust update interval based on auto API quota percentage."""
+        calculated_interval = self._calculate_auto_quota_interval()
+
+        if calculated_interval is None:
+            # Fallback to base interval if auto quota is inactive
+            self.update_interval = (
+                timedelta(seconds=self._base_scan_interval)
+                if self._base_scan_interval > 0
+                else None
+            )
+        else:
+            self.update_interval = timedelta(seconds=calculated_interval)
+
+    def _schedule_reset_poll(self) -> None:
+        """Schedule automatic poll at daily quota reset time."""
+        if self._auto_api_quota_percent <= 0:
+            return
+
+        next_reset = self._get_next_reset_time()
+        now = datetime.now(ZoneInfo("Europe/Berlin"))
+        delay = (next_reset - now).total_seconds()
+
+        _LOGGER.debug(
+            "Quota: Scheduling reset poll at %s (in %.1f hours)",
+            next_reset.strftime("%Y-%m-%d %H:%M:%S %Z"),
+            delay / 3600,
+        )
+
+        # Cancel existing timer
+        if self._reset_poll_unsub:
+            self._reset_poll_unsub()
+
+        # Schedule new timer
+        self._reset_poll_unsub = self.hass.loop.call_later(
+            delay, lambda: self.hass.async_create_task(self._on_reset_poll())
+        )
+
+    async def _on_reset_poll(self) -> None:
+        """Execute automatic poll at quota reset time."""
+        _LOGGER.info("Quota: Executing scheduled reset poll to fetch fresh quota")
+
+        # Set force flag to ensure this poll bypasses any throttling blocks
+        self._force_next_update = True
+
+        # Trigger refresh to get updated quota info
+        await self.async_refresh()
+
+        # Schedule next reset poll
+        self._schedule_reset_poll()
 
     def shutdown(self) -> None:
         """Cleanup listeners and tasks."""
         if self._unsub_listener:
             self._unsub_listener()
             self._unsub_listener = None
+
+        if self._reset_poll_unsub:
+            self._reset_poll_unsub.cancel()
+            self._reset_poll_unsub = None
 
         # Cleanup API manager (worker task + pending timers)
         self.api_manager.shutdown()

@@ -96,6 +96,10 @@ class TadoRequestHandler:
                     request_kwargs["json"] = data
 
                 async with session.request(**cast(Any, request_kwargs)) as response:
+                    # Record the call for adaptive rate calculation
+                    if hasattr(instance, "coordinator"):
+                        instance.coordinator.rate_limit.record_call()
+
                     if rl := parse_ratelimit_headers(dict(response.headers)):
                         self.rate_limit_data["limit"] = rl.limit
                         self.rate_limit_data["remaining"] = rl.remaining

@@ -27,6 +27,23 @@ class RateLimitManager:
         self._internal_remaining: int = INITIAL_RATE_LIMIT_GUESS
         self._data_source = data_source
 
+        # Real cost tracking: store the measured cost of polling cycles.
+        # We start with a conservative estimate.
+        self._last_poll_cost: float = 2.0
+
+    @property
+    def last_poll_cost(self) -> float:
+        """Return the measured cost of the last successful polling cycle."""
+        return max(1.0, self._last_poll_cost)
+
+    @last_poll_cost.setter
+    def last_poll_cost(self, value: float) -> None:
+        """Update measured poll cost with light smoothing to avoid jitter."""
+        if value > 0:
+            # Alpha 0.3 for smoothing (70% old, 30% new)
+            self._last_poll_cost = (self._last_poll_cost * 0.7) + (value * 0.3)
+            _LOGGER.debug("Updated measured poll cost to %.2f", self._last_poll_cost)
+
     @property
     def is_throttled(self) -> bool:
         """Return True if throttling is active."""

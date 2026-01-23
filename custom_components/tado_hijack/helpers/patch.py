@@ -13,6 +13,7 @@ from .tado_request_handler import TadoRequestHandler
 _LOGGER = get_redacted_logger(__name__)
 
 _HANDLER = TadoRequestHandler()
+_PATCHES_APPLIED = False
 
 
 def get_handler() -> TadoRequestHandler:
@@ -21,7 +22,11 @@ def get_handler() -> TadoRequestHandler:
 
 
 def apply_patch() -> None:
-    """Apply global library patches."""
+    """Apply global library patches (idempotent - safe to call multiple times)."""
+    global _PATCHES_APPLIED
+    if _PATCHES_APPLIED:
+        return
+
     try:
         import tadoasync
 
@@ -35,6 +40,7 @@ def apply_patch() -> None:
 
     _patch_version()
     _patch_zone_state()
+    _PATCHES_APPLIED = True
 
 
 def _patch_version() -> None:

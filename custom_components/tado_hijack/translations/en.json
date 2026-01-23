@@ -29,21 +29,23 @@
         "description": "Choose the data update intervals and throttle settings.",
         "data": {
           "scan_interval": "Fast Polling Interval (Seconds)",
+          "auto_api_quota_percent": "Auto API Quota (%)",
           "slow_poll_interval": "Battery Update Interval (Hours)",
           "offset_poll_interval": "Offset Update Interval (Hours)",
+          "debounce_time": "Debounce Time (Seconds)",
           "throttle_threshold": "Throttle Threshold",
           "disable_polling_when_throttled": "Disable Polling When Throttled",
-          "debounce_time": "Debounce Time (Seconds)",
           "api_proxy_url": "API Proxy URL (Optional)",
           "debug_logging": "Enable Debug Logging"
         },
         "data_description": {
           "scan_interval": "How often to check Home/Away and HVAC state. Set to 0 to disable periodic polling (manual only). 1800s (30m) is recommended.",
+          "auto_api_quota_percent": "Use X% of FREE daily quota for status polling (0 = disabled). FREE = Limit - Throttle Reserve - Battery Updates - Offset Updates. Example: 5000 limit, 30 throttle, 2 battery/day, 10 offset/day → FREE = 4958, at 50% = 2479 status polls/day.",
           "slow_poll_interval": "How often to check batteries and device info. 24h is highly recommended. Costs only 2 API calls total.",
           "offset_poll_interval": "How often to fetch temperature offsets. Costs 1 API call PER VALVE. Set to 0 to disable (manual poll only).",
+          "debounce_time": "Time window to collect rapid changes before sending to API. Default 5s.",
           "throttle_threshold": "Skip confirmation API calls when remaining quota drops below this value. Set to 0 to disable throttling.",
           "disable_polling_when_throttled": "Stop periodic polling entirely when in throttled mode.",
-          "debounce_time": "Time window to collect rapid changes before sending to API. Default 5s.",
           "api_proxy_url": "Advanced: URL of a local tado-api-proxy instance (e.g. http://192.168.1.5:8080). Enables bypassing rate limits. Repo: https://github.com/s1adem4n/tado-api-proxy",
           "debug_logging": "Enable verbose debug logging for troubleshooting. WARNING: This will generate large log files."
         }
@@ -62,21 +64,23 @@
         "title": "Tado Hijack Options",
         "data": {
           "scan_interval": "Update Interval (Seconds)",
+          "auto_api_quota_percent": "Auto API Quota (%)",
           "slow_poll_interval": "Battery Update Interval (Hours)",
           "offset_poll_interval": "Offset Update Interval (Hours)",
+          "debounce_time": "Debounce Time (Seconds)",
           "throttle_threshold": "Throttle Threshold",
           "disable_polling_when_throttled": "Disable Polling When Throttled",
-          "debounce_time": "Debounce Time (Seconds)",
           "api_proxy_url": "API Proxy URL (Optional)",
           "debug_logging": "Enable Debug Logging"
         },
         "data_description": {
           "scan_interval": "Interval for presence and heating state. Set to 0 to disable periodic polling.",
+          "auto_api_quota_percent": "Use X% of FREE daily quota for status polling (0 = disabled). FREE = Limit - Throttle - Scheduled Updates. Interval auto-adjusts until 12:00 CET reset.",
           "slow_poll_interval": "Interval for battery and metadata. 24h is sufficient.",
           "offset_poll_interval": "Interval for temperature offsets. Costs 1 API call PER VALVE. 0 = disabled.",
+          "debounce_time": "Time window to collect rapid changes before sending to API. Default 5s.",
           "throttle_threshold": "Skip confirmation API calls when remaining quota drops below this value. 0 = disabled.",
           "disable_polling_when_throttled": "Stop periodic polling when throttled.",
-          "debounce_time": "Time window to collect rapid changes before sending to API. Default 5s.",
           "api_proxy_url": "Advanced: URL of a local tado-api-proxy instance. Repo: https://github.com/s1adem4n/tado-api-proxy",
           "debug_logging": "Enable verbose debug logging. WARNING: Generates large log files."
         }

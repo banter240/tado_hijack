@@ -22,6 +22,9 @@ I engineered this integration with one goal: **To squeeze every drop of function
 ## 📖 Table of Contents
 - [🚀 Key Highlights](#-key-highlights)
 - [📊 API Consumption Strategy](#-api-consumption-strategy)
+  - [API Consumption Table](#api-consumption-table)
+  - [📈 Auto API Quota](#-auto-api-quota)
+  - [🧠 Batching Capability Matrix](#-batching-capability-matrix)
 - [🛠️ Architecture](#️-architecture)
 - [📦 Installation](#-installation)
 - [⚙️ Configuration](#️-configuration)
@@ -70,18 +73,18 @@ I bring back the controls that Tado "forgot" to give you:
 
 ## 📊 API Consumption Strategy
 
-Tado's **100-call daily limit** is pathetic. That's why Tado Hijack uses a **Zero-Waste Policy**:
+Tado's API limits are restrictive. That's why Tado Hijack uses a **Zero-Waste Policy**:
 
 ### API Consumption Table
 
 | Action | Cost | Frequency | Description | Detailed API Calls |
 | :--- | :---: | :--- | :--- | :--- |
-| **State Poll** | **2** | 60m (Default) | State, HVAC, **Valve %**, Humidity. | `GET /homes/{id}/state`<br>`GET /homes/{id}/zoneStates` |
-| **Refresh Zones** | **2** | On Demand | Updates Zid/Device metadata. | `GET /homes/{id}/zones`<br>`GET /homes/{id}/devices` |
-| **Refresh Offsets** | **N** | On Demand | Fetches all device offsets. | `GET /devices/{s}/temperatureOffset` (xN) |
-| **Refresh Away** | **M** | On Demand | Fetches all zone away temps. | `GET /zones/{z}/awayConfiguration` (xM) |
-| **Battery Update** | **2** | 24h | Fetches device list & metadata. | `GET /homes/{id}/zones`<br>`GET /homes/{id}/devices` |
-| **Settings Set** | **1** | On Demand | Every action uses exactly 1 call. | `PUT /zones/{z}/overlay` (Fused!) |
+| **State Poll** | **2** | Configurable | State, HVAC, Valve %, Humidity. | `GET /homes/{id}/state`<br>`GET /homes/{id}/zoneStates` |
+| **Battery Update** | **2** | 24h (Default) | Fetches device list & metadata. | `GET /homes/{id}/zones`<br>`GET /homes/{id}/devices` |
+| **Refresh Zones** | **2** | On Demand | Updates zone/device metadata. | `GET /homes/{id}/zones`<br>`GET /homes/{id}/devices` |
+| **Refresh Offsets** | **N** | On Demand | Fetches all device offsets. | `GET /devices/{s}/temperatureOffset` (×N) |
+| **Refresh Away** | **M** | On Demand | Fetches all zone away temps. | `GET /zones/{z}/awayConfiguration` (×M) |
+| **Zone Overlay** | **1** | On Demand | **Fused:** All zone changes in 1 call. | `POST /homes/{id}/overlay` |
 | **Home/Away** | **1** | On Demand | Force presence lock. | `PUT /homes/{id}/presenceLock` |
 
 > [!TIP]
@@ -89,6 +92,36 @@ Tado's **100-call daily limit** is pathetic. That's why Tado Hijack uses a **Zer
 
 > [!IMPORTANT]
 > **Granular Refresh Strategy:** To keep your quota green, hardware configurations (Offsets, Away Temperatures) are **never** fetched automatically. They remain empty until you manually trigger a specific refresh button or set a value.
+
+<br>
+
+### 📈 Auto API Quota
+
+Automatically distributes your API calls evenly throughout the day. Set a percentage of your **FREE** daily quota for status polling.
+
+**How FREE quota is calculated:**
+
+```
+FREE = Daily Limit - Throttle Reserve - Battery Updates/Day - Offset Updates/Day
+```
+
+**Example Calculation:**
+
+| Setting | Value | Daily Cost |
+| :--- | :--- | :--- |
+| Daily API Limit | 5000 | - |
+| Throttle Reserve | 30 | -30 |
+| Battery Update (24h interval) | 2 calls × 1/day | -2 |
+| Offset Update (24h interval, 5 valves) | 5 calls × 1/day | -5 |
+| **FREE Quota** | **4963** | |
+| Auto Quota Setting | 50% | |
+| **Status Polls Budget** | **2481** | |
+| **Calculated Interval** | ~35 seconds | |
+
+> [!NOTE]
+> The interval auto-adjusts dynamically based on remaining quota and time until reset (12:00 CET). If you consume more than expected, intervals slow down. If you use less, they speed up.
+
+<br>
 
 ### 🧠 Batching Capability Matrix
 
@@ -143,13 +176,15 @@ Unlike other integrations that group everything by "Zone", Tado Hijack maps enti
 
 | Option | Default | Description |
 | :--- | :--- | :--- |
-| **Fast Polling** | `60m` | Interval for heating and presence states. |
-| **Slow Polling** | `24h` | Interval for battery and device metadata. |
-| **Debounce Time**| `5s` | **Batching Window:** Fuses actions into single calls. |
-| **Throttle Threshold** | `0` | Auto-skip calls when quota is dangerously low. |
+| **Status Polling** | `60m` | Interval for heating state and presence. (2 API calls) |
+| **Auto API Quota** | `0%` (Off) | Use X% of FREE quota for status polls. See [📈 Auto API Quota](#-auto-api-quota). |
+| **Battery Update** | `24h` | Interval for battery and device metadata. (2 API calls) |
+| **Offset Update** | `0` (Off) | Interval for temperature offsets. (1 API call per valve) |
+| **Debounce Time** | `5s` | **Batching Window:** Fuses actions into single calls. |
+| **Throttle Threshold** | `0` | Reserve last N calls - skip polling when remaining < threshold. |
 | **Disable Polling When Throttled** | `Off` | Stop periodic polling entirely when throttled. |
-| **Debug Logging** | `Off` | Enable verbose logging for troubleshooting. |
 | **API Proxy URL** | `None` | **Advanced:** URL of local `tado-api-proxy` workaround. |
+| **Debug Logging** | `Off` | Enable verbose logging for troubleshooting. |
 
 ---
 
@@ -180,7 +215,7 @@ Cloud-only features that HomeKit does not support.
 | :--- | :--- | :--- |
 | `switch.schedule` | Switch | **ON** = Smart Schedule, **OFF** = Manual. |
 | `switch.hot_water` | Switch | **Cloud Only:** Direct boiler power control. |
-| `switch.early_start` | Switch | **Cloud Only:** Toggle vorzeitiges Aufheizen. |
+| `switch.early_start` | Switch | **Cloud Only:** Toggle pre-heating before schedule. |
 | `switch.open_window` | Switch | **Cloud Only:** Toggle window detection. |
 | `number.target_temperature` | Number | **Cloud Only:** Set target temp for AC/HW. |
 | `number.away_temperature` | Number | **Cloud Only:** Set away mode temperature. |
@@ -206,11 +241,14 @@ Hardware-specific entities. *These entities are **injected** into your existing 
 ## ⚡ Services
 
 For advanced automation, use these services:
-*   `tado_hijack.turn_off_all_zones`
-*   `tado_hijack.boost_all_zones`
-*   `tado_hijack.resume_all_schedules`
-*   `tado_hijack.manual_poll` (Supports `refresh_type`: `metadata`, `offsets`, `away`, `all`)
-*   `tado_hijack.set_timer` (Set Power, Temp, and **Timer Duration** in one efficient call)
+
+| Service | Description |
+| :--- | :--- |
+| `tado_hijack.turn_off_all_zones` | Turn off heating in all zones. |
+| `tado_hijack.boost_all_zones` | Boost all zones to 25°C. |
+| `tado_hijack.resume_all_schedules` | Resume Smart Schedule in all zones. |
+| `tado_hijack.manual_poll` | Force refresh. Supports `refresh_type`: `metadata`, `offsets`, `away`, `all`. |
+| `tado_hijack.set_timer` | Set Power, Temp, and Timer Duration in one efficient call. |
 
 > [!TIP]
 > **Targeting Rooms:** You can use **any** entity that belongs to a room as the `entity_id`. This includes Tado Hijack switches or even your existing **HomeKit climate** entities (e.g. `climate.living_room`). The service will automatically resolve the correct Tado zone.
