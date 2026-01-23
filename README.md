@@ -397,13 +397,14 @@ Hardware-specific entities. *These entities are **injected** into your existing 
 
 For advanced automation, use these services:
 
-| Service | Description |
-| :--- | :--- |
-| `tado_hijack.turn_off_all_zones` | Turn off heating in all zones. |
-| `tado_hijack.boost_all_zones` | Boost all zones to 25°C. |
-| `tado_hijack.resume_all_schedules` | Resume Smart Schedule in all zones. |
-| `tado_hijack.manual_poll` | Force refresh. Supports `refresh_type`: `metadata`, `offsets`, `away`, `all`. |
-| `tado_hijack.set_timer` | Set Power, Temp, and Timer Duration in one efficient call. |
+| Service | API Cost | Description |
+| :--- | :--- | :--- |
+| `tado_hijack.turn_off_all_zones` | **1 call** | Turn off heating in all zones (bulk endpoint). |
+| `tado_hijack.boost_all_zones` | **1 call** | Boost all zones to 25°C (bulk endpoint). |
+| `tado_hijack.resume_all_schedules` | **1 call** | Resume Smart Schedule in all zones (bulk endpoint). |
+| `tado_hijack.manual_poll` | **2-N calls** | Force refresh. Supports `refresh_type`: `metadata` (2), `offsets` (N devices), `away` (M zones), `all`. |
+| `tado_hijack.set_timer` | **1 call/zone** | Set Power, Temp, Timer, or Auto-Return. Supports `duration` (minutes), `time_period` (HH:MM:SS), `overlay` mode. |
+| `tado_hijack.add_meter_reading` | **1 call** | Add energy meter reading for Energy IQ tracking. |
 
 <br>
 
@@ -420,31 +421,68 @@ For advanced automation, use these services:
 ```yaml
 service: tado_hijack.set_timer
 data:
-  entity_id: switch.hot_water  # Targets the Hot Water zone
-  duration: 30
+  entity_id: switch.hot_water
+  duration: 30  # Minutes
 ```
-
-<br>
 
 **Quick Bathroom Heat (15 Min at 24°C):**
 ```yaml
 service: tado_hijack.set_timer
 data:
-  entity_id: climate.bathroom  # Targets the Heating zone via HomeKit entity
+  entity_id: climate.bathroom
   duration: 15
   temperature: 24
 ```
 
-<br>
-
-**AC Sleep Timer (1 Hour at 21°C):**
+**AC Sleep Timer (HH:MM:SS Format):**
 ```yaml
 service: tado_hijack.set_timer
 data:
-  entity_id: select.bedroom_fan_speed  # Targets the AC zone via any AC entity
-  duration: 60
+  entity_id: select.bedroom_fan_speed
+  time_period: "01:30:00"  # 1 hour 30 minutes
   temperature: 21
 ```
+
+**Auto-Return to Schedule (Next Time Block):**
+```yaml
+service: tado_hijack.set_timer
+data:
+  entity_id: climate.living_room
+  overlay: "auto"  # Returns to schedule at next time block
+  temperature: 22
+```
+
+**Add Energy Meter Reading:**
+```yaml
+service: tado_hijack.add_meter_reading
+data:
+  reading: 12345
+  date: "2025-01-15"  # Optional, defaults to today
+```
+
+<br>
+
+---
+
+## ⚠️ Limitations
+
+<br>
+
+### API Constraints
+
+These limitations are imposed by Tado's API design, not by this integration:
+
+- **Device Configuration:** Child Lock, Temperature Offset, and Window Detection settings must be sent individually per device. Tado does not provide bulk endpoints for these operations.
+- **Offset Polling Cost:** Reading temperature offsets costs **1 API call per device** with temperature capability. For large setups (10+ valves), consider disabling automatic offset polling (`offset_poll_interval: 0`) and using manual refresh buttons instead.
+- **Rate Limits:** Tado enforces daily API quotas (100-500 calls depending on tier). The Auto API Quota feature manages this automatically, but heavy manual interaction can still exhaust your quota.
+
+<br>
+
+### Not Supported
+
+- **Tado X Devices:** The new "Tado X" product line uses a different API (Matter/Thread-based). This integration only supports the classic Tado devices. For Tado X, use the official Home Assistant integration with Matter support.
+- **Local Control:** Tado does not provide a local API. All commands must go through Tado's cloud servers.
+- **Energy Dashboard:** While we provide `add_meter_reading` for Energy IQ tracking in the Tado app, this data is not exposed in a way that integrates with Home Assistant's native Energy Dashboard.
 
 <br>
 

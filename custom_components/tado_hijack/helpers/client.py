@@ -123,3 +123,24 @@ class TadoHijackClient(Tado):
             f"devices/{serial_no}/identify",
             method=HttpMethod.POST,
         )
+
+    async def add_meter_reading(self, reading: int, date: str | None = None) -> None:
+        """Add an energy meter reading for Energy IQ tracking.
+
+        Args:
+            reading: The meter reading value (integer)
+            date: Reading date in YYYY-MM-DD format (defaults to today)
+        """
+        from datetime import date as dt_date
+
+        payload: dict[str, Any] = {"reading": reading}
+        if date:
+            payload["date"] = date
+        else:
+            payload["date"] = dt_date.today().isoformat()
+
+        await self._request(
+            f"homes/{self._home_id}/meterReadings",
+            method=HttpMethod.POST,
+            data=payload,
+        )

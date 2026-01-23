@@ -9,6 +9,7 @@ from homeassistant.core import HomeAssistant, ServiceCall
 
 from .const import (
     DOMAIN,
+    SERVICE_ADD_METER_READING,
     SERVICE_BOOST_ALL_ZONES,
     SERVICE_MANUAL_POLL,
     SERVICE_RESUME_ALL_SCHEDULES,
@@ -49,7 +50,10 @@ async def async_setup_services(
         await coordinator.async_boost_all_zones()
 
     async def handle_set_timer(call: ServiceCall) -> None:
-        """Service to set a manual overlay with duration (batched)."""
+        """Service to set a manual overlay with duration (batched).
+
+        Supports both duration (minutes) and time_period (HH:MM:SS) formats.
+        """
         entity_ids = call.data.get("entity_id")
         if not entity_ids:
             return
@@ -57,9 +61,43 @@ async def async_setup_services(
         if isinstance(entity_ids, str):
             entity_ids = [entity_ids]
 
-        duration = int(call.data.get("duration", 30))
+        # Parse duration: Support both 'duration' (int, minutes) and 'time_period' (str, HH:MM:SS)
+        duration_minutes: int | None = None
+        if time_period := call.data.get("time_period"):
+            # Parse HH:MM:SS format
+            try:
+                parts = time_period.split(":")
+                if len(parts) == 3:
+                    hours, minutes, seconds = map(int, parts)
+                    duration_minutes = hours * 60 + minutes + (seconds // 60)
+                elif len(parts) == 2:
+                    hours, minutes = map(int, parts)
+                    duration_minutes = hours * 60 + minutes
+                else:
+                    _LOGGER.warning("Invalid time_period format: %s (expected HH:MM:SS)", time_period)
+                    duration_minutes = 30
+            except (ValueError, AttributeError):
+                _LOGGER.warning("Failed to parse time_period: %s, using default 30min", time_period)
+                duration_minutes = 30
+        elif duration := call.data.get("duration"):
+            # Fallback to 'duration' for backwards compatibility
+            duration_minutes = int(duration)
+        else:
+            # Neither provided, use default
+            duration_minutes = 30
+
         power = call.data.get("power", "ON")
         temperature = call.data.get("temperature")
+        overlay = call.data.get("overlay")  # "manual", "timer", or "auto" (next_time_block)
+
+        # Resolve overlay_mode
+        overlay_mode = None
+        if overlay == "next_time_block" or overlay == "auto":
+            overlay_mode = "auto"
+        elif overlay == "timer" or duration_minutes:
+            overlay_mode = "timer"
+        elif overlay == "manual":
+            overlay_mode = "manual"
 
         # Resolve all zone IDs first
         zone_ids: list[int] = []
@@ -77,8 +115,28 @@ async def async_setup_services(
             zone_ids=zone_ids,
             power=power,
             temperature=temperature,
-            duration=duration,
+            duration=duration_minutes,
+            overlay_mode=overlay_mode,
         )
+
+    async def handle_add_meter_reading(call: ServiceCall) -> None:
+        """Service to add an energy meter reading for Energy IQ tracking."""
+        reading = call.data.get("reading")
+        if reading is None:
+            _LOGGER.error("Meter reading value is required")
+            return
+
+        date = call.data.get("date")  # Optional: YYYY-MM-DD format
+
+        try:
+            await coordinator.client.add_meter_reading(int(reading), date)
+            _LOGGER.info(
+                "Successfully added meter reading: %d (date: %s)",
+                reading,
+                date or "today",
+            )
+        except Exception as err:
+            _LOGGER.error("Failed to add meter reading: %s", err)
 
     hass.services.async_register(DOMAIN, SERVICE_MANUAL_POLL, handle_manual_poll)
     hass.services.async_register(
@@ -89,6 +147,9 @@ async def async_setup_services(
     )
     hass.services.async_register(DOMAIN, SERVICE_BOOST_ALL_ZONES, handle_boost_all)
     hass.services.async_register(DOMAIN, SERVICE_SET_TIMER, handle_set_timer)
+    hass.services.async_register(
+        DOMAIN, SERVICE_ADD_METER_READING, handle_add_meter_reading
+    )
 
 
 async def async_unload_services(hass: HomeAssistant) -> None:

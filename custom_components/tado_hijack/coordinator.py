@@ -787,20 +787,38 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
         temperature: float | None = None,
         duration: int | None = None,
         overlay_type: str | None = None,
+        overlay_mode: str | None = None,
     ) -> dict[str, Any]:
-        """Build the overlay data dictionary (DRY helper)."""
+        """Build the overlay data dictionary (DRY helper).
+
+        Args:
+            zone_id: Zone ID
+            power: Power state (ON/OFF)
+            temperature: Target temperature (optional)
+            duration: Duration in minutes (optional)
+            overlay_type: Zone type (HEATING/AIR_CONDITIONING/HOT_WATER)
+            overlay_mode: Termination mode - "manual", "timer", or "auto" (next_time_block)
+        """
         # 1. Determine Type
         if not overlay_type:
             zone = self.zones_meta.get(zone_id)
             overlay_type = getattr(zone, "type", "HEATING") if zone else "HEATING"
 
         # 2. Build Termination
-        termination: dict[str, Any] = {"typeSkillBasedApp": "MANUAL"}
-        if duration:
+        # Priority: overlay_mode > duration > default (MANUAL)
+        if overlay_mode == "auto":
+            # Auto-return to schedule at next time block
+            termination: dict[str, Any] = {"type": "TADO_MODE"}
+        elif overlay_mode == "timer" or duration:
+            # Timer with specific duration
+            duration_seconds = duration * 60 if duration else 1800  # Default 30min
             termination = {
                 "typeSkillBasedApp": "TIMER",
-                "durationInSeconds": duration * 60,
+                "durationInSeconds": duration_seconds,
             }
+        else:
+            # Manual (indefinite until user changes)
+            termination = {"typeSkillBasedApp": "MANUAL"}
 
         # 3. Build Setting
         setting: dict[str, Any] = {"type": overlay_type, "power": power}
@@ -815,12 +833,25 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
         power: str = "ON",
         temperature: float | None = None,
         duration: int | None = None,
+        overlay_mode: str | None = None,
     ) -> None:
-        """Set manual overlays for multiple zones in a single batched process."""
+        """Set manual overlays for multiple zones in a single batched process.
+
+        Args:
+            zone_ids: List of zone IDs to set
+            power: Power state (ON/OFF)
+            temperature: Target temperature (optional)
+            duration: Duration in minutes (optional)
+            overlay_mode: "manual", "timer", or "auto" (next_time_block)
+        """
         if not zone_ids:
             return
 
-        _LOGGER.debug("Batched set_timer requested for zones: %s", zone_ids)
+        _LOGGER.debug(
+            "Batched set_timer requested for zones: %s (mode: %s)",
+            zone_ids,
+            overlay_mode or "default",
+        )
 
         # 1. Trigger Optimistic Updates for all zones
         for zone_id in zone_ids:
@@ -836,6 +867,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
                 power=power,
                 temperature=temperature,
                 duration=duration,
+                overlay_mode=overlay_mode,
             )
             self.api_manager.queue_command(
                 f"zone_{zone_id}",

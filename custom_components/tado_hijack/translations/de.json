@@ -234,15 +234,23 @@
     },
     "set_timer": {
       "name": "Timer setzen",
-      "description": "Setzt ein manuelles Overlay mit einer bestimmten Dauer (Timer) für eine Zone.",
+      "description": "Setzt ein manuelles Overlay mit Timer, oder kehrt automatisch zum Zeitplan zurück.",
       "fields": {
         "entity_id": {
           "name": "Entität",
           "description": "Beliebige Zonen-Entität von Tado Hijack."
         },
         "duration": {
-          "name": "Dauer",
-          "description": "Dauer in Minuten."
+          "name": "Dauer (Minuten)",
+          "description": "Dauer in Minuten (Alternative zu time_period)."
+        },
+        "time_period": {
+          "name": "Zeitraum (HH:MM:SS)",
+          "description": "Dauer im HH:MM:SS Format (Alternative zu duration). Beispiel: '01:30:00' für 90 Minuten."
+        },
+        "overlay": {
+          "name": "Overlay-Modus",
+          "description": "Beendigungsmodus: 'manual' (unbegrenzt), 'timer' (mit Dauer), oder 'auto' (Rückkehr zum nächsten Zeitblock)."
         },
         "power": {
           "name": "Power",
@@ -251,6 +259,20 @@
         "temperature": {
           "name": "Temperatur",
           "description": "Zieltemperatur (optional)."
+        }
+      }
+    },
+    "add_meter_reading": {
+      "name": "Zählerstand hinzufügen",
+      "description": "Fügt einen Energiezählerstand für Energy IQ Tracking hinzu.",
+      "fields": {
+        "reading": {
+          "name": "Zählerstand",
+          "description": "Aktueller Zählerstand (Integer)."
+        },
+        "date": {
+          "name": "Datum",
+          "description": "Ablesedatum im Format YYYY-MM-DD (Standard: heute)."
         }
       }
     }

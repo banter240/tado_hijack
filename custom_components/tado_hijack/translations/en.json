@@ -234,15 +234,23 @@
     },
     "set_timer": {
       "name": "Set Timer",
-      "description": "Set a manual overlay with a duration (timer) for a zone.",
+      "description": "Set a manual overlay with timer duration or auto-return to schedule.",
       "fields": {
         "entity_id": {
           "name": "Entity",
           "description": "Any zone entity from Tado Hijack."
         },
         "duration": {
-          "name": "Duration",
-          "description": "Duration in minutes."
+          "name": "Duration (Minutes)",
+          "description": "Duration in minutes (alternative to time_period)."
+        },
+        "time_period": {
+          "name": "Time Period (HH:MM:SS)",
+          "description": "Duration in HH:MM:SS format (alternative to duration). Example: '01:30:00' for 90 minutes."
+        },
+        "overlay": {
+          "name": "Overlay Mode",
+          "description": "Termination mode: 'manual' (indefinite), 'timer' (with duration), or 'auto' (return to next schedule block)."
         },
         "power": {
           "name": "Power",
@@ -251,6 +259,20 @@
         "temperature": {
           "name": "Temperature",
           "description": "Target temperature (optional)."
+        }
+      }
+    },
+    "add_meter_reading": {
+      "name": "Add Meter Reading",
+      "description": "Add an energy meter reading for Energy IQ tracking and consumption analysis.",
+      "fields": {
+        "reading": {
+          "name": "Reading",
+          "description": "Current meter reading value (integer)."
+        },
+        "date": {
+          "name": "Date",
+          "description": "Reading date in YYYY-MM-DD format (defaults to today)."
         }
       }
     }

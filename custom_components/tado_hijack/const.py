@@ -56,6 +56,7 @@ SERVICE_RESUME_ALL_SCHEDULES = "resume_all_schedules"
 SERVICE_TURN_OFF_ALL_ZONES = "turn_off_all_zones"
 SERVICE_BOOST_ALL_ZONES = "boost_all_zones"
 SERVICE_SET_TIMER = "set_timer"
+SERVICE_ADD_METER_READING = "add_meter_reading"
 
 # Device Capabilities
 CAPABILITY_INSIDE_TEMP: Final = "INSIDE_TEMPERATURE_MEASUREMENT"
