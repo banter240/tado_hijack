@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, cast
+from zoneinfo import ZoneInfo
 
 from homeassistant.core import (
     CALLBACK_TYPE,
@@ -30,11 +31,13 @@ if TYPE_CHECKING:
 
 from .const import (
     BOOST_MODE_TEMP,
+    CONF_AUTO_API_QUOTA_PERCENT,
     CONF_DEBOUNCE_TIME,
     CONF_DISABLE_POLLING_WHEN_THROTTLED,
     CONF_OFFSET_POLL_INTERVAL,
     CONF_SLOW_POLL_INTERVAL,
     CONF_THROTTLE_THRESHOLD,
+    DEFAULT_AUTO_API_QUOTA_PERCENT,
     DEFAULT_DEBOUNCE_TIME,
     DEFAULT_OFFSET_POLL_INTERVAL,
     DEFAULT_SLOW_POLL_INTERVAL,
@@ -88,6 +91,10 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
         self._debounce_time = int(
             entry.data.get(CONF_DEBOUNCE_TIME, DEFAULT_DEBOUNCE_TIME)
         )
+        self._auto_api_quota_percent = int(
+            entry.data.get(CONF_AUTO_API_QUOTA_PERCENT, DEFAULT_AUTO_API_QUOTA_PERCENT)
+        )
+        self._base_scan_interval = scan_interval  # Store original interval
 
         self.rate_limit = RateLimitManager(throttle_threshold, get_handler())
         self.auth_manager = AuthManager(hass, entry, client)
@@ -250,9 +257,90 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
             )
             data["api_status"] = self.rate_limit.api_status
 
+            # 6. Auto API Quota: Adjust polling interval dynamically
+            self._adjust_interval_for_auto_quota()
+
             return cast(TadoCoordinatorData, data)
         except TadoError as err:
             raise UpdateFailed(f"Tado API error: {err}") from err
+
+    def _adjust_interval_for_auto_quota(self) -> None:
+        """Adjust update interval based on auto API quota percentage.
+
+        When auto_api_quota_percent > 0, dynamically calculates the optimal
+        polling interval to use exactly X% of the daily API quota, distributed
+        evenly until the next reset at 12:00 noon Berlin time.
+        """
+        if self._auto_api_quota_percent <= 0:
+            # Auto quota disabled, use base interval
+            if self._base_scan_interval > 0:
+                self.update_interval = timedelta(seconds=self._base_scan_interval)
+            else:
+                self.update_interval = None
+            return
+
+        # Get current quota information
+        limit = self.rate_limit.limit
+        remaining = self.rate_limit.remaining
+
+        if limit <= 0:
+            _LOGGER.warning("Auto quota: API limit is 0, cannot calculate interval")
+            return
+
+        # Calculate time until next reset (12:00 noon Berlin time)
+        berlin_tz = ZoneInfo("Europe/Berlin")
+        now = datetime.now(berlin_tz)
+
+        # Next reset is at 12:00 noon today or tomorrow
+        next_reset = now.replace(hour=12, minute=0, second=0, microsecond=0)
+        if now >= next_reset:
+            # Reset already happened today, next reset is tomorrow
+            next_reset = next_reset + timedelta(days=1)
+
+        seconds_until_reset = (next_reset - now).total_seconds()
+
+        # Calculate target quota for the day
+        target_quota = int(limit * self._auto_api_quota_percent / 100)
+
+        # Calculate how many calls we've already used since last reset
+        used_calls = limit - remaining
+
+        # Calculate remaining calls we want to make until reset
+        remaining_target_calls = max(0, target_quota - used_calls)
+
+        if remaining_target_calls <= 0:
+            # We've already reached our quota target, slow down significantly
+            # Use a very long interval (e.g., seconds until reset)
+            new_interval_seconds = max(3600, seconds_until_reset)
+            _LOGGER.info(
+                "Auto quota: Target reached (%d%% of %d = %d calls). "
+                "Slowing down polling to %d seconds",
+                self._auto_api_quota_percent,
+                limit,
+                target_quota,
+                int(new_interval_seconds),
+            )
+        else:
+            # Calculate optimal interval to spread remaining calls evenly
+            new_interval_seconds = seconds_until_reset / remaining_target_calls
+
+            # Apply reasonable bounds (min 30s, max 1 hour)
+            new_interval_seconds = max(30, min(3600, new_interval_seconds))
+
+            _LOGGER.info(
+                "Auto quota: Adjusting interval to %d seconds "
+                "(target: %d%% of %d = %d calls, used: %d, remaining target: %d, "
+                "time until reset: %.1f hours)",
+                int(new_interval_seconds),
+                self._auto_api_quota_percent,
+                limit,
+                target_quota,
+                used_calls,
+                remaining_target_calls,
+                seconds_until_reset / 3600,
+            )
+
+        self.update_interval = timedelta(seconds=new_interval_seconds)
 
     def shutdown(self) -> None:
         """Cleanup listeners and tasks."""

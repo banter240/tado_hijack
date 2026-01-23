@@ -17,6 +17,7 @@ CONF_DISABLE_POLLING_WHEN_THROTTLED: Final = "disable_polling_when_throttled"
 CONF_DEBOUNCE_TIME: Final = "debounce_time"
 CONF_API_PROXY_URL: Final = "api_proxy_url"
 CONF_DEBUG_LOGGING: Final = "debug_logging"
+CONF_AUTO_API_QUOTA_PERCENT: Final = "auto_api_quota_percent"
 
 # Default Intervals
 DEFAULT_SCAN_INTERVAL: Final = 3600
@@ -26,6 +27,7 @@ DEFAULT_DEBOUNCE_TIME: Final = 5  # Seconds
 DEFAULT_THROTTLE_THRESHOLD: Final = (
     0  # 0 = disabled, >0 = throttle when remaining < threshold
 )
+DEFAULT_AUTO_API_QUOTA_PERCENT: Final = 0  # 0 = disabled, >0 = auto-adjust polling to use X% of daily quota
 
 # Minimums (scan_interval 0 = no periodic poll, offset 0 = disabled)
 MIN_SCAN_INTERVAL: Final = 0
