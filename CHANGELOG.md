@@ -1,3 +1,15 @@
+## [3.1.0-dev.14](https://github.com/banter240/tado_hijack/compare/v3.1.0-dev.13...v3.1.0-dev.14) (2026-01-24)
+
+### 🐛 Bug Fixes
+
+* fix(api): revert parallel to sequential requests, improve hot water detection
+
+- Reverted asyncio.gather() to sequential API calls (Tado rejects parallel requests)
+- Simplified rate limit logging in request handler
+- Added hot_water_in_use activity detection in climate_entity and sensor
+- Patched zone state to rescue hot water activity data
+- Reduced MIN_AUTO_QUOTA_INTERVAL_S from 30s to 15s
+
 ## [3.1.0-dev.13](https://github.com/banter240/tado_hijack/compare/v3.1.0-dev.12...v3.1.0-dev.13) (2026-01-24)
 
 ### ✨ New Features
