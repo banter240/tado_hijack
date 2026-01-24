@@ -45,6 +45,19 @@ from .const import (
     DEFAULT_SLOW_POLL_INTERVAL,
     DEFAULT_THROTTLE_THRESHOLD,
     DOMAIN,
+    OVERLAY_NEXT_BLOCK,
+    OVERLAY_PRESENCE,
+    OVERLAY_TIMER,
+    POWER_OFF,
+    POWER_ON,
+    TEMP_MAX_AC,
+    TEMP_MAX_HEATING,
+    TEMP_MAX_HOT_WATER,
+    TERMINATION_MANUAL,
+    TERMINATION_TADO_MODE,
+    TERMINATION_TIMER,
+    ZONE_TYPE_HEATING,
+    ZONE_TYPE_HOT_WATER,
 )
 from .helpers.api_manager import TadoApiManager
 from .helpers.auth_manager import AuthManager
@@ -54,12 +67,12 @@ from .helpers.logging_utils import get_redacted_logger
 from .helpers.optimistic_manager import OptimisticManager
 from .helpers.patch import get_handler
 from .helpers.rate_limit_manager import RateLimitManager
-from .models import CommandType, RateLimit, TadoCommand, TadoCoordinatorData
+from .models import CommandType, RateLimit, TadoCommand, TadoData
 
 _LOGGER = get_redacted_logger(__name__)
 
 
-class TadoDataUpdateCoordinator(DataUpdateCoordinator):
+class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
     """Orchestrates Tado integration logic via specialized managers."""
 
     def __init__(
@@ -162,8 +175,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
                             eid,
                             zone_id,
                         )
-                        # Schedule resume (async call handled by coordinator)
-                        self.hass.async_create_task(self.async_resume_schedule(zone_id))
+                        self.hass.async_create_task(self.async_set_zone_auto(zone_id))
                     else:
                         # Normal temp change or other HVAC mode = Manual override
                         _LOGGER.debug(
@@ -181,7 +193,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
     def _update_climate_map(self) -> None:
         """Map HomeKit climate entities to Tado zones."""
         for zone in self.zones_meta.values():
-            if zone.type != "HEATING":
+            if zone.type != ZONE_TYPE_HEATING:
                 continue
             for device in zone.devices:
                 if climate_id := get_climate_entity_id(self.hass, device.serial_no):
@@ -248,7 +260,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
                 return True
         return False
 
-    async def _async_update_data(self) -> TadoCoordinatorData:
+    async def _async_update_data(self) -> TadoData:
         """Fetch update via DataManager.
 
         Handles throttling logic by skipping API calls if quota is low and
@@ -268,7 +280,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
             )
             # Return existing data without making new API calls
             if self.data:
-                return cast(TadoCoordinatorData, self.data)
+                return cast(TadoData, self.data)
 
             # If no data exists yet, allow first fetch
             _LOGGER.info("No data exists, allowing initial fetch despite throttling")
@@ -300,16 +312,16 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
             if actual_cost > 0:
                 self.rate_limit.last_poll_cost = float(actual_cost)
 
-            data["rate_limit"] = RateLimit(
+            data.rate_limit = RateLimit(
                 limit=self.rate_limit.limit,
                 remaining=self.rate_limit.remaining,
             )
-            data["api_status"] = self.rate_limit.api_status
+            data.api_status = self.rate_limit.api_status
 
             # 7. Auto API Quota: Adjust polling interval dynamically
             self._adjust_interval_for_auto_quota()
 
-            return cast(TadoCoordinatorData, data)
+            return cast(TadoData, data)
         except TadoError as err:
             raise UpdateFailed(f"Tado API error: {err}") from err
 
@@ -556,20 +568,20 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
     def update_rate_limit_local(self, silent: bool = False) -> None:
         """Update local stats and sync internal remaining from headers."""
         self.rate_limit.sync_from_headers()
-        self.data["rate_limit"] = RateLimit(
+        self.data.rate_limit = RateLimit(
             limit=self.rate_limit.limit,
             remaining=self.rate_limit.remaining,
         )
-        self.data["api_status"] = self.rate_limit.api_status
+        self.data.api_status = self.rate_limit.api_status
         if not silent:
             self.async_update_listeners()
 
     async def async_sync_states(self, types: list[str]) -> None:
         """Targeted refresh after worker actions."""
         if "presence" in types:
-            self.data["home_state"] = await self._tado.get_home_state()
+            self.data.home_state = await self._tado.get_home_state()
         if "zone" in types:
-            self.data["zone_states"] = await self._tado.get_zone_states()
+            self.data.zone_states = await self._tado.get_zone_states()
 
         self.update_rate_limit_local(silent=False)
 
@@ -585,7 +597,9 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
     async def async_set_zone_heat(self, zone_id: int, temp: float = 25.0):
         """Set zone to manual mode with temperature."""
         zone = self.zones_meta.get(zone_id)
-        overlay_type = getattr(zone, "type", "HEATING") if zone else "HEATING"
+        overlay_type = (
+            getattr(zone, "type", ZONE_TYPE_HEATING) if zone else ZONE_TYPE_HEATING
+        )
 
         self.optimistic.set_zone(zone_id, True)
         self.async_update_listeners()
@@ -714,30 +728,27 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
             ),
         )
 
+    async def async_get_capabilities(self, zone_id: int) -> Any:
+        """Fetch capabilities via DataManager (on-demand)."""
+        return await self.data_manager.async_get_capabilities(zone_id)
+
     async def async_set_ac_setting(self, zone_id: int, key: str, value: str) -> None:
         """Set an AC specific setting (fan speed, swing, temperature, etc.)."""
-        state = self.data.get("zone_states", {}).get(str(zone_id))
+        state = self.data.zone_states.get(str(zone_id))
         if not state or not state.setting:
             _LOGGER.error("Cannot set AC setting: No state for zone %d", zone_id)
             return
-
-        # Map internal keys to API keys
-        api_key_map = {
-            "fan_speed": "fanSpeed",
-            "vertical_swing": "verticalSwing",
-            "horizontal_swing": "horizontalSwing",
-            "swing": "swing",
-        }
 
         # Build combined setting from current state
         setting = {
             "type": state.setting.type,
             "power": "ON",  # Ensure power is ON when setting values
             "mode": state.setting.mode,
-            api_key_map.get("fan_speed"): state.setting.fan_speed,
-            api_key_map.get("vertical_swing"): state.setting.vertical_swing,
-            api_key_map.get("horizontal_swing"): state.setting.horizontal_swing,
-            api_key_map.get("swing"): state.setting.swing,
+            "fanSpeed": getattr(state.setting, "fan_speed", None),
+            "fanLevel": getattr(state.setting, "fan_level", None),
+            "verticalSwing": getattr(state.setting, "vertical_swing", None),
+            "horizontalSwing": getattr(state.setting, "horizontal_swing", None),
+            "swing": getattr(state.setting, "swing", None),
         }
 
         if key == "temperature":
@@ -747,7 +758,21 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
 
         # Override the changed value (if it's not temperature)
         if key != "temperature":
-            setting[api_key_map.get(key, key)] = value
+            # Map internal keys to API keys
+            api_key_map = {
+                "fan_speed": "fanSpeed",
+                "vertical_swing": "verticalSwing",
+                "horizontal_swing": "horizontalSwing",
+                "swing": "swing",
+            }
+
+            api_key = api_key_map.get(key, key)
+            setting[api_key] = value
+            # Handle special cases for fan/swing where both keys might exist
+            if key == "fan_speed":
+                setting["fanLevel"] = value
+            elif key == "vertical_swing":
+                setting["swing"] = value
 
         # Optimistic Update: Setting a value implies Manual Mode (Overlay) and Power ON
         self.optimistic.set_zone(zone_id, True, power="ON")
@@ -800,19 +825,19 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
     def get_capped_temperature(self, zone_id: int, temperature: float) -> float:
         """Get safety-capped temperature based on zone type."""
         zone = self.zones_meta.get(zone_id)
-        ztype = getattr(zone, "type", "HEATING") if zone else "HEATING"
+        ztype = getattr(zone, "type", ZONE_TYPE_HEATING) if zone else ZONE_TYPE_HEATING
 
         # Apply safety caps based on zone type
-        limit = 25.0 if ztype == "HEATING" else 30.0
-        if ztype == "HOT_WATER":
-            limit = 80.0
+        limit = TEMP_MAX_HEATING if ztype == ZONE_TYPE_HEATING else TEMP_MAX_AC
+        if ztype == ZONE_TYPE_HOT_WATER:
+            limit = TEMP_MAX_HOT_WATER
 
         return min(temperature, limit)
 
     def _build_overlay_data(
         self,
         zone_id: int,
-        power: str = "ON",
+        power: str = POWER_ON,
         temperature: float | None = None,
         duration: int | None = None,
         overlay_type: str | None = None,
@@ -832,30 +857,32 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
         # 1. Determine Type
         if not overlay_type:
             zone = self.zones_meta.get(zone_id)
-            overlay_type = getattr(zone, "type", "HEATING") if zone else "HEATING"
+            overlay_type = (
+                getattr(zone, "type", ZONE_TYPE_HEATING) if zone else ZONE_TYPE_HEATING
+            )
 
         # 2. Build Termination
         # Priority: overlay_mode > duration > default (MANUAL)
-        if overlay_mode == "next_block":
+        if overlay_mode == OVERLAY_NEXT_BLOCK:
             # Auto-return to schedule at next time block
             termination: dict[str, Any] = {"type": "NEXT_TIME_BLOCK"}
-        elif overlay_mode == "presence":
+        elif overlay_mode == OVERLAY_PRESENCE:
             # While in current Presence Mode (indefinite until presence change or manual change)
-            termination = {"type": "TADO_MODE"}
-        elif overlay_mode == "timer" or duration:
+            termination = {"type": TERMINATION_TADO_MODE}
+        elif overlay_mode == OVERLAY_TIMER or duration:
             # Timer with specific duration (fall back to 30min if only mode was provided)
             duration_seconds = duration * 60 if duration else 1800
             termination = {
-                "typeSkillBasedApp": "TIMER",
+                "typeSkillBasedApp": TERMINATION_TIMER,
                 "durationInSeconds": duration_seconds,
             }
         else:
             # Manual (indefinite until user changes)
-            termination = {"typeSkillBasedApp": "MANUAL"}
+            termination = {"typeSkillBasedApp": TERMINATION_MANUAL}
 
         # 3. Build Setting
         setting: dict[str, Any] = {"type": overlay_type, "power": power}
-        if temperature is not None and power == "ON":
+        if temperature is not None and power == POWER_ON:
             capped_temp = self.get_capped_temperature(zone_id, temperature)
             setting["temperature"] = {"celsius": capped_temp}
 
@@ -864,7 +891,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
     async def async_set_multiple_zone_overlays(
         self,
         zone_ids: list[int],
-        power: str = "ON",
+        power: str = POWER_ON,
         temperature: float | None = None,
         duration: int | None = None,
         overlay_mode: str | None = None,
@@ -914,26 +941,32 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
             )
 
     async def async_resume_all_schedules(self) -> None:
-        """Resume all zone schedules using bulk API endpoint (single call)."""
+        """Resume all heating zone schedules using bulk API endpoint (single call)."""
         _LOGGER.debug("Resume all schedules triggered")
 
         if not self.zones_meta:
             _LOGGER.warning("No zones to resume")
             return
 
+        # Only resume HEATING zones, not HOT_WATER or AC
         active_zones = [
-            zid for zid in self.zones_meta if not self._is_zone_disabled(zid)
+            zid
+            for zid, zone in self.zones_meta.items()
+            if getattr(zone, "type", ZONE_TYPE_HEATING) == ZONE_TYPE_HEATING
+            and not self._is_zone_disabled(zid)
         ]
 
         if not active_zones:
-            _LOGGER.warning("All zones are disabled, skipping resume")
+            _LOGGER.warning("No active heating zones to resume")
             return
 
         for zone_id in active_zones:
             self.optimistic.set_zone(zone_id, None)
         self.async_update_listeners()
 
-        _LOGGER.info("Queued resume schedules for %d active zones", len(active_zones))
+        _LOGGER.info(
+            "Queued resume schedules for %d active heating zones", len(active_zones)
+        )
 
         # Send individual commands. The ApiManager is smart enough to batch them into one call!
         for zone_id in active_zones:
@@ -947,7 +980,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
         _LOGGER.debug("Turn off all zones triggered")
         self._apply_bulk_zone_overlay(
             command_key="turn_off_all",
-            setting={"power": "OFF", "type": "HEATING"},
+            setting={"power": POWER_OFF, "type": ZONE_TYPE_HEATING},
             action_name="turn off",
         )
 
@@ -957,8 +990,8 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
         self._apply_bulk_zone_overlay(
             command_key="boost_all",
             setting={
-                "power": "ON",
-                "type": "HEATING",
+                "power": POWER_ON,
+                "type": ZONE_TYPE_HEATING,
                 "temperature": {"celsius": BOOST_MODE_TEMP},
             },
             action_name="boost",
@@ -985,7 +1018,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
         zone_ids = [
             zone_id
             for zone_id, zone in self.zones_meta.items()
-            if getattr(zone, "type", "HEATING") == "HEATING"
+            if getattr(zone, "type", ZONE_TYPE_HEATING) == ZONE_TYPE_HEATING
             and not self._is_zone_disabled(zone_id)
         ]
 

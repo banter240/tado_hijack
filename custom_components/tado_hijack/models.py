@@ -2,9 +2,19 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any, TypedDict
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from tadoasync.models import (
+        Capabilities,
+        Device,
+        HomeState,
+        TemperatureOffset,
+        Zone,
+        ZoneState,
+    )
 
 
 @dataclass(slots=True)
@@ -15,22 +25,23 @@ class RateLimit:
     remaining: int
 
 
-class TadoCoordinatorData(TypedDict):
-    """Type definition for coordinator.data dictionary.
+@dataclass
+class TadoData:
+    """Data structure to hold Tado data.
 
     Provides type safety and IDE autocomplete for data dictionary access.
     Updated by DataManager.fetch_full_update() and coordinator._async_update_data().
     """
 
-    home_state: dict[str, Any]
-    zone_states: dict[str, Any]
-    rate_limit: RateLimit
-    api_status: str
-    zones: list[Any]
-    devices: list[Any]
-    capabilities: dict[int, Any]
-    offsets: dict[str, Any]
-    away_config: dict[int, float]
+    home_state: HomeState | None = None
+    zone_states: dict[str, ZoneState] = field(default_factory=dict)
+    rate_limit: RateLimit = field(default_factory=lambda: RateLimit(0, 0))
+    api_status: str = "unknown"
+    zones: dict[int, Zone] = field(default_factory=dict)
+    devices: dict[str, Device] = field(default_factory=dict)
+    capabilities: dict[int, Capabilities] = field(default_factory=dict)
+    offsets: dict[str, TemperatureOffset] = field(default_factory=dict)
+    away_config: dict[int, float] = field(default_factory=dict)
 
 
 class CommandType(StrEnum):

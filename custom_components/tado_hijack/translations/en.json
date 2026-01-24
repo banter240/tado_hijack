@@ -172,7 +172,7 @@
         "data": {
           "scan_interval": "Fast Polling Interval (Seconds)",
           "auto_api_quota_percent": "Auto API Quota (%)",
-          "slow_poll_interval": "Battery Update Interval (Hours)",
+          "slow_poll_interval": "Hardware Sync Interval (Hours)",
           "offset_poll_interval": "Offset Update Interval (Hours)",
           "debounce_time": "Debounce Time (Seconds)",
           "throttle_threshold": "Throttle Threshold",
@@ -182,8 +182,8 @@
         },
         "data_description": {
           "scan_interval": "How often to check Home/Away and HVAC state. Set to 0 to disable periodic polling (manual only). 1800s (30m) is recommended.",
-          "auto_api_quota_percent": "Use X% of FREE daily quota for status polling (0 = disabled). FREE = Limit - Throttle Reserve - Battery Updates - Offset Updates. Hybrid strategy: Uses MAX(Daily Budget - Used, Remaining * X%) → System ALWAYS continues polling even when over daily budget.",
-          "slow_poll_interval": "How often to check batteries and device info. 24h is highly recommended. Costs only 2 API calls total.",
+          "auto_api_quota_percent": "Use X% of FREE daily quota for status polling (0 = disabled). FREE = Limit - Throttle Reserve - Metadata Updates - Offset Updates. Hybrid strategy: Uses MAX(Daily Budget - Used, Remaining * X%) → System ALWAYS continues polling even when over daily budget.",
+          "slow_poll_interval": "How often to sync battery levels, firmware, capabilities and device list. Set to 0 to disable periodic updates (initial only). 24h is highly recommended.",
           "offset_poll_interval": "How often to fetch temperature offsets. Costs 1 API call PER VALVE. Set to 0 to disable (manual poll only).",
           "debounce_time": "Time window to collect rapid changes before sending to API. Default 5s.",
           "throttle_threshold": "Skip confirmation API calls when remaining quota drops below this value. Set to 0 to disable throttling.",
@@ -207,7 +207,7 @@
         "data": {
           "scan_interval": "Update Interval (Seconds)",
           "auto_api_quota_percent": "Auto API Quota (%)",
-          "slow_poll_interval": "Battery Update Interval (Hours)",
+          "slow_poll_interval": "Hardware Sync Interval (Hours)",
           "offset_poll_interval": "Offset Update Interval (Hours)",
           "debounce_time": "Debounce Time (Seconds)",
           "throttle_threshold": "Throttle Threshold",
@@ -218,7 +218,7 @@
         "data_description": {
           "scan_interval": "Interval for presence and heating state. Set to 0 to disable periodic polling.",
           "auto_api_quota_percent": "Use X% of FREE daily quota for status polling (0 = disabled). FREE = Limit - Throttle - Scheduled Updates. Hybrid strategy prevents self-throttling when quota is low. Interval auto-adjusts until 12:00 CET reset.",
-          "slow_poll_interval": "Interval for battery and metadata. 24h is sufficient.",
+          "slow_poll_interval": "Interval for battery levels, firmware and device metadata. Set to 0 for initial only. 24h is sufficient.",
           "offset_poll_interval": "Interval for temperature offsets. Costs 1 API call PER VALVE. 0 = disabled.",
           "debounce_time": "Time window to collect rapid changes before sending to API. Default 5s.",
           "throttle_threshold": "Skip confirmation API calls when remaining quota drops below this value. 0 = disabled.",

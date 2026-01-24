@@ -40,7 +40,7 @@ SENSORS: tuple[TadoSensorEntityDescription, ...] = (
         native_unit_of_measurement=None,
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=0,
-        value_fn=lambda data: int(getattr(data.get("rate_limit"), "limit", 0)),
+        value_fn=lambda data: int(data.rate_limit.limit),
     ),
     TadoSensorEntityDescription(
         key="api_remaining",
@@ -48,7 +48,7 @@ SENSORS: tuple[TadoSensorEntityDescription, ...] = (
         native_unit_of_measurement=None,
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=0,
-        value_fn=lambda data: int(getattr(data.get("rate_limit"), "remaining", 0)),
+        value_fn=lambda data: int(data.rate_limit.remaining),
     ),
 )
 
@@ -120,7 +120,7 @@ class TadoApiStatusSensor(TadoHomeEntity, SensorEntity):
     @property
     def native_value(self) -> str:
         """Return the current API status."""
-        return str(self.coordinator.data.get("api_status", "connected"))
+        return str(self.coordinator.data.api_status)
 
 
 class TadoHeatingPowerSensor(TadoZoneEntity, SensorEntity):
@@ -142,7 +142,7 @@ class TadoHeatingPowerSensor(TadoZoneEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         """Return the current heating power percentage."""
-        state = self.coordinator.data.get("zone_states", {}).get(str(self._zone_id))
+        state = self.coordinator.data.zone_states.get(str(self._zone_id))
         if (
             state
             and state.activity_data_points
@@ -174,7 +174,7 @@ class TadoHumiditySensor(TadoZoneEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         """Return the current humidity percentage."""
-        state = self.coordinator.data.get("zone_states", {}).get(str(self._zone_id))
+        state = self.coordinator.data.zone_states.get(str(self._zone_id))
         if state and state.sensor_data_points and state.sensor_data_points.humidity:
             return float(state.sensor_data_points.humidity.percentage)
         return None

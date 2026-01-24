@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 from typing import TYPE_CHECKING, Any, cast
 
@@ -14,6 +15,7 @@ if TYPE_CHECKING:
     from .client import TadoHijackClient
 
 from ..const import CAPABILITY_INSIDE_TEMP, DOMAIN, TEMP_OFFSET_ATTR
+from ..models import TadoData
 from .logging_utils import get_redacted_logger
 
 _LOGGER = get_redacted_logger(__name__)
@@ -50,6 +52,7 @@ class TadoDataManager:
         self.capabilities_cache: dict[int, Any] = {}
         self.offsets_cache: dict[str, TemperatureOffset] = {}
         self.away_cache: dict[int, float] = {}
+        self._capability_locks: dict[int, asyncio.Lock] = {}
         self._last_slow_poll: float = 0
         self._last_offset_poll: float = time.monotonic()
         self._last_away_poll: float = time.monotonic()
@@ -208,7 +211,7 @@ class TadoDataManager:
                 plan.append(self._create_offset_task(dev.serial_no))
         return sum(task.cost for task in plan)
 
-    async def fetch_full_update(self) -> dict[str, Any]:
+    async def fetch_full_update(self) -> TadoData:
         """Perform a data fetch by executing the poll plan.
 
         Instead of executing the plan blindly (which is hard for data storage),
@@ -222,50 +225,37 @@ class TadoDataManager:
 
         # 1. Fast Track (Always)
         _LOGGER.debug("DataManager: Fetching fast-track states")
-        home_state = await self._tado.get_home_state()
-        zone_states = await self._tado.get_zone_states()
 
-        # Results storage
-        results: dict[str, Any] = {
-            "home_state": home_state,
-            "zone_states": zone_states,
-            "zones": list(self.zones_meta.values()),
-            "devices": list(self.devices_meta.values()),
-            "capabilities": self.capabilities_cache,
-            "offsets": self.offsets_cache,
-            "away_config": self.away_cache,
-        }
+        # 2. Slow Track (Metadata) - Check if we need initial load
+        is_initial_load = not self.zones_meta
+        is_slow_poll_due = (
+            self._slow_poll_seconds > 0
+            and (current_time - self._last_slow_poll) > self._slow_poll_seconds
+        )
 
-        # 2. Slow Track
-        if (
-            not self.zones_meta
-            or (current_time - self._last_slow_poll) > self._slow_poll_seconds
-        ):
-            _LOGGER.info("DataManager: Fetching slow-track metadata")
-            zones = await self._tado.get_zones()
-            devices = await self._tado.get_devices()
+        if is_initial_load or is_slow_poll_due:
+            _LOGGER.info("DataManager: Performing metadata sync")
+            # Parallelize all initial metadata calls
+            results_fast = await asyncio.gather(
+                self._tado.get_home_state(),
+                self._tado.get_zone_states(),
+                self._tado.get_zones(),
+                self._tado.get_devices(),
+                return_exceptions=False,
+            )
+            home_state, zone_states, zones, devices = results_fast
+
             self.zones_meta = {zone.id: zone for zone in zones}
             self.devices_meta = {dev.short_serial_no: dev for dev in devices}
-
-            results["zones"] = list(self.zones_meta.values())
-            results["devices"] = list(self.devices_meta.values())
-
-            # Capabilities
-            for zone in zones:
-                if zone.type in ("AIR_CONDITIONING", "HOT_WATER"):
-                    try:
-                        self.capabilities_cache[
-                            zone.id
-                        ] = await self._tado.get_capabilities(zone.id)
-                    except Exception as err:
-                        _LOGGER.warning(
-                            "Failed to fetch capabilities for zone %d: %s", zone.id, err
-                        )
-
             self.coordinator.bridges = [
                 dev for dev in devices if dev.device_type.startswith("IB")
             ]
             self._last_slow_poll = current_time
+        else:
+            # Regular fast-track only
+            home_state, zone_states = await asyncio.gather(
+                self._tado.get_home_state(), self._tado.get_zone_states()
+            )
 
         # 3. Medium Track (Offsets)
         if self._offset_invalidated or (
@@ -282,7 +272,15 @@ class TadoDataManager:
             self._last_away_poll = current_time
             self._away_invalidated = False
 
-        return results
+        return TadoData(
+            home_state=home_state,
+            zone_states=zone_states,
+            zones=self.zones_meta,
+            devices=self.devices_meta,
+            capabilities=self.capabilities_cache,
+            offsets=self.offsets_cache,
+            away_config=self.away_cache,
+        )
 
     def invalidate_cache(self, refresh_type: str = "all") -> None:
         """Force specific cache refresh on next poll."""
@@ -384,3 +382,29 @@ class TadoDataManager:
                     zone.id,
                     err,
                 )
+
+    async def async_get_capabilities(self, zone_id: int) -> Any:
+        """Get capabilities for a zone, fetching from API if not cached (thread-safe)."""
+        if zone_id not in self.capabilities_cache:
+            # Ensure only one fetch happens per zone at a time
+            if zone_id not in self._capability_locks:
+                self._capability_locks[zone_id] = asyncio.Lock()
+
+            async with self._capability_locks[zone_id]:
+                # Double-check cache after acquiring lock
+                if zone_id in self.capabilities_cache:
+                    return self.capabilities_cache[zone_id]
+
+                _LOGGER.info("DataManager: Fetching capabilities for zone %d", zone_id)
+                try:
+                    self.capabilities_cache[
+                        zone_id
+                    ] = await self._tado.get_capabilities(zone_id)
+                except Exception as err:
+                    _LOGGER.error(
+                        "DataManager: Failed to fetch capabilities for zone %d: %s",
+                        zone_id,
+                        err,
+                    )
+                    return None
+        return self.capabilities_cache.get(zone_id)

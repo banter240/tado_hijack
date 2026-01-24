@@ -47,20 +47,31 @@ I engineered this integration with one goal: **To squeeze every drop of function
 
 <br>
 
-- [🏴‍☠️ Philosophy](#-the-hijack-philosophy)
-  - [⚖️ The "Why" Factor](#️-the-why-factor)
-- [🆚 Comparison](#-feature-comparison)
-- [🚀 Key Highlights](#-key-highlights)
-  - [🧠 Extreme Batching Technology](#-extreme-batching-technology)
-  - [🤝 The HomeKit "Missing Link"](#-the-homekit-missing-link)
-  - [🛠️ Unleashed Features](#-unleashed-features-non-homekit)
-- [📊 API Consumption Strategy](#-api-consumption-strategy)
-- [🛠️ Architecture](#️-architecture)
-- [📦 Installation](#-installation)
-- [⚙️ Configuration](#️-configuration)
-- [📱 Entities & Controls](#-entities--controls)
-- [⚡ Services](#-services)
-- [🐛 Troubleshooting](#-troubleshooting)
+- [🏴‍☠️ Philosophy](#the-hijack-philosophy)
+  - [⚖️ The "Why" Factor](#the-why-factor)
+- [🆚 Comparison](#feature-comparison)
+- [🚀 Key Highlights](#key-highlights)
+  - [🧠 Extreme Batching Technology](#extreme-batching-technology)
+  - [🤝 The HomeKit "Missing Link"](#the-homekit-missing-link)
+  - [🛠️ Unleashed Features](#unleashed-features-non-homekit)
+- [📊 API Consumption Strategy](#api-consumption-strategy)
+  - [📊 API Consumption Table](#api-consumption-table)
+  - [📈 Auto API Quota (The Brain)](#auto-api-quota-the-brain)
+  - [🧠 Batching Capability Matrix](#batching-capability-matrix)
+- [🛠️ Architecture](#architecture)
+  - [🔧 Physical Device Mapping](#physical-device-mapping)
+  - [🛡️ Robustness & Security](#robustness--security)
+- [📦 Installation](#installation)
+  - [📦 Via HACS (Recommended)](#via-hacs-recommended)
+- [⚙️ Configuration](#configuration)
+- [📱 Entities & Controls](#entities--controls)
+  - [🏠 Home Device (Internet Bridge)](#home-device-internet-bridge)
+  - [🌡️ Zone Devices (Rooms / Hot Water / AC)](#zone-devices-rooms--hot-water--ac)
+  - [🔧 Physical Devices (Valves/Thermostats)](#physical-devices-valvesthermostats)
+- [⚡ Services](#services)
+  - [📝 set_timer Examples (YAML)](#set_timer-examples-yaml)
+- [📋 Known Constraints](#known-constraints)
+- [🐛 Troubleshooting](#troubleshooting)
 
 <br>
 
@@ -68,7 +79,7 @@ I engineered this integration with one goal: **To squeeze every drop of function
 
 <br>
 
-## 🏴‍☠️ The Hijack Philosophy
+## The Hijack Philosophy
 
 <br>
 
@@ -77,10 +88,11 @@ Tado's restricted REST API often forces a trade-off between frequent updates and
 Instead of just "polling less," we use **Deep Command Merging** and **HomeKit Injection** to make every single API call count. We don't replace your local HomeKit setup; we "hijack" it, injecting missing cloud power-features directly into the existing devices.
 
 *   **💎 Zero Waste:** 10 commands across 10 rooms? Still only **1 API call**.
+*   **🛡️ Thread-Safe:** Built-in **Race-Condition Protection** for hardware capabilities.
 *   **🔗 No Redundancy:** HomeKit handles local climate; we handle the cloud secrets.
 *   **📡 Transparency:** Real-time quota tracking directly from Tado's response headers.
 
-### ⚖️ The "Why" Factor
+### The "Why" Factor
 
 <br>
 
@@ -101,7 +113,7 @@ Tado Hijack is the definitive technical response to this hostility. I've enginee
 
 <br>
 
-## 🆚 Feature Comparison
+## Feature Comparison
 
 <br>
 
@@ -126,11 +138,11 @@ Tado Hijack is the definitive technical response to this hostility. I've enginee
 
 <br>
 
-## 🚀 Key Highlights
+## Key Highlights
 
 <br>
 
-### 🧠 Extreme Batching Technology
+### Extreme Batching Technology
 
 <br>
 
@@ -158,7 +170,7 @@ While other integrations waste your precious API quota for every tiny interactio
 
 <br>
 
-### 🤝 The HomeKit "Missing Link"
+### The HomeKit "Missing Link"
 
 <br>
 
@@ -190,7 +202,7 @@ Almost no other integration does this: Tado Hijack automatically detects your ex
 
 <br>
 
-### 🛠️ Unleashed Features (Non-HomeKit)
+### Unleashed Features (Non-HomeKit)
 
 <br>
 
@@ -214,7 +226,7 @@ We bring back the controls Tado "forgot" to give you:
 
 <br>
 
-## 📊 API Consumption Strategy
+## API Consumption Strategy
 
 <br>
 
@@ -229,7 +241,8 @@ Tado's API limits are restrictive. That's why Tado Hijack uses a **Zero-Waste Po
 | Action | Cost | Frequency | Description | Detailed API Calls |
 | :--- | :---: | :--- | :--- | :--- |
 | **State Poll** | **2** | Configurable | State, HVAC, Valve %, Humidity. | `GET /homes/{id}/state`<br>`GET /homes/{id}/zoneStates` |
-| **Battery Update** | **2** | 24h (Default) | Fetches device list & metadata. | `GET /homes/{id}/zones`<br>`GET /homes/{id}/devices` |
+| **Hardware Sync** | **2** | 24h (Default) | Syncs battery, firmware and device list. | `GET /homes/{id}/zones`<br>`GET /homes/{id}/devices` |
+| **Zone Capabilities** | **1** | Lazy Load | **Internal:** Fetched once per AC/HW zone when needed. | `GET /zones/{z}/capabilities` |
 | **Refresh Zones** | **2** | On Demand | Updates zone/device metadata. | `GET /homes/{id}/zones`<br>`GET /homes/{id}/devices` |
 | **Refresh Offsets** | **N** | On Demand | Fetches all device offsets. | `GET /devices/{s}/temperatureOffset` (×N) |
 | **Refresh Away** | **M** | On Demand | Fetches all zone away temps. | `GET /zones/{z}/awayConfiguration` (×M) |
@@ -248,7 +261,7 @@ Tado's API limits are restrictive. That's why Tado Hijack uses a **Zero-Waste Po
 
 <br>
 
-### 📈 Auto API Quota (The Brain)
+### Auto API Quota (The Brain)
 
 <br>
 
@@ -300,7 +313,7 @@ Instead of a static timer, your polling interval breathes with your quota:
 
 <br>
 
-### 🧠 Batching Capability Matrix
+### Batching Capability Matrix
 
 Not all API calls are created equal. Tado Hijack optimizes everything, but physics (and the Tado API) sets limits.
 
@@ -335,14 +348,16 @@ Not all API calls are created equal. Tado Hijack optimizes everything, but physi
 
 <br>
 
-## 🛠️ Architecture
+## Architecture
 
 <br>
 
 ### Physical Device Mapping
 
 <br>
+
 Unlike other integrations that group everything by "Zone", Tado Hijack maps entities to their **physical devices** (Valves/Thermostats).
+
 *   **Matched via Serial Number:** Automatic injection into existing HomeKit devices.
 *   **No HomeKit?** We create dedicated devices containing **only** the cloud features (Battery, Offset, Child Lock, etc.), but **no** temperature control.
 
@@ -351,6 +366,7 @@ Unlike other integrations that group everything by "Zone", Tado Hijack maps enti
 ### Robustness & Security
 
 <br>
+
 *   **Custom Client Layer:** I extend the underlying library via inheritance to handle API communication reliably and fix common deserialization errors.
 *   **Privacy by Design:** All logs are automatically redacted. Sensitive data (User Codes, Serial Numbers, Home IDs) is stripped before writing to disk.
 
@@ -360,13 +376,14 @@ Unlike other integrations that group everything by "Zone", Tado Hijack maps enti
 
 <br>
 
-## 📦 Installation
+## Installation
 
 <br>
 
 ### Via HACS (Recommended)
 
 <br>
+
 1. Open **HACS** -> **Integrations** -> **Custom repositories**.
 2. Add `https://github.com/banter240/tado_hijack` as **Integration**.
 3. Search for **"Tado Hijack"** and download.
@@ -378,7 +395,7 @@ Unlike other integrations that group everything by "Zone", Tado Hijack maps enti
 
 <br>
 
-## ⚙️ Configuration
+## Configuration
 
 <br>
 
@@ -386,8 +403,8 @@ Unlike other integrations that group everything by "Zone", Tado Hijack maps enti
 | :--- | :--- | :--- |
 | **Status Polling** | `60m` | Interval for heating state and presence. (2 API calls) |
 | **Auto API Quota** | `0%` (Off) | Target X% of FREE quota. Uses hybrid strategy: daily budget OR X% of remaining (whichever is higher). |
-| **Battery Update** | `24h` | Interval for battery and device metadata. (2 API calls) |
-| **Offset Update** | `0` (Off) | Interval for temperature offsets. (1 API call per valve) |
+| **Hardware Sync** | `24h` | Interval for battery, firmware and device metadata. Set to 0 for initial load only. |
+| **Offset Update** | `0` (Off) | Interval for temperature offsets. Costs 1 API call per valve. |
 | **Debounce Time** | `5s` | **Batching Window:** Fuses actions into single calls. |
 | **Throttle Threshold** | `0` | Reserve last N calls - skip polling when remaining < threshold. |
 | **Disable Polling When Throttled** | `Off` | Stop periodic polling entirely when throttled. |
@@ -400,11 +417,11 @@ Unlike other integrations that group everything by "Zone", Tado Hijack maps enti
 
 <br>
 
-## 📱 Entities & Controls
+## Entities & Controls
 
 <br>
 
-### 🏠 Home Device (Internet Bridge)
+### Home Device (Internet Bridge)
 
 <br>
 Global controls for the entire home. *Linked to your Internet Bridge device.*
@@ -428,7 +445,7 @@ Global controls for the entire home. *Linked to your Internet Bridge device.*
 
 <br>
 
-### 🌡️ Zone Devices (Rooms / Hot Water / AC)
+### Zone Devices (Rooms / Hot Water / AC)
 
 <br>
 
@@ -439,7 +456,7 @@ Cloud-only features that HomeKit does not support.
 | Entity | Type | Description |
 | :--- | :--- | :--- |
 | `switch.schedule` | Switch | **ON** = Smart Schedule, **OFF** = Manual. Simple way to resume schedule. |
-| `climate.hot_water` | Climate | **Hot Water:** Control modes: AUTO (schedule), HEAT (manual), OFF. Temperature control 30-80°C. |
+| `climate.hot_water` | Climate | **Hot Water:** Control modes: AUTO (schedule), HEAT (manual), OFF. Temperature 30-65°C (1°C steps). |
 | `switch.hot_water` | Switch | **Legacy:** Direct boiler power control (replaced by climate entity). |
 | `switch.early_start` | Switch | **Cloud Only:** Toggle pre-heating before schedule. |
 | `switch.open_window` | Switch | **Cloud Only:** Toggle window detection. |
@@ -453,7 +470,7 @@ Cloud-only features that HomeKit does not support.
 
 <br>
 
-### 🔧 Physical Devices (Valves/Thermostats)
+### Physical Devices (Valves/Thermostats)
 
 <br>
 
@@ -475,7 +492,7 @@ Hardware-specific entities. *These entities are **injected** into your existing 
 
 <br>
 
-## ⚡ Services
+## Services
 
 <br>
 
@@ -497,7 +514,7 @@ For advanced automation, use these services:
 
 <br>
 
-#### 📝 `set_timer` Examples (YAML)
+#### `set_timer` Examples (YAML)
 
 <br>
 
@@ -559,7 +576,7 @@ data:
 
 <br>
 
-## 📋 Known Constraints
+## Known Constraints
 
 <br>
 
@@ -589,7 +606,7 @@ While Tado Hijack uses the cloud for its power-features, your basic smart home r
 
 <br>
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 <br>
 

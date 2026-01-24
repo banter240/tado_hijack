@@ -9,6 +9,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .entity import TadoZoneEntity
 from .helpers.logging_utils import get_redacted_logger
+from .helpers.parsers import get_ac_capabilities
 
 if TYPE_CHECKING:
     from . import TadoConfigEntry
@@ -30,55 +31,13 @@ async def async_setup_entry(
         if zone.type != "AIR_CONDITIONING":
             continue
 
-        capabilities = coordinator.data.get("capabilities", {}).get(zone.id)
-        if not capabilities:
-            continue
-
-        # Find available options across all AC modes
-        fan_speeds: set[str] = set()
-        v_swings: set[str] = set()
-        h_swings: set[str] = set()
-
-        for mode_attr in ("auto", "cool", "dry", "fan", "heat"):
-            if ac_mode := getattr(capabilities, mode_attr, None):
-                if ac_mode.fan_speeds:
-                    fan_speeds.update(ac_mode.fan_speeds)
-                if ac_mode.vertical_swing:
-                    v_swings.update(ac_mode.vertical_swing)
-                if ac_mode.horizontal_swing:
-                    h_swings.update(ac_mode.horizontal_swing)
-
-        if fan_speeds:
-            entities.append(
-                TadoAcSelect(
-                    coordinator,
-                    zone.id,
-                    zone.name,
-                    "fan_speed",
-                    sorted(fan_speeds),
-                )
+        entities.extend(
+            (
+                TadoAcSelect(coordinator, zone.id, zone.name, "fan_speed"),
+                TadoAcSelect(coordinator, zone.id, zone.name, "vertical_swing"),
+                TadoAcSelect(coordinator, zone.id, zone.name, "horizontal_swing"),
             )
-        if v_swings:
-            entities.append(
-                TadoAcSelect(
-                    coordinator,
-                    zone.id,
-                    zone.name,
-                    "vertical_swing",
-                    sorted(v_swings),
-                )
-            )
-        if h_swings:
-            entities.append(
-                TadoAcSelect(
-                    coordinator,
-                    zone.id,
-                    zone.name,
-                    "horizontal_swing",
-                    sorted(h_swings),
-                )
-            )
-
+        )
     if entities:
         async_add_entities(entities)
 
@@ -92,22 +51,30 @@ class TadoAcSelect(TadoZoneEntity, SelectEntity):
         zone_id: int,
         zone_name: str,
         key: str,
-        options: list[str],
     ) -> None:
         """Initialize the AC select entity."""
         super().__init__(coordinator, key, zone_id, zone_name)
-        # Store mapping from HA option (lowercase) to API option (original)
-        self._option_map = {opt.lower(): opt for opt in options}
-        self._attr_options = sorted(self._option_map.keys())
+        self._attr_options: list[str] = []  # Start empty
+        self._option_map: dict[str, str] = {}
         self._attr_unique_id = f"{coordinator.config_entry.entry_id}_{key}_{zone_id}"
         self._key = key
+
+    async def async_added_to_hass(self) -> None:
+        """Fetch options on startup if not cached."""
+        await super().async_added_to_hass()
+        if capabilities := await self.tado_coordinator.async_get_capabilities(
+            self._zone_id
+        ):
+            options = get_ac_capabilities(capabilities)
+            if source_options := options.get(f"{self._key}s") or options.get(self._key):
+                self._option_map = {opt.lower(): opt for opt in source_options}
+                self._attr_options = sorted(self._option_map.keys())
+                self.async_write_ha_state()
 
     @property
     def current_option(self) -> str | None:
         """Return the current selected option."""
-        state = self.tado_coordinator.data.get("zone_states", {}).get(
-            str(self._zone_id)
-        )
+        state = self.tado_coordinator.data.zone_states.get(str(self._zone_id))
         if state and state.setting:
             val = getattr(state.setting, self._key, None)
             if val is not None:

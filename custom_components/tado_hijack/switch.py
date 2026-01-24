@@ -7,7 +7,14 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import PROTECTION_MODE_TEMP
+from .const import (
+    POWER_OFF,
+    POWER_ON,
+    PROTECTION_MODE_TEMP,
+    ZONE_TYPE_AIR_CONDITIONING,
+    ZONE_TYPE_HEATING,
+    ZONE_TYPE_HOT_WATER,
+)
 from .entity import (
     TadoDeviceEntity,
     TadoHomeEntity,
@@ -36,14 +43,15 @@ async def async_setup_entry(
     entities.extend(
         TadoZoneScheduleSwitch(coordinator, zone.id, zone.name)
         for zone in coordinator.zones_meta.values()
-        if zone.type in ("HEATING", "AIR_CONDITIONING", "HOT_WATER")
+        if zone.type
+        in (ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING, ZONE_TYPE_HOT_WATER)
     )
 
     # Hot Water Switches -> Zone Devices
     entities.extend(
         TadoHotWaterSwitch(coordinator, zone.id, zone.name)
         for zone in coordinator.zones_meta.values()
-        if zone.type == "HOT_WATER"
+        if zone.type == ZONE_TYPE_HOT_WATER
     )
 
     # Dazzle Mode Switches -> Zone Devices (Tado dazzle is per zone)
@@ -57,7 +65,7 @@ async def async_setup_entry(
     entities.extend(
         TadoEarlyStartSwitch(coordinator, zone.id, zone.name)
         for zone in coordinator.zones_meta.values()
-        if zone.type == "HEATING"
+        if zone.type == ZONE_TYPE_HEATING
     )
 
     # Open Window Detection Switches -> Zone Devices
@@ -105,7 +113,7 @@ class TadoAwaySwitch(TadoHomeEntity, TadoOptimisticSwitch):
         return None
 
     def _get_actual_value(self) -> bool:
-        home_state = self.tado_coordinator.data.get("home_state")
+        home_state = self.tado_coordinator.data.home_state
 
         if home_state is None:
             return False
@@ -142,9 +150,9 @@ class TadoZoneScheduleSwitch(TadoZoneEntity, TadoOptimisticSwitch):
         return None
 
     def _get_actual_value(self) -> bool:
-        state = self.tado_coordinator.data.get("zone_states", {}).get(
-            str(self._zone_id)
-        )
+        state = self.tado_coordinator.data.zone_states.get(str(self._zone_id))
+        if state is None:
+            return False
 
         return not bool(getattr(state, "overlay_active", False))
 
@@ -214,16 +222,16 @@ class TadoHotWaterSwitch(TadoZoneEntity, TadoOptimisticSwitch):
         if (
             power := self.tado_coordinator.optimistic.get_zone_power(self._zone_id)
         ) is not None:
-            return power == "ON"
+            return power == POWER_ON
 
         return None
 
     def _get_actual_value(self) -> bool:
-        state = self.tado_coordinator.data.get("zone_states", {}).get(
-            str(self._zone_id)
-        )
+        state = self.tado_coordinator.data.zone_states.get(str(self._zone_id))
+        if state is None:
+            return False
 
-        return False if state is None else getattr(state, "power", "OFF") == "ON"
+        return getattr(state, "power", POWER_OFF) == POWER_ON
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn hot water ON."""

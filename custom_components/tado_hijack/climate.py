@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-
-from .climate_entity import TadoWaterHeater
+from .climate_entity import TadoAirConditioning, TadoWaterHeater
+from .const import ZONE_TYPE_AIR_CONDITIONING, ZONE_TYPE_HOT_WATER
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -20,22 +20,21 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up Tado climate entities.
-
-    We only create climate entities for zones where HomeKit doesn't provide one:
-    - HOT_WATER: No HomeKit equivalent, so we provide a climate entity
-    - HEATING: HomeKit already provides climate entities, we inject features instead
-    - AC: Future enhancement (currently using select entities for fan/swing)
-    """
+    """Set up Tado climate entities."""
     coordinator: TadoDataUpdateCoordinator = entry.runtime_data
 
-    entities: list[TadoWaterHeater] = []
+    entities: list[TadoWaterHeater | TadoAirConditioning] = []
 
-    # Hot Water Climate Entities (no HomeKit equivalent exists)
     entities.extend(
         TadoWaterHeater(coordinator, zone.id, zone.name)
         for zone in coordinator.zones_meta.values()
-        if zone.type == "HOT_WATER"
+        if zone.type == ZONE_TYPE_HOT_WATER
+    )
+
+    entities.extend(
+        TadoAirConditioning(coordinator, zone.id, zone.name)
+        for zone in coordinator.zones_meta.values()
+        if zone.type == ZONE_TYPE_AIR_CONDITIONING
     )
 
     async_add_entities(entities)

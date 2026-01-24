@@ -54,11 +54,11 @@ set_timer:
             - "ON"
             - "OFF"
     temperature:
-      description: "Target temperature (optional, for Heating/AC/Hot Water)."
+      description: "Target temperature (optional). TRV/Heating: 5-25°C (0.1 step), Hot Water: 30-65°C (rounded to integer)."
       selector:
         number:
           min: 5
-          max: 80
+          max: 65
           step: 0.1
           unit_of_measurement: "°C"
 

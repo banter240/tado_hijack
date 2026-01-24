@@ -5,6 +5,7 @@ from __future__ import annotations
 __version__ = "1.0.0"
 __all__ = ["async_get_config_entry_diagnostics"]
 
+import dataclasses
 from typing import Any
 
 from homeassistant.components.diagnostics import async_redact_data
@@ -52,8 +53,8 @@ def _get_coordinator_diagnostics(
     """Return diagnostic information about the DataUpdateCoordinator."""
     coordinator_diag: dict[str, Any] = {
         "last_update_success": coordinator.last_update_success,
-        "api_status": coordinator.api_status,
-        "is_throttled": coordinator.is_throttled,
+        "api_status": coordinator.data.api_status,
+        "is_throttled": coordinator.rate_limit.is_throttled,
         "rate_limit": {
             "limit": coordinator.rate_limit.limit,
             "remaining": coordinator.rate_limit.remaining,
@@ -64,7 +65,7 @@ def _get_coordinator_diagnostics(
     if coordinator.data:
         # Redact sensitive data from API response
         coordinator_diag["data"] = async_redact_data(
-            coordinator.data, DIAGNOSTICS_TO_REDACT_DATA_KEYS
+            dataclasses.asdict(coordinator.data), DIAGNOSTICS_TO_REDACT_DATA_KEYS
         )
 
     # Clean metadata
