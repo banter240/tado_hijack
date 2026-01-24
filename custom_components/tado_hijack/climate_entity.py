@@ -235,15 +235,28 @@ class TadoWaterHeater(TadoClimateEntity):
         return HVACMode.AUTO
 
     def _is_active(self, state: Any) -> bool:
+        if not hasattr(state, "activity_data_points") or not state.activity_data_points:
+            return False
+
+        # Heating check
         if (
-            hasattr(state, "activity_data_points")
-            and state.activity_data_points
-            and hasattr(state.activity_data_points, "heating_power")
+            hasattr(state.activity_data_points, "heating_power")
             and state.activity_data_points.heating_power
         ):
             return (
                 getattr(state.activity_data_points.heating_power, "percentage", 0) > 0
             )
+
+        # Hot water check (often binary)
+        if (
+            hasattr(state.activity_data_points, "hot_water_in_use")
+            and state.activity_data_points.hot_water_in_use
+        ):
+            return (
+                getattr(state.activity_data_points.hot_water_in_use, "value", "OFF")
+                == "ON"
+            )
+
         return False
 
     def _get_active_hvac_action(self) -> HVACAction:

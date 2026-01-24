@@ -41,6 +41,7 @@ from .const import (
     DEFAULT_SLOW_POLL_INTERVAL,
     DEFAULT_THROTTLE_THRESHOLD,
     DOMAIN,
+    MAX_API_QUOTA,
     MIN_DEBOUNCE_TIME,
     MIN_OFFSET_POLL_INTERVAL,
     MIN_SCAN_INTERVAL,
@@ -216,7 +217,10 @@ class TadoHijackConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                         CONF_THROTTLE_THRESHOLD, default=DEFAULT_THROTTLE_THRESHOLD
                     ): NumberSelector(
                         NumberSelectorConfig(
-                            min=0, max=5000, step=1, mode=NumberSelectorMode.BOX
+                            min=0,
+                            max=MAX_API_QUOTA,
+                            step=1,
+                            mode=NumberSelectorMode.BOX,
                         )
                     ),
                     vol.Optional(
@@ -315,7 +319,10 @@ class TadoHijackOptionsFlowHandler(config_entries.OptionsFlow):
                         ),
                     ): NumberSelector(
                         NumberSelectorConfig(
-                            min=0, max=5000, step=1, mode=NumberSelectorMode.BOX
+                            min=0,
+                            max=MAX_API_QUOTA,
+                            step=1,
+                            mode=NumberSelectorMode.BOX,
                         )
                     ),
                     vol.Optional(

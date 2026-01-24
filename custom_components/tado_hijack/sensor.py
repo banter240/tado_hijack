@@ -141,14 +141,30 @@ class TadoHeatingPowerSensor(TadoZoneEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        """Return the current heating power percentage."""
+        """Return the current heating or hot water power."""
         state = self.coordinator.data.zone_states.get(str(self._zone_id))
+        if not state or not state.activity_data_points:
+            return 0.0
+
+        # Heating Power (Percentage)
         if (
-            state
-            and state.activity_data_points
+            hasattr(state.activity_data_points, "heating_power")
             and state.activity_data_points.heating_power
         ):
             return float(state.activity_data_points.heating_power.percentage)
+
+        # Hot Water Power (often binary/status in API)
+        # If we have hot water activity, we map it to 100% power if ON
+        if (
+            hasattr(state.activity_data_points, "hot_water_in_use")
+            and state.activity_data_points.hot_water_in_use
+        ):
+            return (
+                100.0
+                if state.activity_data_points.hot_water_in_use.value == "ON"
+                else 0.0
+            )
+
         return 0.0
 
 

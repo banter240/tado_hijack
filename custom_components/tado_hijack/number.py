@@ -13,7 +13,13 @@ from homeassistant.components.number import (
 from homeassistant.const import UnitOfTemperature
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from .const import CAPABILITY_INSIDE_TEMP
+from .const import (
+    CAPABILITY_INSIDE_TEMP,
+    TEMP_MAX_AC,
+    TEMP_MAX_HOT_WATER_OVERRIDE,
+    TEMP_MIN_AC,
+    TEMP_MIN_HOT_WATER,
+)
 from .entity import (
     TadoDeviceEntity,
     TadoOptimisticMixin,
@@ -221,8 +227,12 @@ class TadoTargetTempNumberEntity(
         super().__init__(coordinator, key, zone_id, zone_name)
         self._zone_type = zone_type
 
-        self._attr_native_min_value = 30.0 if zone_type == "HOT_WATER" else 16.0
-        self._attr_native_max_value = 70.0 if zone_type == "HOT_WATER" else 30.0
+        self._attr_native_min_value = (
+            TEMP_MIN_HOT_WATER if zone_type == "HOT_WATER" else TEMP_MIN_AC
+        )
+        self._attr_native_max_value = (
+            TEMP_MAX_HOT_WATER_OVERRIDE if zone_type == "HOT_WATER" else TEMP_MAX_AC
+        )
 
         capabilities = coordinator.data.capabilities.get(zone_id)
         if capabilities and capabilities.temperatures:

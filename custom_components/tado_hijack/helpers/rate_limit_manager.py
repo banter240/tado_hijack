@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from ..const import INITIAL_RATE_LIMIT_GUESS
+from ..const import INITIAL_RATE_LIMIT_GUESS, RATELIMIT_SMOOTHING_ALPHA
 from .logging_utils import get_redacted_logger
 
 _LOGGER = get_redacted_logger(__name__)
@@ -40,8 +40,11 @@ class RateLimitManager:
     def last_poll_cost(self, value: float) -> None:
         """Update measured poll cost with light smoothing to avoid jitter."""
         if value > 0:
-            # Alpha 0.3 for smoothing (70% old, 30% new)
-            self._last_poll_cost = (self._last_poll_cost * 0.7) + (value * 0.3)
+            # Smoothing (EMA) using constant alpha
+            alpha = RATELIMIT_SMOOTHING_ALPHA
+            self._last_poll_cost = (self._last_poll_cost * (1 - alpha)) + (
+                value * alpha
+            )
             _LOGGER.debug("Updated measured poll cost to %.2f", self._last_poll_cost)
 
     @property

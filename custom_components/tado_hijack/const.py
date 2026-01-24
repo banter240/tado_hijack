@@ -36,8 +36,12 @@ MIN_SCAN_INTERVAL: Final = 0
 MIN_SLOW_POLL_INTERVAL: Final = 0  # 0 = disabled (initial only)
 MIN_OFFSET_POLL_INTERVAL: Final = 0  # 0 = disabled
 MIN_DEBOUNCE_TIME: Final = 1  # Second
+MIN_AUTO_QUOTA_INTERVAL_S: Final = 15  # Safety floor for dynamic polling
+MAX_API_QUOTA: Final = 5000  # Default Tado daily limit
 
 # Timing & Logic
+SECONDS_PER_HOUR: Final = 3600
+RATELIMIT_SMOOTHING_ALPHA: Final = 0.3  # Exponential moving average factor
 DEBOUNCE_COOLDOWN_S: Final = 5  # Legacy fallback / initial value
 OPTIMISTIC_GRACE_PERIOD_S: Final = 30
 PROTECTION_MODE_TEMP: Final = 5.0  # Minimum safe temperature for manual override
@@ -45,6 +49,7 @@ BOOST_MODE_TEMP: Final = 25.0  # Temperature for Boost All
 BATCH_LINGER_S: Final = 1.0  # Time to wait for more commands in batch
 INITIAL_RATE_LIMIT_GUESS: Final = 100  # Pessimistic initial guess
 SLOW_POLL_CYCLE_S: Final = 86400  # 24 Hours in seconds
+MAX_OVERLAY_DURATION_MIN: Final = 1440  # 24 Hours in minutes
 
 # Zone Types
 ZONE_TYPE_HEATING: Final = "HEATING"
@@ -60,6 +65,7 @@ TEMP_MIN_HEATING: Final = 5.0
 TEMP_MAX_HEATING: Final = 25.0
 TEMP_MIN_HOT_WATER: Final = 30.0
 TEMP_MAX_HOT_WATER: Final = 65.0
+TEMP_MAX_HOT_WATER_OVERRIDE: Final = 70.0  # Absolute limit for HW sliders
 TEMP_MIN_AC: Final = 16.0
 TEMP_MAX_AC: Final = 30.0
 TEMP_DEFAULT_HOT_WATER: Final = 50.0

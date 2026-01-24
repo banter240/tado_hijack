@@ -45,11 +45,13 @@ from .const import (
     DEFAULT_SLOW_POLL_INTERVAL,
     DEFAULT_THROTTLE_THRESHOLD,
     DOMAIN,
+    MIN_AUTO_QUOTA_INTERVAL_S,
     OVERLAY_NEXT_BLOCK,
     OVERLAY_PRESENCE,
     OVERLAY_TIMER,
     POWER_OFF,
     POWER_ON,
+    SECONDS_PER_HOUR,
     TEMP_MAX_AC,
     TEMP_MAX_HEATING,
     TEMP_MAX_HOT_WATER,
@@ -116,11 +118,12 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         self.auth_manager = AuthManager(hass, entry, client)
 
         slow_poll_s = (
-            entry.data.get(CONF_SLOW_POLL_INTERVAL, DEFAULT_SLOW_POLL_INTERVAL) * 3600
+            entry.data.get(CONF_SLOW_POLL_INTERVAL, DEFAULT_SLOW_POLL_INTERVAL)
+            * SECONDS_PER_HOUR
         )
         offset_poll_s = (
             entry.data.get(CONF_OFFSET_POLL_INTERVAL, DEFAULT_OFFSET_POLL_INTERVAL)
-            * 3600
+            * SECONDS_PER_HOUR
         )
         self.data_manager = TadoDataManager(self, client, slow_poll_s, offset_poll_s)
         self.api_manager = TadoApiManager(hass, self, self._debounce_time)
@@ -399,14 +402,14 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
                     self.rate_limit.throttle_threshold,
                     next_reset.strftime("%H:%M"),
                 )
-                return max(3600, seconds_until_reset)
+                return max(SECONDS_PER_HOUR, seconds_until_reset)
 
             _LOGGER.warning(
                 "Throttled (remaining=%d < threshold=%d). Slowing to 1h.",
                 remaining,
                 self.rate_limit.throttle_threshold,
             )
-            return 3600
+            return SECONDS_PER_HOUR
 
         # Calculate FREE quota after all reservations
         # 1. Throttle threshold (emergency reserve)
@@ -472,7 +475,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
                 )
                 return None
 
-            new_interval = max(30, int(self._base_scan_interval))
+            new_interval = max(MIN_AUTO_QUOTA_INTERVAL_S, int(self._base_scan_interval))
             _LOGGER.info(
                 "Budget reached (%d/%d used). Falling back to base interval (%ds).",
                 used_total_calls,
@@ -488,11 +491,13 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         remaining_polls = remaining_budget / predicted_cost
 
         if remaining_polls <= 0:
-            return 3600
+            return SECONDS_PER_HOUR
 
-        # Adaptive interval calculation with 30s safety floor
+        # Adaptive interval calculation with 15s safety floor
         adaptive_interval = seconds_until_reset / remaining_polls
-        bounded_interval = int(max(30, min(3600, adaptive_interval)))
+        bounded_interval = int(
+            max(MIN_AUTO_QUOTA_INTERVAL_S, min(SECONDS_PER_HOUR, adaptive_interval))
+        )
 
         _LOGGER.info(
             "Quota: Interval=%ds (Budget: %d/%d used, Next Cost: %d, Rem: %d calls -> %d polls, Reset in %.1fh)",
@@ -502,7 +507,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             predicted_cost,
             remaining_budget,
             int(remaining_polls),
-            seconds_until_reset / 3600,
+            seconds_until_reset / SECONDS_PER_HOUR,
         )
 
         return bounded_interval

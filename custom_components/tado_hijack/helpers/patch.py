@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from datetime import datetime
 from typing import Any
 
 
@@ -85,6 +86,20 @@ def _patch_zone_state() -> None:
                 d["sensorDataPoints"] = None
             if d.get("nextTimeBlock") is None:
                 d["nextTimeBlock"] = {}
+
+            # Rescue Hot Water Activity before it gets dropped by the strict dataclass
+            # We map it to a field that we can later access in sensor.py
+            if activity := d.get("activityDataPoints"):
+                if "hotWaterInUse" in activity:
+                    # Inject into a safe place for our hijacked parser
+                    activity["heatingPower"] = {
+                        "type": "HOT_WATER_POWER",
+                        "percentage": 100.0
+                        if activity["hotWaterInUse"] == "ON"
+                        else 0.0,
+                        "timestamp": datetime.now().isoformat(),
+                        "value": activity["hotWaterInUse"],
+                    }
             return d
 
         setattr(

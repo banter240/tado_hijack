@@ -14,7 +14,12 @@ if TYPE_CHECKING:
     from ..coordinator import TadoDataUpdateCoordinator
     from .client import TadoHijackClient
 
-from ..const import CAPABILITY_INSIDE_TEMP, DOMAIN, TEMP_OFFSET_ATTR
+from ..const import (
+    CAPABILITY_INSIDE_TEMP,
+    DOMAIN,
+    SLOW_POLL_CYCLE_S,
+    TEMP_OFFSET_ATTR,
+)
 from ..models import TadoData
 from .logging_utils import get_redacted_logger
 
@@ -140,7 +145,7 @@ class TadoDataManager:
             Tuple of (total_reserved, breakdown_dict) for logging/debugging.
 
         """
-        seconds_per_day = 86400
+        seconds_per_day = SLOW_POLL_CYCLE_S
         breakdown: dict[str, int] = {}
 
         # --- Measure Slow Poll Cost (battery/metadata) ---
@@ -233,29 +238,34 @@ class TadoDataManager:
             and (current_time - self._last_slow_poll) > self._slow_poll_seconds
         )
 
-        if is_initial_load or is_slow_poll_due:
-            _LOGGER.info("DataManager: Performing metadata sync")
-            # Parallelize all initial metadata calls
-            results_fast = await asyncio.gather(
-                self._tado.get_home_state(),
-                self._tado.get_zone_states(),
-                self._tado.get_zones(),
-                self._tado.get_devices(),
-                return_exceptions=False,
-            )
-            home_state, zone_states, zones, devices = results_fast
+        # 1. Fast Track (Always) - Sequential to avoid parallel request issues
+        home_state = await self._tado.get_home_state()
+        zone_states = await self._tado.get_zone_states()
 
+        # 2. Slow Track (Metadata)
+        if is_initial_load or is_slow_poll_due:
+            _LOGGER.info("DataManager: Fetching slow-track metadata")
+            zones = await self._tado.get_zones()
+            devices = await self._tado.get_devices()
             self.zones_meta = {zone.id: zone for zone in zones}
             self.devices_meta = {dev.short_serial_no: dev for dev in devices}
+
+            # Capabilities for AC/HotWater zones
+            for zone in zones:
+                if zone.type in ("AIR_CONDITIONING", "HOT_WATER"):
+                    try:
+                        self.capabilities_cache[
+                            zone.id
+                        ] = await self._tado.get_capabilities(zone.id)
+                    except Exception as err:
+                        _LOGGER.warning(
+                            "Failed to fetch capabilities for zone %d: %s", zone.id, err
+                        )
+
             self.coordinator.bridges = [
                 dev for dev in devices if dev.device_type.startswith("IB")
             ]
             self._last_slow_poll = current_time
-        else:
-            # Regular fast-track only
-            home_state, zone_states = await asyncio.gather(
-                self._tado.get_home_state(), self._tado.get_zone_states()
-            )
 
         # 3. Medium Track (Offsets)
         if self._offset_invalidated or (

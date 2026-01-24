@@ -31,8 +31,6 @@ class TadoRequestHandler:
         """Initialize the handler."""
         # Shared storage for hijacked headers
         self.rate_limit_data: dict[str, int] = {"limit": 0, "remaining": 0}
-        self._lock = asyncio.Lock()
-        self._last_remaining: int | None = None
 
     async def robust_request(
         self,
@@ -99,48 +97,15 @@ class TadoRequestHandler:
 
                 async with session.request(**cast(Any, request_kwargs)) as response:
                     if rl := parse_ratelimit_headers(dict(response.headers)):
-                        async with self._lock:
-                            old_remaining = self._last_remaining
-                            self.rate_limit_data["limit"] = rl.limit
-                            self.rate_limit_data["remaining"] = rl.remaining
-
-                            # Use MIN to ensure we track the actual lowest state during parallel bursts
-                            if old_remaining is None:
-                                self._last_remaining = rl.remaining
-                                _LOGGER.debug(
-                                    "Tado Response: %d %s. Initial Quota: %d/%d remaining.",
-                                    response.status,
-                                    url.path,
-                                    rl.remaining,
-                                    rl.limit,
-                                )
-                            else:
-                                consumed = old_remaining - rl.remaining
-                                if consumed > 0:
-                                    _LOGGER.debug(
-                                        "Tado Response: %d %s. Quota: %d -> %d (Consumed: %d)",
-                                        response.status,
-                                        url.path,
-                                        old_remaining,
-                                        rl.remaining,
-                                        consumed,
-                                    )
-                                    self._last_remaining = rl.remaining
-                                elif consumed == 0:
-                                    _LOGGER.debug(
-                                        "Tado Response: %d %s. Quota: %d (No Change)",
-                                        response.status,
-                                        url.path,
-                                        rl.remaining,
-                                    )
-                                else:
-                                    # We got an out-of-order header from a parallel call
-                                    _LOGGER.debug(
-                                        "Tado Response: %d %s. Quota: %d (Parallel Sync)",
-                                        response.status,
-                                        url.path,
-                                        rl.remaining,
-                                    )
+                        self.rate_limit_data["limit"] = rl.limit
+                        self.rate_limit_data["remaining"] = rl.remaining
+                        _LOGGER.debug(
+                            "Tado Response: %d %s. Quota: %d/%d remaining.",
+                            response.status,
+                            url.path,
+                            rl.remaining,
+                            rl.limit,
+                        )
 
                     response.raise_for_status()
                     return cast(str, await response.text())
