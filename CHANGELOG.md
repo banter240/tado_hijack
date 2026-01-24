@@ -1,3 +1,17 @@
+## [3.1.0-dev.13](https://github.com/banter240/tado_hijack/compare/v3.1.0-dev.12...v3.1.0-dev.13) (2026-01-24)
+
+### ✨ New Features
+
+* feat(climate): refactor hot water logic and consolidate hvac dispatcher
+
+Summary of changes:
+- Removed HEAT mode from Hot Water (OFF/AUTO only)
+- Fixed target temperature display in OFF state
+- Centralized HVAC logic in coordinator.async_set_zone_hvac_mode
+- Implemented central zone filtering (_get_active_zones)
+- Established 30s safety floor for dynamic polling quota
+- Refactored ApiManager and Services for DRY compliance
+
 ## [3.1.0-dev.12](https://github.com/banter240/tado_hijack/compare/v3.1.0-dev.11...v3.1.0-dev.12) (2026-01-24)
 
 ### ✨ New Features
