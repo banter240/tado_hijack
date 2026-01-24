@@ -256,15 +256,11 @@
         },
         "duration": {
           "name": "Dauer (Minuten)",
-          "description": "Dauer in Minuten (Alternative zu time_period)."
-        },
-        "time_period": {
-          "name": "Zeitraum (HH:MM:SS)",
-          "description": "Dauer im HH:MM:SS Format (Alternative zu duration). Beispiel: '01:30:00' für 90 Minuten."
+          "description": "Dauer in Minuten."
         },
         "overlay": {
           "name": "Overlay-Modus",
-          "description": "Beendigungsmodus: 'manual' (unbegrenzt), 'timer' (mit Dauer), 'auto' (Rückkehr zum nächsten Zeitblock) oder 'presence' (bis Anwesenheitsänderung)."
+          "description": "Beendigungsmodus: 'manual' (unbegrenzt), 'next_block' (Rückkehr zum nächsten Zeitblock) oder 'presence' (bis Anwesenheitsänderung)."
         },
         "power": {
           "name": "Power",
@@ -273,6 +269,36 @@
         "temperature": {
           "name": "Temperatur",
           "description": "Zieltemperatur (optional)."
+        }
+      }
+    },
+    "set_timer_all_zones": {
+      "name": "Timer für alle Zonen setzen",
+      "description": "Setzt ein manuelles Overlay für alle Heizungs- und/oder Klimazonen gleichzeitig.",
+      "fields": {
+        "include_heating": {
+          "name": "Heizung einbeziehen",
+          "description": "Bezieht alle Heizungszonen (Thermostate) mit ein."
+        },
+        "include_ac": {
+          "name": "Klima einbeziehen",
+          "description": "Bezieht alle Klimazonen mit ein."
+        },
+        "duration": {
+          "name": "Dauer (Minuten)",
+          "description": "Dauer in Minuten."
+        },
+        "overlay": {
+          "name": "Overlay-Modus",
+          "description": "Beendigungsmodus: 'manual' (unbegrenzt), 'next_block' (Rückkehr zum nächsten Zeitblock) oder 'presence' (bis Anwesenheitsänderung)."
+        },
+        "power": {
+          "name": "Power",
+          "description": "Power-Status (ON/OFF)."
+        },
+        "temperature": {
+          "name": "Temperatur",
+          "description": "Zieltemperatur (wird je nach Zonentyp automatisch begrenzt)."
         }
       }
     }

@@ -198,7 +198,7 @@ class TadoHijackConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                         default=DEFAULT_AUTO_API_QUOTA_PERCENT,
                     ): NumberSelector(
                         NumberSelectorConfig(
-                            min=0, max=100, step=5, mode=NumberSelectorMode.BOX
+                            min=0, max=100, step=1, mode=NumberSelectorMode.BOX
                         )
                     ),
                     vol.Required(
@@ -285,7 +285,7 @@ class TadoHijackOptionsFlowHandler(config_entries.OptionsFlow):
                         ),
                     ): NumberSelector(
                         NumberSelectorConfig(
-                            min=0, max=100, step=5, mode=NumberSelectorMode.BOX
+                            min=0, max=100, step=1, mode=NumberSelectorMode.BOX
                         )
                     ),
                     vol.Optional(

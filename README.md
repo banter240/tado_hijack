@@ -24,6 +24,8 @@
 
 ---
 
+<br>
+
 Tado restricted their API? They think you shouldn't control your own heating? **Tado Hijack begs to differ.**
 
 I engineered this integration with one goal: **To squeeze every drop of functionality out of Tado's cloud without triggering their rate limits.** We bridge the gap between Tado's restricted API and your smart home, unlocking features that Tado keeps hidden, all while treating every single API call like gold.
@@ -39,7 +41,11 @@ I engineered this integration with one goal: **To squeeze every drop of function
 
 ---
 
+<br>
+
 ## 📖 Table of Contents
+
+<br>
 
 - [🏴‍☠️ Philosophy](#-the-hijack-philosophy)
   - [⚖️ The "Why" Factor](#️-the-why-factor)
@@ -75,6 +81,8 @@ Instead of just "polling less," we use **Deep Command Merging** and **HomeKit In
 *   **📡 Transparency:** Real-time quota tracking directly from Tado's response headers.
 
 ### ⚖️ The "Why" Factor
+
+<br>
 
 **Tado has gone full "Pay-to-Win".**
 
@@ -123,6 +131,9 @@ Tado Hijack is the definitive technical response to this hostility. I've enginee
 <br>
 
 ### 🧠 Extreme Batching Technology
+
+<br>
+
 While other integrations waste your precious API quota for every tiny interaction, Tado Hijack features **Deep Command Merging**. We collect multiple actions and fuse them into a single, highly efficient bulk request.
 
 <br>
@@ -148,6 +159,9 @@ While other integrations waste your precious API quota for every tiny interactio
 <br>
 
 ### 🤝 The HomeKit "Missing Link"
+
+<br>
+
 **We don't replace HomeKit. We fix it.**
 Almost no other integration does this: Tado Hijack automatically detects your existing HomeKit devices and **injects** the missing cloud-only power-features directly into them. You get the rock-solid local control of HomeKit combined with advanced cloud features in **one single unified device**.
 
@@ -170,11 +184,16 @@ Almost no other integration does this: Tado Hijack automatically detects your ex
 
 <br>
 
+<br>
+
 ---
 
 <br>
 
 ### 🛠️ Unleashed Features (Non-HomeKit)
+
+<br>
+
 We bring back the controls Tado "forgot" to give you:
 
 *   **🚿 Hot Water Climate Control:** Native climate entity with AUTO/HEAT/OFF modes. AUTO mode resumes Smart Schedule, HEAT activates manual override.
@@ -189,6 +208,8 @@ We bring back the controls Tado "forgot" to give you:
 
 <br>
 
+<br>
+
 ---
 
 <br>
@@ -200,6 +221,8 @@ We bring back the controls Tado "forgot" to give you:
 Tado's API limits are restrictive. That's why Tado Hijack uses a **Zero-Waste Policy**:
 
 ### API Consumption Table
+
+<br>
 
 <br>
 
@@ -226,6 +249,8 @@ Tado's API limits are restrictive. That's why Tado Hijack uses a **Zero-Waste Po
 <br>
 
 ### 📈 Auto API Quota (The Brain)
+
+<br>
 
 <br>
 
@@ -308,11 +333,15 @@ Not all API calls are created equal. Tado Hijack optimizes everything, but physi
 
 ---
 
+<br>
+
 ## 🛠️ Architecture
 
 <br>
 
 ### Physical Device Mapping
+
+<br>
 Unlike other integrations that group everything by "Zone", Tado Hijack maps entities to their **physical devices** (Valves/Thermostats).
 *   **Matched via Serial Number:** Automatic injection into existing HomeKit devices.
 *   **No HomeKit?** We create dedicated devices containing **only** the cloud features (Battery, Offset, Child Lock, etc.), but **no** temperature control.
@@ -320,6 +349,8 @@ Unlike other integrations that group everything by "Zone", Tado Hijack maps enti
 <br>
 
 ### Robustness & Security
+
+<br>
 *   **Custom Client Layer:** I extend the underlying library via inheritance to handle API communication reliably and fix common deserialization errors.
 *   **Privacy by Design:** All logs are automatically redacted. Sensitive data (User Codes, Serial Numbers, Home IDs) is stripped before writing to disk.
 
@@ -327,11 +358,15 @@ Unlike other integrations that group everything by "Zone", Tado Hijack maps enti
 
 ---
 
+<br>
+
 ## 📦 Installation
 
 <br>
 
 ### Via HACS (Recommended)
+
+<br>
 1. Open **HACS** -> **Integrations** -> **Custom repositories**.
 2. Add `https://github.com/banter240/tado_hijack` as **Integration**.
 3. Search for **"Tado Hijack"** and download.
@@ -340,6 +375,8 @@ Unlike other integrations that group everything by "Zone", Tado Hijack maps enti
 <br>
 
 ---
+
+<br>
 
 ## ⚙️ Configuration
 
@@ -361,11 +398,15 @@ Unlike other integrations that group everything by "Zone", Tado Hijack maps enti
 
 ---
 
+<br>
+
 ## 📱 Entities & Controls
 
 <br>
 
 ### 🏠 Home Device (Internet Bridge)
+
+<br>
 Global controls for the entire home. *Linked to your Internet Bridge device.*
 
 <br>
@@ -388,6 +429,9 @@ Global controls for the entire home. *Linked to your Internet Bridge device.*
 <br>
 
 ### 🌡️ Zone Devices (Rooms / Hot Water / AC)
+
+<br>
+
 Cloud-only features that HomeKit does not support.
 
 <br>
@@ -410,6 +454,9 @@ Cloud-only features that HomeKit does not support.
 <br>
 
 ### 🔧 Physical Devices (Valves/Thermostats)
+
+<br>
+
 Hardware-specific entities. *These entities are **injected** into your existing HomeKit devices.*
 
 <br>
@@ -426,6 +473,8 @@ Hardware-specific entities. *These entities are **injected** into your existing 
 
 ---
 
+<br>
+
 ## ⚡ Services
 
 <br>
@@ -437,7 +486,8 @@ For advanced automation, use these services:
 | `tado_hijack.turn_off_all_zones` | Turn off all zones instantly. | **1 call** (bulk) |
 | `tado_hijack.boost_all_zones` | Boost every zone to 25°C. | **1 call** (bulk) |
 | `tado_hijack.resume_all_schedules` | Restore Smart Schedule across all zones. | **1 call** (bulk) |
-| `tado_hijack.set_timer` | Set power, temperature, and termination mode. Supports `duration`, `time_period` (HH:MM:SS), or `overlay`: `auto` (next block) / `presence` (until presence change). | **1 per zone** |
+| `tado_hijack.set_timer` | Set power, temperature, and termination mode. Supports `duration` or `overlay`: `manual` / `next_block` / `presence`. | **1 per zone** |
+| `tado_hijack.set_timer_all_zones` | Same as `set_timer` but targets all HEATING and/or AC zones at once. Efficiently batches everything into a single API call. | **1 call** (bulk) |
 | `tado_hijack.manual_poll` | Force immediate data refresh. Use `refresh_type` to control scope. | **2-N** (depends on type) |
 
 <br>
@@ -456,8 +506,10 @@ For advanced automation, use these services:
 service: tado_hijack.set_timer
 data:
   entity_id: switch.hot_water
-  duration: 30  # Minutes
+  duration: 30
 ```
+
+<br>
 
 **Quick Bathroom Heat (15 Min at 24°C):**
 ```yaml
@@ -468,12 +520,14 @@ data:
   temperature: 24
 ```
 
-**AC Sleep Timer (HH:MM:SS Format):**
+<br>
+
+**Manual Override (Indefinite):**
 ```yaml
 service: tado_hijack.set_timer
 data:
-  entity_id: select.bedroom_fan_speed
-  time_period: "01:30:00"  # 1 hour 30 minutes
+  entity_id: climate.living_room
+  overlay: "manual"  # Indefinite until manual change or schedule resume
   temperature: 21
 ```
 
@@ -494,8 +548,8 @@ data:
 ```yaml
 service: tado_hijack.set_timer
 data:
-  entity_id: climate.living_room
-  overlay: "auto"  # Returns to schedule at next time block
+  entity_id: climate.kitchen
+  overlay: "next_block"  # Returns to schedule at next time block
   temperature: 22
 ```
 
@@ -503,11 +557,15 @@ data:
 
 ---
 
+<br>
+
 ## 📋 Known Constraints
 
 <br>
 
 **What Tado's API doesn't allow us to optimize:**
+
+<br>
 
 Some operations are inherently expensive because Tado's backend doesn't offer batching for them:
 
@@ -518,6 +576,8 @@ Some operations are inherently expensive because Tado's backend doesn't offer ba
 
 **Hybrid Cloud Dependency:**
 
+<br>
+
 While Tado Hijack uses the cloud for its power-features, your basic smart home remains resilient:
 - **Local Resilience:** Temperature control and heating state via **HomeKit** remain fully functional even during internet outages or Tado server issues.
 - **Cloud-Only Features:** Access to Smart Schedules, Hot Water control, and AC-Pro features requires a connection to Tado's servers.
@@ -526,6 +586,8 @@ While Tado Hijack uses the cloud for its power-features, your basic smart home r
 <br>
 
 ---
+
+<br>
 
 ## 🐛 Troubleshooting
 
@@ -542,5 +604,7 @@ logger:
 <br>
 
 ---
+
+<br>
 
 **Disclaimer:** This is an unofficial integration. Built by the community, for the community. Not affiliated with Tado GmbH. Use at your own risk.

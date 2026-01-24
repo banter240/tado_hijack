@@ -797,6 +797,18 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
             ),
         )
 
+    def get_capped_temperature(self, zone_id: int, temperature: float) -> float:
+        """Get safety-capped temperature based on zone type."""
+        zone = self.zones_meta.get(zone_id)
+        ztype = getattr(zone, "type", "HEATING") if zone else "HEATING"
+
+        # Apply safety caps based on zone type
+        limit = 25.0 if ztype == "HEATING" else 30.0
+        if ztype == "HOT_WATER":
+            limit = 80.0
+
+        return min(temperature, limit)
+
     def _build_overlay_data(
         self,
         zone_id: int,
@@ -824,15 +836,15 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
 
         # 2. Build Termination
         # Priority: overlay_mode > duration > default (MANUAL)
-        if overlay_mode == "auto":
+        if overlay_mode == "next_block":
             # Auto-return to schedule at next time block
             termination: dict[str, Any] = {"type": "NEXT_TIME_BLOCK"}
         elif overlay_mode == "presence":
             # While in current Presence Mode (indefinite until presence change or manual change)
             termination = {"type": "TADO_MODE"}
         elif overlay_mode == "timer" or duration:
-            # Timer with specific duration
-            duration_seconds = duration * 60 if duration else 1800  # Default 30min
+            # Timer with specific duration (fall back to 30min if only mode was provided)
+            duration_seconds = duration * 60 if duration else 1800
             termination = {
                 "typeSkillBasedApp": "TIMER",
                 "durationInSeconds": duration_seconds,
@@ -844,7 +856,8 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator):
         # 3. Build Setting
         setting: dict[str, Any] = {"type": overlay_type, "power": power}
         if temperature is not None and power == "ON":
-            setting["temperature"] = {"celsius": temperature}
+            capped_temp = self.get_capped_temperature(zone_id, temperature)
+            setting["temperature"] = {"celsius": capped_temp}
 
         return {"setting": setting, "termination": termination}
 

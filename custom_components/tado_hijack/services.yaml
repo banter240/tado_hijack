@@ -31,24 +31,19 @@ set_timer:
         entity:
           integration: tado_hijack
     duration:
-      description: "Duration in minutes after which the timer ends (alternative to time_period)."
+      description: "Duration in minutes after which the timer ends."
       selector:
         number:
           min: 1
           max: 1440
           unit_of_measurement: "min"
-    time_period:
-      description: "Duration in HH:MM:SS format (alternative to duration). Example: '01:30:00' for 90 minutes."
-      selector:
-        text:
     overlay:
-      description: "Termination mode: 'manual' (indefinite), 'timer' (with duration), 'auto' (return to schedule at next time block), or 'presence' (until presence change)."
+      description: "Termination mode: 'manual' (indefinite), 'next_block' (return to schedule at next time block), or 'presence' (until presence change)."
       selector:
         select:
           options:
             - "manual"
-            - "timer"
-            - "auto"
+            - "next_block"
             - "presence"
     power:
       description: "Power state during timer (ON/OFF)."
@@ -64,5 +59,52 @@ set_timer:
         number:
           min: 5
           max: 80
+          step: 0.1
+          unit_of_measurement: "°C"
+
+set_timer_all_zones:
+  description: "Set a manual overlay for all heating and/or AC zones at once."
+  fields:
+    include_heating:
+      description: "Include all heating zones (Thermostats)."
+      required: true
+      default: true
+      selector:
+        boolean: {}
+    include_ac:
+      description: "Include all air conditioning zones."
+      required: true
+      default: false
+      selector:
+        boolean: {}
+    duration:
+      description: "Duration in minutes."
+      selector:
+        number:
+          min: 1
+          max: 1440
+          unit_of_measurement: "min"
+    overlay:
+      description: "Termination mode: 'manual', 'next_block' (next block), or 'presence'."
+      selector:
+        select:
+          options:
+            - "manual"
+            - "next_block"
+            - "presence"
+    power:
+      description: "Power state (ON/OFF)."
+      default: "ON"
+      selector:
+        select:
+          options:
+            - "ON"
+            - "OFF"
+    temperature:
+      description: "Target temperature (will be capped to 25°C for Heating and 30°C for AC)."
+      selector:
+        number:
+          min: 5
+          max: 30
           step: 0.1
           unit_of_measurement: "°C"

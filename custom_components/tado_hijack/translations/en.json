@@ -256,15 +256,11 @@
         },
         "duration": {
           "name": "Duration (Minutes)",
-          "description": "Duration in minutes (alternative to time_period)."
-        },
-        "time_period": {
-          "name": "Time Period (HH:MM:SS)",
-          "description": "Duration in HH:MM:SS format (alternative to duration). Example: '01:30:00' for 90 minutes."
+          "description": "Duration in minutes."
         },
         "overlay": {
           "name": "Overlay Mode",
-          "description": "Termination mode: 'manual' (indefinite), 'timer' (with duration), 'auto' (return to next schedule block), or 'presence' (until presence change)."
+          "description": "Termination mode: 'manual' (indefinite), 'next_block' (return to next schedule block), or 'presence' (until presence change)."
         },
         "power": {
           "name": "Power",
@@ -273,6 +269,36 @@
         "temperature": {
           "name": "Temperature",
           "description": "Target temperature (optional)."
+        }
+      }
+    },
+    "set_timer_all_zones": {
+      "name": "Set Timer for All Zones",
+      "description": "Set a manual overlay for all heating and/or AC zones at once.",
+      "fields": {
+        "include_heating": {
+          "name": "Include Heating",
+          "description": "Include all heating zones."
+        },
+        "include_ac": {
+          "name": "Include AC",
+          "description": "Include all air conditioning zones."
+        },
+        "duration": {
+          "name": "Duration (Minutes)",
+          "description": "Duration in minutes."
+        },
+        "overlay": {
+          "name": "Overlay Mode",
+          "description": "Termination mode: 'manual' (indefinite), 'timer' (with duration), 'next_block' (return to schedule at next time block), or 'presence' (until presence change)."
+        },
+        "power": {
+          "name": "Power",
+          "description": "Power state (ON/OFF)."
+        },
+        "temperature": {
+          "name": "Temperature",
+          "description": "Target temperature (will be capped based on zone type)."
         }
       }
     }
