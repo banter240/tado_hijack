@@ -12,5 +12,5 @@
   "requirements": [
     "tadoasync==0.2.2"
   ],
-  "version": "3.1.0-dev.14"
+  "version": "3.1.0-dev.15"
 }

@@ -1,3 +1,28 @@
+## [3.1.0-dev.15](https://github.com/banter240/tado_hijack/compare/v3.1.0-dev.14...v3.1.0-dev.15) (2026-01-25)
+
+### 🐛 Bug Fixes
+
+* fix(api): support tado-api-proxy authentication and configuration
+
+Fixes:
+- Skip auth token and Authorization header when using API proxy (proxy handles auth internally)
+- Handle proxy URLs with/without /api/v2 path (backward compatible)
+- Fix empty API proxy URL field not deleting the configuration
+- Update translations to clarify proxy URL should be base URL only
+- Disable Hot Water Switch creation (conflicts with Climate entity)
+- Validate climate capabilities to prevent min==max errors
+
+Features:
+- Add configurable "refresh after resume" with 1s grace period
+- Fetch target temperature/state after schedule resume (HVAC AUTO)
+- Merge multiple resume commands within grace period to single API call
+- Required because schedules are managed Tado cloud-side
+
+Debug Improvements:
+- Add extensive debug logging to climate entity (current/target temp, capabilities)
+- Add debug logging to heating power sensor (activity data points)
+- Add overlay payload logging to API manager
+
 ## [3.1.0-dev.14](https://github.com/banter240/tado_hijack/compare/v3.1.0-dev.13...v3.1.0-dev.14) (2026-01-24)
 
 ### 🐛 Bug Fixes
