@@ -26,10 +26,13 @@ from .const import (
     TEMP_STEP_HOT_WATER,
 )
 from .entity import TadoOptimisticMixin, TadoZoneEntity
+from .helpers.logging_utils import get_redacted_logger
 from .helpers.parsers import get_ac_capabilities
 
 if TYPE_CHECKING:
     from .coordinator import TadoDataUpdateCoordinator
+
+_LOGGER = get_redacted_logger(__name__)
 
 
 class TadoClimateEntity(TadoZoneEntity, TadoOptimisticMixin, ClimateEntity):
@@ -63,11 +66,23 @@ class TadoClimateEntity(TadoZoneEntity, TadoOptimisticMixin, ClimateEntity):
             self._zone_id
         ):
             if capabilities.temperatures:
-                self._attr_min_temp = float(capabilities.temperatures.celsius.min)
-                self._attr_max_temp = float(capabilities.temperatures.celsius.max)
-                self._attr_target_temperature_step = float(
-                    capabilities.temperatures.celsius.step
-                )
+                new_min = float(capabilities.temperatures.celsius.min)
+                new_max = float(capabilities.temperatures.celsius.max)
+                new_step = float(capabilities.temperatures.celsius.step)
+
+                # Only update if values are sane (prevent min == max)
+                if new_min < new_max and new_step > 0:
+                    self._attr_min_temp = new_min
+                    self._attr_max_temp = new_max
+                    self._attr_target_temperature_step = new_step
+                else:
+                    _LOGGER.warning(
+                        "Invalid capabilities for zone %d (min=%s, max=%s, step=%s), keeping defaults",
+                        self._zone_id,
+                        new_min,
+                        new_max,
+                        new_step,
+                    )
             self.async_write_ha_state()
 
     @property
@@ -127,8 +142,15 @@ class TadoClimateEntity(TadoZoneEntity, TadoOptimisticMixin, ClimateEntity):
             if temp := getattr(
                 state.sensor_data_points.inside_temperature, "celsius", None
             ):
-                return float(temp)
+                result = float(temp)
+                _LOGGER.debug(
+                    "Zone %d current_temperature: %s (from inside_temperature)",
+                    self._zone_id,
+                    result,
+                )
+                return result
 
+        _LOGGER.debug("Zone %d current_temperature: None", self._zone_id)
         return None
 
     @property
@@ -140,9 +162,22 @@ class TadoClimateEntity(TadoZoneEntity, TadoOptimisticMixin, ClimateEntity):
         state = self._current_state
         if state and state.setting and state.setting.temperature:
             if temp := getattr(state.setting.temperature, "celsius", None):
-                return float(temp)
+                result = float(temp)
+                _LOGGER.debug(
+                    "Zone %d target_temperature: %s (min=%s, max=%s, step=%s)",
+                    self._zone_id,
+                    result,
+                    self._attr_min_temp,
+                    self._attr_max_temp,
+                    self._attr_target_temperature_step,
+                )
+                return result
 
-        return self._default_temp if self.hvac_mode == HVACMode.AUTO else None
+        default = self._default_temp if self.hvac_mode == HVACMode.AUTO else None
+        _LOGGER.debug(
+            "Zone %d target_temperature: %s (default/fallback)", self._zone_id, default
+        )
+        return default
 
     def _get_optimistic_value(self) -> dict[str, Any] | None:
         """Return optimistic state if set."""

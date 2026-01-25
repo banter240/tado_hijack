@@ -31,12 +31,14 @@ from .const import (
     CONF_DEBUG_LOGGING,
     CONF_DISABLE_POLLING_WHEN_THROTTLED,
     CONF_OFFSET_POLL_INTERVAL,
+    CONF_REFRESH_AFTER_RESUME,
     CONF_REFRESH_TOKEN,
     CONF_SLOW_POLL_INTERVAL,
     CONF_THROTTLE_THRESHOLD,
     DEFAULT_AUTO_API_QUOTA_PERCENT,
     DEFAULT_DEBOUNCE_TIME,
     DEFAULT_OFFSET_POLL_INTERVAL,
+    DEFAULT_REFRESH_AFTER_RESUME,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_SLOW_POLL_INTERVAL,
     DEFAULT_THROTTLE_THRESHOLD,
@@ -161,6 +163,8 @@ class TadoHijackConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
     ) -> ConfigFlowResult:
         """Handle the configuration of the polling intervals."""
         if user_input is not None:
+            # Convert empty API proxy URL to None
+            api_proxy_url = user_input.get(CONF_API_PROXY_URL) or None
             return self.async_create_entry(
                 title=f"Tado {self.context.get('home_name', 'Hijack')}",
                 data={
@@ -182,7 +186,10 @@ class TadoHijackConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     CONF_AUTO_API_QUOTA_PERCENT: user_input.get(
                         CONF_AUTO_API_QUOTA_PERCENT, DEFAULT_AUTO_API_QUOTA_PERCENT
                     ),
-                    CONF_API_PROXY_URL: user_input.get(CONF_API_PROXY_URL),
+                    CONF_API_PROXY_URL: api_proxy_url,
+                    CONF_REFRESH_AFTER_RESUME: user_input.get(
+                        CONF_REFRESH_AFTER_RESUME, DEFAULT_REFRESH_AFTER_RESUME
+                    ),
                     CONF_DEBUG_LOGGING: user_input.get(CONF_DEBUG_LOGGING, False),
                 },
             )
@@ -227,6 +234,9 @@ class TadoHijackConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                         CONF_DISABLE_POLLING_WHEN_THROTTLED, default=False
                     ): bool,
                     vol.Optional(CONF_API_PROXY_URL): vol.Any(None, str),
+                    vol.Optional(
+                        CONF_REFRESH_AFTER_RESUME, default=DEFAULT_REFRESH_AFTER_RESUME
+                    ): bool,
                     vol.Optional(CONF_DEBUG_LOGGING, default=False): bool,
                 }
             ),
@@ -264,6 +274,9 @@ class TadoHijackOptionsFlowHandler(config_entries.OptionsFlow):
     ) -> ConfigFlowResult:
         """Initialize the options flow."""
         if user_input:
+            # Convert empty API proxy URL to None (allows deletion)
+            if CONF_API_PROXY_URL in user_input and not user_input[CONF_API_PROXY_URL]:
+                user_input[CONF_API_PROXY_URL] = None
             # Update entry.data directly (not options) so coordinator sees changes
             self.hass.config_entries.async_update_entry(
                 self.config_entry,
@@ -333,8 +346,14 @@ class TadoHijackOptionsFlowHandler(config_entries.OptionsFlow):
                     ): bool,
                     vol.Optional(
                         CONF_API_PROXY_URL,
-                        default=self.config_entry.data.get(CONF_API_PROXY_URL, ""),
+                        default=self.config_entry.data.get(CONF_API_PROXY_URL) or "",
                     ): vol.Any(None, str),
+                    vol.Optional(
+                        CONF_REFRESH_AFTER_RESUME,
+                        default=self.config_entry.data.get(
+                            CONF_REFRESH_AFTER_RESUME, DEFAULT_REFRESH_AFTER_RESUME
+                        ),
+                    ): bool,
                     vol.Optional(
                         CONF_DEBUG_LOGGING,
                         default=self.config_entry.data.get(CONF_DEBUG_LOGGING, False),

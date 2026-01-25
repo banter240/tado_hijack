@@ -143,15 +143,31 @@ class TadoHeatingPowerSensor(TadoZoneEntity, SensorEntity):
     def native_value(self) -> float | None:
         """Return the current heating or hot water power."""
         state = self.coordinator.data.zone_states.get(str(self._zone_id))
-        if not state or not state.activity_data_points:
+        if not state:
+            _LOGGER.debug("Zone %d: No state data", self._zone_id)
             return 0.0
+
+        if not state.activity_data_points:
+            _LOGGER.debug("Zone %d: No activity_data_points", self._zone_id)
+            return 0.0
+
+        # Debug: Log what fields are available
+        _LOGGER.debug(
+            "Zone %d activity_data_points fields: %s",
+            self._zone_id,
+            dir(state.activity_data_points),
+        )
 
         # Heating Power (Percentage)
         if (
             hasattr(state.activity_data_points, "heating_power")
             and state.activity_data_points.heating_power
         ):
-            return float(state.activity_data_points.heating_power.percentage)
+            percentage = float(state.activity_data_points.heating_power.percentage)
+            _LOGGER.debug(
+                "Zone %d: heating_power.percentage = %s", self._zone_id, percentage
+            )
+            return percentage
 
         # Hot Water Power (often binary/status in API)
         # If we have hot water activity, we map it to 100% power if ON
@@ -159,12 +175,19 @@ class TadoHeatingPowerSensor(TadoZoneEntity, SensorEntity):
             hasattr(state.activity_data_points, "hot_water_in_use")
             and state.activity_data_points.hot_water_in_use
         ):
-            return (
-                100.0
-                if state.activity_data_points.hot_water_in_use.value == "ON"
-                else 0.0
+            value = state.activity_data_points.hot_water_in_use.value
+            result = 100.0 if value == "ON" else 0.0
+            _LOGGER.debug(
+                "Zone %d: hot_water_in_use.value = %s -> %s%%",
+                self._zone_id,
+                value,
+                result,
             )
+            return result
 
+        _LOGGER.debug(
+            "Zone %d: No heating_power or hot_water_in_use found", self._zone_id
+        )
         return 0.0
 
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, cast
 from zoneinfo import ZoneInfo
@@ -37,14 +38,17 @@ from .const import (
     CONF_DEBOUNCE_TIME,
     CONF_DISABLE_POLLING_WHEN_THROTTLED,
     CONF_OFFSET_POLL_INTERVAL,
+    CONF_REFRESH_AFTER_RESUME,
     CONF_SLOW_POLL_INTERVAL,
     CONF_THROTTLE_THRESHOLD,
     DEFAULT_AUTO_API_QUOTA_PERCENT,
     DEFAULT_DEBOUNCE_TIME,
     DEFAULT_OFFSET_POLL_INTERVAL,
+    DEFAULT_REFRESH_AFTER_RESUME,
     DEFAULT_SLOW_POLL_INTERVAL,
     DEFAULT_THROTTLE_THRESHOLD,
     DOMAIN,
+    RESUME_REFRESH_DELAY_S,
     MIN_AUTO_QUOTA_INTERVAL_S,
     OVERLAY_NEXT_BLOCK,
     OVERLAY_PRESENCE,
@@ -112,6 +116,9 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         self._auto_api_quota_percent = int(
             entry.data.get(CONF_AUTO_API_QUOTA_PERCENT, DEFAULT_AUTO_API_QUOTA_PERCENT)
         )
+        self._refresh_after_resume: bool = bool(
+            entry.data.get(CONF_REFRESH_AFTER_RESUME, DEFAULT_REFRESH_AFTER_RESUME)
+        )
         self._base_scan_interval = scan_interval  # Store original interval
 
         self.rate_limit = RateLimitManager(throttle_threshold, get_handler())
@@ -135,6 +142,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         self._climate_to_zone: dict[str, int] = {}
         self._unsub_listener: CALLBACK_TYPE | None = None
         self._reset_poll_unsub: CALLBACK_TYPE | None = None
+        self._resume_refresh_timer: asyncio.TimerHandle | None = None
         self._force_next_update: bool = False
 
         self.api_manager.start(entry)
@@ -573,6 +581,10 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             self._reset_poll_unsub.cancel()
             self._reset_poll_unsub = None
 
+        if self._resume_refresh_timer:
+            self._resume_refresh_timer.cancel()
+            self._resume_refresh_timer = None
+
         # Cleanup API manager (worker task + pending timers)
         self.api_manager.shutdown()
 
@@ -649,6 +661,29 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         self.api_manager.queue_command(
             f"zone_{zone_id}",
             TadoCommand(CommandType.RESUME_SCHEDULE, zone_id=zone_id),
+        )
+
+        # Optionally refresh state after resume to show actual schedule
+        if self._refresh_after_resume:
+            self._schedule_resume_refresh()
+
+    def _schedule_resume_refresh(self) -> None:
+        """Schedule a refresh after resume with grace period to collect stragglers."""
+        # Cancel existing timer if any (multiple resumes within grace period)
+        if self._resume_refresh_timer is not None:
+            self._resume_refresh_timer.cancel()
+
+        # Schedule new timer
+        self._resume_refresh_timer = self.hass.loop.call_later(
+            RESUME_REFRESH_DELAY_S, self._execute_resume_refresh
+        )
+
+    def _execute_resume_refresh(self) -> None:
+        """Execute the resume refresh (called by timer)."""
+        self._resume_refresh_timer = None
+        self.api_manager.queue_command(
+            "refresh_after_resume",
+            TadoCommand(CommandType.MANUAL_POLL, data={"type": "zone"}),
         )
 
     async def async_set_zone_heat(self, zone_id: int, temp: float = 25.0):

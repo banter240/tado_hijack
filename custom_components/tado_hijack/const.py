@@ -18,6 +18,7 @@ CONF_DEBOUNCE_TIME: Final = "debounce_time"
 CONF_API_PROXY_URL: Final = "api_proxy_url"
 CONF_DEBUG_LOGGING: Final = "debug_logging"
 CONF_AUTO_API_QUOTA_PERCENT: Final = "auto_api_quota_percent"
+CONF_REFRESH_AFTER_RESUME: Final = "refresh_after_resume"
 
 # Default Intervals
 DEFAULT_SCAN_INTERVAL: Final = 3600
@@ -30,6 +31,7 @@ DEFAULT_THROTTLE_THRESHOLD: Final = (
 DEFAULT_AUTO_API_QUOTA_PERCENT: Final = (
     0  # 0 = disabled, >0 = auto-adjust polling to use X% of daily quota
 )
+DEFAULT_REFRESH_AFTER_RESUME: Final = True  # Refresh state after resume schedule
 
 # Minimums (scan_interval 0 = no periodic poll, offset 0 = disabled)
 MIN_SCAN_INTERVAL: Final = 0
@@ -47,6 +49,9 @@ OPTIMISTIC_GRACE_PERIOD_S: Final = 30
 PROTECTION_MODE_TEMP: Final = 5.0  # Minimum safe temperature for manual override
 BOOST_MODE_TEMP: Final = 25.0  # Temperature for Boost All
 BATCH_LINGER_S: Final = 1.0  # Time to wait for more commands in batch
+RESUME_REFRESH_DELAY_S: Final = (
+    1.0  # Grace period to collect multiple resumes before refresh
+)
 INITIAL_RATE_LIMIT_GUESS: Final = 100  # Pessimistic initial guess
 SLOW_POLL_CYCLE_S: Final = 86400  # 24 Hours in seconds
 MAX_OVERLAY_DURATION_MIN: Final = 1440  # 24 Hours in minutes

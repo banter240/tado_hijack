@@ -178,6 +178,7 @@
           "throttle_threshold": "Drosselungsschwelle",
           "disable_polling_when_throttled": "Polling bei Drosselung deaktivieren",
           "api_proxy_url": "API Proxy URL (Optional)",
+          "refresh_after_resume": "Status nach Schedule-Resume aktualisieren",
           "debug_logging": "Debug-Logging aktivieren"
         },
         "data_description": {
@@ -188,7 +189,8 @@
           "debounce_time": "Zeitfenster um schnelle Änderungen zu sammeln bevor sie gesendet werden. Standard 5s.",
           "throttle_threshold": "Bestätigungs-API-Aufrufe überspringen wenn Restkontingent unter diesen Wert fällt. 0 = deaktiviert.",
           "disable_polling_when_throttled": "Periodisches Polling komplett stoppen wenn im Drosselungsmodus.",
-          "api_proxy_url": "Fortgeschritten: URL einer lokalen tado-api-proxy Instanz (z.B. http://192.168.1.5:8080) um Limits zu umgehen. Repo: https://github.com/s1adem4n/tado-api-proxy",
+          "api_proxy_url": "Fortgeschritten: Basis-URL einer lokalen tado-api-proxy Instanz (z.B. http://192.168.1.5:8080). NICHT /api/v2 anhängen. Proxy handled Authentifizierung intern. Repo: https://github.com/s1adem4n/tado-api-proxy",
+          "refresh_after_resume": "Automatisch Zieltemperatur/State abrufen nach Resume Schedule (HVAC AUTO). Notwendig, da Zeitpläne Tado-Cloud-seitig verwaltet werden. Nutzt 1s Grace-Period um mehrere Resumes zu mergen. Kostet 1 API-Aufruf.",
           "debug_logging": "Ausführliches Debug-Logging für die Fehlersuche aktivieren. WARNUNG: Erzeugt große Logdateien."
         }
       }
@@ -213,6 +215,7 @@
           "throttle_threshold": "Drosselungsschwelle",
           "disable_polling_when_throttled": "Polling bei Drosselung deaktivieren",
           "api_proxy_url": "API Proxy URL (Optional)",
+          "refresh_after_resume": "Status nach Schedule-Resume aktualisieren",
           "debug_logging": "Debug-Logging aktivieren"
         },
         "data_description": {
@@ -223,7 +226,8 @@
           "debounce_time": "Zeitfenster um schnelle Änderungen zu sammeln bevor sie gesendet werden. Standard 5s.",
           "throttle_threshold": "Bestätigungs-API-Aufrufe überspringen wenn Restkontingent unter diesen Wert fällt. 0 = deaktiviert.",
           "disable_polling_when_throttled": "Periodisches Polling stoppen wenn gedrosselt.",
-          "api_proxy_url": "Fortgeschritten: URL einer lokalen tado-api-proxy Instanz. Repo: https://github.com/s1adem4n/tado-api-proxy",
+          "api_proxy_url": "Fortgeschritten: Basis-URL einer lokalen tado-api-proxy Instanz (z.B. http://192.168.1.5:8080). NICHT /api/v2 anhängen. Proxy handled Authentifizierung intern. Repo: https://github.com/s1adem4n/tado-api-proxy",
+          "refresh_after_resume": "Automatisch Zieltemperatur/State abrufen nach Resume Schedule (HVAC AUTO). Notwendig, da Zeitpläne Tado-Cloud-seitig verwaltet werden. Nutzt 1s Grace-Period um mehrere Resumes zu mergen. Kostet 1 API-Aufruf.",
           "debug_logging": "Ausführliches Debug-Logging für die Fehlersuche aktivieren. WARNUNG: Erzeugt große Logdateien."
         }
       }

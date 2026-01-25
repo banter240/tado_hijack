@@ -300,10 +300,12 @@ class TadoApiManager:
 
         if overlays:
             _LOGGER.debug("Worker: Bulk setting %d overlays", len(overlays))
+            _LOGGER.debug("Overlay payload: %s", overlays)
             try:
                 await self.coordinator.client.set_all_zones_overlay(overlays)
             except Exception as e:
                 _LOGGER.error("Failed to bulk overlay: %s", e)
+                _LOGGER.error("Failed overlays payload: %s", overlays)
                 # Rollback optimistic state on error
                 for overlay in overlays:
                     self.coordinator.optimistic.clear_zone(overlay["room"])

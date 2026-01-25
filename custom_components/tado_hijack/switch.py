@@ -48,11 +48,12 @@ async def async_setup_entry(
     )
 
     # Hot Water Switches -> Zone Devices
-    entities.extend(
-        TadoHotWaterSwitch(coordinator, zone.id, zone.name)
-        for zone in coordinator.zones_meta.values()
-        if zone.type == ZONE_TYPE_HOT_WATER
-    )
+    # DEPRECATED: Hot water now uses climate entities instead of switches
+    # entities.extend(
+    #     TadoHotWaterSwitch(coordinator, zone.id, zone.name)
+    #     for zone in coordinator.zones_meta.values()
+    #     if zone.type == ZONE_TYPE_HOT_WATER
+    # )
 
     # Dazzle Mode Switches -> Zone Devices (Tado dazzle is per zone)
     entities.extend(

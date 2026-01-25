@@ -406,6 +406,7 @@ Unlike other integrations that group everything by "Zone", Tado Hijack maps enti
 | **Hardware Sync** | `24h` | Interval for battery, firmware and device metadata. Set to 0 for initial load only. |
 | **Offset Update** | `0` (Off) | Interval for temperature offsets. Costs 1 API call per valve. |
 | **Debounce Time** | `5s` | **Batching Window:** Fuses actions into single calls. |
+| **Refresh After Resume** | `On` | Auto-refresh target temperature/state after resume schedule (HVAC AUTO). Required because schedules are Tado cloud-side. Uses 1s grace period to merge multiple resumes. Costs 1 API call. |
 | **Throttle Threshold** | `0` | Reserve last N calls - skip polling when remaining < threshold. |
 | **Disable Polling When Throttled** | `Off` | Stop periodic polling entirely when throttled. |
 | **API Proxy URL** | `None` | **Advanced:** URL of local `tado-api-proxy` workaround. |

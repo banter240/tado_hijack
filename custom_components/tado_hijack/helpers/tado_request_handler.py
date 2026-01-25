@@ -59,15 +59,17 @@ class TadoRequestHandler:
 
         url = self._build_url(uri, endpoint, proxy_url)
 
-        # Get access token (private API with fallback)
-        access_token = getattr(instance, "_access_token", None)
-        if access_token is None:
-            _LOGGER.error(
-                "_access_token not found in Tado instance (library may have changed)"
-            )
-            raise TadoConnectionError("Cannot access Tado authentication token")
+        # Get access token only if NOT using proxy (proxy handles auth internally)
+        access_token: str | None = None
+        if not proxy_url:
+            access_token = getattr(instance, "_access_token", None)
+            if access_token is None:
+                _LOGGER.error(
+                    "_access_token not found in Tado instance (library may have changed)"
+                )
+                raise TadoConnectionError("Cannot access Tado authentication token")
 
-        headers = self._build_headers(access_token, method)
+        headers = self._build_headers(access_token, method, bool(proxy_url))
 
         _LOGGER.debug("Tado Request: %s %s (Proxy: %s)", method.value, url, proxy_url)
 
@@ -127,7 +129,10 @@ class TadoRequestHandler:
             # Map endpoint to correct path on proxy
             parsed_proxy = URL(proxy_url)
 
-            if endpoint == EIQ_HOST_URL:
+            # If user already included the API path, use it as-is
+            if parsed_proxy.path and parsed_proxy.path.startswith("/api"):
+                url = parsed_proxy
+            elif endpoint == EIQ_HOST_URL:
                 url = parsed_proxy.with_path(EIQ_API_PATH)
             else:
                 url = parsed_proxy.with_path(TADO_API_PATH)
@@ -147,13 +152,16 @@ class TadoRequestHandler:
         return url
 
     def _build_headers(
-        self, access_token: str | None, method: HttpMethod
+        self, access_token: str | None, method: HttpMethod, is_proxy: bool = False
     ) -> dict[str, str]:
         """Build headers matching browser behavior."""
         headers = {
-            "Authorization": f"Bearer {access_token}",
             "User-Agent": TADO_USER_AGENT,
         }
+
+        # Only add Authorization header when NOT using proxy (proxy handles auth)
+        if not is_proxy and access_token:
+            headers["Authorization"] = f"Bearer {access_token}"
 
         # Browser omits Content-Type for DELETE, but sends it for PUT/POST
         if method == HttpMethod.PUT:
