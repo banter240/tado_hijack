@@ -138,6 +138,13 @@ class TadoApiManager:
             merger.add(cmd)
 
         merged = merger.result
+        _LOGGER.debug(
+            "Worker: Merged result - zones: %s, presence: %s, child_locks: %s, offsets: %s",
+            list(merged["zones"].keys()) if merged["zones"] else [],
+            merged["presence"],
+            list(merged["child_lock"].keys()) if merged["child_lock"] else [],
+            list(merged["offsets"].keys()) if merged["offsets"] else [],
+        )
 
         # 2. Execute Presence (Global, independent)
         if merged["presence"]:
@@ -278,35 +285,147 @@ class TadoApiManager:
         self, actions: dict[int, dict[str, Any] | None]
     ) -> None:
         """Execute zone actions using bulk APIs where possible."""
-        resumes: list[int] = []
-        overlays: list[dict[str, Any]] = []
+        _LOGGER.debug("Worker: Processing %d zone actions", len(actions))
+
+        # Separate HEATING and HOT_WATER zones
+        heating_resumes: list[int] = []
+        heating_overlays: list[dict[str, Any]] = []
+        hot_water_actions: dict[int, dict[str, Any] | None] = {}
 
         for zone_id, data in actions.items():
-            if data is None:
-                resumes.append(zone_id)
-            else:
-                overlays.append({"room": zone_id, "overlay": data})
+            zone = self.coordinator.zones_meta.get(zone_id)
+            zone_type = getattr(zone, "type", "HEATING") if zone else "HEATING"
+            zone_name = getattr(zone, "name", f"Zone {zone_id}") if zone else f"Zone {zone_id}"
 
-        if resumes:
-            _LOGGER.debug("Worker: Bulk resuming %d zones: %s", len(resumes), resumes)
+            _LOGGER.debug(
+                "Worker: Processing zone %d (%s) - Type: %s, Action: %s",
+                zone_id,
+                zone_name,
+                zone_type,
+                "RESUME" if data is None else "OVERLAY",
+            )
+
+            if zone_type == "HOT_WATER":
+                # HOT_WATER zones must use individual API calls
+                hot_water_actions[zone_id] = data
+                if data is not None:
+                    _LOGGER.debug(
+                        "Worker: Hot water zone %d overlay data: %s",
+                        zone_id,
+                        data,
+                    )
+            else:
+                # HEATING zones can use bulk API
+                if data is None:
+                    heating_resumes.append(zone_id)
+                else:
+                    heating_overlays.append({"room": zone_id, "overlay": data})
+                    _LOGGER.debug(
+                        "Worker: Heating zone %d overlay data: %s",
+                        zone_id,
+                        data,
+                    )
+
+        # Track if any zone actions were executed successfully
+        zone_actions_executed = False
+
+        # Execute HEATING zones via bulk API
+        if heating_resumes:
+            _LOGGER.debug(
+                "Worker: Bulk resuming %d heating zones: %s",
+                len(heating_resumes),
+                heating_resumes,
+            )
             try:
-                await self.coordinator.client.reset_all_zones_overlay(resumes)
+                await self.coordinator.client.reset_all_zones_overlay(heating_resumes)
+                _LOGGER.debug("Worker: Successfully bulk resumed heating zones")
+                zone_actions_executed = True
             except Exception as e:
                 _LOGGER.error("Failed to bulk resume: %s", e)
                 # Rollback optimistic state on error
-                for zone_id in resumes:
+                for zone_id in heating_resumes:
                     self.coordinator.optimistic.clear_zone(zone_id)
                 self.coordinator.async_update_listeners()
 
-        if overlays:
-            _LOGGER.debug("Worker: Bulk setting %d overlays", len(overlays))
-            _LOGGER.debug("Overlay payload: %s", overlays)
+        if heating_overlays:
+            _LOGGER.debug("Worker: Bulk setting %d overlays", len(heating_overlays))
+            _LOGGER.debug("Overlay payload: %s", heating_overlays)
             try:
-                await self.coordinator.client.set_all_zones_overlay(overlays)
+                await self.coordinator.client.set_all_zones_overlay(heating_overlays)
+                _LOGGER.debug("Worker: Successfully bulk set heating overlays")
+                zone_actions_executed = True
             except Exception as e:
                 _LOGGER.error("Failed to bulk overlay: %s", e)
-                _LOGGER.error("Failed overlays payload: %s", overlays)
+                _LOGGER.error("Failed overlays payload: %s", heating_overlays)
                 # Rollback optimistic state on error
-                for overlay in overlays:
+                for overlay in heating_overlays:
                     self.coordinator.optimistic.clear_zone(overlay["room"])
                 self.coordinator.async_update_listeners()
+                _LOGGER.error(
+                    "Failed to bulk overlay heating zones: %s (type: %s)",
+                    e,
+                    type(e).__name__,
+                    exc_info=True,
+                )
+
+        # Execute HOT_WATER zones via individual API calls
+        for zone_id, data in hot_water_actions.items():
+            zone = self.coordinator.zones_meta.get(zone_id)
+            zone_name = getattr(zone, "name", f"Zone {zone_id}") if zone else f"Zone {zone_id}"
+
+            _LOGGER.debug(
+                "Worker: Processing hot water zone %d (%s) - Action: %s",
+                zone_id,
+                zone_name,
+                "RESUME" if data is None else "OVERLAY",
+            )
+
+            try:
+                if data is None:
+                    # Resume schedule for hot water zone
+                    _LOGGER.debug(
+                        "Worker: Calling reset_hot_water_zone_overlay(%d) for hot water zone",
+                        zone_id,
+                    )
+                    await self.coordinator.client.reset_hot_water_zone_overlay(zone_id)
+                    _LOGGER.debug(
+                        "Worker: Successfully reset overlay for hot water zone %d",
+                        zone_id,
+                    )
+                    zone_actions_executed = True
+                else:
+                    # Set overlay for hot water zone
+                    _LOGGER.debug(
+                        "Worker: Calling set_hot_water_zone_overlay(%d, %s) for hot water zone",
+                        zone_id,
+                        data,
+                    )
+                    await self.coordinator.client.set_hot_water_zone_overlay(zone_id, data)
+                    _LOGGER.debug(
+                        "Worker: Successfully set overlay for hot water zone %d",
+                        zone_id,
+                    )
+                    zone_actions_executed = True
+            except Exception as e:
+                _LOGGER.error(
+                    "Failed to set hot water zone %d (%s) overlay: %s (type: %s)",
+                    zone_id,
+                    zone_name,
+                    e,
+                    type(e).__name__,
+                    exc_info=True,
+                )
+                if hasattr(e, "status"):
+                    _LOGGER.error("HTTP Status: %s", e.status)
+                if hasattr(e, "message"):
+                    _LOGGER.error("Error message: %s", e.message)
+                if hasattr(e, "response"):
+                    _LOGGER.error("Response: %s", e.response)
+                # Rollback optimistic state on error
+                self.coordinator.optimistic.clear_zone(zone_id)
+                self.coordinator.async_update_listeners()
+
+        # Refresh zone states after successful zone actions
+        if zone_actions_executed:
+            _LOGGER.debug("Worker: Refreshing zone states after zone actions")
+            await self.coordinator.async_sync_states(["zone"])

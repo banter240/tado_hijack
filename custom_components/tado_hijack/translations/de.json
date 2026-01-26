@@ -139,6 +139,11 @@
           }
         }
       }
+    },
+    "water_heater": {
+      "hot_water": {
+        "name": "Warmwasser"
+      }
     }
   },
   "config": {
