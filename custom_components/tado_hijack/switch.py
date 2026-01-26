@@ -40,11 +40,11 @@ async def async_setup_entry(
     entities: list[SwitchEntity] = [TadoAwaySwitch(coordinator)]
 
     # Per-Zone Schedule Switches -> Zone Devices
+    # Hot water excluded - uses WaterHeaterEntity operation modes instead
     entities.extend(
         TadoZoneScheduleSwitch(coordinator, zone.id, zone.name)
         for zone in coordinator.zones_meta.values()
-        if zone.type
-        in (ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING, ZONE_TYPE_HOT_WATER)
+        if zone.type in (ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING)
     )
 
     # Hot Water Switches -> Zone Devices
@@ -75,14 +75,18 @@ async def async_setup_entry(
             entities.append(TadoOpenWindowSwitch(coordinator, zone.id, zone.name))
 
     # Child Lock Switches -> Device Entities
+    seen_child_lock_devices: set[str] = set()
     for zone in coordinator.zones_meta.values():
         if zone.type != "HEATING":
             continue
-        entities.extend(
-            TadoChildLockSwitch(coordinator, device, zone.id)
-            for device in zone.devices
-            if getattr(device, "child_lock_enabled", None) is not None
-        )
+        for device in zone.devices:
+            if getattr(device, "child_lock_enabled", None) is None:
+                continue
+            # Skip devices we've already processed (can appear in multiple zones)
+            if device.serial_no in seen_child_lock_devices:
+                continue
+            seen_child_lock_devices.add(device.serial_no)
+            entities.append(TadoChildLockSwitch(coordinator, device, zone.id))
 
     async_add_entities(entities)
 

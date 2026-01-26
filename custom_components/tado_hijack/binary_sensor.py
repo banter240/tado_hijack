@@ -26,12 +26,18 @@ async def async_setup_entry(
     """Set up Tado binary sensors."""
     coordinator: TadoDataUpdateCoordinator = entry.runtime_data
     entities: list[BinarySensorEntity] = []
+    seen_devices: set[str] = set()
 
     for zone in coordinator.zones_meta.values():
         if zone.type not in ("HEATING", "AIR_CONDITIONING", "HOT_WATER"):
             continue
 
         for device in zone.devices:
+            # Skip devices we've already processed (can appear in multiple zones)
+            if device.serial_no in seen_devices:
+                continue
+            seen_devices.add(device.serial_no)
+
             entities.extend(
                 (
                     TadoBatterySensor(coordinator, device, zone.id),

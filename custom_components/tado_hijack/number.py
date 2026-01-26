@@ -42,27 +42,32 @@ async def async_setup_entry(
     coordinator: TadoDataUpdateCoordinator = entry.runtime_data
 
     entities: list[NumberEntity] = []
+    seen_offset_devices: set[str] = set()
 
     for zone in coordinator.zones_meta.values():
         # Temperature Offset per Device
         if zone.type == "HEATING":
-            entities.extend(
-                TadoNumberEntity(
-                    coordinator,
-                    device.serial_no,
-                    device.short_serial_no,
-                    device.device_type,
-                    zone.id,
-                    device.current_fw_version,
+            for device in zone.devices:
+                if CAPABILITY_INSIDE_TEMP not in (device.characteristics.capabilities or []):
+                    continue
+                # Skip devices we've already processed (can appear in multiple zones)
+                if device.serial_no in seen_offset_devices:
+                    continue
+                seen_offset_devices.add(device.serial_no)
+                entities.append(
+                    TadoNumberEntity(
+                        coordinator,
+                        device.serial_no,
+                        device.short_serial_no,
+                        device.device_type,
+                        zone.id,
+                        device.current_fw_version,
+                    )
                 )
-                for device in zone.devices
-                if CAPABILITY_INSIDE_TEMP in (device.characteristics.capabilities or [])
-            )
 
-        # Target Temperature per Zone (AC or Hot Water)
-        if zone.type in ("AIR_CONDITIONING", "HOT_WATER"):
-            # Don't fetch capabilities here to save API calls.
-            # We assume AC and Hot Water zones support target temperature control.
+        # Target Temperature per Zone (AC only)
+        # Hot water excluded - uses WaterHeaterEntity temperature control instead
+        if zone.type == "AIR_CONDITIONING":
             entities.append(
                 TadoTargetTempNumberEntity(coordinator, zone.id, zone.name, zone.type)
             )

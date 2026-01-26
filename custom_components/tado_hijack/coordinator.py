@@ -711,6 +711,61 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             ),
         )
 
+    async def async_set_hot_water_auto(self, zone_id: int):
+        """Set hot water zone to auto mode (resume schedule)."""
+        self.optimistic.set_zone(zone_id, False, operation_mode="auto")
+        self.async_update_listeners()
+        self.api_manager.queue_command(
+            f"zone_{zone_id}",
+            TadoCommand(CommandType.RESUME_SCHEDULE, zone_id=zone_id),
+        )
+
+    async def async_set_hot_water_off(self, zone_id: int):
+        """Set hot water zone to off (manual overlay)."""
+        self.optimistic.set_zone(zone_id, True, operation_mode="off")
+        self.async_update_listeners()
+        self.api_manager.queue_command(
+            f"zone_{zone_id}",
+            TadoCommand(
+                CommandType.SET_OVERLAY,
+                zone_id=zone_id,
+                data={
+                    "setting": {"type": "HOT_WATER", "power": "OFF"},
+                    "termination": {"typeSkillBasedApp": "MANUAL"},
+                },
+            ),
+        )
+
+    async def async_set_hot_water_heat(self, zone_id: int):
+        """Set hot water zone to heat mode (manual overlay).
+
+        Preserves current temperature if the zone supports temperature control.
+        """
+        self.optimistic.set_zone(zone_id, True, operation_mode="heat")
+        self.async_update_listeners()
+
+        # Build setting - only include temperature if currently set
+        setting: dict[str, Any] = {"type": "HOT_WATER", "power": "ON"}
+
+        # Preserve current temperature if available (for OpenTherm systems)
+        state = self.data.zone_states.get(str(zone_id))
+        if state and state.setting and state.setting.temperature:
+            setting["temperature"] = {
+                "celsius": state.setting.temperature.celsius
+            }
+
+        self.api_manager.queue_command(
+            f"zone_{zone_id}",
+            TadoCommand(
+                CommandType.SET_OVERLAY,
+                zone_id=zone_id,
+                data={
+                    "setting": setting,
+                    "termination": {"typeSkillBasedApp": "MANUAL"},
+                },
+            ),
+        )
+
     async def async_set_presence_debounced(self, presence: str):
         """Set presence state."""
         self.optimistic.set_presence(presence)

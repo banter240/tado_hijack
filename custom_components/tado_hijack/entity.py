@@ -134,6 +134,36 @@ class TadoZoneEntity(TadoEntity):
         )
 
 
+class TadoHotWaterZoneEntity(TadoEntity):
+    """Entity belonging to a specific Tado Hot Water Zone device."""
+
+    def __init__(
+        self,
+        coordinator: TadoDataUpdateCoordinator,
+        translation_key: str,
+        zone_id: int,
+        zone_name: str,
+    ) -> None:
+        """Initialize Tado hot water zone entity."""
+        super().__init__(coordinator, translation_key)
+        self._zone_id = zone_id
+        self._zone_name = zone_name
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return device info for the hot water zone."""
+        if self.coordinator.config_entry is None:
+            raise RuntimeError("Config entry not available")
+        # Use zone name directly - Tado typically names it "Hot Water" already
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"zone_{self._zone_id}")},
+            name=self._zone_name,
+            manufacturer="Tado",
+            model="Hot Water Zone",
+            via_device=(DOMAIN, self.coordinator.config_entry.entry_id),
+        )
+
+
 class TadoDeviceEntity(TadoEntity):
     """Entity belonging to a specific Tado physical device (Valve/Thermostat)."""
 
