@@ -138,6 +138,5 @@ async def async_unload_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> boo
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         await async_unload_services(hass)
-        await entry.runtime_data.api_call_counter.async_unload()
 
     return cast(bool, unload_ok)
