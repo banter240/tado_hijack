@@ -68,7 +68,7 @@ async def async_setup_entry(
     # Per-Zone Sensors
     for zone in coordinator.zones_meta.values():
         # Heating Power (Percentage) - Heat request for TRVs or Boiler Load for Receivers
-        if zone.type in ("HEATING", "HOT_WATER"):
+        if zone.type == "HEATING":
             entities.append(TadoHeatingPowerSensor(coordinator, zone.id, zone.name))
 
         # Humidity (Percentage)
@@ -217,3 +217,5 @@ class TadoHumiditySensor(TadoZoneEntity, SensorEntity):
         if state and state.sensor_data_points and state.sensor_data_points.humidity:
             return float(state.sensor_data_points.humidity.percentage)
         return None
+
+

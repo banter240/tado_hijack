@@ -19,7 +19,7 @@
         "name": "Heizleistung"
       },
       "hot_water_power": {
-        "name": "Warmwasser-Leistung"
+        "name": "Leistung"
       },
       "humidity": {
         "name": "Luftfeuchtigkeit"
@@ -37,6 +37,15 @@
       },
       "bridge_connection": {
         "name": "Bridge Cloud-Verbindung"
+      },
+      "overlay": {
+        "name": "Overlay"
+      },
+      "power": {
+        "name": "Power"
+      },
+      "connectivity": {
+        "name": "Verbindung"
       }
     },
     "switch": {
@@ -138,11 +147,6 @@
             }
           }
         }
-      }
-    },
-    "water_heater": {
-      "hot_water": {
-        "name": "Warmwasser"
       }
     }
   },

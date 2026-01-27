@@ -11,7 +11,7 @@ from homeassistant.components.binary_sensor import (
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .entity import TadoDeviceEntity, TadoHomeEntity
+from .entity import TadoDeviceEntity, TadoHomeEntity, TadoHotWaterZoneEntity
 
 if TYPE_CHECKING:
     from . import TadoConfigEntry
@@ -49,6 +49,18 @@ async def async_setup_entry(
         TadoBridgeConnectionSensor(coordinator, bridge)
         for bridge in coordinator.bridges
     )
+
+    # Hot Water Zone Sensors
+    for zone in coordinator.zones_meta.values():
+        if zone.type == "HOT_WATER":
+            entities.extend(
+                (
+                    TadoHotWaterOverlaySensor(coordinator, zone.id, zone.name),
+                    TadoHotWaterPowerSensor(coordinator, zone.id, zone.name),
+                    TadoHotWaterConnectivitySensor(coordinator, zone.id, zone.name),
+                )
+            )
+
     async_add_entities(entities)
 
 
@@ -133,3 +145,72 @@ class TadoBridgeConnectionSensor(TadoHomeEntity, BinarySensorEntity):
             ),
             False,
         )
+
+
+class TadoHotWaterOverlaySensor(TadoHotWaterZoneEntity, BinarySensorEntity):
+    """Binary sensor showing if hot water has a manual overlay active."""
+
+    # No device class - shows On/Off states (not Plugged in/Unplugged)
+
+    def __init__(self, coordinator: Any, zone_id: int, zone_name: str) -> None:
+        """Initialize hot water overlay sensor."""
+        super().__init__(coordinator, "overlay", zone_id, zone_name)
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_hw_overlay_{zone_id}"
+
+    @property
+    def is_on(self) -> bool:
+        """Return true if manual overlay is active."""
+        state = self.coordinator.data.zone_states.get(str(self._zone_id))
+        if state is None:
+            return False
+        return bool(getattr(state, "overlay_active", False))
+
+
+class TadoHotWaterPowerSensor(TadoHotWaterZoneEntity, BinarySensorEntity):
+    """Binary sensor showing if hot water power is ON."""
+
+    _attr_device_class = BinarySensorDeviceClass.POWER
+
+    def __init__(self, coordinator: Any, zone_id: int, zone_name: str) -> None:
+        """Initialize hot water power sensor."""
+        super().__init__(coordinator, "power", zone_id, zone_name)
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_hw_power_{zone_id}"
+
+    @property
+    def is_on(self) -> bool:
+        """Return true if hot water power is ON."""
+        state = self.coordinator.data.zone_states.get(str(self._zone_id))
+        if state is None:
+            return False
+        setting = getattr(state, "setting", None)
+        if setting:
+            return getattr(setting, "power", "OFF") == "ON"
+        return False
+
+
+class TadoHotWaterConnectivitySensor(TadoHotWaterZoneEntity, BinarySensorEntity):
+    """Binary sensor showing hot water zone connectivity (Connected/Disconnected)."""
+
+    _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
+
+    def __init__(self, coordinator: Any, zone_id: int, zone_name: str) -> None:
+        """Initialize hot water connectivity sensor."""
+        super().__init__(coordinator, "connectivity", zone_id, zone_name)
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_hw_conn_{zone_id}"
+
+    @property
+    def is_on(self) -> bool:
+        """Return true if hot water zone is connected.
+
+        Checks if any device in the zone is connected.
+        """
+        zone = self.coordinator.zones_meta.get(self._zone_id)
+        if zone is None:
+            return False
+
+        for device in zone.devices:
+            device_meta = self.coordinator.devices_meta.get(device.serial_no)
+            if device_meta and device_meta.connection_state:
+                if device_meta.connection_state.value:
+                    return True
+        return False

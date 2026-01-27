@@ -19,7 +19,7 @@
         "name": "Heating Power"
       },
       "hot_water_power": {
-        "name": "Hot Water Power"
+        "name": "Power"
       },
       "humidity": {
         "name": "Humidity"
@@ -37,6 +37,15 @@
       },
       "bridge_connection": {
         "name": "Bridge Cloud Connection"
+      },
+      "overlay": {
+        "name": "Overlay"
+      },
+      "power": {
+        "name": "Power"
+      },
+      "connectivity": {
+        "name": "Connectivity"
       }
     },
     "switch": {
@@ -138,11 +147,6 @@
             }
           }
         }
-      }
-    },
-    "water_heater": {
-      "hot_water": {
-        "name": "Hot Water"
       }
     }
   },
