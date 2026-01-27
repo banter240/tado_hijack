@@ -245,10 +245,11 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         """Extract zone ID from unique_id with support for multiple formats.
 
         Supported formats:
-        - {entry_id}_hw_{zone_id}     (hot water switch)
-        - {entry_id}_sch_{zone_id}    (schedule switch)
-        - {entry_id}_.._{zone_id}     (any suffix ending in zone_id)
-        - zone_{zone_id}_...          (zone entities like target_temp)
+        - {entry_id}_hw_{zone_id}           (hot water switch)
+        - {entry_id}_water_heater_{zone_id} (water heater entity)
+        - {entry_id}_sch_{zone_id}          (schedule switch)
+        - {entry_id}_.._{zone_id}           (any suffix ending in zone_id)
+        - zone_{zone_id}_...                (zone entities like target_temp)
         """
         try:
             parts = unique_id.split("_")

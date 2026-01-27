@@ -74,8 +74,8 @@ class TadoHotWater(TadoHotWaterZoneEntity, WaterHeaterEntity):
     ) -> None:
         """Initialize Tado hot water."""
         super().__init__(coordinator, "hot_water", zone_id, zone_name)
-        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_hw_{zone_id}"
-        self._attr_translation_key = cast(str, None)  # Don't add extra name suffix
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_water_heater_{zone_id}"
+        self._attr_translation_key = None  # Don't add extra name suffix
 
     async def async_added_to_hass(self) -> None:
         """Update temperature limits from capabilities when added to hass."""
