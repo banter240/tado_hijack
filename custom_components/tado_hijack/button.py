@@ -28,6 +28,7 @@ async def async_setup_entry(
         TadoRefreshMetadataButton(coordinator),
         TadoRefreshOffsetsButton(coordinator),
         TadoRefreshAwayConfigButton(coordinator),
+        TadoRefreshPresenceButton(coordinator),
         TadoManualPollButton(coordinator),
         TadoResumeAllSchedulesButton(coordinator),
         TadoTurnOffAllButton(coordinator),
@@ -55,6 +56,20 @@ class TadoRefreshMetadataButton(TadoHomeEntity, ButtonEntity):
     async def async_press(self) -> None:
         """Handle button press."""
         await self.tado_coordinator.async_manual_poll("metadata")
+
+
+class TadoRefreshPresenceButton(TadoHomeEntity, ButtonEntity):
+    """Button to refresh presence state."""
+
+    def __init__(self, coordinator: TadoDataUpdateCoordinator) -> None:
+        """Initialize refresh presence button."""
+        super().__init__(coordinator, "refresh_presence")
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_refresh_presence"
+        self._set_entity_id("button", "refresh_presence")
+
+    async def async_press(self) -> None:
+        """Handle button press."""
+        await self.tado_coordinator.async_manual_poll("presence")
 
 
 class TadoRefreshOffsetsButton(TadoHomeEntity, ButtonEntity):

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.water_heater import (
     WaterHeaterEntity,
@@ -42,7 +42,6 @@ async def async_setup_entry(
     coordinator: TadoDataUpdateCoordinator = entry.runtime_data
     entities: list[WaterHeaterEntity] = []
 
-    # Find HOT_WATER zones
     for zone in coordinator.zones_meta.values():
         if zone.type == "HOT_WATER":
             _LOGGER.info("Found hot water zone: %s (ID: %d)", zone.name, zone.id)
@@ -67,15 +66,17 @@ class TadoHotWater(TadoHotWaterZoneEntity, WaterHeaterEntity):
     _attr_max_temp = TEMP_MAX_HOT_WATER
     _attr_target_temperature_step = TEMP_STEP_HOT_WATER
 
-    _attr_name = None  # Use device name only, no entity suffix
+    _attr_name = None
 
     def __init__(
         self, coordinator: TadoDataUpdateCoordinator, zone_id: int, zone_name: str
     ) -> None:
         """Initialize Tado hot water."""
         super().__init__(coordinator, "hot_water", zone_id, zone_name)
-        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_hw_{zone_id}"
-        self._attr_translation_key = cast(str, None)  # Don't add extra name suffix
+        self._attr_unique_id = (
+            f"{coordinator.config_entry.entry_id}_water_heater_{zone_id}"
+        )
+        self._attr_translation_key = None
 
     async def async_added_to_hass(self) -> None:
         """Update temperature limits from capabilities when added to hass."""

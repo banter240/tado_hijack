@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, cast
 from homeassistant.const import CONF_SCAN_INTERVAL, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from tadoasync import TadoAuthenticationError
 
@@ -76,6 +77,26 @@ async def async_migrate_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bo
                 CONF_SCAN_INTERVAL, DEFAULT_PRESENCE_POLL_INTERVAL
             )
         hass.config_entries.async_update_entry(entry, data=new_data, version=4)
+
+    if entry.version == 4:
+        # Migration to version 5 (Cleanup of legacy hot water switches)
+        _LOGGER.info("Migrating to version 5: Cleaning up legacy hot water switches")
+        ent_reg = er.async_get(hass)
+        entries = er.async_entries_for_config_entry(ent_reg, entry.entry_id)
+        for entity in entries:
+            # Check for legacy HW switch pattern: {entry_id}_hw_{zone_id}
+            if entity.domain == "switch" and "_hw_" in entity.unique_id:
+                # Ensure it ends with digits (zone_id)
+                parts = entity.unique_id.split("_")
+                if parts[-1].isdigit():
+                    _LOGGER.info(
+                        "Removing legacy entity %s (unique_id: %s)",
+                        entity.entity_id,
+                        entity.unique_id,
+                    )
+                    ent_reg.async_remove(entity.entity_id)
+
+        hass.config_entries.async_update_entry(entry, version=5)
 
     _LOGGER.info("Migration to version %s successful", entry.version)
     return True

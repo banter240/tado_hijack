@@ -251,6 +251,12 @@ Tado's API limits are restrictive. That's why Tado Hijack uses a **Zero-Waste Po
 
 <br>
 
+> [!NOTE]
+> **Zero Waste Writes:**
+> Unlike standard integrations, Tado Hijack does **not** trigger a costly poll after sending commands (except for Resume Schedule). We use **Local State Patching** to update the UI immediately without wasting a single API call on confirmation.
+
+<br>
+
 > [!TIP]
 > **Throttled Mode:** When API quota runs low, the integration can automatically disable periodic polling to preserve remaining quota for your automations.
 
@@ -267,28 +273,27 @@ Tado's API limits are restrictive. That's why Tado Hijack uses a **Zero-Waste Po
 
 <br>
 
-Tado Hijack doesn't just guess. It uses a **Predictive Consumption Model** to distribute your API calls evenly throughout the day.
+Tado Hijack doesn't just guess. It uses a **Stateless Predictive Consumption Model** to distribute your API calls evenly throughout the day.
 
-*   **⚡ Real-Time Cost Measurement:** The system measures the *actual* cost of every polling cycle and uses a smoothed moving average to predict future consumption.
+*   **⚡ Predictive Cost Modeling:** Instead of measuring past cycles, the system now estimates the daily cost of background routines (Syncs, Slow Polls) and "locks" this quota to ensure system health.
 *   **🕒 Dynamic Reset-Sync:** It calculates the exact seconds remaining until the next API reset (**12:01 Berlin**) and adjusts your polling interval on-the-fly.
-*   **📉 Hybrid Budget Strategy:** The system uses **two strategies** and picks the more generous one:
-    *   **Long-term:** Distribute your daily target evenly across the day
-    *   **Short-term:** Always keep polling with X% of currently remaining quota
-    *   This ensures the system **never stops polling** when quota runs low, while still respecting your daily budget when possible.
+*   **📉 Dual-Strategy Budget:** The system calculates two independent budgets and always chooses the **more resilient** path (`MAX` function) to keep you connected:
+    *   **Strategy A (Sustainable):** Distributes your daily target evenly until the next reset.
+    *   **Strategy B (Always-On):** A safety net based on a percentage of your *actual* remaining quota.
 
 <br>
 
 **How your "API Gold" is managed:**
 
-The system calculates two independent budgets and always chooses the **most reliable** path (`MAX` function) to keep you connected:
+The system calculates two independent budgets and always chooses the **most reliable** path to keep you connected:
 
 ```
-FREE_QUOTA = Daily_Limit - Throttle_Reserve - (Predicted_Daily_Maintenance_Cost)
+FREE_QUOTA = Daily_Limit - Maintenance_Reserve - Throttle_Threshold
 TARGET_BUDGET = FREE_QUOTA * Auto_API_Quota_%
 
-REMAINING_BUDGET = MAX(
-    TARGET_BUDGET - Used_Today,           # Strategy A (Long-term): Sustainable daily plan
-    (Remaining - Throttle_Reserve) * %    # Strategy B (Short-term): Guaranteed 'Always-On' fallback
+EFFECTIVE_BUDGET = MAX(
+    TARGET_BUDGET - Used_Today,           # Strategy A: Reliable daily pace
+    (Current_Remaining - Threshold) * %   # Strategy B: Emergency 'Always-On' fallback
 )
 ```
 
@@ -299,13 +304,13 @@ REMAINING_BUDGET = MAX(
 Instead of a static timer, your polling interval breathes with your quota:
 
 - **High-Speed Phase:** While your budget is healthy, updates arrive as fast as every **15s**.
-- **Proactive Stretching:** If manual actions (or Tado's transition) tighten the budget, the **Long-term** strategy automatically stretches the interval to preserve your daily visibility.
-- **"Always-On" Guarantee:** Even in extreme scarcity, the **Short-term** fallback ensures you never hit zero. It uses a smart percentage of your *actual* remaining calls to keep updates flowing until the next reset.
+- **Proactive Stretching:** If manual actions or automations tighten the budget, **Strategy A** automatically stretches the interval to preserve daily visibility.
+- **"Soft Landing" Guarantee:** Even in extreme scarcity, **Strategy B** ensures you never hit a hard wall. It uses a smart percentage of your *real-time* remaining calls to keep updates flowing until the next reset.
 
 <br>
 
 > [!NOTE]
-> **Intelligence over Throttling:** While other integrations simply die when a limit is reached, Tado Hijack's math ensures a "soft landing". It prioritizes **continuity over frequency**, gracefully slowing down to ensure your smart home stays informed 24/7 without ever hitting the hard wall.
+> **Intelligence over Throttling:** While other integrations simply die when a limit is reached, Tado Hijack prioritizes **continuity over frequency**, gracefully slowing down to ensure your smart home stays informed 24/7 without ever hitting the hard wall.
 
 <br>
 
@@ -368,12 +373,7 @@ Unlike other integrations that group everything by "Zone", Tado Hijack maps enti
 <br>
 
 *   **Custom Client Layer:** I extend the underlying library via inheritance to handle API communication reliably and fix common deserialization errors.
-*   **Expert-Level Diagnostics:** Support requests are safe. Our built-in Diagnostic Report uses **Multi-Layer Anonymization**:
-    *   **🔑 Key Pseudonymization:** HA Entity-IDs in JSON keys are transformed into anonymized hashes (e.g. `sensor.entity_8a3f`) to protect your room names while maintaining machine-readability.
-    *   **🛡️ PII Masking:** All sensitive names (Zones, Homes, Titles) are replaced with `"Anonymized Name"`.
-    *   **🕵️‍♂️ Serial Number Protection:** Every hardware identifier (VA, RU, IB, etc.) is automatically masked via Regex everywhere in the document.
-    *   **📊 Pure Debug Power:** Despite maximum privacy, the report contains all technical insights needed for support (Quota math, Cache ages, Internal Mappings, API Queue status).
-*   **Privacy by Design:** All standard logs are automatically redacted. Sensitive data is stripped before writing to disk.
+*   **Privacy by Design:** All standard logs and diagnostic reports are automatically redacted. Sensitive data is stripped before any output is generated. (See [Support & Diagnostics](#expert-level-diagnostics) for details).
 
 <br>
 
@@ -444,6 +444,7 @@ Global controls for the entire home. *Linked to your Internet Bridge device.*
 | `button.tado_{home}_refresh_metadata` | Button | Updates zone and device metadata (2 calls). |
 | `button.tado_{home}_refresh_offsets` | Button | Fetches all hardware offsets (N calls). |
 | `button.tado_{home}_refresh_away` | Button | Fetches all zone away temps (M calls). |
+| `button.tado_{home}_refresh_presence` | Button | Fetches current Home/Away state (1 call). |
 | `button.tado_{home}_full_manual_poll` | Button | **Expensive:** Refreshes everything at once. |
 | `sensor.tado_{home}_api_limit` | Sensor | Daily API call limit. |
 | `sensor.tado_{home}_api_remaining` | Sensor | Your precious daily API gold. |
@@ -620,7 +621,36 @@ While Tado Hijack uses the cloud for its power-features, your basic smart home r
 
 <br>
 
-Enable debug logging in `configuration.yaml`:
+If you encounter issues, please check the following steps before opening a GitHub issue or asking on Discord.
+
+### Expert-Level Diagnostics
+
+<br>
+
+Sharing diagnostics **should be safe**. Our built-in Diagnostic Report uses **Multi-Layer Anonymization** to protect your privacy while providing all necessary technical data. However, you should always verify the content yourself before posting it publicly. If in doubt, send the report via DM to an administrator.
+
+*   **🔑 Key Pseudonymization:** Home Assistant Entity-IDs in JSON keys are transformed into unique anonymized hashes (e.g. `sensor.entity_8a3f`). This protects your room names while maintaining machine-readability for debugging.
+*   **🛡️ PII Masking:** All sensitive names (Zones, Homes, Mobile Devices, Titles) are replaced with `"Anonymized Name"`.
+*   **🕵️‍♂️ Serial Number Protection:** Every hardware identifier (VA, RU, IB, etc.), E-mail address, and cryptographic secret (Tokens, Hashes) is automatically masked via intelligent Regex everywhere in the document.
+*   **📊 Pure Debug Power:** Despite maximum privacy, the report contains all technical insights needed for support:
+    *   Detailed Quota & Adaptive Interval math.
+    *   API Queue & Action status.
+    *   Internal Entity Mappings (Anonymized but uniquely identifiable).
+    *   Device Metadata (Firmware, Battery, Connection status).
+
+<br>
+
+> [!TIP]
+> **How to get the report:**
+> Go to **Settings** -> **Devices & Services** -> **Tado Hijack** -> Click the three dots (⋮) -> **Download diagnostics**.
+
+<br>
+
+### Debug Logging
+
+<br>
+
+Enable verbose logging in your `configuration.yaml` to see what happens behind the scenes:
 ```yaml
 logger:
   default: info
