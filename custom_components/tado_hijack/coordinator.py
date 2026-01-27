@@ -272,7 +272,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
                 return True
         return False
 
-    def _get_active_zones(
+    def get_active_zones(
         self,
         include_heating: bool = True,
         include_ac: bool = False,
@@ -1094,7 +1094,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         _LOGGER.debug("Resume all schedules triggered")
 
         # Only resume HEATING zones, not HOT_WATER or AC
-        active_zones = self._get_active_zones(include_heating=True)
+        active_zones = self.get_active_zones(include_heating=True)
 
         if not active_zones:
             _LOGGER.warning("No active heating zones to resume")
@@ -1143,7 +1143,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             action_name: Human-readable action name for logging
 
         """
-        zone_ids = self._get_active_zones(include_heating=True)
+        zone_ids = self.get_active_zones(include_heating=True)
 
         if not zone_ids:
             _LOGGER.warning("No active heating zones to %s", action_name)

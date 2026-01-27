@@ -108,3 +108,52 @@ set_timer_all_zones:
           max: 30
           step: 0.1
           unit_of_measurement: "°C"
+
+set_water_heater_timer:
+  description: "Set a timer for a water heater entity with optional temperature control."
+  fields:
+    entity_id:
+      description: "Water heater entity ID (e.g. water_heater.hot_water_hot_water)."
+      required: true
+      selector:
+        entity:
+          domain: water_heater
+          integration: tado_hijack
+    duration:
+      description: "Duration in minutes after which the timer ends. If not provided, uses overlay mode."
+      selector:
+        number:
+          min: 1
+          max: 1440
+          unit_of_measurement: "min"
+    overlay:
+      description: "Termination mode: 'manual' (indefinite), 'next_block' (return to schedule at next time block), or 'presence' (until presence change). Ignored if duration is provided."
+      selector:
+        select:
+          options:
+            - "manual"
+            - "next_block"
+            - "presence"
+    operation_mode:
+      description: "Operation mode: 'auto' (resume schedule), 'heat' (manual on), or 'off'."
+      selector:
+        select:
+          options:
+            - "auto"
+            - "heat"
+            - "off"
+    power:
+      description: "Power state (ON/OFF). Ignored if operation_mode is provided."
+      selector:
+        select:
+          options:
+            - "ON"
+            - "OFF"
+    temperature:
+      description: "Target temperature (30-65°C, rounded to integer)."
+      selector:
+        number:
+          min: 30
+          max: 65
+          step: 1
+          unit_of_measurement: "°C"
