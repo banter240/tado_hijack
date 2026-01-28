@@ -67,3 +67,4 @@ class TadoCommand:
     cmd_type: CommandType
     zone_id: int | None = None
     data: dict[str, Any] | None = None
+    rollback_context: Any = None

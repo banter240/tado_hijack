@@ -42,7 +42,7 @@ class TadoEntity(CoordinatorEntity):
     def __init__(
         self,
         coordinator: TadoDataUpdateCoordinator,
-        translation_key: str,
+        translation_key: str | None,
     ) -> None:
         """Initialize Tado entity."""
         super().__init__(coordinator)

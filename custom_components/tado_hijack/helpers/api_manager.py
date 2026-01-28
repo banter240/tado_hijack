@@ -105,43 +105,53 @@ class TadoApiManager:
         merged = merger.result
 
         if merged["presence"]:
-            await self._execute_presence(merged["presence"])
+            await self._execute_presence(merged["presence"], merged.get("old_presence"))
 
-        await self._execute_child_locks(merged["child_lock"])
-        await self._execute_offset_actions(merged["offsets"])
+        await self._execute_child_locks(
+            merged["child_lock"], merged.get("rollback_child_locks", {})
+        )
+        await self._execute_offset_actions(
+            merged["offsets"], merged.get("rollback_offsets", {})
+        )
 
-        for prop, action_name, api_call, rollback_fn in [
+        for prop, action_name, api_call, rollback_fn, rollback_data in [
             (
                 merged["away_temps"],
                 "away temp",
                 self.coordinator.client.set_away_configuration,
                 self.coordinator.optimistic.clear_away_temp,
+                merged.get("rollback_away_temps", {}),
             ),
             (
                 merged["dazzle_modes"],
                 "dazzle",
                 self.coordinator.client.set_dazzle_mode,
                 self.coordinator.optimistic.clear_dazzle,
+                merged.get("rollback_dazzle_modes", {}),
             ),
             (
                 merged["early_starts"],
                 "early start",
                 self.coordinator.client.set_early_start,
                 self.coordinator.optimistic.clear_early_start,
+                merged.get("rollback_early_starts", {}),
             ),
             (
                 merged["open_windows"],
                 "open window",
                 self.coordinator.client.set_open_window_detection,
                 self.coordinator.optimistic.clear_open_window,
+                merged.get("rollback_open_windows", {}),
             ),
         ]:
             await self._execute_zone_property_actions(
-                prop, action_name, api_call, rollback_fn
+                prop, action_name, api_call, rollback_fn, rollback_data
             )
 
         await self._execute_identify_actions(merged["identifies"])
-        await self._execute_zone_actions(merged["zones"])
+        await self._execute_zone_actions(
+            merged["zones"], merged.get("rollback_zones", {})
+        )
 
         self.coordinator.update_rate_limit_local(silent=False)
         if merged["manual_poll"]:
@@ -149,55 +159,119 @@ class TadoApiManager:
         elif self.coordinator.rate_limit.is_throttled:
             self.coordinator.rate_limit.decrement(len(commands))
 
-    async def _execute_presence(self, presence: str) -> None:
-        """Execute presence update."""
+    async def _execute_presence(self, presence: str, old_presence: str | None) -> None:
+        """Execute presence update with local rollback."""
         try:
             await self.coordinator.client.set_presence(presence)
         except Exception as e:
             _LOGGER.error("Failed to set presence: %s", e)
             self.coordinator.optimistic.clear_presence()
-            self.coordinator.async_update_listeners()
+
+            if old_presence and self.coordinator.data.home_state:
+                _LOGGER.info("Rolling back local presence state to %s", old_presence)
+                self.coordinator.data.home_state.presence = old_presence
+                self.coordinator.async_update_listeners()
+            else:
+                await self.coordinator.async_manual_poll("presence")
 
     async def _execute_device_actions(
-        self, actions: dict[str, Any], action_name: str, api_call: Any, rollback_fn: Any
+        self,
+        actions: dict[str, Any],
+        action_name: str,
+        api_call: Any,
+        rollback_fn: Any,
+        rollback_data: dict[str, Any],
+        attribute_name: str,
     ) -> None:
-        """Execute generic device action helper."""
+        """Execute generic device action helper with rollback."""
         for serial, value in actions.items():
             try:
                 await api_call(serial, value)
             except Exception as e:
                 _LOGGER.error("Failed to %s for %s: %s", action_name, serial, e)
                 rollback_fn(serial)
+
+                if serial in rollback_data and self.coordinator.devices_meta.get(
+                    serial
+                ):
+                    old_val = rollback_data[serial]
+                    setattr(
+                        self.coordinator.devices_meta[serial], attribute_name, old_val
+                    )
+                    _LOGGER.info("Rolled back %s for %s", attribute_name, serial)
+
                 self.coordinator.async_update_listeners()
 
-    async def _execute_child_locks(self, actions: dict[str, bool]) -> None:
+    async def _execute_child_locks(
+        self, actions: dict[str, bool], rollback_data: dict[str, Any]
+    ) -> None:
         """Execute child locks."""
         await self._execute_device_actions(
             actions,
             "set child lock",
             lambda s, v: self.coordinator.client.set_child_lock(s, child_lock=v),
             self.coordinator.optimistic.clear_child_lock,
+            rollback_data,
+            "child_lock_enabled",
         )
 
-    async def _execute_offset_actions(self, actions: dict[str, float]) -> None:
+    async def _execute_offset_actions(
+        self, actions: dict[str, float], rollback_data: dict[str, Any]
+    ) -> None:
         """Execute offsets."""
-        await self._execute_device_actions(
-            actions,
-            "set temperature offset",
-            self.coordinator.client.set_temperature_offset,
-            self.coordinator.optimistic.clear_offset,
-        )
+        for serial, value in actions.items():
+            try:
+                await self.coordinator.client.set_temperature_offset(serial, value)
+            except Exception as e:
+                _LOGGER.error("Failed to set offset for %s: %s", serial, e)
+                self.coordinator.optimistic.clear_offset(serial)
+
+                if serial in rollback_data:
+                    self.coordinator.data_manager.offsets_cache[serial] = rollback_data[
+                        serial
+                    ]
+                    _LOGGER.info("Rolled back offset for %s", serial)
+
+                self.coordinator.async_update_listeners()
 
     async def _execute_zone_property_actions(
-        self, actions: dict[int, Any], action_name: str, api_call: Any, rollback_fn: Any
+        self,
+        actions: dict[int, Any],
+        action_name: str,
+        api_call: Any,
+        rollback_fn: Any,
+        rollback_data: dict[int, Any],
     ) -> None:
-        """Execute generic zone property helper."""
+        """Execute generic zone property helper with rollback."""
+        attr_map = {
+            "away temp": None,
+            "dazzle": "dazzle_enabled",
+            "early start": "early_start_enabled",
+            "open window": None,
+        }
+
         for zone_id, value in actions.items():
             try:
                 await api_call(zone_id, value)
             except Exception as e:
                 _LOGGER.error("Failed to %s for zone %d: %s", action_name, zone_id, e)
                 rollback_fn(zone_id)
+
+                if zone_id in rollback_data:
+                    old_val = rollback_data[zone_id]
+
+                    if action_name == "away temp":
+                        self.coordinator.data_manager.away_cache[zone_id] = old_val
+                    elif action_name == "open window":
+                        if zone := self.coordinator.zones_meta.get(zone_id):
+                            if zone.open_window_detection:
+                                zone.open_window_detection.enabled = old_val
+                    elif attr := attr_map.get(action_name):
+                        if zone := self.coordinator.zones_meta.get(zone_id):
+                            setattr(zone, attr, old_val)
+
+                    _LOGGER.info("Rolled back %s for zone %d", action_name, zone_id)
+
                 self.coordinator.async_update_listeners()
 
     async def _execute_identify_actions(self, actions: set[str]) -> None:
@@ -209,23 +283,21 @@ class TadoApiManager:
                 _LOGGER.error("Failed to identify device %s: %s", serial, e)
 
     async def _execute_zone_actions(
-        self, actions: dict[int, dict[str, Any] | None]
+        self,
+        actions: dict[int, dict[str, Any] | None],
+        rollback_zones: dict[int, Any],
     ) -> None:
         """Execute zone actions (bulk for heating, individual for hot water)."""
         heating_resumes, heating_overlays, hw_actions = self._group_zone_actions(
             actions
         )
-        success = False
 
-        if heating_resumes and await self._run_bulk_resume(heating_resumes):
-            success = True
-        if heating_overlays and await self._run_bulk_overlay(heating_overlays):
-            success = True
-        if hw_actions and await self._run_hw_actions(hw_actions):
-            success = True
-
-        if success:
-            await self.coordinator.async_sync_states(["zone"])
+        if heating_resumes:
+            await self._run_bulk_resume(heating_resumes, rollback_zones)
+        if heating_overlays:
+            await self._run_bulk_overlay(heating_overlays, rollback_zones)
+        if hw_actions:
+            await self._run_hw_actions(hw_actions, rollback_zones)
 
     def _group_zone_actions(self, actions: dict[int, dict[str, Any] | None]):
         """Separate actions by zone type and operation."""
@@ -240,19 +312,39 @@ class TadoApiManager:
                 overlays.append({"room": zid, "overlay": data})
         return resumes, overlays, hw
 
-    async def _run_bulk_resume(self, zones: list[int]) -> bool:
+    def _rollback_zones(
+        self, zone_ids: list[int], rollback_data: dict[int, Any]
+    ) -> None:
+        """Rollback local zone states to original snapshot."""
+        restored = False
+        for zid in zone_ids:
+            if old_state := rollback_data.get(zid):
+                if self.coordinator.data.zone_states:
+                    str_id = str(zid)
+                    self.coordinator.data.zone_states[str_id] = old_state
+                    restored = True
+
+            self.coordinator.optimistic.clear_zone(zid)
+
+        if restored:
+            _LOGGER.info("Rolled back local state for zones: %s", zone_ids)
+            self.coordinator.async_update_listeners()
+
+    async def _run_bulk_resume(
+        self, zones: list[int], rollback_data: dict[int, Any]
+    ) -> bool:
         """Execute bulk resume."""
         try:
             await self.coordinator.client.reset_all_zones_overlay(zones)
             return True
         except Exception as e:
             _LOGGER.error("Failed to bulk resume: %s", e)
-            for zid in zones:
-                self.coordinator.optimistic.clear_zone(zid)
-            self.coordinator.async_update_listeners()
+            self._rollback_zones(zones, rollback_data)
             return False
 
-    async def _run_bulk_overlay(self, overlays: list[dict[str, Any]]) -> bool:
+    async def _run_bulk_overlay(
+        self, overlays: list[dict[str, Any]], rollback_data: dict[int, Any]
+    ) -> bool:
         """Execute bulk overlay."""
         try:
             await self.coordinator.client.set_all_zones_overlay(overlays)
@@ -265,12 +357,14 @@ class TadoApiManager:
                 overlays,
                 exc_info=True,
             )
-            for ov in overlays:
-                self.coordinator.optimistic.clear_zone(ov["room"])
-            self.coordinator.async_update_listeners()
+            self._rollback_zones([ov["room"] for ov in overlays], rollback_data)
             return False
 
-    async def _run_hw_actions(self, actions: dict[int, dict[str, Any] | None]) -> bool:
+    async def _run_hw_actions(
+        self,
+        actions: dict[int, dict[str, Any] | None],
+        rollback_data: dict[int, Any],
+    ) -> bool:
         """Execute hot water actions individually."""
         any_success = False
         for zid, data in actions.items():
@@ -284,6 +378,5 @@ class TadoApiManager:
                 _LOGGER.error(
                     "Failed hot water overlay for zone %d: %s", zid, e, exc_info=True
                 )
-                self.coordinator.optimistic.clear_zone(zid)
-                self.coordinator.async_update_listeners()
+                self._rollback_zones([zid], rollback_data)
         return any_success

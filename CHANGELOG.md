@@ -1,3 +1,84 @@
+## [4.0.0-dev.2](https://github.com/banter240/tado_hijack/compare/v4.0.0-dev.1...v4.0.0-dev.2) (2026-01-27)
+
+### ✨ New Features
+
+* feat(core): implement zero-waste architecture, entity migration and data integrity
+
+This major update finalizes the architectural shift to a fully optimized, zero-waste system
+and resolves critical entity conflicts via automatic migration.
+
+ZERO WASTE ARCHITECTURE:
+- Universal Rollback: Robust transaction system for all write actions (Presence, Overlays,
+  Child Lock, Offset).
+- Local State Patching: Updates UI immediately without triggering confirmatory API polls.
+- Safety Net: Automatic rollback to previous local state if API calls fail.
+- No-Poll Policy: Eliminated all 'refresh after action' logic for maximum quota efficiency.
+
+ENTITY MIGRATION & HOT WATER:
+- Entity Cleanup: Automatic migration to remove legacy '_hw_' switch entities that
+  conflicted with the new water_heater platform.
+- Unique ID Strategy: Changed water_heater ID schema to '_water_heater_' to prevent
+  collisions.
+- Type Safety: Fixed Mypy errors in entity and coordinator classes.
+
+REFACTORING:
+- CommandMerger: Simplified via dispatch map and integrated rollback context.
+- Meta-Cleanup: Removed non-essential comments.
+
+NEW FEATURES:
+- Added 'button.refresh_presence' for manual state checks without full polls.
+
+DOCUMENTATION:
+- Auto Quota: Updated technical description to reflect stateless predictive consumption model.
+- Diagnostics: Relocated detailed privacy info to Troubleshooting section for better support flow.
+- Privacy: Refined safety statement to 'should be safe' and added manual verification advice.
+- Zero Waste: Explicitly documented the new write strategy in the API Consumption section.
+
+## [4.0.0-dev.1](https://github.com/banter240/tado_hijack/compare/v3.1.0-dev.15...v4.0.0-dev.1) (2026-01-27)
+
+### ⚠ BREAKING CHANGES
+
+* **core:** The migration to advanced presence polling changes internal track
+handling. Config entry versions have been bumped to ensure clean state hydration.
+
+Co-authored-by: krisswiltshire30 <kriss.wiltshire@googlemail.com>
+
+### ✨ New Features
+
+* feat(core): implement advanced presence polling, adaptive quota and expert-level diagnostics
+
+This massive update stabilizes the core architecture for highly restricted API environments
+and introduces a military-grade privacy layer for diagnostic reporting.
+
+CORE ARCHITECTURE:
+- Presence Polling Evolution: Replaced legacy polling with advanced tracks using sequential
+  state handling to minimize race conditions and API overhead.
+- Adaptive Quota Brain: Implemented stateless, predictive quota calculation. The system
+  now intelligently adjusts polling intervals based on remaining 'API Gold' and daily reset
+  targets (12:01 Berlin).
+- Safety Thresholds: Integrated a dynamic buffer that prioritizes manual user actions and
+  automations over periodic background polling when quota is low.
+
+PLATFORM STABILIZATION:
+- Hot Water Restoration: Fully restored the water_heater platform. Fixed temperature
+  reporting (None for non-temp hardware) and optimized service selectors for environment
+  independence.
+- Sensor Noise Reduction: Eliminated excessive debug logging in valve state updates.
+
+EXPERT-LEVEL DIAGNOSTICS & PRIVACY:
+- Multi-Layer Anonymization: Diagnostic reports are now safe for public support.
+- Key Pseudonymization: HA Entity-IDs in JSON keys are transformed into unique hashes
+  (e.g., entity_8a3f), protecting room names while maintaining machine-readability.
+- Global PII Masking: Hard redaction for serials (VA, RU, IB), emails, geo-coordinates,
+  and cryptographic secrets (Tokens, Hashes, Salts) via intelligent Regex.
+- Contextual Redaction: Automatically identifies and replaces sensitive fields from
+  all tadoasync models (username, firstname, mobile_number, etc.).
+
+DOCUMENTATION:
+- Fully updated README covering the new consumption strategy, architecture highlights,
+  and the experts-only diagnostics system.
+- Cleaned up all internal 'v4' references to maintain public release consistency.
+
 ## [3.1.0-dev.15](https://github.com/banter240/tado_hijack/compare/v3.1.0-dev.14...v3.1.0-dev.15) (2026-01-25)
 
 ### 🐛 Bug Fixes
