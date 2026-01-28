@@ -146,6 +146,10 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         self.api_manager = TadoApiManager(hass, self, self._debounce_time)
         self.optimistic = OptimisticManager()
 
+        # Cache for resolving water heater entity IDs to zone IDs to avoid
+        # repeated registry scans in get_zone_id_from_entity.
+        self._water_heater_zone_cache: dict[str, int] = {}
+
         self.zones_meta: dict[int, Zone] = {}
         self.devices_meta: dict[str, Device] = {}
         self.bridges: list[Device] = []
@@ -247,12 +251,13 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         # This handles cases where entity_id has suffixes like _2, _3, etc.
         if entity_id.startswith("water_heater."):
             entity_name = entity_id.split(".", 1)[1]
-            # Remove numeric suffix (e.g., "hot_water_2" -> "hot_water")
-            base_name = (
-                entity_name.rsplit("_", 1)[0]
-                if entity_name and entity_name[-1].isdigit() and "_" in entity_name
-                else entity_name
-            )
+            base_name = self._get_entity_base_name(entity_name)
+
+            # Fast-path: check cache before scanning the registry
+            if entity_id in self._water_heater_zone_cache:
+                return self._water_heater_zone_cache[entity_id]
+            if base_name and base_name in self._water_heater_zone_cache:
+                return self._water_heater_zone_cache[base_name]
 
             for entity_entry in er.async_entries_for_config_entry(
                 ent_reg, self.config_entry.entry_id
@@ -266,10 +271,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
                         if "." in entity_entry.entity_id
                         else ""
                     )
-                    if entry_name and entry_name[-1].isdigit() and "_" in entry_name:
-                        entry_base = entry_name.rsplit("_", 1)[0]
-                    else:
-                        entry_base = entry_name
+                    entry_base = self._get_entity_base_name(entry_name)
 
                     # Match by base name (handles _2, _3 suffixes)
                     if base_name == entry_base or entity_entry.entity_id == entity_id:
@@ -277,9 +279,37 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
                             entity_entry.unique_id
                         )
                         if zone_id is not None:
+                            # Cache both the exact entity_id and the base name so
+                            # future lookups don't need to rescan the registry.
+                            self._water_heater_zone_cache[
+                                entity_entry.entity_id
+                            ] = zone_id
+                            if entry_base:
+                                self._water_heater_zone_cache[entry_base] = zone_id
+                            if base_name and base_name not in self._water_heater_zone_cache:
+                                self._water_heater_zone_cache[base_name] = zone_id
+                            if (
+                                entity_id not in self._water_heater_zone_cache
+                                and entity_id != entity_entry.entity_id
+                            ):
+                                self._water_heater_zone_cache[entity_id] = zone_id
                             return zone_id
 
         return None
+
+    @staticmethod
+    def _get_entity_base_name(entity_name: str | None) -> str | None:
+        """Normalize an entity name by stripping numeric suffixes.
+
+        Example:
+            - \"hot_water_2\" -> \"hot_water\"
+            - \"hot_water\"   -> \"hot_water\"
+        """
+        if not entity_name:
+            return None
+        if entity_name[-1].isdigit() and "_" in entity_name:
+            return entity_name.rsplit("_", 1)[0]
+        return entity_name
 
     def _parse_zone_id_from_unique_id(self, unique_id: str) -> int | None:
         """Extract zone ID from unique_id with support for multiple formats.

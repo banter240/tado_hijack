@@ -176,6 +176,16 @@ class TadoHotWater(TadoHotWaterZoneEntity, WaterHeaterEntity):
         if temperature is None:
             return
 
+        # Check if this hot water zone supports temperature control
+        capabilities = self.tado_coordinator.data.capabilities.get(self._zone_id)
+        if not capabilities or not capabilities.temperatures:
+            _LOGGER.warning(
+                "Hot water zone %d does not support temperature control (no OpenTherm), "
+                "ignoring set_temperature request",
+                self._zone_id,
+            )
+            return
+
         # Round to integer for hot water (Tado requirement)
         rounded_temp = round(float(temperature))
 
