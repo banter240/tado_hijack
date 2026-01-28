@@ -9,10 +9,17 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import CALLBACK_TYPE, HassJob, HomeAssistant, callback
 from homeassistant.helpers.event import async_call_later
 
-from ..const import BATCH_LINGER_S
+from ..const import (
+    BATCH_LINGER_S,
+    CONF_API_PROXY_URL,
+    CONF_CALL_JITTER_ENABLED,
+    CONF_JITTER_PERCENT,
+    DEFAULT_JITTER_PERCENT,
+)
 from ..models import TadoCommand
 from .command_merger import CommandMerger
 from .logging_utils import get_redacted_logger
+from .utils import apply_jitter
 
 if TYPE_CHECKING:
     from ..coordinator import TadoDataUpdateCoordinator
@@ -99,6 +106,9 @@ class TadoApiManager:
 
     async def _process_batch(self, commands: list[TadoCommand]) -> None:
         """Merge and execute a batch of commands."""
+        # Initial jitter to break temporal correlation with triggers (1.0s base)
+        await self._maybe_apply_call_jitter(base_delay=1.0)
+
         merger = CommandMerger(self.coordinator.zones_meta)
         for cmd in commands:
             merger.add(cmd)
@@ -155,12 +165,15 @@ class TadoApiManager:
 
         self.coordinator.update_rate_limit_local(silent=False)
         if merged["manual_poll"]:
+            # Jitter manual poll as well
+            await self._maybe_apply_call_jitter()
             await self.coordinator._execute_manual_poll(merged["manual_poll"])
         elif self.coordinator.rate_limit.is_throttled:
             self.coordinator.rate_limit.decrement(len(commands))
 
     async def _execute_presence(self, presence: str, old_presence: str | None) -> None:
         """Execute presence update with local rollback."""
+        await self._maybe_apply_call_jitter()
         try:
             await self.coordinator.client.set_presence(presence)
         except Exception as e:
@@ -185,6 +198,7 @@ class TadoApiManager:
     ) -> None:
         """Execute generic device action helper with rollback."""
         for serial, value in actions.items():
+            await self._maybe_apply_call_jitter()
             try:
                 await api_call(serial, value)
             except Exception as e:
@@ -220,6 +234,7 @@ class TadoApiManager:
     ) -> None:
         """Execute offsets."""
         for serial, value in actions.items():
+            await self._maybe_apply_call_jitter()
             try:
                 await self.coordinator.client.set_temperature_offset(serial, value)
             except Exception as e:
@@ -251,6 +266,7 @@ class TadoApiManager:
         }
 
         for zone_id, value in actions.items():
+            await self._maybe_apply_call_jitter()
             try:
                 await api_call(zone_id, value)
             except Exception as e:
@@ -277,6 +293,7 @@ class TadoApiManager:
     async def _execute_identify_actions(self, actions: set[str]) -> None:
         """Execute identify."""
         for serial in actions:
+            await self._maybe_apply_call_jitter()
             try:
                 await self.coordinator.client.identify_device(serial)
             except Exception as e:
@@ -334,6 +351,7 @@ class TadoApiManager:
         self, zones: list[int], rollback_data: dict[int, Any]
     ) -> bool:
         """Execute bulk resume."""
+        await self._maybe_apply_call_jitter()
         try:
             await self.coordinator.client.reset_all_zones_overlay(zones)
             return True
@@ -346,6 +364,7 @@ class TadoApiManager:
         self, overlays: list[dict[str, Any]], rollback_data: dict[int, Any]
     ) -> bool:
         """Execute bulk overlay."""
+        await self._maybe_apply_call_jitter()
         try:
             await self.coordinator.client.set_all_zones_overlay(overlays)
             return True
@@ -368,6 +387,7 @@ class TadoApiManager:
         """Execute hot water actions individually."""
         any_success = False
         for zid, data in actions.items():
+            await self._maybe_apply_call_jitter()
             try:
                 if data is None:
                     await self.coordinator.client.reset_hot_water_zone_overlay(zid)
@@ -380,3 +400,22 @@ class TadoApiManager:
                 )
                 self._rollback_zones([zid], rollback_data)
         return any_success
+
+    async def _maybe_apply_call_jitter(self, base_delay: float = 0.5) -> None:
+        """Apply a random jitter delay before an API call (Proxy only)."""
+        if not self.coordinator.config_entry.data.get(CONF_API_PROXY_URL):
+            return
+
+        if not self.coordinator.config_entry.data.get(CONF_CALL_JITTER_ENABLED):
+            return
+
+        jitter_percent = float(
+            self.coordinator.config_entry.data.get(
+                CONF_JITTER_PERCENT, DEFAULT_JITTER_PERCENT
+            )
+        )
+        # Apply jitter to the base delay
+        delay = apply_jitter(base_delay, jitter_percent)
+        if delay > 0:
+            _LOGGER.debug("Applying call jitter delay: %.3fs", delay)
+            await asyncio.sleep(delay)

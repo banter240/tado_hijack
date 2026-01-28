@@ -6,7 +6,6 @@ import asyncio
 import copy
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, cast
-from zoneinfo import ZoneInfo
 
 from homeassistant.core import (
     CALLBACK_TYPE,
@@ -24,6 +23,7 @@ from homeassistant.const import (
     EVENT_CALL_SERVICE,
 )
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 from tadoasync import Tado, TadoError
 from tadoasync.models import Overlay, Temperature, Termination
 
@@ -36,17 +36,27 @@ from .const import (
     API_RESET_BUFFER_MINUTES,
     API_RESET_HOUR,
     BOOST_MODE_TEMP,
+    CONF_API_PROXY_URL,
     CONF_AUTO_API_QUOTA_PERCENT,
     CONF_DEBOUNCE_TIME,
     CONF_DISABLE_POLLING_WHEN_THROTTLED,
+    CONF_JITTER_PERCENT,
     CONF_OFFSET_POLL_INTERVAL,
     CONF_PRESENCE_POLL_INTERVAL,
+    CONF_REDUCED_POLLING_ACTIVE,
+    CONF_REDUCED_POLLING_END,
+    CONF_REDUCED_POLLING_INTERVAL,
+    CONF_REDUCED_POLLING_START,
     CONF_REFRESH_AFTER_RESUME,
     CONF_SLOW_POLL_INTERVAL,
     CONF_THROTTLE_THRESHOLD,
     DEFAULT_AUTO_API_QUOTA_PERCENT,
     DEFAULT_DEBOUNCE_TIME,
+    DEFAULT_JITTER_PERCENT,
     DEFAULT_OFFSET_POLL_INTERVAL,
+    DEFAULT_REDUCED_POLLING_END,
+    DEFAULT_REDUCED_POLLING_INTERVAL,
+    DEFAULT_REDUCED_POLLING_START,
     DEFAULT_PRESENCE_POLL_INTERVAL,
     DEFAULT_REFRESH_AFTER_RESUME,
     DEFAULT_SLOW_POLL_INTERVAL,
@@ -54,6 +64,7 @@ from .const import (
     DOMAIN,
     RESUME_REFRESH_DELAY_S,
     MIN_AUTO_QUOTA_INTERVAL_S,
+    MIN_PROXY_INTERVAL_S,
     OVERLAY_NEXT_BLOCK,
     OVERLAY_PRESENCE,
     OVERLAY_TIMER,
@@ -79,6 +90,7 @@ from .helpers.logging_utils import get_redacted_logger
 from .helpers.optimistic_manager import OptimisticManager
 from .helpers.patch import get_handler
 from .helpers.rate_limit_manager import RateLimitManager
+from .helpers.utils import apply_jitter
 from .models import CommandType, RateLimit, TadoCommand, TadoData
 
 _LOGGER = get_redacted_logger(__name__)
@@ -126,16 +138,19 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         )
         self._base_scan_interval = scan_interval  # Store original interval
 
+        self.is_polling_enabled = True  # Master switch (always starts ON)
+        self.is_reduced_polling_logic_enabled = bool(
+            entry.data.get(CONF_REDUCED_POLLING_ACTIVE, False)
+        )
+
         self.rate_limit = RateLimitManager(throttle_threshold, get_handler())
         self.auth_manager = AuthManager(hass, entry, client)
 
-        slow_poll_s = (
-            entry.data.get(CONF_SLOW_POLL_INTERVAL, DEFAULT_SLOW_POLL_INTERVAL)
-            * SECONDS_PER_HOUR
+        slow_poll_s = entry.data.get(
+            CONF_SLOW_POLL_INTERVAL, DEFAULT_SLOW_POLL_INTERVAL
         )
-        offset_poll_s = (
-            entry.data.get(CONF_OFFSET_POLL_INTERVAL, DEFAULT_OFFSET_POLL_INTERVAL)
-            * SECONDS_PER_HOUR
+        offset_poll_s = entry.data.get(
+            CONF_OFFSET_POLL_INTERVAL, DEFAULT_OFFSET_POLL_INTERVAL
         )
         presence_poll_s = entry.data.get(
             CONF_PRESENCE_POLL_INTERVAL, DEFAULT_PRESENCE_POLL_INTERVAL
@@ -145,6 +160,9 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         )
         self.api_manager = TadoApiManager(hass, self, self._debounce_time)
         self.optimistic = OptimisticManager()
+
+        # Cache for resolving entity IDs to zone IDs to avoid repeated registry scans
+        self._entity_id_cache: dict[str, int] = {}
 
         self.zones_meta: dict[int, Zone] = {}
         self.devices_meta: dict[str, Device] = {}
@@ -230,18 +248,61 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
 
     def get_zone_id_from_entity(self, entity_id: str) -> int | None:
         """Resolve a Tado zone ID from any entity ID (HomeKit or Hijack)."""
-        # 1. Check HomeKit mapping
+        if entity_id in self._entity_id_cache:
+            return self._entity_id_cache[entity_id]
+
         if (zone_id := self._climate_to_zone.get(entity_id)) is not None:
+            self._entity_id_cache[entity_id] = zone_id
             return zone_id
 
-        # 2. Check Hijack registry
         from homeassistant.helpers import entity_registry as er
 
         ent_reg = er.async_get(self.hass)
         if entry := ent_reg.async_get(entity_id):
-            return self._parse_zone_id_from_unique_id(entry.unique_id)
+            if (
+                zone_id := self._parse_zone_id_from_unique_id(entry.unique_id)
+            ) is not None:
+                self._entity_id_cache[entity_id] = zone_id
+                return zone_id
 
+        _LOGGER.debug("Starting deep entity registry scan for %s", entity_id)
+        target_name = entity_id.split(".", 1)[-1]
+        target_base = self._get_entity_base_name(target_name)
+
+        for entity_entry in er.async_entries_for_config_entry(
+            ent_reg, self.config_entry.entry_id
+        ):
+            if (
+                zid := self._parse_zone_id_from_unique_id(entity_entry.unique_id)
+            ) is not None:
+                self._entity_id_cache[entity_entry.entity_id] = zid
+                entry_name = entity_entry.entity_id.split(".", 1)[-1]
+                if entry_base := self._get_entity_base_name(entry_name):
+                    self._entity_id_cache[f"{entity_entry.domain}.{entry_base}"] = zid
+
+        if entity_id in self._entity_id_cache:
+            return self._entity_id_cache[entity_id]
+
+        if target_base:
+            for domain in ["water_heater", "climate", "switch", "sensor"]:
+                if (
+                    zid := self._entity_id_cache.get(f"{domain}.{target_base}")
+                ) is not None:
+                    self._entity_id_cache[entity_id] = zid
+                    return zid
         return None
+
+    @staticmethod
+    def _get_entity_base_name(entity_name: str | None) -> str | None:
+        """Normalize an entity name by stripping numeric suffixes.
+
+        Example: hot_water_2 -> hot_water
+        """
+        if not entity_name:
+            return None
+        if entity_name[-1].isdigit() and "_" in entity_name:
+            return entity_name.rsplit("_", 1)[0]
+        return entity_name
 
     def _parse_zone_id_from_unique_id(self, unique_id: str) -> int | None:
         """Extract zone ID from unique_id with support for multiple formats.
@@ -304,11 +365,25 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         return zone_ids
 
     async def _async_update_data(self) -> TadoData:
-        """Fetch update via DataManager.
+        """Fetch update via DataManager."""
+        if not self.is_polling_enabled:
+            _LOGGER.debug("Polling globally disabled via switch.")
+            if self.data:
+                return cast(TadoData, self.data)
+            _LOGGER.info(
+                "No data exists, allowing initial fetch despite disabled switch"
+            )
 
-        Handles throttling logic by skipping API calls if quota is low and
-        the feature is enabled.
-        """
+        if self.is_reduced_polling_logic_enabled:
+            conf = self._get_reduced_window_config()
+            if conf and conf["interval"] == 0:
+                now = dt_util.now()
+                if self._is_in_reduced_window(now, conf):
+                    _LOGGER.debug("In 0-polling window, skipping API call.")
+                    if self.data:
+                        self.async_update_interval_local()
+                        return cast(TadoData, self.data)
+
         if (
             self._disable_polling_when_throttled
             and self.rate_limit.is_throttled
@@ -359,143 +434,183 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             raise UpdateFailed(f"Tado API error: {err}") from err
 
     def _get_next_reset_time(self) -> datetime:
-        """Calculate next API quota reset time (12:01 CET with buffer)."""
-        berlin_tz = ZoneInfo("Europe/Berlin")
-        now = datetime.now(berlin_tz)
+        """Get the next API quota reset time (12:01 AM Berlin)."""
+        berlin_tz = dt_util.get_time_zone("Europe/Berlin")
+        now_berlin = dt_util.now().astimezone(berlin_tz)
 
-        # Reset happens at API_RESET_HOUR:API_RESET_BUFFER_MINUTES
-        reset_today = now.replace(
+        # Reset happens at 12:01 Berlin (CET/CEST)
+        reset_berlin = now_berlin.replace(
             hour=API_RESET_HOUR,
             minute=API_RESET_BUFFER_MINUTES,
             second=0,
             microsecond=0,
         )
 
-        # If we are within 5 minutes of today's reset or already past it,
-        # the NEXT reset is tomorrow.
-        if now >= (reset_today - timedelta(minutes=5)):
-            return reset_today + timedelta(days=1)
+        if reset_berlin <= now_berlin:
+            reset_berlin += timedelta(days=1)
 
-        return reset_today
+        return cast(datetime, reset_berlin)
 
-    def _calculate_auto_quota_interval(self) -> int | None:
-        """Calculate optimal polling interval based on quota settings.
+    def _get_seconds_until_reset(self) -> int:
+        """Get seconds until next API quota reset."""
+        reset_time = self._get_next_reset_time()
+        return int((reset_time - dt_util.now()).total_seconds())
 
-        Respects throttle threshold - if enabled and remaining calls drop below
-        threshold, polling is disabled or slowed significantly regardless of
-        auto quota settings.
-
-        Returns:
-            Interval in seconds, or None if auto quota is disabled
-
-        """
-        if self._auto_api_quota_percent <= 0:
-            return None
-
+    def _get_remaining_polling_budget(self, seconds_until_reset: int) -> float:
+        """Calculate the remaining API budget for the rest of the day."""
         limit = self.rate_limit.limit
         remaining = self.rate_limit.remaining
 
-        if limit <= 0:
-            _LOGGER.warning("API limit is 0, cannot calculate interval")
+        # 1. Calculate background reserves (Hardware Sync, Presence, Offsets)
+        background_cost_24h, _ = self.data_manager.estimate_daily_reserved_cost()
+        seconds_per_day = 24 * 3600
+        progress_done = (seconds_per_day - seconds_until_reset) / seconds_per_day
+        progress_remaining = seconds_until_reset / seconds_per_day
+
+        # 2. Calculate user activity vs threshold (to protect the buffer)
+        expected_background_so_far = background_cost_24h * progress_done
+        actual_used_total = max(0, limit - remaining)
+        user_calls_so_far = max(0, actual_used_total - expected_background_so_far)
+
+        # Everything used beyond the threshold is "excess" and reduces our daily pool
+        user_excess = max(0, user_calls_so_far - self.rate_limit.throttle_threshold)
+
+        # 3. Calculate final available budget for the remaining day
+        available_for_day = max(0, limit - background_cost_24h - user_excess)
+        total_auto_quota_budget = (
+            available_for_day * self._auto_api_quota_percent / 100.0
+        )
+        return max(0.0, total_auto_quota_budget * progress_remaining)
+
+    def _calculate_auto_quota_interval(self) -> int | None:
+        """Calculate optimal polling interval based on quota settings and reduced window."""
+        if self.rate_limit.limit <= 0:
             return None
 
-        # Calculate time until next reset
-        next_reset = self._get_next_reset_time()
-        now = datetime.now(ZoneInfo("Europe/Berlin"))
-        seconds_until_reset = int((next_reset - now).total_seconds())
+        seconds_until_reset = self._get_seconds_until_reset()
 
-        # Throttling has absolute priority
+        # 1. Throttling (Highest Priority)
         if self.rate_limit.is_throttled:
             if self._disable_polling_when_throttled:
                 _LOGGER.warning(
-                    "Throttled (remaining=%d < threshold=%d). Polling suspended until %s.",
-                    remaining,
-                    self.rate_limit.throttle_threshold,
-                    next_reset.strftime("%H:%M"),
+                    "Throttled (remaining=%d). Polling suspended until reset.",
+                    self.rate_limit.remaining,
                 )
                 return max(SECONDS_PER_HOUR, seconds_until_reset)
-
-            _LOGGER.warning(
-                "Throttled (remaining=%d < threshold=%d). Slowing to 1h.",
-                remaining,
-                self.rate_limit.throttle_threshold,
-            )
             return SECONDS_PER_HOUR
 
-        reserved_total_24h, reserved_breakdown = (
-            self.data_manager.estimate_daily_reserved_cost()
+        # 2. Economy Window (Immediate Priority if active)
+        if self.is_reduced_polling_logic_enabled:
+            conf = self._get_reduced_window_config()
+            now = dt_util.now()
+            if conf and self._is_in_reduced_window(now, conf):
+                reduced_interval = conf["interval"]
+                if reduced_interval == 0:
+                    # Handle pause logic
+                    test_dt = now + timedelta(minutes=1)
+                    next_reset = self._get_next_reset_time()
+                    # Safe loop to find end of window
+                    while (
+                        self._is_in_reduced_window(test_dt, conf)
+                        and test_dt < next_reset
+                    ):
+                        test_dt += timedelta(minutes=15)  # Faster stepping
+                    diff = int((test_dt - now).total_seconds())
+                    _LOGGER.debug("In 0-polling window. Sleeping for %ds.", diff)
+                    return max(MIN_AUTO_QUOTA_INTERVAL_S, diff)
+
+                _LOGGER.debug(
+                    "In economy window. Using interval: %ds", reduced_interval
+                )
+                return int(reduced_interval)
+
+        # 3. Auto Quota Logic (Only if enabled)
+        if self._auto_api_quota_percent <= 0:
+            return None
+
+        min_floor = (
+            MIN_PROXY_INTERVAL_S
+            if self.config_entry.data.get(CONF_API_PROXY_URL)
+            else MIN_AUTO_QUOTA_INTERVAL_S
         )
 
-        seconds_per_day = 24 * 3600
-        seconds_since_reset = seconds_per_day - seconds_until_reset
-        progress_done = seconds_since_reset / seconds_per_day
-        progress_remaining = 1.0 - progress_done
-
-        expected_polling_so_far = reserved_total_24h * progress_done
-        actual_used_total = max(0, limit - remaining)
-        user_calls_so_far = max(0, actual_used_total - expected_polling_so_far)
-
-        throttle_threshold = self.rate_limit.throttle_threshold
-        user_excess = max(0, user_calls_so_far - throttle_threshold)
-
-        available_for_day = max(0, limit - reserved_total_24h - user_excess)
-        total_auto_quota_budget = available_for_day * self._auto_api_quota_percent / 100
-
-        remaining_budget = max(0, total_auto_quota_budget * progress_remaining)
-
-        _LOGGER.debug(
-            "Quota: Used=%d, ExpectedPoll=%d, User=%d, Excess=%d, AvailDay=%d, BudgetRem=%d",
-            actual_used_total,
-            int(expected_polling_so_far),
-            int(user_calls_so_far),
-            int(user_excess),
-            int(available_for_day),
-            int(remaining_budget),
-        )
+        remaining_budget = self._get_remaining_polling_budget(seconds_until_reset)
 
         if remaining_budget <= 0:
-            # Budget exhausted - return to base interval or stop if base is 0
-            if self._base_scan_interval <= 0:
-                _LOGGER.info(
-                    "Budget reached (%d/%d used). Stopping polling.",
-                    actual_used_total,
-                    int(total_auto_quota_budget),
-                )
-                return None
-
-            new_interval = max(MIN_AUTO_QUOTA_INTERVAL_S, int(self._base_scan_interval))
-            _LOGGER.info(
-                "Budget reached (%d/%d used). Falling back to base interval (%ds).",
-                actual_used_total,
-                int(total_auto_quota_budget),
-                new_interval,
+            return (
+                max(int(self._base_scan_interval), 300)
+                if self._base_scan_interval > 0
+                else None
             )
-            return new_interval
 
-        predicted_cost = self.data_manager._measure_zones_poll_cost()
+        if not self.is_reduced_polling_logic_enabled:
+            predicted_cost = self.data_manager._measure_zones_poll_cost()
+            remaining_polls = remaining_budget / predicted_cost
+            if remaining_polls <= 0:
+                return SECONDS_PER_HOUR
+            adaptive_interval = seconds_until_reset / remaining_polls
+            return int(max(min_floor, min(SECONDS_PER_HOUR, adaptive_interval)))
 
-        remaining_polls = remaining_budget / predicted_cost
+        now = dt_util.now()
+        next_reset = self._get_next_reset_time()
+        return self._calculate_weighted_interval(
+            now, next_reset, remaining_budget, min_floor
+        )
 
-        if remaining_polls <= 0:
+    def _calculate_weighted_interval(
+        self,
+        now: datetime,
+        next_reset: datetime,
+        remaining_budget: float,
+        min_floor: int,
+    ) -> int:
+        """Calculate weighted interval for performance hours (reinvesting savings)."""
+        try:
+            conf = self._get_reduced_window_config()
+            if not conf:
+                return SECONDS_PER_HOUR
+
+            # Calculate total normal and reduced seconds until next reset
+            normal_seconds = 0
+            reduced_seconds = 0
+            test_dt = now
+            while test_dt < next_reset:
+                # Ensure chunk is at least the floor to prevent infinite loops
+                chunk = max(
+                    MIN_AUTO_QUOTA_INTERVAL_S,
+                    min(3600, int((next_reset - test_dt).total_seconds())),
+                )
+                if self._is_in_reduced_window(test_dt, conf):
+                    reduced_seconds += chunk
+                else:
+                    normal_seconds += chunk
+                test_dt += timedelta(seconds=chunk)
+
+            predicted_cost = self.data_manager._measure_zones_poll_cost()
+            reduced_interval = conf["interval"]
+
+            if reduced_interval == 0:
+                reduced_budget_cost = 0.0
+            else:
+                reduced_polls_needed = reduced_seconds / reduced_interval
+                reduced_budget_cost = reduced_polls_needed * predicted_cost
+
+            # All remaining budget goes to performance (normal) hours
+            normal_budget = max(0, remaining_budget - reduced_budget_cost)
+
+            if normal_budget > 0:
+                normal_polls = normal_budget / predicted_cost
+                if normal_polls > 0:
+                    adaptive_interval = normal_seconds / normal_polls
+                    # Cap at reduced_interval to ensure night is always slower or equal
+                    cap = reduced_interval if reduced_interval > 0 else SECONDS_PER_HOUR
+                    return int(max(min_floor, min(cap, adaptive_interval)))
+
             return SECONDS_PER_HOUR
 
-        adaptive_interval = seconds_until_reset / remaining_polls
-        bounded_interval = int(
-            max(MIN_AUTO_QUOTA_INTERVAL_S, min(SECONDS_PER_HOUR, adaptive_interval))
-        )
-
-        _LOGGER.info(
-            "Quota: Interval=%ds (Budget: %d/%d used, Next Cost: %d, Rem: %d calls -> %d polls, Reset in %.1fh)",
-            bounded_interval,
-            actual_used_total,
-            int(total_auto_quota_budget),
-            predicted_cost,
-            remaining_budget,
-            int(remaining_polls),
-            seconds_until_reset / SECONDS_PER_HOUR,
-        )
-
-        return bounded_interval
+        except Exception as e:
+            _LOGGER.error("Error in weighted polling calculation: %s", e)
+            return int(max(min_floor, SECONDS_PER_HOUR))
 
     def _adjust_interval_for_auto_quota(self) -> None:
         """Adjust update interval based on auto API quota percentage."""
@@ -508,7 +623,18 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
                 else None
             )
         else:
-            self.update_interval = timedelta(seconds=calculated_interval)
+            final_interval = float(calculated_interval)
+            # Apply jitter only when using proxy (Standard requirement)
+            if self.config_entry.data.get(CONF_API_PROXY_URL):
+                jitter_percent = float(
+                    self.config_entry.data.get(
+                        CONF_JITTER_PERCENT, DEFAULT_JITTER_PERCENT
+                    )
+                )
+                final_interval = apply_jitter(final_interval, jitter_percent)
+                _LOGGER.debug("Applied jitter to interval: %s", final_interval)
+
+            self.update_interval = timedelta(seconds=final_interval)
 
     def _schedule_reset_poll(self) -> None:
         """Schedule automatic poll at daily quota reset time."""
@@ -516,7 +642,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             return
 
         next_reset = self._get_next_reset_time()
-        now = datetime.now(ZoneInfo("Europe/Berlin"))
+        now = dt_util.now()
         delay = (next_reset - now).total_seconds()
 
         _LOGGER.debug(
@@ -788,6 +914,87 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             ),
         )
 
+    def _get_reduced_window_config(self) -> dict[str, Any] | None:
+        """Fetch and parse reduced window configuration."""
+        try:
+            start_str = self.config_entry.data.get(
+                CONF_REDUCED_POLLING_START, DEFAULT_REDUCED_POLLING_START
+            )
+            end_str = self.config_entry.data.get(
+                CONF_REDUCED_POLLING_END, DEFAULT_REDUCED_POLLING_END
+            )
+            interval = self.config_entry.data.get(
+                CONF_REDUCED_POLLING_INTERVAL, DEFAULT_REDUCED_POLLING_INTERVAL
+            )
+
+            # Support HH:MM and HH:MM:SS formats from HA TimeSelector
+            start_h, start_m = map(int, start_str.split(":")[:2])
+            end_h, end_m = map(int, end_str.split(":")[:2])
+
+            return {
+                "start_h": start_h,
+                "start_m": start_m,
+                "end_h": end_h,
+                "end_m": end_m,
+                "interval": interval,
+            }
+        except Exception as e:
+            _LOGGER.error("Error parsing reduced window config: %s", e)
+            return None
+
+    def _is_in_reduced_window(self, dt: datetime, conf: dict[str, Any]) -> bool:
+        """Check if a given datetime is within the configured reduced window."""
+        t = dt.time()
+        start = dt.replace(
+            hour=conf["start_h"], minute=conf["start_m"], second=0, microsecond=0
+        ).time()
+        end = dt.replace(
+            hour=conf["end_h"], minute=conf["end_m"], second=0, microsecond=0
+        ).time()
+
+        return start <= t <= end if start <= end else t >= start or t <= end
+
+    async def async_set_polling_active(self, enabled: bool) -> None:
+        """Globally enable or disable periodic polling."""
+        self.is_polling_enabled = enabled
+        _LOGGER.info("Polling %s globally", "enabled" if enabled else "disabled")
+
+        # If enabling, force a refresh to get latest data immediately
+        if enabled:
+            self._force_next_update = True
+            await self.async_refresh()
+        else:
+            # If disabling, we just stop the interval
+            self.async_update_interval_local()
+            self.async_update_listeners()
+
+    async def async_set_reduced_polling_logic(self, enabled: bool) -> None:
+        """Enable or disable the reduced polling timeframe logic."""
+        self.is_reduced_polling_logic_enabled = enabled
+        _LOGGER.info("Reduced polling logic %s", "enabled" if enabled else "disabled")
+
+        # Persist change to config entry
+        new_data = {**self.config_entry.data, CONF_REDUCED_POLLING_ACTIVE: enabled}
+        self.hass.config_entries.async_update_entry(self.config_entry, data=new_data)
+
+        # Trigger re-calculation of interval
+        self.async_update_interval_local()
+        self.async_update_listeners()
+
+    def async_update_interval_local(self) -> None:
+        """Recalculate and set the update interval immediately."""
+        new_interval_s = self._calculate_auto_quota_interval()
+        if not self.is_polling_enabled:
+            self.update_interval = None
+        elif new_interval_s is None:
+            self.update_interval = (
+                timedelta(seconds=self._base_scan_interval)
+                if self._base_scan_interval > 0
+                else None
+            )
+        else:
+            self.update_interval = timedelta(seconds=new_interval_s)
+
     async def async_set_child_lock(self, serial_no: str, enabled: bool) -> None:
         """Set child lock for a device."""
         old_val = None
@@ -1036,10 +1243,22 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         optimistic_value: bool = True,
     ) -> None:
         """Set a manual overlay with timer/duration support."""
+        # Central Validation: Check if temperature control is supported
+        final_temp = temperature
+        if final_temp is not None and power == "ON":
+            capabilities = self.data.capabilities.get(zone_id)
+            if not capabilities or not capabilities.temperatures:
+                _LOGGER.warning(
+                    "Zone %d does not support temperature control, ignoring temperature=%s",
+                    zone_id,
+                    final_temp,
+                )
+                final_temp = None
+
         data = self._build_overlay_data(
             zone_id=zone_id,
             power=power,
-            temperature=temperature,
+            temperature=final_temp,
             duration=duration,
             overlay_type=overlay_type,
             overlay_mode=overlay_mode,

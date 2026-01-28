@@ -56,7 +56,7 @@ I engineered this integration with one goal: **To squeeze every drop of function
   - [🛠️ Unleashed Features](#unleashed-features-non-homekit)
 - [📊 API Consumption Strategy](#api-consumption-strategy)
   - [📊 API Consumption Table](#api-consumption-table)
-  - [📈 Auto API Quota (The Brain)](#auto-api-quota-the-brain)
+  - [📈 Auto API Quota & Economy Window](#auto-api-quota--economy-window)
   - [🧠 Batching Capability Matrix](#batching-capability-matrix)
 - [🛠️ Architecture](#architecture)
   - [🔧 Physical Device Mapping](#physical-device-mapping)
@@ -88,9 +88,13 @@ Tado's restricted REST API often forces a trade-off between frequent updates and
 Instead of just "polling less," we use **Deep Command Merging** and **HomeKit Injection** to make every single API call count. We don't replace your local HomeKit setup; we "hijack" it, injecting missing cloud power-features directly into the existing devices.
 
 *   **💎 Zero Waste:** 10 commands across 10 rooms? Still only **1 API call**.
+*   **⚖️ Weighted Intelligence:** Reinvests "Night-Savings" into High-Speed updates during the day.
+*   **🌙 Economy Profile:** Automatically slows down or pauses during your sleep window.
+*   **🎭 Pattern Obfuscation:** Uses **Multi-Level Jitter** (Poll & Call) to break the temporal correlation between HA triggers and API requests (Proxy only).
 *   **🛡️ Thread-Safe:** Built-in **Race-Condition Protection** for hardware capabilities.
-*   **🔗 No Redundancy:** HomeKit handles local climate; we handle the cloud secrets.
 *   **📡 Transparency:** Real-time quota tracking directly from Tado's response headers.
+*   **🛡️ Safety Floors:** Protects your account with enforced minimum intervals (45s/120s).
+*   **🔗 No Redundancy:** HomeKit handles local climate; we handle the cloud secrets.
 
 ### The "Why" Factor
 
@@ -127,6 +131,8 @@ Tado Hijack is the definitive technical response to this hostility. I've enginee
 | **Child Lock / OWD / Early** | ✅ | ❌ | ✅ **Yes** |
 | **Local Control** | ❌ | ✅ | ✅ (via HK Link) |
 | **Dynamic Presence-Aware Overlay** | ❌ | ❌ | ✅ **Exclusive** |
+| **Auto Quota (Weighted)** | ❌ | N/A | ✅ **Yes** |
+| **Economy Window (Night Mode)** | ❌ | N/A | ✅ **Yes** |
 | **Command Batching** | ❌ | N/A | ✅ **Extreme (1 Call)** |
 | **HomeKit Injection** | ❌ | N/A | ✅ **One Device** |
 | **API Quota Visibility** | ❌ | N/A | ✅ **Real-time** |
@@ -216,7 +222,16 @@ We bring back the controls Tado "forgot" to give you:
 *   **✨ Dazzle Mode:** Control the display behavior of your V3+ hardware.
 *   **🏠 Presence Lock:** Force Home/Away modes regardless of what Tado thinks.
 *   **🔥 Dynamic Presence-Aware Overlay:** Set temperatures specifically for the current presence state — an exclusive feature that automatically resets once your home presence changes (e.g. Home → Away), something Tado doesn't even support in their official app.
-*   **🔓 Rate Limit Bypass:** Experimental support for local [tado-api-proxy](https://github.com/s1adem4n/tado-api-proxy) to bypass daily limits.
+*   **🔓 Rate Limit Bypass:** Support for local [tado-api-proxy](https://github.com/s1adem4n/tado-api-proxy) to bypass daily limits.
+
+<br>
+
+> [!TIP]
+> **tado-api-proxy TL;DR:**
+> The proxy acts as a local cache and authentication handler. It allows you to use your integration without being strictly bound to Tado's cloud limits.
+> 1. Run the [Docker Container](https://github.com/s1adem4n/tado-api-proxy#docker-setup).
+> 2. Set your `API Proxy URL` in Hijack Options (e.g., `http://192.168.1.10:8080`).
+> 3. Enjoy unlimited local-like polling (safety floor still applies).
 
 <br>
 
@@ -240,9 +255,9 @@ Tado's API limits are restrictive. That's why Tado Hijack uses a **Zero-Waste Po
 
 | Action | Cost | Frequency | Description | Detailed API Calls |
 | :--- | :---: | :--- | :--- | :--- |
-| **State Poll** | **2** | Configurable | State, HVAC, Valve %, Humidity. | `GET /homes/{id}/state`<br>`GET /homes/{id}/zoneStates` |
-| **Hardware Sync** | **2** | 24h (Default) | Syncs battery, firmware and device list. | `GET /homes/{id}/zones`<br>`GET /homes/{id}/devices` |
-| **Zone Capabilities** | **1** | Lazy Load | **Internal:** Fetched once per AC/HW zone when needed. | `GET /zones/{z}/capabilities` |
+| **Zone Poll** | **1** | Adaptive | HVAC, Valve %, Humidity. | `GET /homes/{id}/zoneStates` |
+| **Presence Poll** | **1** | 12h (Default) | Home/Away presence state. | `GET /homes/{id}/state` |
+| **Hardware Sync** | **2+** | 24h (Default) | Syncs battery, firmware and device list. | `GET /homes/{id}/zones`<br>`GET /homes/{id}/devices`<br>`GET /zones/{id}/capabilities` |
 | **Refresh Zones** | **2** | On Demand | Updates zone/device metadata. | `GET /homes/{id}/zones`<br>`GET /homes/{id}/devices` |
 | **Refresh Offsets** | **N** | On Demand | Fetches all device offsets. | `GET /devices/{s}/temperatureOffset` (×N) |
 | **Refresh Away** | **M** | On Demand | Fetches all zone away temps. | `GET /zones/{z}/awayConfiguration` (×M) |
@@ -267,45 +282,47 @@ Tado's API limits are restrictive. That's why Tado Hijack uses a **Zero-Waste Po
 
 <br>
 
-### Auto API Quota (The Brain)
+### Auto API Quota & Economy Window
 
 <br>
 
-<br>
+Tado Hijack doesn't just guess. It uses a **Weighted Predictive Consumption Model** to distribute your API calls precisely where they matter most — during your active hours.
 
-Tado Hijack doesn't just guess. It uses a **Stateless Predictive Consumption Model** to distribute your API calls evenly throughout the day.
-
-*   **⚡ Predictive Cost Modeling:** Instead of measuring past cycles, the system now estimates the daily cost of background routines (Syncs, Slow Polls) and "locks" this quota to ensure system health.
+*   **⚡ Predictive Cost Modeling:** It estimates the daily cost of scheduled background routines (Hardware Syncs, Presence, Offsets) and "locks" this quota to ensure system health.
+*   **🌙 Smart Economy Profile:** Define an **Economy Window** (e.g., 23:00 - 07:00) where updates slow down (or stop entirely with Interval 0). The system automatically calculates the saved "API Gold" and reinvests it into your Performance Phase.
 *   **🕒 Dynamic Reset-Sync:** It calculates the exact seconds remaining until the next API reset (**12:01 Berlin**) and adjusts your polling interval on-the-fly.
-*   **📉 Dual-Strategy Budget:** The system calculates two independent budgets and always chooses the **more resilient** path (`MAX` function) to keep you connected:
-    *   **Strategy A (Sustainable):** Distributes your daily target evenly until the next reset.
-    *   **Strategy B (Always-On):** A safety net based on a percentage of your *actual* remaining quota.
+*   **📉 Weighted Budgeting:** Unlike linear models, we prioritize your awake-time.
 
 <br>
 
-**How your "API Gold" is managed:**
+**The Math behind the Intelligence:**
 
-The system calculates two independent budgets and always chooses the **most reliable** path to keep you connected:
+The system calculates your budget by subtracting scheduled background tasks and **external activity** from your daily limit, then applies a weighted distribution based on your economy schedule:
 
 ```
-FREE_QUOTA = Daily_Limit - Maintenance_Reserve - Throttle_Threshold
-TARGET_BUDGET = FREE_QUOTA * Auto_API_Quota_%
+# EXTERNAL_EXCESS: Every call outside of Hijack's periodic background polling
+# (Automations, Scripts, Manual App use) uses the Throttle Threshold allowance first.
+# Only usage BEYOND the threshold reduces the polling budget for the rest of the day.
+EXTERNAL_EXCESS = Max(0, Non_Polling_Calls_Today - Throttle_Threshold)
 
-EFFECTIVE_BUDGET = MAX(
-    TARGET_BUDGET - Used_Today,           # Strategy A: Reliable daily pace
-    (Current_Remaining - Threshold) * %   # Strategy B: Emergency 'Always-On' fallback
-)
+FREE_QUOTA = Daily_Limit - Background_Reserve - EXTERNAL_EXCESS
+DAILY_TARGET_BUDGET = FREE_QUOTA * Auto_API_Quota_%
+
+ECONOMY_RESERVE = (Economy_Hours / Economy_Interval) * Poll_Cost
+AVAILABLE_PERFORMANCE_BUDGET = (DAILY_TARGET_BUDGET - ECONOMY_RESERVE)
 ```
-
 <br>
 
-**Example Adaptive Behavior:**
+**Adaptive Behavior & Safety:**
 
-Instead of a static timer, your polling interval breathes with your quota:
+Instead of a static timer, your polling interval breathes with your quota and your life:
 
-- **High-Speed Phase:** While your budget is healthy, updates arrive as fast as every **15s**.
-- **Proactive Stretching:** If manual actions or automations tighten the budget, **Strategy A** automatically stretches the interval to preserve daily visibility.
-- **"Soft Landing" Guarantee:** Even in extreme scarcity, **Strategy B** ensures you never hit a hard wall. It uses a smart percentage of your *real-time* remaining calls to keep updates flowing until the next reset.
+- **Performance Phase:** While you are awake, updates arrive as fast as every **45s** (or **120s** if using a proxy).
+- **Economy Phase:** During your sleep window, the integration drops to a slow heartbeat (e.g., 1h) or pauses completely, saving every single call for the next morning.
+- **🛡️ Safety Floor (Minimum Polling):** To protect your Tado account, we enforce a hard-coded minimum interval:
+    - **Standard:** Minimum **45 seconds** per update.
+    - **API Proxy:** Minimum **120 seconds** per update (to prevent account locks).
+    - *Note: These limits apply even if your budget allows for faster updates.*
 
 <br>
 
@@ -313,6 +330,7 @@ Instead of a static timer, your polling interval breathes with your quota:
 > **Intelligence over Throttling:** While other integrations simply die when a limit is reached, Tado Hijack prioritizes **continuity over frequency**, gracefully slowing down to ensure your smart home stays informed 24/7 without ever hitting the hard wall.
 
 <br>
+
 
 ---
 
@@ -408,14 +426,20 @@ Unlike other integrations that group everything by "Zone", Tado Hijack maps enti
 | :--- | :--- | :--- |
 | **Status Polling** | `30m` | Interval for heating state and valve percentage. (1 API call) |
 | **Presence Polling** | `12h` | Interval for Home/Away state. High interval saves mass quota. (1 API call) |
-| **Auto API Quota** | `0%` (Off) | Target X% of FREE quota. Uses hybrid strategy: daily budget OR X% of remaining (whichever is higher). |
-| **Hardware Sync** | `24h` | Interval for battery, firmware and device metadata. Set to 0 for initial load only. |
+| **Auto API Quota** | `80%` | Target X% of FREE quota. FREE = Daily Limit - Background Reserve (Scheduled Syncs) - User Excess. Uses a weighted profile to prioritize performance hours. |
+| **Reduced Polling Active** | `Off` | Enable the time-based weighted polling profile. |
+| **Reduced Polling Start** | `22:00` | Start time for the economy window (e.g. when you sleep). |
+| **Reduced Polling End** | `07:00` | End time for the economy window. |
+| **Reduced Polling Interval** | `3600s` | Polling interval during the economy window. Set to **0** to pause polling entirely. |
+| **Hardware Sync** | `86400s` | Interval for battery, firmware and device metadata. Set to 0 for initial load only. |
 | **Offset Update** | `0` (Off) | Interval for temperature offsets. Costs 1 API call per valve. |
 | **Debounce Time** | `5s` | **Batching Window:** Fuses actions into single calls. |
 | **Refresh After Resume** | `On` | Auto-refresh target temperature/state after resume schedule (HVAC AUTO). Required because schedules are Tado cloud-side. Uses 1s grace period to merge multiple resumes. Costs 1 API call. |
-| **Throttle Threshold** | `0` | Reserve last N calls - skip polling when remaining < threshold. |
+| **Throttle Threshold** | `20` | **External Protection Buffer:** Reserve N calls for everything outside of Hijack's periodic background polling (External Automations, Scripts, Manual App use). Polling stops when remaining quota hits this floor to ensure your automations never stall. |
 | **Disable Polling When Throttled** | `Off` | Stop periodic polling entirely when throttled. |
 | **API Proxy URL** | `None` | **Advanced:** URL of local `tado-api-proxy` workaround. |
+| **Call Jitter** | `Off` | **Anti-Ban Protection:** Adds random delays before API calls to obfuscate automation patterns (Proxy only). |
+| **Jitter Strength** | `10%` | The percentage of random variation applied to intervals and delays (Proxy only). |
 | **Debug Logging** | `Off` | Enable verbose logging for troubleshooting. |
 
 <br>
@@ -436,8 +460,10 @@ Global controls for the entire home. *Linked to your Internet Bridge device.*
 <br>
 
 | Entity | Type | Description |
-| :--- | :--- | :--- |
+| :--- | :---: | :--- |
 | `switch.tado_{home}_away_mode` | Switch | Toggle Home/Away presence lock. |
+| `switch.tado_{home}_polling_active` | Switch | **Master Switch:** Stop/Start all periodic API polls. |
+| `switch.tado_{home}_reduced_polling_logic` | Switch | **Logic Switch:** Toggle usage of the timed "Reduced Polling" profile. |
 | `button.tado_{home}_turn_off_all_zones` | Button | **Bulk:** Turns off heating in ALL zones. |
 | `button.tado_{home}_boost_all_zones` | Button | **Bulk:** Boosts all zones to 25°C. |
 | `button.tado_{home}_resume_all_schedules` | Button | **Bulk:** Returns all zones to Smart Schedule. |
@@ -464,7 +490,7 @@ Cloud-only features that HomeKit does not support.
 | Entity | Type | Description |
 | :--- | :--- | :--- |
 | `switch.schedule` | Switch | **ON** = Smart Schedule, **OFF** = Manual. Simple way to resume schedule. |
-| `water_heater.hot_water` | WaterHeater | **Hot Water:** Control modes: AUTO (schedule), HEAT (manual), OFF. Temperature 30-65°C (1°C steps). |
+| `water_heater.hot_water` | WaterHeater | **Hot Water:** Control modes: AUTO (schedule), HEAT (manual), OFF. Target temperature (30-65°C) requires hardware support (e.g. OpenTherm). |
 | `binary_sensor.hot_water_power` | Binary Sensor | Status if boiler is currently heating water. |
 | `binary_sensor.hot_water_overlay` | Binary Sensor | Status if a manual override is active. |
 | `switch.early_start` | Switch | **Cloud Only:** Toggle pre-heating before schedule. |
@@ -591,14 +617,15 @@ data:
 
 <br>
 
-**What Tado's API doesn't allow us to optimize:**
+**API Limitations (Tado Backend):**
 
 <br>
 
-Some operations are inherently expensive because Tado's backend doesn't offer batching for them:
+While Tado Hijack optimizes every possible interaction, some operations are inherently limited by Tado's server-side architecture:
 
-- **Per-Device Settings:** Temperature Offsets, Child Lock, and Window Detection must be configured individually (1 API call per device). If you have 10 thermostats, that's 10 calls. We can't batch what Tado doesn't support.
-- **Offset Polling:** If you enable automatic offset polling, it costs **1 call per device with temperature capability**. For large homes, disable auto-polling and use manual refresh buttons when needed.
+- **No Bulk Device Config:** Tado does **not** provide bulk API endpoints for hardware-specific settings. Temperature Offsets, Child Lock, and Window Detection must be sent individually (1 API call per device). If you change these for 10 devices, it will always cost 10 calls.
+- **Schedule Logic is Cloud-Side:** When you "Resume Schedule", the actual target temperature is determined by Tado's servers. To show the correct value in HA immediately, a single confirmatory poll is required (if `Refresh After Resume` is enabled).
+- **Sequential Execution:** To prevent account locks and respect the backend, device configuration commands are executed sequentially with a small delay.
 
 <br>
 

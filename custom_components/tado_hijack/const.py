@@ -21,28 +21,37 @@ CONF_API_PROXY_URL: Final = "api_proxy_url"
 CONF_DEBUG_LOGGING: Final = "debug_logging"
 CONF_AUTO_API_QUOTA_PERCENT: Final = "auto_api_quota_percent"
 CONF_REFRESH_AFTER_RESUME: Final = "refresh_after_resume"
+CONF_REDUCED_POLLING_ACTIVE: Final = "reduced_polling_active"
+CONF_REDUCED_POLLING_START: Final = "reduced_polling_start"
+CONF_REDUCED_POLLING_END: Final = "reduced_polling_end"
+CONF_REDUCED_POLLING_INTERVAL: Final = "reduced_polling_interval"
+CONF_CALL_JITTER_ENABLED: Final = "call_jitter_enabled"
+CONF_JITTER_PERCENT: Final = "jitter_percent"
 
 # Default Intervals
 DEFAULT_SCAN_INTERVAL: Final = 1800  # 30 minutes (Zone States)
-DEFAULT_PRESENCE_POLL_INTERVAL: Final = 43200  # 12 hours (Home State)
-DEFAULT_SLOW_POLL_INTERVAL: Final = 24  # Hours
-DEFAULT_OFFSET_POLL_INTERVAL: Final = 0  # Hours (0 = disabled)
+DEFAULT_PRESENCE_POLL_INTERVAL: Final = 43200  # 12 hours
+DEFAULT_SLOW_POLL_INTERVAL: Final = 86400  # 24 hours (Hardware Metadata)
+DEFAULT_OFFSET_POLL_INTERVAL: Final = 0  # Disabled by default
+DEFAULT_AUTO_API_QUOTA_PERCENT: Final = 80  # Use 80% of daily quota by default
 DEFAULT_DEBOUNCE_TIME: Final = 5  # Seconds
-DEFAULT_THROTTLE_THRESHOLD: Final = (
-    0  # 0 = disabled, >0 = throttle when remaining < threshold
-)
-DEFAULT_AUTO_API_QUOTA_PERCENT: Final = (
-    0  # 0 = disabled, >0 = auto-adjust polling to use X% of daily quota
-)
+DEFAULT_THROTTLE_THRESHOLD: Final = 20  # Reserve last 20 calls for external use
 DEFAULT_REFRESH_AFTER_RESUME: Final = True  # Refresh state after resume schedule
+DEFAULT_REDUCED_POLLING_START: Final = "22:00"
+DEFAULT_REDUCED_POLLING_END: Final = "07:00"
+DEFAULT_REDUCED_POLLING_INTERVAL: Final = 3600  # 1 hour
+DEFAULT_JITTER_ENABLED: Final = False
+DEFAULT_JITTER_PERCENT: Final = 10.0  # 10% variation (+/- 10%)
 
 # Minimums (0 = no periodic poll / disabled)
 MIN_SCAN_INTERVAL: Final = 0
 MIN_PRESENCE_POLL_INTERVAL: Final = 0
-MIN_SLOW_POLL_INTERVAL: Final = 0  # 0 = disabled (initial only)
-MIN_OFFSET_POLL_INTERVAL: Final = 0  # 0 = disabled
+MIN_SLOW_POLL_INTERVAL: Final = 0
+MIN_OFFSET_POLL_INTERVAL: Final = 0
 MIN_DEBOUNCE_TIME: Final = 1  # Second
-MIN_AUTO_QUOTA_INTERVAL_S: Final = 15  # Safety floor for dynamic polling
+MIN_AUTO_QUOTA_INTERVAL_S: Final = 45  # Safety floor for dynamic polling
+MIN_PROXY_INTERVAL_S: Final = 120  # Minimum for proxy usage
+MIN_REDUCED_POLLING_INTERVAL: Final = 0  # 0 = complete pause during timeframe
 MAX_API_QUOTA: Final = 5000  # Default Tado daily limit
 
 # Timing & Logic
@@ -97,7 +106,7 @@ TERMINATION_TADO_MODE: Final = "TADO_MODE"
 TERMINATION_NEXT_TIME_BLOCK: Final = "NEXT_TIME_BLOCK"
 
 # Auto API Quota
-API_RESET_HOUR: Final = 11  # Hour when Tado resets API quota (12:01 Berlin)
+API_RESET_HOUR: Final = 12  # Hour when Tado resets API quota (12:01 Berlin)
 API_RESET_BUFFER_MINUTES: Final = 1  # Buffer after reset to ensure fresh data
 
 # Service Names
