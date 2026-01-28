@@ -79,8 +79,8 @@ async def async_migrate_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bo
         hass.config_entries.async_update_entry(entry, data=new_data, version=4)
 
     if entry.version == 4:
-        # Migration to version 5 (Cleanup of legacy hot water switches)
-        _LOGGER.info("Migrating to version 5: Cleaning up legacy hot water switches")
+        # Migration to version 5 (Cleanup of legacy hot water switches and climate entities)
+        _LOGGER.info("Migrating to version 5: Cleaning up legacy hot water entities")
         ent_reg = er.async_get(hass)
         entries = er.async_entries_for_config_entry(ent_reg, entry.entry_id)
         for entity in entries:
@@ -90,11 +90,20 @@ async def async_migrate_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bo
                 parts = entity.unique_id.split("_")
                 if parts[-1].isdigit():
                     _LOGGER.info(
-                        "Removing legacy entity %s (unique_id: %s)",
+                        "Removing legacy switch entity %s (unique_id: %s)",
                         entity.entity_id,
                         entity.unique_id,
                     )
                     ent_reg.async_remove(entity.entity_id)
+
+            # Also remove old climate entities for hot water: {entry_id}_climate_hw_{zone_id}
+            if entity.domain == "climate" and "_climate_hw_" in entity.unique_id:
+                _LOGGER.info(
+                    "Removing legacy climate entity %s (unique_id: %s)",
+                    entity.entity_id,
+                    entity.unique_id,
+                )
+                ent_reg.async_remove(entity.entity_id)
 
         hass.config_entries.async_update_entry(entry, version=5)
 

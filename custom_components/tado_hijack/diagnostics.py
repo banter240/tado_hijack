@@ -269,7 +269,7 @@ def _get_entity_mappings(
     for entity_entry in er.async_entries_for_config_entry(ent_reg, entry_id):
         zone_id = coordinator._parse_zone_id_from_unique_id(entity_entry.unique_id)
         zone_info = "Unknown"
-        if zone_id:
+        if zone_id is not None:
             zone_info = f"Zone {zone_id}"
 
         mappings[entity_entry.entity_id] = {

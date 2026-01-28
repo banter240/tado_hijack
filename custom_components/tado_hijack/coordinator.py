@@ -239,7 +239,46 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
 
         ent_reg = er.async_get(self.hass)
         if entry := ent_reg.async_get(entity_id):
-            return self._parse_zone_id_from_unique_id(entry.unique_id)
+            zone_id = self._parse_zone_id_from_unique_id(entry.unique_id)
+            if zone_id is not None:
+                return zone_id
+
+        # 3. Fallback: Search all water_heater entities for this config entry
+        # This handles cases where entity_id has suffixes like _2, _3, etc.
+        if entity_id.startswith("water_heater."):
+            entity_name = entity_id.split(".", 1)[1]
+            # Remove numeric suffix (e.g., "hot_water_2" -> "hot_water")
+            base_name = (
+                entity_name.rsplit("_", 1)[0]
+                if entity_name[-1].isdigit() and "_" in entity_name
+                else entity_name
+            )
+
+            for entity_entry in er.async_entries_for_config_entry(
+                ent_reg, self.config_entry.entry_id
+            ):
+                if (
+                    entity_entry.domain == "water_heater"
+                    and "_water_heater_" in entity_entry.unique_id
+                ):
+                    entry_name = (
+                        entity_entry.entity_id.split(".", 1)[1]
+                        if "." in entity_entry.entity_id
+                        else ""
+                    )
+                    entry_base = (
+                        entry_name.rsplit("_", 1)[0]
+                        if entry_name and entry_name[-1].isdigit() and "_" in entry_name
+                        else entry_name
+                    )
+
+                    # Match by base name (handles _2, _3 suffixes)
+                    if base_name == entry_base or entity_entry.entity_id == entity_id:
+                        zone_id = self._parse_zone_id_from_unique_id(
+                            entity_entry.unique_id
+                        )
+                        if zone_id is not None:
+                            return zone_id
 
         return None
 

@@ -133,7 +133,7 @@ async def async_setup_services(
             return
 
         zone_id = coordinator.get_zone_id_from_entity(entity_id)
-        if not zone_id:
+        if zone_id is None:
             _LOGGER.warning("Could not resolve Tado zone for entity %s", entity_id)
             return
 
