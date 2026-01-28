@@ -9,6 +9,8 @@
       regexes = [
           '_ping_unsub',
           'presence_poll_interval',
+          'reduced_polling',
+          'REDUCED_POLLING',
           'REDACTED'
       ]
       paths = [

@@ -131,14 +131,45 @@ async def async_setup_services(
         entity_id = call.data.get("entity_id")
         if not entity_id:
             return
-
         zone_id = coordinator.get_zone_id_from_entity(entity_id)
-        if not zone_id:
+        if zone_id is None:
             _LOGGER.warning("Could not resolve Tado zone for entity %s", entity_id)
             return
 
         params = _parse_service_call_data(call)
-        await _execute_set_mode(coordinator, [zone_id], params, ZONE_TYPE_HOT_WATER)
+        operation_mode = params["operation_mode"]
+        temperature = params["temperature"]
+        duration = params["duration"]
+        overlay_mode = params["overlay"]
+
+        if operation_mode == "auto":
+            await coordinator.async_set_hot_water_auto(zone_id)
+            return
+
+        if operation_mode == POWER_OFF:
+            await coordinator.async_set_hot_water_off(zone_id)
+            return
+
+        if operation_mode == "heat":
+            # Round to integer for hot water (Tado requirement) - validation is now in coordinator
+            final_temp = round(float(temperature)) if temperature is not None else None
+
+            # Use overlay helper which supports duration/timer
+            await coordinator.async_set_zone_overlay(
+                zone_id=zone_id,
+                power=POWER_ON,
+                temperature=final_temp,
+                duration=duration,
+                overlay_type=ZONE_TYPE_HOT_WATER,
+                overlay_mode=overlay_mode,
+            )
+            return
+
+        _LOGGER.warning(
+            "Unsupported operation_mode '%s' for water heater entity %s",
+            operation_mode,
+            entity_id,
+        )
 
     hass.services.async_register(DOMAIN, SERVICE_MANUAL_POLL, handle_manual_poll)
     hass.services.async_register(

@@ -118,7 +118,20 @@ class TadoRequestHandler:
             # Only check request status if NOT using proxy, or if proxy passes through Tado errors 1:1
             # But we can't refresh auth via proxy, so we just raise.
             if not proxy_url:
-                await instance.check_request_status(err)
+                try:
+                    await instance.check_request_status(err)
+                except KeyError:
+                    # Some HTTP statuses (e.g. 422) may not be mapped inside
+                    # tadoasync's status_error_mapping. Avoid surfacing a
+                    # confusing KeyError here; log and fall back to raising
+                    # the original ClientResponseError so callers see the
+                    # actual HTTP status.
+                    _LOGGER.error(
+                        "Unhandled Tado HTTP status %s for %s: %s",
+                        err.status,
+                        url.path,
+                        err,
+                    )
             raise
 
     def _build_url(

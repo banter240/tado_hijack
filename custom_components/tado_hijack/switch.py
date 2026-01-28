@@ -36,7 +36,11 @@ async def async_setup_entry(
 ) -> None:
     """Set up Tado switches based on a config entry."""
     coordinator: TadoDataUpdateCoordinator = entry.runtime_data
-    entities: list[SwitchEntity] = [TadoAwaySwitch(coordinator)]
+    entities: list[SwitchEntity] = [
+        TadoAwaySwitch(coordinator),
+        TadoPollingSwitch(coordinator),
+        TadoReducedPollingLogicSwitch(coordinator),
+    ]
 
     # Per-Zone Schedule Switches -> Zone Devices
     # Hot water excluded - uses WaterHeaterEntity operation modes instead
@@ -171,6 +175,56 @@ class TadoZoneScheduleSwitch(TadoZoneEntity, TadoOptimisticSwitch):
         await self.tado_coordinator.async_set_zone_heat(
             self._zone_id, temp=PROTECTION_MODE_TEMP
         )
+
+
+class TadoReducedPollingLogicSwitch(TadoHomeEntity, SwitchEntity):
+    """Switch to enable/disable the reduced polling timeframe logic."""
+
+    def __init__(self, coordinator: Any) -> None:
+        """Initialize logic switch."""
+        super().__init__(coordinator, "reduced_polling_logic")
+        self._attr_unique_id = (
+            f"{coordinator.config_entry.entry_id}_reduced_polling_logic"
+        )
+        self._set_entity_id("switch", "reduced_polling_logic")
+        self._attr_icon = "mdi:clock-check-outline"
+
+    @property
+    def is_on(self) -> bool:
+        """Return true if reduced polling logic is enabled."""
+        return self.tado_coordinator.is_reduced_polling_logic_enabled
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Enable reduced polling logic."""
+        await self.tado_coordinator.async_set_reduced_polling_logic(True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Disable reduced polling logic."""
+        await self.tado_coordinator.async_set_reduced_polling_logic(False)
+
+
+class TadoPollingSwitch(TadoHomeEntity, SwitchEntity):
+    """Switch to globally enable/disable periodic polling."""
+
+    def __init__(self, coordinator: Any) -> None:
+        """Initialize polling switch."""
+        super().__init__(coordinator, "polling_active")
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_polling_active"
+        self._set_entity_id("switch", "polling_active")
+        self._attr_icon = "mdi:sync"
+
+    @property
+    def is_on(self) -> bool:
+        """Return true if polling is enabled."""
+        return self.tado_coordinator.is_polling_enabled
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Enable polling."""
+        await self.tado_coordinator.async_set_polling_active(True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Disable polling."""
+        await self.tado_coordinator.async_set_polling_active(False)
 
 
 class TadoChildLockSwitch(TadoDeviceEntity, TadoOptimisticSwitch):
