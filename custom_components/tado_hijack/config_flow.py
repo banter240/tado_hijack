@@ -22,23 +22,35 @@ from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
+    TimeSelector,
 )
 
 from .const import (
     CONF_API_PROXY_URL,
     CONF_AUTO_API_QUOTA_PERCENT,
+    CONF_CALL_JITTER_ENABLED,
     CONF_DEBOUNCE_TIME,
     CONF_DEBUG_LOGGING,
     CONF_DISABLE_POLLING_WHEN_THROTTLED,
+    CONF_JITTER_PERCENT,
     CONF_OFFSET_POLL_INTERVAL,
     CONF_PRESENCE_POLL_INTERVAL,
+    CONF_REDUCED_POLLING_ACTIVE,
+    CONF_REDUCED_POLLING_END,
+    CONF_REDUCED_POLLING_INTERVAL,
+    CONF_REDUCED_POLLING_START,
     CONF_REFRESH_AFTER_RESUME,
     CONF_REFRESH_TOKEN,
     CONF_SLOW_POLL_INTERVAL,
     CONF_THROTTLE_THRESHOLD,
     DEFAULT_AUTO_API_QUOTA_PERCENT,
     DEFAULT_DEBOUNCE_TIME,
+    DEFAULT_JITTER_ENABLED,
+    DEFAULT_JITTER_PERCENT,
     DEFAULT_OFFSET_POLL_INTERVAL,
+    DEFAULT_REDUCED_POLLING_END,
+    DEFAULT_REDUCED_POLLING_INTERVAL,
+    DEFAULT_REDUCED_POLLING_START,
     DEFAULT_PRESENCE_POLL_INTERVAL,
     DEFAULT_REFRESH_AFTER_RESUME,
     DEFAULT_SCAN_INTERVAL,
@@ -62,7 +74,7 @@ _LOGGER = logging.getLogger(__name__)
 class TadoHijackConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
     """Handle a config flow for Tado Hijack."""
 
-    VERSION = 4
+    VERSION = 5
     login_task: asyncio.Task | None = None
     refresh_token: str | None = None
     tado: Tado | None = None
@@ -171,31 +183,23 @@ class TadoHijackConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 title=f"Tado {self.context.get('home_name', 'Hijack')}",
                 data={
                     CONF_REFRESH_TOKEN: self.refresh_token,
-                    CONF_SCAN_INTERVAL: user_input[CONF_SCAN_INTERVAL],
-                    CONF_PRESENCE_POLL_INTERVAL: user_input.get(
-                        CONF_PRESENCE_POLL_INTERVAL, DEFAULT_PRESENCE_POLL_INTERVAL
-                    ),  # gitleaks:allow
-                    CONF_SLOW_POLL_INTERVAL: user_input[CONF_SLOW_POLL_INTERVAL],
-                    CONF_OFFSET_POLL_INTERVAL: user_input.get(
-                        CONF_OFFSET_POLL_INTERVAL, DEFAULT_OFFSET_POLL_INTERVAL
-                    ),
-                    CONF_THROTTLE_THRESHOLD: user_input.get(
-                        CONF_THROTTLE_THRESHOLD, DEFAULT_THROTTLE_THRESHOLD
-                    ),
-                    CONF_DISABLE_POLLING_WHEN_THROTTLED: user_input.get(
-                        CONF_DISABLE_POLLING_WHEN_THROTTLED, False
-                    ),
-                    CONF_DEBOUNCE_TIME: user_input.get(
-                        CONF_DEBOUNCE_TIME, DEFAULT_DEBOUNCE_TIME
-                    ),
-                    CONF_AUTO_API_QUOTA_PERCENT: user_input.get(
-                        CONF_AUTO_API_QUOTA_PERCENT, DEFAULT_AUTO_API_QUOTA_PERCENT
-                    ),
+                    CONF_SCAN_INTERVAL: DEFAULT_SCAN_INTERVAL,
+                    CONF_PRESENCE_POLL_INTERVAL: DEFAULT_PRESENCE_POLL_INTERVAL,
+                    CONF_SLOW_POLL_INTERVAL: DEFAULT_SLOW_POLL_INTERVAL,
+                    CONF_OFFSET_POLL_INTERVAL: DEFAULT_OFFSET_POLL_INTERVAL,
+                    CONF_THROTTLE_THRESHOLD: DEFAULT_THROTTLE_THRESHOLD,
+                    CONF_DISABLE_POLLING_WHEN_THROTTLED: False,
+                    CONF_DEBOUNCE_TIME: DEFAULT_DEBOUNCE_TIME,
+                    CONF_AUTO_API_QUOTA_PERCENT: DEFAULT_AUTO_API_QUOTA_PERCENT,
                     CONF_API_PROXY_URL: api_proxy_url,
-                    CONF_REFRESH_AFTER_RESUME: user_input.get(
-                        CONF_REFRESH_AFTER_RESUME, DEFAULT_REFRESH_AFTER_RESUME
-                    ),
+                    CONF_REFRESH_AFTER_RESUME: DEFAULT_REFRESH_AFTER_RESUME,
                     CONF_DEBUG_LOGGING: user_input.get(CONF_DEBUG_LOGGING, False),
+                    CONF_REDUCED_POLLING_ACTIVE: False,
+                    CONF_REDUCED_POLLING_START: DEFAULT_REDUCED_POLLING_START,
+                    CONF_REDUCED_POLLING_END: DEFAULT_REDUCED_POLLING_END,
+                    CONF_REDUCED_POLLING_INTERVAL: DEFAULT_REDUCED_POLLING_INTERVAL,
+                    CONF_CALL_JITTER_ENABLED: DEFAULT_JITTER_ENABLED,
+                    CONF_JITTER_PERCENT: DEFAULT_JITTER_PERCENT,
                 },
             )
 
@@ -278,21 +282,17 @@ class TadoHijackConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
 class TadoHijackOptionsFlowHandler(config_entries.OptionsFlow):
     """Handle options for Tado Hijack."""
 
+    def __init__(self) -> None:
+        """Initialize options flow."""
+        self._data: dict[str, Any] = {}
+
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Initialize the options flow."""
+        """General Polling Intervals (Page 1)."""
         if user_input is not None:
-            # Convert empty API proxy URL to None (allows deletion)
-            if not user_input.get(CONF_API_PROXY_URL):
-                user_input[CONF_API_PROXY_URL] = None
-            # Update entry.data directly (not options) so coordinator sees changes
-            self.hass.config_entries.async_update_entry(
-                self.config_entry,
-                data={**self.config_entry.data, **user_input},
-            )
-            await self.hass.config_entries.async_reload(self.config_entry.entry_id)
-            return self.async_create_entry(data={})
+            self._data.update(user_input)
+            return await self.async_step_quota()
 
         return self.async_show_form(
             step_id="init",
@@ -304,16 +304,6 @@ class TadoHijackOptionsFlowHandler(config_entries.OptionsFlow):
                             CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
                         ),
                     ): vol.All(vol.Coerce(int), vol.Range(min=MIN_SCAN_INTERVAL)),
-                    vol.Optional(
-                        CONF_AUTO_API_QUOTA_PERCENT,
-                        default=self.config_entry.data.get(
-                            CONF_AUTO_API_QUOTA_PERCENT, DEFAULT_AUTO_API_QUOTA_PERCENT
-                        ),
-                    ): NumberSelector(
-                        NumberSelectorConfig(
-                            min=0, max=100, step=1, mode=NumberSelectorMode.BOX
-                        )
-                    ),
                     vol.Optional(
                         CONF_PRESENCE_POLL_INTERVAL,
                         default=self.config_entry.data.get(
@@ -334,12 +324,32 @@ class TadoHijackOptionsFlowHandler(config_entries.OptionsFlow):
                     ): vol.All(
                         vol.Coerce(int), vol.Range(min=MIN_OFFSET_POLL_INTERVAL)
                     ),
+                }
+            ),
+        )
+
+    async def async_step_quota(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Auto API Quota & Safety (Page 2)."""
+        if user_input is not None:
+            self._data.update(user_input)
+            return await self.async_step_schedule()
+
+        return self.async_show_form(
+            step_id="quota",
+            data_schema=vol.Schema(
+                {
                     vol.Optional(
-                        CONF_DEBOUNCE_TIME,
+                        CONF_AUTO_API_QUOTA_PERCENT,
                         default=self.config_entry.data.get(
-                            CONF_DEBOUNCE_TIME, DEFAULT_DEBOUNCE_TIME
+                            CONF_AUTO_API_QUOTA_PERCENT, DEFAULT_AUTO_API_QUOTA_PERCENT
                         ),
-                    ): vol.All(vol.Coerce(int), vol.Range(min=MIN_DEBOUNCE_TIME)),
+                    ): NumberSelector(
+                        NumberSelectorConfig(
+                            min=0, max=100, step=1, mode=NumberSelectorMode.BOX
+                        )
+                    ),
                     vol.Optional(
                         CONF_THROTTLE_THRESHOLD,
                         default=self.config_entry.data.get(
@@ -359,14 +369,77 @@ class TadoHijackOptionsFlowHandler(config_entries.OptionsFlow):
                             CONF_DISABLE_POLLING_WHEN_THROTTLED, False
                         ),
                     ): bool,
+                }
+            ),
+        )
+
+    async def async_step_schedule(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Reduced Polling timeframe settings (Page 3)."""
+        if user_input is not None:
+            self._data.update(user_input)
+            return await self.async_step_advanced()
+
+        return self.async_show_form(
+            step_id="schedule",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_REDUCED_POLLING_ACTIVE,
+                        default=self.config_entry.data.get(
+                            CONF_REDUCED_POLLING_ACTIVE, False
+                        ),
+                    ): bool,
+                    vol.Optional(
+                        CONF_REDUCED_POLLING_START,
+                        default=self.config_entry.data.get(
+                            CONF_REDUCED_POLLING_START, DEFAULT_REDUCED_POLLING_START
+                        ),
+                    ): TimeSelector(),
+                    vol.Optional(
+                        CONF_REDUCED_POLLING_END,
+                        default=self.config_entry.data.get(
+                            CONF_REDUCED_POLLING_END, DEFAULT_REDUCED_POLLING_END
+                        ),
+                    ): TimeSelector(),
+                    vol.Optional(
+                        CONF_REDUCED_POLLING_INTERVAL,
+                        default=self.config_entry.data.get(
+                            CONF_REDUCED_POLLING_INTERVAL,
+                            DEFAULT_REDUCED_POLLING_INTERVAL,
+                        ),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=0)),
+                }
+            ),
+        )
+
+    async def async_step_advanced(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Advanced & Debug Settings (Page 4)."""
+        if user_input is not None:
+            self._data.update(user_input)
+
+            # Convert empty API proxy URL to None (allows deletion)
+            if not self._data.get(CONF_API_PROXY_URL):
+                self._data[CONF_API_PROXY_URL] = None
+
+            # Update entry.data directly so coordinator sees changes
+            self.hass.config_entries.async_update_entry(
+                self.config_entry,
+                data={**self.config_entry.data, **self._data},
+            )
+            await self.hass.config_entries.async_reload(self.config_entry.entry_id)
+            return self.async_create_entry(data={})
+
+        return self.async_show_form(
+            step_id="advanced",
+            data_schema=vol.Schema(
+                {
                     vol.Optional(
                         CONF_API_PROXY_URL,
-                        description={
-                            "suggested_value": self.config_entry.data.get(
-                                CONF_API_PROXY_URL
-                            )
-                            or ""
-                        },
+                        default=self.config_entry.data.get(CONF_API_PROXY_URL, ""),
                     ): str,
                     vol.Optional(
                         CONF_REFRESH_AFTER_RESUME,
@@ -375,9 +448,31 @@ class TadoHijackOptionsFlowHandler(config_entries.OptionsFlow):
                         ),
                     ): bool,
                     vol.Optional(
+                        CONF_DEBOUNCE_TIME,
+                        default=self.config_entry.data.get(
+                            CONF_DEBOUNCE_TIME, DEFAULT_DEBOUNCE_TIME
+                        ),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=MIN_DEBOUNCE_TIME)),
+                    vol.Optional(
                         CONF_DEBUG_LOGGING,
                         default=self.config_entry.data.get(CONF_DEBUG_LOGGING, False),
                     ): bool,
+                    vol.Optional(
+                        CONF_CALL_JITTER_ENABLED,
+                        default=self.config_entry.data.get(
+                            CONF_CALL_JITTER_ENABLED, False
+                        ),
+                    ): bool,
+                    vol.Optional(
+                        CONF_JITTER_PERCENT,
+                        default=self.config_entry.data.get(
+                            CONF_JITTER_PERCENT, DEFAULT_JITTER_PERCENT
+                        ),
+                    ): NumberSelector(
+                        NumberSelectorConfig(
+                            min=0, max=50, step=0.1, mode=NumberSelectorMode.BOX
+                        )
+                    ),
                 }
             ),
         )
