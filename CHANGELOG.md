@@ -1,3 +1,21 @@
+## [4.0.0-dev.11](https://github.com/banter240/tado_hijack/compare/v4.0.0-dev.10...v4.0.0-dev.11) (2026-01-29)
+
+### 🐛 Bug Fixes
+
+* fix(core): restore hot water power logic and prevent instant mode reversion
+
+This major bugfix consolidates architectural repairs to resolve critical regressions in UI feedback and activity sensing.
+
+Hot Water & Power Sensing:
+- Restored robust dev.2 logic (checking state.setting.power) for Hot Water Power sensors in both 'binary_sensor.py' and 'sensor.py', ensuring they no longer remain permanently OFF.
+- Removed redundant and unreliable 'parse_hot_water_in_use' helper from 'parsers.py'.
+- Standardized power reporting (100% for ON, 0% for OFF) for zones without explicit activity feedback.
+
+Optimistic UI Stability:
+- Refactored 'apply_zone_state' in OptimisticManager to ensure default power ('ON') and operation_mode ('heat') are set when a manual overlay is triggered without explicit values.
+- Refined 'hvac_mode' and 'current_operation' properties in climate and water_heater entities to respect optimistic manual intent, preventing premature reversion to AUTO mode during API latency.
+- Cleaned up cross-platform imports and verified all CI standards (Mypy/Ruff).
+
 ## [4.0.0-dev.10](https://github.com/banter240/tado_hijack/compare/v4.0.0-dev.9...v4.0.0-dev.10) (2026-01-29)
 
 ### 🐛 Bug Fixes
