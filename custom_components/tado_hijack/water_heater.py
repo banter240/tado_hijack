@@ -122,7 +122,25 @@ class TadoHotWater(
     @property
     def current_operation(self) -> str:
         """Return current operation mode."""
-        return str(self._resolve_state())
+        # 1. Optimistic Overlay Check (Highest Priority)
+        opt_overlay = self.tado_coordinator.optimistic.get_zone_overlay(self._zone_id)
+
+        # Explicit False = Resume Schedule (AUTO)
+        if opt_overlay is False:
+            return OPERATION_MODE_AUTO
+
+        # Explicit True = Manual Overlay (HEAT/OFF)
+        is_manual_intent = opt_overlay is True
+
+        # 2. Resolved State Check (operation_mode only via Mixin)
+        op_mode = str(self._resolve_state())
+
+        # 3. Real API State Overlay Check (Fallback)
+        state = self.coordinator.data.zone_states.get(str(self._zone_id))
+        api_has_overlay = bool(state and getattr(state, "overlay_active", False))
+
+        # If no optimistic intent AND API says no overlay -> AUTO
+        return op_mode if api_has_overlay or is_manual_intent else OPERATION_MODE_AUTO
 
     def _get_actual_value(self) -> str:
         """Return actual operation mode from coordinator data."""

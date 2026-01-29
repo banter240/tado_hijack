@@ -106,6 +106,11 @@ class OptimisticManager:
                 final_power = "OFF" if final_op_mode == "off" else "ON"
             elif final_op_mode is None and final_power:
                 final_op_mode = "off" if final_power == "OFF" else "heat"
+            elif final_power is None and final_op_mode is None:
+                # Default to ON/HEAT if we just know an overlay is requested
+                # This prevents entities from falling back to lagging API data (OFF/AUTO)
+                final_power = "ON"
+                final_op_mode = "heat"
 
         # 4. Set the resolved optimistic keys
         if final_power is not None:

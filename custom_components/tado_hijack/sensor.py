@@ -23,7 +23,7 @@ from .const import (
 from .entity import TadoHomeEntity, TadoZoneEntity
 from .helpers.discovery import yield_zones
 from .helpers.logging_utils import get_redacted_logger
-from .helpers.parsers import parse_heating_power, parse_hot_water_in_use
+from .helpers.parsers import parse_heating_power
 
 if TYPE_CHECKING:
     from . import TadoConfigEntry
@@ -150,9 +150,11 @@ class TadoHeatingPowerSensor(TadoZoneEntity, SensorEntity):
         state = self.coordinator.data.zone_states.get(str(self._zone_id))
         zone = self.coordinator.zones_meta.get(self._zone_id)
 
-        # Hot Water Power: ON -> 100%, OFF -> 0%
+        # Hot Water Power: ON -> 100%, OFF -> 0% (Dev.2 Logic)
         if zone and zone.type == "HOT_WATER":
-            return 100.0 if parse_hot_water_in_use(state) else 0.0
+            if state and (setting := getattr(state, "setting", None)):
+                return 100.0 if getattr(setting, "power", "OFF") == "ON" else 0.0
+            return 0.0
 
         # Regular Heating Power (%)
         return parse_heating_power(state)

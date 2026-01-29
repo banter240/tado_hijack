@@ -18,7 +18,6 @@ from .const import (
 )
 from .entity import TadoDeviceEntity, TadoHomeEntity, TadoHotWaterZoneEntity
 from .helpers.discovery import yield_devices, yield_zones
-from .helpers.parsers import parse_hot_water_in_use
 
 if TYPE_CHECKING:
     from . import TadoConfigEntry
@@ -183,7 +182,11 @@ class TadoHotWaterPowerSensor(TadoHotWaterZoneEntity, BinarySensorEntity):
     def is_on(self) -> bool:
         """Return true if hot water power is ON."""
         state = self.coordinator.data.zone_states.get(str(self._zone_id))
-        return parse_hot_water_in_use(state)
+        if state is None:
+            return False
+        if setting := getattr(state, "setting", None):
+            return getattr(setting, "power", "OFF") == "ON"
+        return False
 
 
 class TadoHotWaterConnectivitySensor(TadoHotWaterZoneEntity, BinarySensorEntity):

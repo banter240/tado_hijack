@@ -111,14 +111,17 @@ class TadoClimateEntity(
     @property
     def hvac_mode(self) -> HVACMode:
         """Return current operation mode."""
-        # 1. Optimistic Overlay Check (Priority)
-        # If we explicitly set an optimistic 'False' overlay, we are in AUTO
+        # 1. Optimistic Overlay Check (Highest Priority)
         opt_overlay = self.tado_coordinator.optimistic.get_zone_overlay(self._zone_id)
+
+        # Explicit False = Resume Schedule (AUTO)
         if opt_overlay is False:
             return HVACMode.AUTO
 
+        # Explicit True = Manual Overlay (HEAT/OFF/COOL)
+        is_manual_intent = opt_overlay is True
+
         # 2. Resolved State Check (Power only via Mixin)
-        # This will return optimistic power if set, else actual
         resolved_state = self._resolve_state()
         power = (
             resolved_state.get("power")
@@ -127,11 +130,11 @@ class TadoClimateEntity(
         )
 
         # 3. Real API State Overlay Check (Fallback)
-        # If no optimistic overlay intent, check the real state
         state = self._current_state
         api_has_overlay = bool(state and getattr(state, "overlay_active", False))
 
-        if not api_has_overlay and opt_overlay is None:
+        # If no optimistic intent AND API says no overlay -> AUTO
+        if not api_has_overlay and not is_manual_intent:
             return HVACMode.AUTO
 
         return HVACMode.OFF if power == POWER_OFF else self._get_active_hvac_mode()

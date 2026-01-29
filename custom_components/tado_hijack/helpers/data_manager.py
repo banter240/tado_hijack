@@ -201,8 +201,12 @@ class TadoDataManager:
 
         # Use freshly fetched data if we are in init phase, otherwise rely on coordinator sync
         return TadoData(
-            home_state=home_state if is_init else getattr(self.coordinator.data, "home_state", home_state),
-            zone_states=zone_states if is_init else getattr(self.coordinator.data, "zone_states", zone_states),
+            home_state=home_state
+            if is_init
+            else getattr(self.coordinator.data, "home_state", home_state),
+            zone_states=zone_states
+            if is_init
+            else getattr(self.coordinator.data, "zone_states", zone_states),
             zones=self.zones_meta,
             devices=self.devices_meta,
             capabilities=self.capabilities_cache,
