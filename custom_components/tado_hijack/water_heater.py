@@ -76,6 +76,7 @@ class TadoHotWater(TadoHotWaterZoneEntity, TadoOptimisticMixin, WaterHeaterEntit
         self._attr_unique_id = (
             f"{coordinator.config_entry.entry_id}_water_heater_{zone_id}"
         )
+        self._last_target_temp: float | None = None
 
     async def async_added_to_hass(self) -> None:
         """Update temperature limits from capabilities when added to hass."""
@@ -156,11 +157,17 @@ class TadoHotWater(TadoHotWaterZoneEntity, TadoOptimisticMixin, WaterHeaterEntit
     async def async_set_operation_mode(self, operation_mode: str) -> None:
         """Set new operation mode."""
         if operation_mode == OPERATION_MODE_OFF:
+            if current := self.target_temperature:
+                self._last_target_temp = current
             await self.tado_coordinator.async_set_hot_water_off(self._zone_id)
         elif operation_mode == OPERATION_MODE_AUTO:
+            if current := self.target_temperature:
+                self._last_target_temp = current
             await self.tado_coordinator.async_set_hot_water_auto(self._zone_id)
         elif operation_mode == OPERATION_MODE_HEAT:
-            await self.tado_coordinator.async_set_hot_water_heat(self._zone_id)
+            await self.tado_coordinator.async_set_hot_water_heat(
+                self._zone_id, temperature=self._last_target_temp
+            )
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn hot water on (resume schedule)."""
@@ -178,6 +185,7 @@ class TadoHotWater(TadoHotWaterZoneEntity, TadoOptimisticMixin, WaterHeaterEntit
 
         # Round to integer for hot water (Tado requirement)
         rounded_temp = round(float(temperature))
+        self._last_target_temp = float(rounded_temp)
 
         await self.tado_coordinator.async_set_zone_overlay(
             self._zone_id,
