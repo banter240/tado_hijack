@@ -1,3 +1,42 @@
+## [4.0.0-dev.4](https://github.com/banter240/tado_hijack/compare/v4.0.0-dev.3...v4.0.0-dev.4) (2026-01-29)
+
+### ✨ New Features
+
+* feat(core): major architectural overhaul, migration v6 and service standardization
+
+This update implements a modular helper-based architecture, completes the v6 migration
+and standardizes service interactions across all platforms while hardening the system against
+common failures.
+
+ARCHITECTURE & MODULARITY:
+- EntityResolver: Centralized HomeKit/Hijack entity resolution logic into a dedicated helper.
+- PropertyManager: Standardized hardware property updates via generic dispatchers.
+- DiscoveryManager: Unified zone and device discovery loops.
+- TadoEventHandler: Isolated HA event bus integration for optimistic triggers.
+- Coordinator: Reduced bloat by ~40% by offloading business logic to specialized managers.
+
+SERVICE STANDARDIZATION & VALIDATION:
+- HVAC Mode Standard: Refactored 'set_mode' and 'set_mode_all_zones' to use standard 'hvac_mode' (off, heat, auto).
+- Validation Matrix: Implemented central 'Pre-Validation' (DRY) to block invalid parameter combinations (e.g. heat without temp) before making API calls.
+- Sensible Defaults: Established logic-aware defaults (heat mode @ 21C / 50C) and improved UI flow by making 'overlay' a required field.
+- DRY Schema: Centralized parameter validation and YAML schema using anchors/aliases for maintainability.
+
+STATE, DATA INTEGRITY & POLLING:
+- Migration v6: Implemented mandatory reset of polling intervals to correct unit confusion.
+- JIT Poll Planning: Replaced boolean flags with high-precision timestamps for plan-driven polling (Zero-Waste).
+- Intelligent Polling: Implemented smart 'refresh_after' logic that suppresses redundant polls during active timers, deferred until expiry.
+- Dynamic Optimistic Store: Implemented a maintenance-free key-value store for all optimistic states.
+- Functional Helpers: Extracted state patching (state_patcher) and API payload construction (overlay_builder) into utility modules.
+
+ROBUSTNESS & AUTH:
+- Error Capturing: Enhanced TadoRequestHandler to capture and log actual API response bodies, providing detailed feedback for 422 errors.
+- Auth Fix: Corrected token polling logic to prevent TadoConnectionError during initial OAuth device authorization.
+- Setup Guard: Fixed ValueError in config_flow by validating source before accessing reauth entries during fresh installs.
+
+DOCUMENTATION:
+- README Sync: Updated documentation to match all architectural changes and standardized YAML service examples.
+- Technical Detail: Restored precise descriptions for Auto Quota math and Reset-Sync (12:01 AM Berlin).
+
 ## [4.0.0-dev.3](https://github.com/banter240/tado_hijack/compare/v4.0.0-dev.2...v4.0.0-dev.3) (2026-01-29)
 
 ### ✨ New Features
