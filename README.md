@@ -75,7 +75,7 @@ I engineered this integration with one goal: **To squeeze every drop of function
   - [🌡️ Zone Devices (Rooms / Hot Water / AC)](#zone-devices-rooms--hot-water--ac)
   - [🔧 Physical Devices (Valves/Thermostats)](#physical-devices-valvesthermostats)
 - [⚡ Services](#services)
-  - [📝 set_timer Examples (YAML)](#set_timer-examples-yaml)
+  - [📝 set_mode Examples (YAML)](#set_mode-examples-yaml)
 - [📋 Known Constraints](#known-constraints)
 - [🐛 Troubleshooting](#troubleshooting)
 
@@ -581,7 +581,9 @@ data:
   entity_id: water_heater.hot_water
   operation_mode: "heat"
   temperature: 55
+  overlay: "manual"
   duration: 30
+  refresh_after: false
 ```
 
 <br>
@@ -593,7 +595,9 @@ data:
   entity_id: climate.bathroom
   hvac_mode: "heat"
   temperature: 24
+  overlay: "manual"
   duration: 15
+  refresh_after: false
 ```
 
 <br>
@@ -606,6 +610,7 @@ data:
   hvac_mode: "heat"
   temperature: 21
   overlay: "manual"
+  refresh_after: false
 ```
 
 <br>
@@ -616,6 +621,7 @@ service: tado_hijack.set_mode
 data:
   entity_id: climate.kitchen
   hvac_mode: "auto"
+  overlay: "manual" # Required by schema, ignored for 'auto'
   refresh_after: true
 ```
 
@@ -629,6 +635,7 @@ data:
   hvac_mode: "heat"
   temperature: 22
   overlay: "next_block"
+  refresh_after: false
 ```
 
 <br>

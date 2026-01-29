@@ -39,3 +39,22 @@ repos:
     rev: v8.27.2 # Use the latest stable version
     hooks:
       - id: gitleaks
+
+  # Local hooks for Home Assistant & HACS validation (Parity with GitHub Actions)
+  - repo: local
+    hooks:
+      - id: hassfest
+        name: local hassfest validation
+        entry: "../.venv/bin/python3 -m homeassistant.helpers.check_config --config ."
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: "Run Home Assistant's internal config validation (Parity with CI Hassfest)."
+
+      - id: hacs-validation
+        name: local HACS validation
+        entry: "./scripts/local_hacs_validate.py"
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: "Run basic HACS compliance checks (Parity with CI HACS Validation)."
