@@ -11,6 +11,7 @@ from homeassistant.components.climate import (
     HVACMode,
 )
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
+from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import (
     OVERLAY_MANUAL,
@@ -33,7 +34,9 @@ if TYPE_CHECKING:
 _LOGGER = get_redacted_logger(__name__)
 
 
-class TadoClimateEntity(TadoZoneEntity, TadoOptimisticMixin, ClimateEntity):
+class TadoClimateEntity(
+    TadoZoneEntity, TadoOptimisticMixin, ClimateEntity, RestoreEntity
+):
     """Base class for Tado climate entities (Hot Water / AC)."""
 
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
@@ -56,9 +59,29 @@ class TadoClimateEntity(TadoZoneEntity, TadoOptimisticMixin, ClimateEntity):
         self._last_target_temp: float | None = None
 
     async def async_added_to_hass(self) -> None:
-        """Fetch capabilities on startup if not cached."""
+        """Handle entity being added to Home Assistant."""
         await super().async_added_to_hass()
+
+        # Restore last known temperature from HA state machine
+        if last_state := await self.async_get_last_state():
+            if "last_target_temperature" in last_state.attributes:
+                self._last_target_temp = float(
+                    last_state.attributes["last_target_temperature"]
+                )
+                _LOGGER.debug(
+                    "Zone %d: Restored last_target_temp: %s",
+                    self._zone_id,
+                    self._last_target_temp,
+                )
+
         await self._async_update_capabilities()
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return entity specific state attributes."""
+        return {
+            "last_target_temperature": self._last_target_temp,
+        }
 
     async def _async_update_capabilities(self) -> None:
         """Fetch and refresh capabilities."""

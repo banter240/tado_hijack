@@ -88,7 +88,7 @@ TEMP_MAX_HOT_WATER_OVERRIDE: Final = 70.0  # Absolute limit for HW sliders
 TEMP_MIN_AC: Final = 16.0
 TEMP_MAX_AC: Final = 30.0
 TEMP_DEFAULT_HEATING: Final = 21.0
-TEMP_DEFAULT_HOT_WATER: Final = 50.0
+TEMP_DEFAULT_HOT_WATER: Final = 30.0
 TEMP_DEFAULT_AC: Final = 22.0
 
 # Temperature Steps

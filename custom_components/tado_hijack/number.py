@@ -196,6 +196,8 @@ class TadoTargetTempNumberEntity(TadoZoneEntity, TadoOptimisticNumber):
     _attr_native_step = 0.5
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
     _attr_mode = NumberMode.BOX
+    _attr_optimistic_key = "temperature"
+    _attr_optimistic_scope = "zone"
 
     def __init__(
         self,

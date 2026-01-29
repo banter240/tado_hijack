@@ -65,6 +65,7 @@ from .helpers.api_manager import TadoApiManager
 from .helpers.auth_manager import AuthManager
 from .helpers.data_manager import TadoDataManager
 from .helpers.device_linker import get_climate_entity_id
+from .helpers.discovery import yield_zones
 from .helpers.entity_resolver import EntityResolver
 from .helpers.event_handlers import TadoEventHandler
 from .helpers.logging_utils import get_redacted_logger
@@ -160,7 +161,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         self._climate_to_zone: dict[str, int] = {}
         self._polling_calls_today = 0
         self._last_quota_reset: datetime | None = None
-        self._reset_poll_unsub: asyncio.TimerHandle | None = None  # gitleaks:allow
+        self._reset_poll_unsub: asyncio.TimerHandle | None = None
         self._post_action_poll_timer: asyncio.TimerHandle | None = None
         self._expiry_timers: set[asyncio.TimerHandle] = set()
         self._force_next_update: bool = False
@@ -194,20 +195,23 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         include_hot_water: bool = False,
     ) -> list[int]:
         """Return a list of active zone IDs filtered by type (DRY helper)."""
-        zone_ids: list[int] = []
-        for zid, zone in self.zones_meta.items():
-            ztype = getattr(zone, "type", ZONE_TYPE_HEATING)
-            if (
-                (ztype == ZONE_TYPE_HEATING and include_heating)
-                or (ztype == ZONE_TYPE_AIR_CONDITIONING and include_ac)
-                or (ztype == ZONE_TYPE_HOT_WATER and include_hot_water)
-            ) and not self.entity_resolver.is_zone_disabled(zid):
-                zone_ids.append(zid)
-        return zone_ids
+        include_types = set()
+        if include_heating:
+            include_types.add(ZONE_TYPE_HEATING)
+        if include_ac:
+            include_types.add(ZONE_TYPE_AIR_CONDITIONING)
+        if include_hot_water:
+            include_types.add(ZONE_TYPE_HOT_WATER)
+
+        return [
+            zone.id
+            for zone in yield_zones(self, include_types)
+            if not self.entity_resolver.is_zone_disabled(zone.id)
+        ]
 
     async def _async_update_data(self) -> TadoData:
         """Fetch update via DataManager."""
-        if not self.is_polling_enabled:
+        if not self.is_polling_enabled and not self._force_next_update:
             _LOGGER.debug("Polling globally disabled via switch.")
             if self.data:
                 return cast(TadoData, self.data)
@@ -242,8 +246,6 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             # If no data exists yet, allow first fetch
             _LOGGER.info("No data exists, allowing initial fetch despite throttling")
 
-        self._force_next_update = False
-
         try:
             quota_start = self.rate_limit.remaining
 
@@ -270,8 +272,12 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
 
             self._adjust_interval_for_auto_quota()
 
+            # Reset force flag only after a successful fetch
+            self._force_next_update = False
+
             return cast(TadoData, data)
         except TadoError as err:
+            self._force_next_update = False
             raise UpdateFailed(f"Tado API error: {err}") from err
 
     def _calculate_auto_quota_interval(self) -> int | None:
@@ -475,6 +481,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         else:
             _LOGGER.debug("Queued silent manual poll (type: %s)", refresh_type)
 
+        self._force_next_update = True
         self.api_manager.queue_command(
             f"manual_poll_{refresh_type}",
             TadoCommand(CommandType.MANUAL_POLL, data={"type": refresh_type}),
@@ -647,16 +654,27 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         if refresh_after:
             self._schedule_queued_refresh()
 
-    async def async_set_hot_water_heat(self, zone_id: int):
+    async def async_set_hot_water_heat(
+        self, zone_id: int, temperature: float | None = None
+    ):
         """Set hot water zone to heat mode (manual overlay)."""
         setting: dict[str, Any] = {"type": "HOT_WATER", "power": "ON"}
 
-        state = self.data.zone_states.get(str(zone_id))
-        temp = TEMP_DEFAULT_HOT_WATER
-        if state and state.setting and state.setting.temperature:
-            temp = state.setting.temperature.celsius
+        temp: float | None = None
+        if self.supports_temperature(zone_id):
+            state = self.data.zone_states.get(str(zone_id))
+            temp = temperature or TEMP_DEFAULT_HOT_WATER
 
-        setting["temperature"] = {"celsius": temp}
+            # If no temp provided, try to get from current state as secondary fallback
+            if (
+                temperature is None
+                and state
+                and state.setting
+                and state.setting.temperature
+            ):
+                temp = state.setting.temperature.celsius
+
+            setting["temperature"] = {"celsius": temp}
 
         data = {
             "setting": setting,
@@ -1043,6 +1061,55 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         if refresh_after and not is_timed_overlay:
             self._schedule_queued_refresh()
 
+    def supports_temperature(self, zone_id: int) -> bool:
+        """Check if a zone supports temperature control in overlays.
+
+        For hot water zones, capabilities.temperatures can be truthy even when
+        the zone doesn't accept temperature in overlays (non-OpenTherm).
+        The reliable indicator is whether the zone's current state setting
+        includes a temperature value.
+        """
+        zone = self.zones_meta.get(zone_id)
+        ztype = getattr(zone, "type", ZONE_TYPE_HEATING) if zone else ZONE_TYPE_HEATING
+
+        if ztype == ZONE_TYPE_HOT_WATER:
+            state = self.data.zone_states.get(str(zone_id))
+            return bool(state and state.setting and state.setting.temperature)
+
+        # Heating/AC zones always support temperature
+        return True
+
+    def _resolve_zone_temperature(
+        self, zone_id: int, temperature: float | None, power: str
+    ) -> float | None:
+        """Resolve the effective temperature for a zone overlay.
+
+        Strips temperature for zones that don't support it, and resolves a
+        fallback default when power is ON and no temperature is provided.
+        """
+        supports_temp = self.supports_temperature(zone_id)
+
+        if not supports_temp and temperature is not None:
+            _LOGGER.warning(
+                "Zone %d does not support temperature control, ignoring temperature=%s",
+                zone_id,
+                temperature,
+            )
+            return None
+
+        if temperature is None and power == POWER_ON and supports_temp:
+            zone = self.zones_meta.get(zone_id)
+            ztype = (
+                getattr(zone, "type", ZONE_TYPE_HEATING) if zone else ZONE_TYPE_HEATING
+            )
+            if ztype == ZONE_TYPE_HOT_WATER:
+                return TEMP_DEFAULT_HOT_WATER
+            if ztype == ZONE_TYPE_AIR_CONDITIONING:
+                return TEMP_DEFAULT_AC
+            return TEMP_DEFAULT_HEATING
+
+        return temperature if supports_temp else None
+
     async def async_set_zone_overlay(
         self,
         zone_id: int,
@@ -1055,31 +1122,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         refresh_after: bool = False,
     ) -> None:
         """Set a manual overlay with timer/duration support."""
-        # Central Validation: Check if temperature control is supported
-        final_temp = temperature
-
-        # Resolve fallback temperature if missing for ON state
-        if final_temp is None and power == POWER_ON:
-            zone = self.zones_meta.get(zone_id)
-            ztype = (
-                getattr(zone, "type", ZONE_TYPE_HEATING) if zone else ZONE_TYPE_HEATING
-            )
-            if ztype == ZONE_TYPE_HOT_WATER:
-                final_temp = TEMP_DEFAULT_HOT_WATER
-            elif ztype == ZONE_TYPE_AIR_CONDITIONING:
-                final_temp = TEMP_DEFAULT_AC
-            else:
-                final_temp = TEMP_DEFAULT_HEATING
-
-        if final_temp is not None and power == "ON":
-            capabilities = self.data.capabilities.get(zone_id)
-            if not capabilities or not capabilities.temperatures:
-                _LOGGER.warning(
-                    "Zone %d does not support temperature control, ignoring temperature=%s",
-                    zone_id,
-                    final_temp,
-                )
-                final_temp = None
+        final_temp = self._resolve_zone_temperature(zone_id, temperature, power)
 
         data = build_overlay_data(
             zone_id=zone_id,
@@ -1140,11 +1183,13 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         self.async_update_listeners()
 
         for zone_id in zone_ids:
+            zone_temp = self._resolve_zone_temperature(zone_id, temperature, power)
+
             data = build_overlay_data(
                 zone_id=zone_id,
                 zones_meta=self.zones_meta,
                 power=power,
-                temperature=temperature,
+                temperature=zone_temp,
                 duration=duration,
                 overlay_mode=overlay_mode,
                 overlay_type=overlay_type,

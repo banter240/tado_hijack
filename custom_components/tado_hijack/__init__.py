@@ -100,12 +100,15 @@ async def async_migrate_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bo
 
     if entry.version < 6:
         # Migration to version 6 (Reset intervals to defaults to fix unit confusion)
-        # sourcery skip: merge-dict-assign
         _LOGGER.info("Migrating to version 6: Resetting intervals to defaults")
-        new_data = {**entry.data}
-        new_data[CONF_SCAN_INTERVAL] = DEFAULT_SCAN_INTERVAL
-        new_data[CONF_PRESENCE_POLL_INTERVAL] = DEFAULT_PRESENCE_POLL_INTERVAL
-        new_data[CONF_SLOW_POLL_INTERVAL] = DEFAULT_SLOW_POLL_INTERVAL  # Default 24h
+        new_data = {
+            **entry.data,
+            CONF_SCAN_INTERVAL: DEFAULT_SCAN_INTERVAL,  # gitleaks:allow
+        }
+        new_data[CONF_PRESENCE_POLL_INTERVAL] = (
+            DEFAULT_PRESENCE_POLL_INTERVAL  # gitleaks:allow
+        )
+        new_data[CONF_SLOW_POLL_INTERVAL] = DEFAULT_SLOW_POLL_INTERVAL  # gitleaks:allow
         hass.config_entries.async_update_entry(entry, data=new_data, version=6)
 
     _LOGGER.info("Migration to version %s successful", entry.version)

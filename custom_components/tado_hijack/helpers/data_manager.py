@@ -71,6 +71,11 @@ class TadoDataManager:
         self._presence_invalidated_at: float = 0
         self._zones_invalidated_at: float = 0
 
+        # Initialization flags for independent bootstrapping
+        self._metadata_init = False
+        self._zones_init = False
+        self._presence_init = False
+
     @property
     def client(self) -> TadoHijackClient:
         """Return the client cast to TadoHijackClient."""
@@ -92,14 +97,14 @@ class TadoDataManager:
             if self.coordinator.update_interval
             else 0
         )
-        if not self.zones_meta or (
+        if not self._zones_init or (
             self._zones_invalidated_at > self._last_zones_poll
             or (interval > 0 and (now - self._last_zones_poll) >= (interval - 1))
         ):
             plan.append(PollTask(1, self._tado.get_zone_states))
 
     def _add_presence_track_to_plan(self, plan: list[PollTask], now: float) -> None:
-        if not self.zones_meta or (
+        if not self._presence_init or (
             self._presence_invalidated_at > self._last_presence_poll
             or (
                 self._presence_poll_seconds > 0
@@ -111,45 +116,21 @@ class TadoDataManager:
 
     def _add_slow_track_to_plan(self, plan: list[PollTask], now: float) -> None:
         if (
-            not self.zones_meta
+            not self._metadata_init
             or (now - self._last_slow_poll) > self._slow_poll_seconds
         ):
-            plan.extend(
-                [PollTask(1, self._tado.get_zones), PollTask(1, self._tado.get_devices)]
-            )
-            plan.extend(
-                PollTask(1, lambda z=z.id: self._tado.get_capabilities(z))
-                for z in self.zones_meta.values()
-                if z.type in ("AIR_CONDITIONING", "HOT_WATER")
-            )
+            plan.append(PollTask(1, self._tado.get_zones))
 
     def _add_medium_track_to_plan(self, plan: list[PollTask], now: float) -> None:
         if (self._offset_invalidated_at > self._last_offset_poll) or (
             self._offset_poll_seconds > 0
             and (now - self._last_offset_poll) > self._offset_poll_seconds
         ):
-            for dev in self.devices_meta.values():
-                if CAPABILITY_INSIDE_TEMP in (
-                    dev.characteristics.capabilities or []
-                ) and not self._is_entity_disabled(
-                    "number", f"{dev.serial_no}_temperature_offset"
-                ):
-                    plan.append(
-                        PollTask(
-                            1,
-                            lambda d=dev.serial_no: self._tado.get_device_info(
-                                d, TEMP_OFFSET_ATTR
-                            ),
-                        )
-                    )
+            plan.append(PollTask(1, self._fetch_offsets))
 
     def _add_away_track_to_plan(self, plan: list[PollTask], now: float) -> None:
         if self._away_invalidated_at > self._last_away_poll:
-            plan.extend(
-                PollTask(1, lambda z=z.id: self.client.get_away_configuration(z))
-                for z in self.zones_meta.values()
-                if getattr(z, "type", "") == "HEATING"
-            )
+            plan.append(PollTask(1, self._fetch_away_config))
 
     def _measure_presence_poll_cost(self) -> int:
         """Measure cost of home_state poll."""
@@ -206,14 +187,12 @@ class TadoDataManager:
                 await self._fetch_zones(now)
             elif task.coroutine == self._tado.get_zones:
                 await self._fetch_metadata(now)
-            elif "get_away_configuration" in str(task.coroutine):
-                if self._last_away_poll < now:
-                    await self._fetch_away_config()
-                    self._last_away_poll = now
-            elif "get_device_info" in str(task.coroutine):
-                if self._last_offset_poll < now:
-                    await self._fetch_offsets()
-                    self._last_offset_poll = now
+            elif task.coroutine == self._fetch_away_config:
+                await self._fetch_away_config()
+                self._last_away_poll = now
+            elif task.coroutine == self._fetch_offsets:
+                await self._fetch_offsets()
+                self._last_offset_poll = now
 
         return TadoData(
             home_state=getattr(self.coordinator.data, "home_state", None),
@@ -228,6 +207,7 @@ class TadoDataManager:
     async def _fetch_presence(self, now: float) -> Any:
         state = await self._tado.get_home_state()
         self._last_presence_poll = now
+        self._presence_init = True
         if self.coordinator.data:
             self.coordinator.data.home_state = state
         return state
@@ -235,6 +215,7 @@ class TadoDataManager:
     async def _fetch_zones(self, now: float) -> dict:
         states = await self._tado.get_zone_states()
         self._last_zones_poll = now
+        self._zones_init = True
         if self.coordinator.data:
             self.coordinator.data.zone_states = states
         return states
@@ -244,32 +225,45 @@ class TadoDataManager:
         devices = await self._tado.get_devices()
         self.zones_meta = {z.id: z for z in zones}
         self.devices_meta = {d.short_serial_no: d for d in devices}
+
+        # Lazy refresh: Update capabilities for relevant zones if missing
         for z in zones:
-            if z.type in ("AIR_CONDITIONING", "HOT_WATER"):
-                try:
-                    self.capabilities_cache[z.id] = await self._tado.get_capabilities(
-                        z.id
-                    )
-                except Exception as e:
-                    _LOGGER.warning("Capabilities fail for zone %d: %s", z.id, e)
+            if (
+                z.type in ("AIR_CONDITIONING", "HOT_WATER")
+                and z.id not in self.capabilities_cache
+            ):
+                await self._fetch_capabilities(z.id)
+
+        self._metadata_init = True
         self.coordinator.bridges = [
             d for d in devices if d.device_type.startswith("IB")
         ]
         self._last_slow_poll = now
 
+    async def _fetch_capabilities(self, zone_id: int) -> None:
+        """Fetch and cache capabilities for a zone."""
+        try:
+            self.capabilities_cache[zone_id] = await self._tado.get_capabilities(
+                zone_id
+            )
+        except Exception as e:
+            _LOGGER.warning("Capabilities fail for zone %d: %s", zone_id, e)
+
     def invalidate_cache(self, refresh_type: str = "all") -> None:
         """Force specific cache refresh."""
         now = time.monotonic()
         if refresh_type in {"all", "metadata"}:
-            self.zones_meta = {}
+            self._metadata_init = False
         if refresh_type in {"all", "offsets"}:
             self._offset_invalidated_at = now
         if refresh_type in {"all", "away"}:
             self._away_invalidated_at = now
         if refresh_type in {"all", "presence"}:
             self._presence_invalidated_at = now
+            self._presence_init = False
         if refresh_type in {"all", "zone"}:
             self._zones_invalidated_at = now
+            self._zones_init = False
 
     def _is_entity_disabled(self, platform: str, unique_id: str) -> bool:
         """Check if an entity is disabled."""

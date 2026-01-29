@@ -8,8 +8,6 @@ from homeassistant.components.switch import SwitchEntity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
-    POWER_OFF,
-    POWER_ON,
     PROTECTION_MODE_TEMP,
     ZONE_TYPE_AIR_CONDITIONING,
     ZONE_TYPE_HEATING,
@@ -239,42 +237,6 @@ class TadoChildLockSwitch(TadoDeviceEntity, TadoOptimisticSwitch):
         """Disable child lock."""
 
         await self.tado_coordinator.async_set_child_lock(self._serial_no, False)
-
-
-class TadoHotWaterSwitch(TadoZoneEntity, TadoOptimisticSwitch):
-    """Switch for Tado Hot Water power control."""
-
-    def __init__(self, coordinator: Any, zone_id: int, zone_name: str) -> None:
-        """Initialize hot water switch."""
-
-        super().__init__(coordinator, "hot_water", zone_id, zone_name)
-
-        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_hw_{zone_id}"
-
-    def _get_optimistic_value(self) -> bool | None:
-        if (
-            power := self.tado_coordinator.optimistic.get_zone_power(self._zone_id)
-        ) is not None:
-            return power == POWER_ON
-
-        return None
-
-    def _get_actual_value(self) -> bool:
-        state = self.tado_coordinator.data.zone_states.get(str(self._zone_id))
-        if state is None:
-            return False
-
-        return getattr(state, "power", POWER_OFF) == POWER_ON
-
-    async def async_turn_on(self, **kwargs: Any) -> None:
-        """Turn hot water ON."""
-
-        await self.tado_coordinator.async_set_hot_water_power(self._zone_id, True)
-
-    async def async_turn_off(self, **kwargs: Any) -> None:
-        """Turn hot water OFF."""
-
-        await self.tado_coordinator.async_set_hot_water_power(self._zone_id, False)
 
 
 class TadoDazzleModeSwitch(TadoZoneEntity, TadoOptimisticSwitch):
