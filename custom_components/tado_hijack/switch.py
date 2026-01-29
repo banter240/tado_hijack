@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -20,6 +20,7 @@ from .entity import (
     TadoOptimisticMixin,
     TadoZoneEntity,
 )
+from .helpers.discovery import yield_devices, yield_zones
 from .helpers.logging_utils import get_redacted_logger
 
 if TYPE_CHECKING:
@@ -42,55 +43,27 @@ async def async_setup_entry(
         TadoReducedPollingLogicSwitch(coordinator),
     ]
 
-    # Per-Zone Schedule Switches -> Zone Devices
-    # Hot water excluded - uses WaterHeaterEntity operation modes instead
-    entities.extend(
-        TadoZoneScheduleSwitch(coordinator, zone.id, zone.name)
-        for zone in coordinator.zones_meta.values()
-        if zone.type in (ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING)
-    )
+    # Zone Level Switches
+    for zone in yield_zones(
+        coordinator, {ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING}
+    ):
+        entities.append(TadoZoneScheduleSwitch(coordinator, zone.id, zone.name))
 
-    # Hot Water Switches -> Zone Devices
-    # DEPRECATED: Hot water now uses climate entities instead of switches
-    # entities.extend(
-    #     TadoHotWaterSwitch(coordinator, zone.id, zone.name)
-    #     for zone in coordinator.zones_meta.values()
-    #     if zone.type == ZONE_TYPE_HOT_WATER
-    # )
+        if getattr(zone, "supports_dazzle", False):
+            entities.append(TadoDazzleModeSwitch(coordinator, zone.id, zone.name))
 
-    # Dazzle Mode Switches -> Zone Devices (Tado dazzle is per zone)
-    entities.extend(
-        TadoDazzleModeSwitch(coordinator, zone.id, zone.name)
-        for zone in coordinator.zones_meta.values()
-        if getattr(zone, "supports_dazzle", False)
-    )
+        if zone.type == ZONE_TYPE_HEATING:
+            entities.append(TadoEarlyStartSwitch(coordinator, zone.id, zone.name))
 
-    # Early Start Switches -> Zone Devices
-    entities.extend(
-        TadoEarlyStartSwitch(coordinator, zone.id, zone.name)
-        for zone in coordinator.zones_meta.values()
-        if zone.type == ZONE_TYPE_HEATING
-    )
-
-    # Open Window Detection Switches -> Zone Devices
-    for zone in coordinator.zones_meta.values():
         if (owd := getattr(zone, "open_window_detection", None)) and owd.supported:
             entities.append(TadoOpenWindowSwitch(coordinator, zone.id, zone.name))
 
-    # Child Lock Switches -> Device Entities
-    seen_child_lock_devices: set[str] = set()
-    for zone in coordinator.zones_meta.values():
-        if zone.type != "HEATING":
-            continue
-        for device in zone.devices:
-            if getattr(device, "child_lock_enabled", None) is None:
-                continue
-            # Skip devices we've already processed (can appear in multiple zones)
-            if device.serial_no in seen_child_lock_devices:
-                continue
-            seen_child_lock_devices.add(device.serial_no)
-            entities.append(TadoChildLockSwitch(coordinator, device, zone.id))
-
+    # Device Level Switches (Child Lock)
+    entities.extend(
+        TadoChildLockSwitch(coordinator, device, zone_id)
+        for device, zone_id in yield_devices(coordinator, {ZONE_TYPE_HEATING})
+        if getattr(device, "child_lock_enabled", None) is not None
+    )
     async_add_entities(entities)
 
 
@@ -106,6 +79,9 @@ class TadoOptimisticSwitch(TadoOptimisticMixin, SwitchEntity):
 class TadoAwaySwitch(TadoHomeEntity, TadoOptimisticSwitch):
     """Switch for Tado Home/Away control."""
 
+    _attr_optimistic_key = "presence"
+    _attr_optimistic_scope = "home"
+
     def __init__(self, coordinator: Any) -> None:
         """Initialize Tado away switch."""
 
@@ -115,9 +91,8 @@ class TadoAwaySwitch(TadoHomeEntity, TadoOptimisticSwitch):
         self._set_entity_id("switch", "away_mode")
 
     def _get_optimistic_value(self) -> bool | None:
-        if (opt := self.tado_coordinator.optimistic.get_presence()) is not None:
+        if (opt := cast("str | None", super()._get_optimistic_value())) is not None:
             return opt == "AWAY"
-
         return None
 
     def _get_actual_value(self) -> bool:
@@ -142,6 +117,9 @@ class TadoAwaySwitch(TadoHomeEntity, TadoOptimisticSwitch):
 class TadoZoneScheduleSwitch(TadoZoneEntity, TadoOptimisticSwitch):
     """Switch to toggle between Smart Schedule and Manual Overlay."""
 
+    _attr_optimistic_key = "overlay"
+    _attr_optimistic_scope = "zone"
+
     def __init__(self, coordinator: Any, zone_id: int, zone_name: str) -> None:
         """Initialize Tado zone schedule switch."""
 
@@ -150,11 +128,8 @@ class TadoZoneScheduleSwitch(TadoZoneEntity, TadoOptimisticSwitch):
         self._attr_unique_id = f"{coordinator.config_entry.entry_id}_sch_{zone_id}"
 
     def _get_optimistic_value(self) -> bool | None:
-        if (
-            opt := self.tado_coordinator.optimistic.get_zone_overlay(self._zone_id)
-        ) is not None:
+        if (opt := cast("bool | None", super()._get_optimistic_value())) is not None:
             return not opt
-
         return None
 
     def _get_actual_value(self) -> bool:
@@ -230,6 +205,9 @@ class TadoPollingSwitch(TadoHomeEntity, SwitchEntity):
 class TadoChildLockSwitch(TadoDeviceEntity, TadoOptimisticSwitch):
     """Switch for Tado Child Lock."""
 
+    _attr_optimistic_key = "child_lock"
+    _attr_optimistic_scope = "device"
+
     def __init__(self, coordinator: Any, device: Any, zone_id: int) -> None:
         """Initialize Tado child lock switch."""
 
@@ -246,9 +224,6 @@ class TadoChildLockSwitch(TadoDeviceEntity, TadoOptimisticSwitch):
         self._attr_unique_id = (
             f"{coordinator.config_entry.entry_id}_childlock_{device.serial_no}"
         )
-
-    def _get_optimistic_value(self) -> bool | None:
-        return self.tado_coordinator.optimistic.get_child_lock(self._serial_no)
 
     def _get_actual_value(self) -> bool:
         device = self.tado_coordinator.devices_meta.get(self._serial_no)
@@ -305,15 +280,15 @@ class TadoHotWaterSwitch(TadoZoneEntity, TadoOptimisticSwitch):
 class TadoDazzleModeSwitch(TadoZoneEntity, TadoOptimisticSwitch):
     """Switch for Tado Dazzle Mode control."""
 
+    _attr_optimistic_key = "dazzle"
+    _attr_optimistic_scope = "zone"
+
     def __init__(self, coordinator: Any, zone_id: int, zone_name: str) -> None:
         """Initialize dazzle mode switch."""
 
         super().__init__(coordinator, "dazzle_mode", zone_id, zone_name)
 
         self._attr_unique_id = f"{coordinator.config_entry.entry_id}_dazzle_{zone_id}"
-
-    def _get_optimistic_value(self) -> bool | None:
-        return self.tado_coordinator.optimistic.get_dazzle(self._zone_id)
 
     def _get_actual_value(self) -> bool:
         zone = self.tado_coordinator.zones_meta.get(self._zone_id)
@@ -334,15 +309,15 @@ class TadoDazzleModeSwitch(TadoZoneEntity, TadoOptimisticSwitch):
 class TadoEarlyStartSwitch(TadoZoneEntity, TadoOptimisticSwitch):
     """Switch for Tado Early Start control."""
 
+    _attr_optimistic_key = "early_start"
+    _attr_optimistic_scope = "zone"
+
     def __init__(self, coordinator: Any, zone_id: int, zone_name: str) -> None:
         """Initialize early start switch."""
 
         super().__init__(coordinator, "early_start", zone_id, zone_name)
 
         self._attr_unique_id = f"{coordinator.config_entry.entry_id}_early_{zone_id}"
-
-    def _get_optimistic_value(self) -> bool | None:
-        return self.tado_coordinator.optimistic.get_early_start(self._zone_id)
 
     def _get_actual_value(self) -> bool:
         zone = self.tado_coordinator.zones_meta.get(self._zone_id)
@@ -363,15 +338,15 @@ class TadoEarlyStartSwitch(TadoZoneEntity, TadoOptimisticSwitch):
 class TadoOpenWindowSwitch(TadoZoneEntity, TadoOptimisticSwitch):
     """Switch for Tado Open Window Detection control."""
 
+    _attr_optimistic_key = "open_window"
+    _attr_optimistic_scope = "zone"
+
     def __init__(self, coordinator: Any, zone_id: int, zone_name: str) -> None:
         """Initialize open window detection switch."""
 
         super().__init__(coordinator, "open_window", zone_id, zone_name)
 
         self._attr_unique_id = f"{coordinator.config_entry.entry_id}_owd_{zone_id}"
-
-    def _get_optimistic_value(self) -> bool | None:
-        return self.tado_coordinator.optimistic.get_open_window(self._zone_id)
 
     def _get_actual_value(self) -> bool:
         """Return actual value from coordinator."""

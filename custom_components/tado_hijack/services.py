@@ -6,6 +6,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import ServiceValidationError
 
 from .const import (
     DOMAIN,
@@ -60,10 +61,49 @@ def _parse_service_call_data(call: ServiceCall) -> dict[str, Any]:
     return {
         "duration": duration_minutes,
         "overlay": overlay_mode,
-        "power": call.data.get("power", POWER_ON),
+        "operation_mode": call.data.get("hvac_mode") or call.data.get("operation_mode"),
         "temperature": call.data.get("temperature"),
-        "operation_mode": call.data.get("operation_mode"),
+        "refresh_after": call.data.get("refresh_after", False),
     }
+
+
+def _validate_service_params(
+    operation_mode: str | None,
+    temperature: float | None,
+    duration: int | None,
+    overlay_mode: str | None,
+    is_water_heater: bool = False,
+) -> None:
+    """Validate service parameters against the allowed matrix (DRY)."""
+    # 1. 'auto' (Resume Schedule) must be clean
+    if operation_mode == "auto":
+        # Allow overlay_mode to be 'manual' (the UI default) but nothing else
+        if (
+            temperature is not None
+            or duration is not None
+            or (overlay_mode is not None and overlay_mode != "manual")
+        ):
+            raise ServiceValidationError(
+                f"When setting {'water heater' if is_water_heater else 'mode'} to 'auto' (Resume Schedule), "
+                "you cannot provide a temperature, duration, or a non-default overlay mode. "
+                "The smart schedule will take full control."
+            )
+        return
+
+    # 2. 'off' cannot have a temperature
+    if operation_mode == POWER_OFF and temperature is not None:
+        raise ServiceValidationError(
+            f"When setting {'water heater' if is_water_heater else 'mode'} to 'off', "
+            "you cannot provide a target temperature."
+        )
+
+    # 3. 'heat' must have a temperature
+    if operation_mode == "heat" and temperature is None:
+        range_str = "30 and 65°C" if is_water_heater else "5 and 30°C"
+        raise ServiceValidationError(
+            f"Temperature must be provided when setting {'water heater' if is_water_heater else 'mode'} to 'heat'. "
+            f"Please specify a target temperature between {range_str}."
+        )
 
 
 async def async_setup_services(
@@ -141,13 +181,23 @@ async def async_setup_services(
         temperature = params["temperature"]
         duration = params["duration"]
         overlay_mode = params["overlay"]
+        refresh_after = params["refresh_after"]
+
+        # Validate parameters (DRY)
+        _validate_service_params(
+            operation_mode, temperature, duration, overlay_mode, is_water_heater=True
+        )
 
         if operation_mode == "auto":
-            await coordinator.async_set_hot_water_auto(zone_id)
+            await coordinator.async_set_hot_water_auto(
+                zone_id, refresh_after=refresh_after, ignore_global_config=True
+            )
             return
 
         if operation_mode == POWER_OFF:
-            await coordinator.async_set_hot_water_off(zone_id)
+            await coordinator.async_set_hot_water_off(
+                zone_id, refresh_after=refresh_after
+            )
             return
 
         if operation_mode == "heat":
@@ -162,6 +212,7 @@ async def async_setup_services(
                 duration=duration,
                 overlay_type=ZONE_TYPE_HOT_WATER,
                 overlay_mode=overlay_mode,
+                refresh_after=refresh_after,
             )
             return
 
@@ -194,22 +245,24 @@ async def _execute_set_mode(
 ) -> None:
     """Execute set_mode logic via coordinator's overlay function."""
     operation_mode = params["operation_mode"]
-
-    # Special case: 'auto' means resume schedule for all target zones
-    if operation_mode == "auto":
-        for zone_id in zone_ids:
-            await coordinator.async_set_zone_auto(zone_id)
-        return
-
-    power = params["power"]
+    refresh_after = params.get("refresh_after", False)
     temperature = params["temperature"]
     duration = params["duration"]
     overlay_mode = params["overlay"]
 
-    if operation_mode == POWER_OFF:
-        power = POWER_OFF
-    elif operation_mode == "heat":
-        power = POWER_ON
+    # Validate parameters (DRY)
+    _validate_service_params(operation_mode, temperature, duration, overlay_mode)
+
+    # Special case: 'auto' means resume schedule for all target zones
+    if operation_mode == "auto":
+        for zone_id in zone_ids:
+            await coordinator.async_set_zone_auto(
+                zone_id, refresh_after=refresh_after, ignore_global_config=True
+            )
+        return
+
+    # Derive power from mode
+    power = POWER_OFF if operation_mode == "off" else POWER_ON
 
     # Fallback to manual overlay if no duration or mode is given
     if not overlay_mode and not duration:
@@ -222,6 +275,7 @@ async def _execute_set_mode(
         duration=duration,
         overlay_mode=overlay_mode,
         overlay_type=overlay_type,
+        refresh_after=refresh_after,
     )
 
 

@@ -19,9 +19,30 @@ if TYPE_CHECKING:
 class TadoOptimisticMixin:
     """Mixin for entities checking optimistic state before actual state."""
 
+    coordinator: TadoDataUpdateCoordinator
+    _attr_optimistic_key: str | None = None
+    _attr_optimistic_scope: str | None = None
+
     def _get_optimistic_value(self) -> Any | None:
-        """Return optimistic value if set."""
-        raise NotImplementedError
+        """Return optimistic value from coordinator if set."""
+        if not self._attr_optimistic_key or not self._attr_optimistic_scope:
+            return None
+
+        # Resolve ID based on scope
+        entity_id: str | int | None = None
+        if self._attr_optimistic_scope == "zone":
+            entity_id = getattr(self, "_zone_id", None)
+        elif self._attr_optimistic_scope == "device":
+            entity_id = getattr(self, "_serial_no", None)
+        elif self._attr_optimistic_scope == "home":
+            entity_id = "global"
+
+        if entity_id is None:
+            return None
+
+        return self.coordinator.optimistic.get_optimistic(
+            self._attr_optimistic_scope, entity_id, self._attr_optimistic_key
+        )
 
     def _get_actual_value(self) -> Any:
         """Return actual value from coordinator data."""

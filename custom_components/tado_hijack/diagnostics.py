@@ -19,8 +19,10 @@ from .const import (
     DIAGNOSTICS_REDACTED_PLACEHOLDER,
     DIAGNOSTICS_TO_REDACT_CONFIG_KEYS,
     DIAGNOSTICS_TO_REDACT_DATA_KEYS,
+    SECONDS_PER_DAY,
 )
 from .coordinator import TadoDataUpdateCoordinator
+from .helpers.quota_math import get_next_reset_time
 
 __all__ = ["async_get_config_entry_diagnostics"]
 
@@ -173,7 +175,11 @@ def _get_coordinator_diagnostics(
         except Exception as e:
             coordinator_diag["data_error"] = f"Failed to serialize TadoData: {e}"
 
-    # Metadata summaries
+    # Metadata summaries (Fallback if JIT data is empty)
+    coordinator_diag["metadata_cache"] = {
+        "zones": list(coordinator.zones_meta.keys()),
+        "devices": list(coordinator.devices_meta.keys()),
+    }
     coordinator_diag["zones_count"] = len(coordinator.zones_meta)
     coordinator_diag["devices_count"] = len(coordinator.devices_meta)
 
@@ -187,10 +193,10 @@ def _get_quota_diagnostics(coordinator: TadoDataUpdateCoordinator) -> dict[str, 
 
     # Timing (Aware)
     now_dt = dt_util.now()
-    next_reset = coordinator._get_next_reset_time()
+    next_reset = get_next_reset_time()
     seconds_until_reset = int((next_reset - now_dt).total_seconds())
-    seconds_since_reset = (24 * 3600) - seconds_until_reset
-    progress_done = max(0.0, min(1.0, seconds_since_reset / (24 * 3600)))
+    seconds_since_reset = SECONDS_PER_DAY - seconds_until_reset
+    progress_done = max(0.0, min(1.0, seconds_since_reset / SECONDS_PER_DAY))
 
     # Adaptive Calculation
     limit = getattr(coordinator.rate_limit, "limit", 0)
@@ -208,6 +214,8 @@ def _get_quota_diagnostics(coordinator: TadoDataUpdateCoordinator) -> dict[str, 
         "reserved_24h": res_total,
         "reserved_breakdown": res_breakdown,
         "estimated_usage": {
+            "api_limit": limit,
+            "api_remaining": remaining,
             "polling_so_far": int(expected_poll_usage),
             "user_so_far": int(user_calls),
             "user_excess": int(max(0, user_calls - threshold)),
@@ -232,9 +240,9 @@ def _get_internal_state_diagnostics(
 
     return {
         "optimistic": {
-            "zones_count": len(opt.zones),
-            "devices_count": len(opt.devices),
-            "presence": opt.presence,
+            "zones_count": len(opt._store.get("zone", {})),
+            "devices_count": len(opt._store.get("device", {})),
+            "presence_global": opt.get_presence(),
         },
         "api_manager": {
             "queue_size": am._api_queue.qsize(),
@@ -246,10 +254,10 @@ def _get_internal_state_diagnostics(
             "last_presence_poll_age": round(now - dm._last_presence_poll, 1),
             "last_slow_poll_age": round(now - dm._last_slow_poll, 1),
             "cache_status": {
-                "zones": len(dm.zones_meta),
-                "devices": len(dm.devices_meta),
-                "capabilities": len(dm.capabilities_cache),
-                "offsets": len(dm.offsets_cache),
+                "zones_dirty": dm._zones_invalidated_at > dm._last_zones_poll,
+                "presence_dirty": dm._presence_invalidated_at > dm._last_presence_poll,
+                "offsets_dirty": dm._offset_invalidated_at > dm._last_offset_poll,
+                "away_dirty": dm._away_invalidated_at > dm._last_away_poll,
             },
         },
         "home_kit": {
@@ -267,7 +275,7 @@ def _get_entity_mappings(
     mappings = {}
 
     for entity_entry in er.async_entries_for_config_entry(ent_reg, entry_id):
-        zone_id = coordinator._parse_zone_id_from_unique_id(entity_entry.unique_id)
+        zone_id = coordinator.entity_resolver.parse_unique_id(entity_entry.unique_id)
         zone_info = "Unknown"
         if zone_id is not None:
             zone_info = f"Zone {zone_id}"

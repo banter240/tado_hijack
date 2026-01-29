@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from typing import Any, cast
 
 from aiohttp import ClientResponseError
@@ -49,7 +50,10 @@ class TadoRequestHandler:
         be logged and handled gracefully.
         """
         # Only refresh auth if NOT using a proxy (proxy handles auth)
-        if not proxy_url:
+        # AND only if we are not in the middle of a device authorization flow
+        is_auth_request = uri and ("oauth/token" in uri or "oauth2/device" in uri)
+
+        if not proxy_url and not is_auth_request:
             if hasattr(instance, "_refresh_auth"):
                 await instance._refresh_auth()  # noqa: SLF001
             else:
@@ -61,7 +65,7 @@ class TadoRequestHandler:
 
         # Get access token only if NOT using proxy (proxy handles auth internally)
         access_token: str | None = None
-        if not proxy_url:
+        if not proxy_url and not is_auth_request:
             access_token = getattr(instance, "_access_token", None)
             if access_token is None:
                 _LOGGER.error(
@@ -109,29 +113,25 @@ class TadoRequestHandler:
                             rl.limit,
                         )
 
-                    response.raise_for_status()
+                    if response.status >= 400:
+                        body = await response.text()
+                        _LOGGER.error(
+                            "Tado API Error %d: %s. Response: %s",
+                            response.status,
+                            url.path,
+                            body,
+                        )
+                        response.raise_for_status()
+
                     return cast(str, await response.text())
 
         except TimeoutError as err:
             raise TadoConnectionError("Timeout connecting to Tado") from err
         except ClientResponseError as err:
             # Only check request status if NOT using proxy, or if proxy passes through Tado errors 1:1
-            # But we can't refresh auth via proxy, so we just raise.
             if not proxy_url:
-                try:
+                with contextlib.suppress(KeyError):
                     await instance.check_request_status(err)
-                except KeyError:
-                    # Some HTTP statuses (e.g. 422) may not be mapped inside
-                    # tadoasync's status_error_mapping. Avoid surfacing a
-                    # confusing KeyError here; log and fall back to raising
-                    # the original ClientResponseError so callers see the
-                    # actual HTTP status.
-                    _LOGGER.error(
-                        "Unhandled Tado HTTP status %s for %s: %s",
-                        err.status,
-                        url.path,
-                        err,
-                    )
             raise
 
     def _build_url(

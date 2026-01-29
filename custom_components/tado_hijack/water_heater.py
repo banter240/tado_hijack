@@ -15,8 +15,10 @@ from .const import (
     TEMP_MAX_HOT_WATER,
     TEMP_MIN_HOT_WATER,
     TEMP_STEP_HOT_WATER,
+    ZONE_TYPE_HOT_WATER,
 )
-from .entity import TadoHotWaterZoneEntity
+from .entity import TadoHotWaterZoneEntity, TadoOptimisticMixin
+from .helpers.discovery import yield_zones
 from .helpers.logging_utils import get_redacted_logger
 
 if TYPE_CHECKING:
@@ -40,20 +42,16 @@ async def async_setup_entry(
 ) -> None:
     """Set up Tado hot water based on a config entry."""
     coordinator: TadoDataUpdateCoordinator = entry.runtime_data
-    entities: list[WaterHeaterEntity] = []
-
-    for zone in coordinator.zones_meta.values():
-        if zone.type == "HOT_WATER":
-            _LOGGER.info("Found hot water zone: %s (ID: %d)", zone.name, zone.id)
-            entities.append(TadoHotWater(coordinator, zone.id, zone.name))
-
-    if entities:
+    if entities := [
+        TadoHotWater(coordinator, zone.id, zone.name)
+        for zone in yield_zones(coordinator, {ZONE_TYPE_HOT_WATER})
+    ]:
         async_add_entities(entities)
     else:
         _LOGGER.debug("No hot water zones found")
 
 
-class TadoHotWater(TadoHotWaterZoneEntity, WaterHeaterEntity):
+class TadoHotWater(TadoHotWaterZoneEntity, TadoOptimisticMixin, WaterHeaterEntity):
     """Representation of a Tado hot water zone."""
 
     _attr_supported_features = (
@@ -65,6 +63,8 @@ class TadoHotWater(TadoHotWaterZoneEntity, WaterHeaterEntity):
     _attr_min_temp = TEMP_MIN_HOT_WATER
     _attr_max_temp = TEMP_MAX_HOT_WATER
     _attr_target_temperature_step = TEMP_STEP_HOT_WATER
+    _attr_optimistic_key = "operation_mode"
+    _attr_optimistic_scope = "zone"
 
     _attr_name = None
 
@@ -93,14 +93,11 @@ class TadoHotWater(TadoHotWaterZoneEntity, WaterHeaterEntity):
     @property
     def current_operation(self) -> str:
         """Return current operation mode."""
-        # Check optimistic state first
-        optimistic_mode = self.tado_coordinator.optimistic.get_zone_operation_mode(
-            self._zone_id
-        )
-        if optimistic_mode is not None:
-            return optimistic_mode
+        return str(self._resolve_state())
 
-        state = self.tado_coordinator.data.zone_states.get(str(self._zone_id))
+    def _get_actual_value(self) -> str:
+        """Return actual operation mode from coordinator data."""
+        state = self.coordinator.data.zone_states.get(str(self._zone_id))
         if state is None:
             return OPERATION_MODE_AUTO
 

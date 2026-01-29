@@ -194,7 +194,7 @@
           "offset_poll_interval": "Offset Update Intervall (Sekunden)"
         },
         "data_description": {
-          "scan_interval": "Wie oft Raumdaten (Temp, Feuchtigkeit, Heizleistung) geprüft werden. 1800s (30m) wird empfohlen.",
+          "scan_interval": "Intervall für Raumdaten (Temp, Feuchtigkeit, Heizleistung). WICHTIG: Wird bei aktiver 'Auto API Quota' dynamisch überschrieben und dient dann nur als Fallback bei Erschöpfung des berechneten Auto-Quota-Budgets.",
           "presence_poll_interval": "Wie oft der Home/Away Status geprüft wird. Ein hoher Wert (z.B. 43200s/12h) spart API-Quota, falls HA-Anwesenheit genutzt wird.",
           "slow_poll_interval": "Wie oft Batterien, Firmware, Fähigkeiten und die Geräteliste geprüft werden. 86400s (24h) wird dringend empfohlen.",
           "offset_poll_interval": "Wie oft Temperatur-Offsets abgerufen werden. Kostet 1 API-Aufruf PRO VENTIL. 0 = deaktiviert."
@@ -270,7 +270,7 @@
           "offset_poll_interval": "Offset Update Intervall (Sekunden)"
         },
         "data_description": {
-          "scan_interval": "Wie oft Raumdaten (Temp, Feuchtigkeit, Heizleistung) geprüft werden. 1800s (30m) wird empfohlen.",
+          "scan_interval": "Intervall für Raumdaten (Temp, Feuchtigkeit, Heizleistung). WICHTIG: Wird bei aktiver 'Auto API Quota' dynamisch überschrieben und dient dann nur als Fallback bei Erschöpfung des berechneten Auto-Quota-Budgets.",
           "presence_poll_interval": "Wie oft der Home/Away Status geprüft wird. Ein hoher Wert (z.B. 43200s/12h) spart API-Quota, falls HA-Anwesenheit genutzt wird.",
           "slow_poll_interval": "Wie oft Batterien, Firmware, Fähigkeiten und die Geräteliste geprüft werden. 86400s (24h) wird dringend empfohlen.",
           "offset_poll_interval": "Wie oft Temperatur-Offsets abgerufen werden. Kostet 1 API-Aufruf PRO VENTIL. 0 = deaktiviert."

@@ -32,6 +32,12 @@ I engineered this integration with one goal: **To squeeze every drop of function
 
 <br>
 
+> [!CAUTION]
+> **Breaking Change (Migration v6):**
+> All polling intervals have been reset to their default values. This migration was necessary because the configuration schema switched from **hours to seconds** to allow for much higher precision and consistency across all features. Please review your settings in the integration options.
+
+<br>
+
 > [!WARNING]
 > **Compatibility Note (Tado X / Matter):**
 > This integration is currently optimized for **Tado V3+** (IB01) systems.
@@ -214,15 +220,16 @@ Almost no other integration does this: Tado Hijack automatically detects your ex
 
 We bring back the controls Tado "forgot" to give you:
 
-*   **🚿 Professional Hot Water Platform:** Native `water_heater` entity with AUTO/HEAT/OFF modes. AUTO resumes Smart Schedule, HEAT activates manual override.
+*   **🚿 Professional Hot Water Platform:** Native `water_heater` entity with standardized `auto`, `heat`, and `off` modes. Full Pre-Validation ensures you never send invalid configurations.
+*   **🕵️‍♂️ Expert-Level Error Capturing:** No more generic "422" errors. Tado Hijack captures the actual response body from Tado's API (e.g. *"temperature must not be null"*), giving you and the community precise feedback for troubleshooting.
 *   **❄️ AC Pro Features:** Precise Fan Speed and Swing (Horizontal/Vertical) selection.
 *   **🔥 Valve Opening Insight:** View the percentage of how far your valves are open (updated during state polls).
 *   **🔋 Real Battery Status:** Don't guess; see the actual health of every valve.
 *   **🌡️ Temperature Offset:** Interactive calibration for your thermostats.
 *   **✨ Dazzle Mode:** Control the display behavior of your V3+ hardware.
 *   **🏠 Presence Lock:** Force Home/Away modes regardless of what Tado thinks.
-*   **🔥 Dynamic Presence-Aware Overlay:** Set temperatures specifically for the current presence state — an exclusive feature that automatically resets once your home presence changes (e.g. Home → Away), something Tado doesn't even support in their official app.
-*   **🔓 Rate Limit Bypass:** Support for local [tado-api-proxy](https://github.com/s1adem4n/tado-api-proxy) to bypass daily limits.
+*   **🔥 Dynamic Presence-Aware Overlay:** Set temperatures specifically for the current presence state — an exclusive feature that automatically resets once your home presence changes.
+*   **🔓 Rate Limit Bypass:** Support for local [tado-api-proxy](https://github.com/s1adem4n/tado-api-proxy).
 
 <br>
 
@@ -290,8 +297,9 @@ Tado Hijack doesn't just guess. It uses a **Weighted Predictive Consumption Mode
 
 *   **⚡ Predictive Cost Modeling:** It estimates the daily cost of scheduled background routines (Hardware Syncs, Presence, Offsets) and "locks" this quota to ensure system health.
 *   **🌙 Smart Economy Profile:** Define an **Economy Window** (e.g., 23:00 - 07:00) where updates slow down (or stop entirely with Interval 0). The system automatically calculates the saved "API Gold" and reinvests it into your Performance Phase.
-*   **🕒 Dynamic Reset-Sync:** It calculates the exact seconds remaining until the next API reset (**12:01 Berlin**) and adjusts your polling interval on-the-fly.
+*   **🕒 Precision Sync:** It calculates the exact seconds remaining until the next API reset (**12:01 AM Berlin**) and adjusts your polling interval on-the-fly.
 *   **📉 Weighted Budgeting:** Unlike linear models, we prioritize your awake-time.
+*   **🔄 Dynamic Override:** When enabled, Auto API Quota **overrides** your manual *Status Polling* interval. Your manual setting only acts as a safety fallback if the system is throttled or the budget calculation fails.
 
 <br>
 
@@ -375,13 +383,14 @@ Not all API calls are created equal. Tado Hijack optimizes everything, but physi
 
 <br>
 
-### Physical Device Mapping
+### Physical Device Mapping & Resolution
 
 <br>
 
 Unlike other integrations that group everything by "Zone", Tado Hijack maps entities to their **physical devices** (Valves/Thermostats).
 
 *   **Matched via Serial Number:** Automatic injection into existing HomeKit devices.
+*   **EntityResolver:** A specialized engine that deep-scans the Home Assistant registry to perfectly link HomeKit climate entities with Tado's cloud logical zones.
 *   **No HomeKit?** We create dedicated devices containing **only** the cloud features (Battery, Offset, Child Lock, etc.), but **no** temperature control.
 
 <br>
@@ -390,6 +399,8 @@ Unlike other integrations that group everything by "Zone", Tado Hijack maps enti
 
 <br>
 
+*   **JIT Poll Planning:** Uses high-precision timestamps instead of simple flags to decide exactly when a data fetch is required (Zero-Waste).
+*   **Monkey-Patching Utilities:** We actively fix `tadoasync` library limitations at runtime, including robust deserialization for tricky cloud states (like `nextTimeBlock` null errors).
 *   **Custom Client Layer:** I extend the underlying library via inheritance to handle API communication reliably and fix common deserialization errors.
 *   **Privacy by Design:** All standard logs and diagnostic reports are automatically redacted. Sensitive data is stripped before any output is generated. (See [Support & Diagnostics](#expert-level-diagnostics) for details).
 
@@ -424,7 +435,7 @@ Unlike other integrations that group everything by "Zone", Tado Hijack maps enti
 
 | Option | Default | Description |
 | :--- | :--- | :--- |
-| **Status Polling** | `30m` | Interval for heating state and valve percentage. (1 API call) |
+| **Status Polling** | `30m` | Base interval for room states. **Note:** Dynamically overridden by *Auto API Quota* when enabled; serves as fallback during throttling or budget exhaustion. |
 | **Presence Polling** | `12h` | Interval for Home/Away state. High interval saves mass quota. (1 API call) |
 | **Auto API Quota** | `80%` | Target X% of FREE quota. FREE = Daily Limit - Background Reserve (Scheduled Syncs) - User Excess. Uses a weighted profile to prioritize performance hours. |
 | **Reduced Polling Active** | `Off` | Enable the time-based weighted polling profile. |
@@ -490,7 +501,7 @@ Cloud-only features that HomeKit does not support.
 | Entity | Type | Description |
 | :--- | :--- | :--- |
 | `switch.schedule` | Switch | **ON** = Smart Schedule, **OFF** = Manual. Simple way to resume schedule. |
-| `water_heater.hot_water` | WaterHeater | **Hot Water:** Control modes: AUTO (schedule), HEAT (manual), OFF. Target temperature (30-65°C) requires hardware support (e.g. OpenTherm). |
+| `water_heater.hot_water` | WaterHeater | **Hot Water:** Modes: `auto` (schedule), `heat` (manual), `off`. All calls are protected by Pre-Validation. |
 | `binary_sensor.hot_water_power` | Binary Sensor | Status if boiler is currently heating water. |
 | `binary_sensor.hot_water_overlay` | Binary Sensor | Status if a manual override is active. |
 | `switch.early_start` | Switch | **Cloud Only:** Toggle pre-heating before schedule. |
@@ -531,22 +542,31 @@ Hardware-specific entities. *These entities are **injected** into your existing 
 
 <br>
 
-For advanced automation, use these services:
+For advanced automation, use these services. All manual control services feature **Pre-Validation**: Invalid combinations (e.g. `auto` + temperature) are blocked immediately with a clear error message in the Home Assistant UI.
 
 | Service | Description | API Impact |
 | :--- | :--- | :--- |
 | `tado_hijack.turn_off_all_zones` | Turn off all zones instantly. | **1 call** (bulk) |
 | `tado_hijack.boost_all_zones` | Boost every zone to 25°C. | **1 call** (bulk) |
 | `tado_hijack.resume_all_schedules` | Restore Smart Schedule across all zones. | **1 call** (bulk) |
-| `tado_hijack.set_mode` | Set power, temperature, and termination mode. Supports `manual`, `next_block`, or `presence`. | **1 call** (batched) |
-| `tado_hijack.set_mode_all_zones` | Targets all HEATING and/or AC zones at once. Efficiently batches everything into a single API call. | **1 call** (bulk) |
-| `tado_hijack.set_water_heater_mode` | Set operation mode and temperature for hot water. | **1 call** |
-| `tado_hijack.manual_poll` | Force immediate data refresh. Use `refresh_type` to control scope. | **2-N** (depends on type) |
+| `tado_hijack.set_mode` | Set mode, temperature, and termination. Supports `hvac_mode` (auto, heat, off) and `overlay` (manual, next_block, presence). | **1 call** (batched) |
+| `tado_hijack.set_mode_all_zones` | Targets all HEATING and/or AC zones at once using `hvac_mode`. | **1 call** (bulk) |
+| `tado_hijack.set_water_heater_mode` | Set `operation_mode` and temperature for hot water. | **1 call** |
+| `tado_hijack.manual_poll` | Force immediate data refresh. Use `refresh_type` to control scope. | **2-N** (depends) |
 
 <br>
 
 > [!TIP]
-> **Targeting Rooms:** You can use **any** entity that belongs to a room as the `entity_id`. This includes Tado Hijack switches or even your existing **HomeKit climate** entities (e.g. `climate.living_room`). The service will automatically resolve the correct Tado zone.
+> **Intelligent Post-Action Polling (`refresh_after`):**
+> When active, the integration uses a smart decision engine to save API quota:
+> - **Immediate Refresh:** Triggered for `auto` (Resume Schedule) or permanent manual changes. Since the target state is reached immediately, an instant GET request confirms the cloud synchronization.
+> - **Intelligently Deferred:** For timed modes (`duration`), the refresh is **deferred** until the timer actually expires. Polling immediately during a timer is wasteful; we wait for the "expiry event" to fetch the new post-timer state.
+> - **Event-Aware:** For `next_block` or `presence` overlays, immediate polling is suppressed as the cloud state transition depends on external time/events.
+
+<br>
+
+> [!TIP]
+> **Targeting Rooms:** You can use **any** entity that belongs to a room as the `entity_id`. This includes Tado Hijack switches or even your existing **HomeKit climate** entities (e.g. `climate.living_room`).
 
 <br>
 
@@ -560,6 +580,7 @@ service: tado_hijack.set_water_heater_mode
 data:
   entity_id: water_heater.hot_water
   operation_mode: "heat"
+  temperature: 55
   duration: 30
 ```
 
@@ -570,8 +591,9 @@ data:
 service: tado_hijack.set_mode
 data:
   entity_id: climate.bathroom
-  duration: 15
+  hvac_mode: "heat"
   temperature: 24
+  duration: 15
 ```
 
 <br>
@@ -581,19 +603,20 @@ data:
 service: tado_hijack.set_mode
 data:
   entity_id: climate.living_room
-  overlay: "manual"  # Indefinite until manual change or schedule resume
+  hvac_mode: "heat"
   temperature: 21
+  overlay: "manual"
 ```
 
 <br>
 
-**Until Presence Changes (Indefinite until Home/Away change):**
+**Resume Schedule (Auto):**
 ```yaml
 service: tado_hijack.set_mode
 data:
-  entity_id: climate.living_room
-  overlay: "presence"  # Indefinite until manual change or presence change
-  temperature: 22
+  entity_id: climate.kitchen
+  hvac_mode: "auto"
+  refresh_after: true
 ```
 
 <br>
@@ -603,8 +626,9 @@ data:
 service: tado_hijack.set_mode
 data:
   entity_id: climate.kitchen
-  overlay: "next_block"  # Returns to schedule at next time block
+  hvac_mode: "heat"
   temperature: 22
+  overlay: "next_block"
 ```
 
 <br>

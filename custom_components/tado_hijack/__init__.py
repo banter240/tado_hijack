@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, cast
 from homeassistant.const import CONF_SCAN_INTERVAL, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
-from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from tadoasync import TadoAuthenticationError
 
@@ -17,8 +16,10 @@ from .const import (
     CONF_DEBUG_LOGGING,
     CONF_PRESENCE_POLL_INTERVAL,
     CONF_REFRESH_TOKEN,
+    CONF_SLOW_POLL_INTERVAL,
     DEFAULT_PRESENCE_POLL_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
+    DEFAULT_SLOW_POLL_INTERVAL,
 )
 from .coordinator import TadoDataUpdateCoordinator
 from .helpers.client import TadoHijackClient
@@ -81,6 +82,8 @@ async def async_migrate_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bo
     if entry.version == 4:
         # Migration to version 5 (Cleanup of legacy hot water entities)
         _LOGGER.info("Migrating to version 5: Cleaning up legacy hot water entities")
+        from homeassistant.helpers import entity_registry as er
+
         ent_reg = er.async_get(hass)
         entries = er.async_entries_for_config_entry(ent_reg, entry.entry_id)
         for entity in entries:
@@ -94,6 +97,16 @@ async def async_migrate_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bo
                 ent_reg.async_remove(entity.entity_id)
 
         hass.config_entries.async_update_entry(entry, version=5)
+
+    if entry.version < 6:
+        # Migration to version 6 (Reset intervals to defaults to fix unit confusion)
+        # sourcery skip: merge-dict-assign
+        _LOGGER.info("Migrating to version 6: Resetting intervals to defaults")
+        new_data = {**entry.data}
+        new_data[CONF_SCAN_INTERVAL] = DEFAULT_SCAN_INTERVAL
+        new_data[CONF_PRESENCE_POLL_INTERVAL] = DEFAULT_PRESENCE_POLL_INTERVAL
+        new_data[CONF_SLOW_POLL_INTERVAL] = DEFAULT_SLOW_POLL_INTERVAL  # Default 24h
+        hass.config_entries.async_update_entry(entry, data=new_data, version=6)
 
     _LOGGER.info("Migration to version %s successful", entry.version)
     return True

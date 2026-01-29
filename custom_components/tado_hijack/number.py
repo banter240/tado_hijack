@@ -19,12 +19,15 @@ from .const import (
     TEMP_MAX_HOT_WATER_OVERRIDE,
     TEMP_MIN_AC,
     TEMP_MIN_HOT_WATER,
+    ZONE_TYPE_AIR_CONDITIONING,
+    ZONE_TYPE_HEATING,
 )
 from .entity import (
     TadoDeviceEntity,
     TadoOptimisticMixin,
     TadoZoneEntity,
 )
+from .helpers.discovery import yield_devices, yield_zones
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -40,49 +43,35 @@ async def async_setup_entry(
 ) -> None:
     """Set up the Tado number platform."""
     coordinator: TadoDataUpdateCoordinator = entry.runtime_data
-
-    entities: list[NumberEntity] = []
-    seen_offset_devices: set[str] = set()
-
-    for zone in coordinator.zones_meta.values():
-        # Temperature Offset per Device
-        if zone.type == "HEATING":
-            for device in zone.devices:
-                if CAPABILITY_INSIDE_TEMP not in (
-                    device.characteristics.capabilities or []
-                ):
-                    continue
-                # Skip devices we've already processed (can appear in multiple zones)
-                if device.serial_no in seen_offset_devices:
-                    continue
-                seen_offset_devices.add(device.serial_no)
-                entities.append(
-                    TadoNumberEntity(
-                        coordinator,
-                        device.serial_no,
-                        device.short_serial_no,
-                        device.device_type,
-                        zone.id,
-                        device.current_fw_version,
-                    )
-                )
-
-        # Target Temperature per Zone (AC only)
-        # Hot water excluded - uses WaterHeaterEntity temperature control instead
-        if zone.type == "AIR_CONDITIONING":
+    entities: list[NumberEntity] = [
+        TadoNumberEntity(
+            coordinator,
+            device.serial_no,
+            device.short_serial_no,
+            device.device_type,
+            zone_id,
+            device.current_fw_version,
+        )
+        for device, zone_id in yield_devices(
+            coordinator, {ZONE_TYPE_HEATING}, CAPABILITY_INSIDE_TEMP
+        )
+    ]
+    # Zone Level Numbers
+    for zone in yield_zones(
+        coordinator, {ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING}
+    ):
+        if zone.type == ZONE_TYPE_AIR_CONDITIONING:
             entities.append(
                 TadoTargetTempNumberEntity(coordinator, zone.id, zone.name, zone.type)
             )
-
-        # Away Temperature per Zone (Heating only)
-        if zone.type == "HEATING":
+        elif zone.type == ZONE_TYPE_HEATING:
             entities.append(TadoAwayTempNumberEntity(coordinator, zone.id, zone.name))
 
     if entities:
         async_add_entities(entities)
 
 
-class TadoOptimisticNumber(RestoreEntity, NumberEntity):
+class TadoOptimisticNumber(TadoOptimisticMixin, RestoreEntity, NumberEntity):
     """Base class for optimistic numbers with restore support."""
 
     _restored_value: float | None = None
@@ -98,22 +87,16 @@ class TadoOptimisticNumber(RestoreEntity, NumberEntity):
     @property
     def native_value(self) -> float | None:
         """Return the current value (optimistic > actual > restored)."""
-        if (opt := self._get_optimistic_value()) is not None:
-            return float(opt)
-
-        if (actual := self._get_actual_value()) is not None:
-            return float(actual)
+        if (val := self._resolve_state()) is not None:
+            return float(val)
 
         return self._restored_value
-
-    def _get_optimistic_value(self) -> float | None:
-        raise NotImplementedError
 
     def _get_actual_value(self) -> float | None:
         raise NotImplementedError
 
 
-class TadoNumberEntity(TadoDeviceEntity, TadoOptimisticMixin, TadoOptimisticNumber):
+class TadoNumberEntity(TadoDeviceEntity, TadoOptimisticNumber):
     """Representation of a Tado temperature offset number."""
 
     _attr_has_entity_name = True
@@ -123,6 +106,8 @@ class TadoNumberEntity(TadoDeviceEntity, TadoOptimisticMixin, TadoOptimisticNumb
     _attr_native_step = 0.1
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
     _attr_mode = NumberMode.BOX
+    _attr_optimistic_key = "offset"
+    _attr_optimistic_scope = "device"
 
     def __init__(
         self,
@@ -154,10 +139,6 @@ class TadoNumberEntity(TadoDeviceEntity, TadoOptimisticMixin, TadoOptimisticNumb
         )
         self._attr_unique_id = f"{serial_no}_temperature_offset"
 
-    def _get_optimistic_value(self) -> float | None:
-        val = self.coordinator.optimistic.get_offset(self._serial_no)
-        return float(val) if val is not None else None
-
     def _get_actual_value(self) -> float | None:
         offset = self.coordinator.data.offsets.get(self._serial_no)
         return float(offset.celsius) if offset is not None else None
@@ -167,9 +148,7 @@ class TadoNumberEntity(TadoDeviceEntity, TadoOptimisticMixin, TadoOptimisticNumb
         await self.coordinator.async_set_temperature_offset(self._serial_no, value)
 
 
-class TadoAwayTempNumberEntity(
-    TadoZoneEntity, TadoOptimisticMixin, TadoOptimisticNumber
-):
+class TadoAwayTempNumberEntity(TadoZoneEntity, TadoOptimisticNumber):
     """Representation of a Tado Away Temperature number."""
 
     _attr_has_entity_name = True
@@ -179,6 +158,8 @@ class TadoAwayTempNumberEntity(
     _attr_native_step = 0.1
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
     _attr_mode = NumberMode.BOX
+    _attr_optimistic_key = "away_temp"
+    _attr_optimistic_scope = "zone"
 
     def __init__(
         self,
@@ -199,10 +180,6 @@ class TadoAwayTempNumberEntity(
         )
         self._attr_unique_id = f"zone_{zone_id}_away_temperature"
 
-    def _get_optimistic_value(self) -> float | None:
-        val = self.coordinator.optimistic.get_away_temp(self._zone_id)
-        return float(val) if val is not None else None
-
     def _get_actual_value(self) -> float | None:
         val = self.coordinator.data.away_config.get(self._zone_id)
         return float(val) if val is not None else None
@@ -212,9 +189,7 @@ class TadoAwayTempNumberEntity(
         await self.coordinator.async_set_away_temperature(self._zone_id, value)
 
 
-class TadoTargetTempNumberEntity(
-    TadoZoneEntity, TadoOptimisticMixin, TadoOptimisticNumber
-):
+class TadoTargetTempNumberEntity(TadoZoneEntity, TadoOptimisticNumber):
     """Representation of a Tado Target Temperature number (AC/HW)."""
 
     _attr_has_entity_name = True
@@ -262,9 +237,6 @@ class TadoTargetTempNumberEntity(
                 )
                 self._attr_native_step = float(capabilities.temperatures.celsius.step)
                 self.async_write_ha_state()
-
-    def _get_optimistic_value(self) -> float | None:
-        return None
 
     def _get_actual_value(self) -> float | None:
         state = self.coordinator.data.zone_states.get(str(self._zone_id))

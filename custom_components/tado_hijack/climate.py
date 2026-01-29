@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from .climate_entity import TadoAirConditioning
 from .const import ZONE_TYPE_AIR_CONDITIONING
+from .helpers.discovery import yield_zones
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -26,8 +27,7 @@ async def async_setup_entry(
     # Hot water uses WaterHeaterEntity (water_heater.py), not ClimateEntity
     entities: list[TadoAirConditioning] = [
         TadoAirConditioning(coordinator, zone.id, zone.name)
-        for zone in coordinator.zones_meta.values()
-        if zone.type == ZONE_TYPE_AIR_CONDITIONING
+        for zone in yield_zones(coordinator, {ZONE_TYPE_AIR_CONDITIONING})
     ]
 
     async_add_entities(entities)

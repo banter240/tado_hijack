@@ -3,29 +3,16 @@
 from __future__ import annotations
 
 import asyncio
-import copy
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, cast
 
 from homeassistant.core import (
-    CALLBACK_TYPE,
-    Event,
     HomeAssistant,
-    callback,
 )
 
-from homeassistant.components.climate import (
-    SERVICE_SET_HVAC_MODE,
-    SERVICE_SET_TEMPERATURE,
-)
-from homeassistant.const import (
-    ATTR_ENTITY_ID,
-    EVENT_CALL_SERVICE,
-)
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 from tadoasync import Tado, TadoError
-from tadoasync.models import Overlay, Temperature, Termination
 
 if TYPE_CHECKING:
     from tadoasync.models import Device, Zone
@@ -33,8 +20,6 @@ if TYPE_CHECKING:
     from .helpers.client import TadoHijackClient
 
 from .const import (
-    API_RESET_BUFFER_MINUTES,
-    API_RESET_HOUR,
     BOOST_MODE_TEMP,
     CONF_API_PROXY_URL,
     CONF_AUTO_API_QUOTA_PERCENT,
@@ -66,18 +51,9 @@ from .const import (
     MIN_AUTO_QUOTA_INTERVAL_S,
     MIN_PROXY_INTERVAL_S,
     OVERLAY_NEXT_BLOCK,
-    OVERLAY_PRESENCE,
-    OVERLAY_TIMER,
     POWER_OFF,
     POWER_ON,
     SECONDS_PER_HOUR,
-    TEMP_MAX_AC,
-    TEMP_MAX_HEATING,
-    TEMP_MAX_HOT_WATER,
-    TERMINATION_MANUAL,
-    TERMINATION_NEXT_TIME_BLOCK,
-    TERMINATION_TADO_MODE,
-    TERMINATION_TIMER,
     ZONE_TYPE_AIR_CONDITIONING,
     ZONE_TYPE_HEATING,
     ZONE_TYPE_HOT_WATER,
@@ -86,10 +62,21 @@ from .helpers.api_manager import TadoApiManager
 from .helpers.auth_manager import AuthManager
 from .helpers.data_manager import TadoDataManager
 from .helpers.device_linker import get_climate_entity_id
+from .helpers.entity_resolver import EntityResolver
+from .helpers.event_handlers import TadoEventHandler
 from .helpers.logging_utils import get_redacted_logger
 from .helpers.optimistic_manager import OptimisticManager
+from .helpers.overlay_builder import build_overlay_data, get_capped_temperature
 from .helpers.patch import get_handler
+from .helpers.property_manager import PropertyManager
+from .helpers.quota_math import (
+    calculate_remaining_polling_budget,
+    calculate_weighted_interval,
+    get_next_reset_time,
+    get_seconds_until_reset,
+)
 from .helpers.rate_limit_manager import RateLimitManager
+from .helpers.state_patcher import patch_zone_overlay, patch_zone_resume
 from .helpers.utils import apply_jitter
 from .models import CommandType, RateLimit, TadoCommand, TadoData
 
@@ -145,6 +132,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
 
         self.rate_limit = RateLimitManager(throttle_threshold, get_handler())
         self.auth_manager = AuthManager(hass, entry, client)
+        self.property_manager = PropertyManager(self)
 
         slow_poll_s = entry.data.get(
             CONF_SLOW_POLL_INTERVAL, DEFAULT_SLOW_POLL_INTERVAL
@@ -160,77 +148,23 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         )
         self.api_manager = TadoApiManager(hass, self, self._debounce_time)
         self.optimistic = OptimisticManager()
-
-        # Cache for resolving entity IDs to zone IDs to avoid repeated registry scans
-        self._entity_id_cache: dict[str, int] = {}
+        self.entity_resolver = EntityResolver(self)
+        self.event_handler = TadoEventHandler(self)
 
         self.zones_meta: dict[int, Zone] = {}
         self.devices_meta: dict[str, Device] = {}
         self.bridges: list[Device] = []
         self._climate_to_zone: dict[str, int] = {}
-        self._unsub_listener: CALLBACK_TYPE | None = None
         self._polling_calls_today = 0
         self._last_quota_reset: datetime | None = None
         self._reset_poll_unsub: asyncio.TimerHandle | None = None  # gitleaks:allow
-        self._resume_refresh_timer: asyncio.TimerHandle | None = None
+        self._post_action_poll_timer: asyncio.TimerHandle | None = None
+        self._expiry_timers: set[asyncio.TimerHandle] = set()
         self._force_next_update: bool = False
 
         self.api_manager.start(entry)
-        self._setup_event_listener()
+        self.event_handler.setup()
         self._schedule_reset_poll()
-
-    def _setup_event_listener(self) -> None:
-        """Listen for climate service calls to trigger optimistic updates."""
-
-        @callback
-        def _handle_service_call(event: Event) -> None:
-            data = event.data
-            domain = data.get("domain")
-            service = data.get("service")
-
-            if domain != "climate" or service not in (
-                SERVICE_SET_TEMPERATURE,
-                SERVICE_SET_HVAC_MODE,
-            ):
-                return
-
-            # service_data contains entity_id which can be a list or string
-            service_data = data.get("service_data", {})
-            entity_ids = service_data.get(ATTR_ENTITY_ID)
-
-            if not entity_ids:
-                return
-
-            if isinstance(entity_ids, str):
-                entity_ids = [entity_ids]
-
-            # Check if this is AUTO mode (resume schedule)
-            hvac_mode = service_data.get("hvac_mode")
-            is_auto_mode = hvac_mode == "auto"
-
-            for eid in entity_ids:
-                if (zone_id := self._climate_to_zone.get(eid)) is not None:
-                    if is_auto_mode:
-                        # AUTO mode = Resume Schedule
-                        _LOGGER.debug(
-                            "Intercepted AUTO mode on HomeKit climate %s. Resuming schedule for zone %d.",
-                            eid,
-                            zone_id,
-                        )
-                        self.hass.async_create_task(self.async_set_zone_auto(zone_id))
-                    else:
-                        # Normal temp change or other HVAC mode = Manual override
-                        _LOGGER.debug(
-                            "Intercepted climate change on %s. Setting optimistic MANUAL for zone %d.",
-                            eid,
-                            zone_id,
-                        )
-                        self.optimistic.set_zone(zone_id, True)
-                        self.async_update_listeners()
-
-        self._unsub_listener = self.hass.bus.async_listen(
-            EVENT_CALL_SERVICE, _handle_service_call
-        )
 
     def _update_climate_map(self) -> None:
         """Map HomeKit climate entities to Tado zones."""
@@ -248,103 +182,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
 
     def get_zone_id_from_entity(self, entity_id: str) -> int | None:
         """Resolve a Tado zone ID from any entity ID (HomeKit or Hijack)."""
-        if entity_id in self._entity_id_cache:
-            return self._entity_id_cache[entity_id]
-
-        if (zone_id := self._climate_to_zone.get(entity_id)) is not None:
-            self._entity_id_cache[entity_id] = zone_id
-            return zone_id
-
-        from homeassistant.helpers import entity_registry as er
-
-        ent_reg = er.async_get(self.hass)
-        if entry := ent_reg.async_get(entity_id):
-            if (
-                zone_id := self._parse_zone_id_from_unique_id(entry.unique_id)
-            ) is not None:
-                self._entity_id_cache[entity_id] = zone_id
-                return zone_id
-
-        _LOGGER.debug("Starting deep entity registry scan for %s", entity_id)
-        target_name = entity_id.split(".", 1)[-1]
-        target_base = self._get_entity_base_name(target_name)
-
-        for entity_entry in er.async_entries_for_config_entry(
-            ent_reg, self.config_entry.entry_id
-        ):
-            if (
-                zid := self._parse_zone_id_from_unique_id(entity_entry.unique_id)
-            ) is not None:
-                self._entity_id_cache[entity_entry.entity_id] = zid
-                entry_name = entity_entry.entity_id.split(".", 1)[-1]
-                if entry_base := self._get_entity_base_name(entry_name):
-                    self._entity_id_cache[f"{entity_entry.domain}.{entry_base}"] = zid
-
-        if entity_id in self._entity_id_cache:
-            return self._entity_id_cache[entity_id]
-
-        if target_base:
-            for domain in ["water_heater", "climate", "switch", "sensor"]:
-                if (
-                    zid := self._entity_id_cache.get(f"{domain}.{target_base}")
-                ) is not None:
-                    self._entity_id_cache[entity_id] = zid
-                    return zid
-        return None
-
-    @staticmethod
-    def _get_entity_base_name(entity_name: str | None) -> str | None:
-        """Normalize an entity name by stripping numeric suffixes.
-
-        Example: hot_water_2 -> hot_water
-        """
-        if not entity_name:
-            return None
-        if entity_name[-1].isdigit() and "_" in entity_name:
-            return entity_name.rsplit("_", 1)[0]
-        return entity_name
-
-    def _parse_zone_id_from_unique_id(self, unique_id: str) -> int | None:
-        """Extract zone ID from unique_id with support for multiple formats.
-
-        Supported formats:
-        - {entry_id}_hw_{zone_id}           (legacy hot water switch)
-        - {entry_id}_water_heater_{zone_id} (water heater entity)
-        - {entry_id}_sch_{zone_id}          (schedule switch)
-        - {entry_id}_.._{zone_id}           (any suffix ending in zone_id)
-        - zone_{zone_id}_...                (zone entities like target_temp)
-        """
-        try:
-            parts = unique_id.split("_")
-
-            # Pattern 1: Ends with zone_id (e.g., entry_hw_5, entry_sch_5)
-            if parts[-1].isdigit():
-                return int(parts[-1])
-
-            # Pattern 2: zone_{id}_suffix (e.g., zone_5_target_temp)
-            # Find "zone" and check if next part is the zone_id
-            for i, part in enumerate(parts):
-                if part == "zone" and i + 1 < len(parts) and parts[i + 1].isdigit():
-                    return int(parts[i + 1])
-
-        except (ValueError, IndexError, AttributeError):
-            pass
-        return None
-
-    def _is_zone_disabled(self, zone_id: int) -> bool:
-        """Check if the zone control is disabled by user."""
-        if not self.config_entry:
-            return False
-
-        from homeassistant.helpers import entity_registry as er
-
-        ent_reg = er.async_get(self.hass)
-        unique_id = f"{self.config_entry.entry_id}_sch_{zone_id}"
-        if entity_id := ent_reg.async_get_entity_id("switch", DOMAIN, unique_id):
-            entry = ent_reg.async_get(entity_id)
-            if entry and entry.disabled:
-                return True
-        return False
+        return self.entity_resolver.get_zone_id(entity_id)
 
     def get_active_zones(
         self,
@@ -360,7 +198,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
                 (ztype == ZONE_TYPE_HEATING and include_heating)
                 or (ztype == ZONE_TYPE_AIR_CONDITIONING and include_ac)
                 or (ztype == ZONE_TYPE_HOT_WATER and include_hot_water)
-            ) and not self._is_zone_disabled(zid):
+            ) and not self.entity_resolver.is_zone_disabled(zid):
                 zone_ids.append(zid)
         return zone_ids
 
@@ -433,61 +271,12 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         except TadoError as err:
             raise UpdateFailed(f"Tado API error: {err}") from err
 
-    def _get_next_reset_time(self) -> datetime:
-        """Get the next API quota reset time (12:01 AM Berlin)."""
-        berlin_tz = dt_util.get_time_zone("Europe/Berlin")
-        now_berlin = dt_util.now().astimezone(berlin_tz)
-
-        # Reset happens at 12:01 Berlin (CET/CEST)
-        reset_berlin = now_berlin.replace(
-            hour=API_RESET_HOUR,
-            minute=API_RESET_BUFFER_MINUTES,
-            second=0,
-            microsecond=0,
-        )
-
-        if reset_berlin <= now_berlin:
-            reset_berlin += timedelta(days=1)
-
-        return cast(datetime, reset_berlin)
-
-    def _get_seconds_until_reset(self) -> int:
-        """Get seconds until next API quota reset."""
-        reset_time = self._get_next_reset_time()
-        return int((reset_time - dt_util.now()).total_seconds())
-
-    def _get_remaining_polling_budget(self, seconds_until_reset: int) -> float:
-        """Calculate the remaining API budget for the rest of the day."""
-        limit = self.rate_limit.limit
-        remaining = self.rate_limit.remaining
-
-        # 1. Calculate background reserves (Hardware Sync, Presence, Offsets)
-        background_cost_24h, _ = self.data_manager.estimate_daily_reserved_cost()
-        seconds_per_day = 24 * 3600
-        progress_done = (seconds_per_day - seconds_until_reset) / seconds_per_day
-        progress_remaining = seconds_until_reset / seconds_per_day
-
-        # 2. Calculate user activity vs threshold (to protect the buffer)
-        expected_background_so_far = background_cost_24h * progress_done
-        actual_used_total = max(0, limit - remaining)
-        user_calls_so_far = max(0, actual_used_total - expected_background_so_far)
-
-        # Everything used beyond the threshold is "excess" and reduces our daily pool
-        user_excess = max(0, user_calls_so_far - self.rate_limit.throttle_threshold)
-
-        # 3. Calculate final available budget for the remaining day
-        available_for_day = max(0, limit - background_cost_24h - user_excess)
-        total_auto_quota_budget = (
-            available_for_day * self._auto_api_quota_percent / 100.0
-        )
-        return max(0.0, total_auto_quota_budget * progress_remaining)
-
     def _calculate_auto_quota_interval(self) -> int | None:
         """Calculate optimal polling interval based on quota settings and reduced window."""
         if self.rate_limit.limit <= 0:
             return None
 
-        seconds_until_reset = self._get_seconds_until_reset()
+        seconds_until_reset = get_seconds_until_reset()
 
         # 1. Throttling (Highest Priority)
         if self.rate_limit.is_throttled:
@@ -506,15 +295,13 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             if conf and self._is_in_reduced_window(now, conf):
                 reduced_interval = conf["interval"]
                 if reduced_interval == 0:
-                    # Handle pause logic
                     test_dt = now + timedelta(minutes=1)
-                    next_reset = self._get_next_reset_time()
-                    # Safe loop to find end of window
+                    next_reset = get_next_reset_time()
                     while (
                         self._is_in_reduced_window(test_dt, conf)
                         and test_dt < next_reset
                     ):
-                        test_dt += timedelta(minutes=15)  # Faster stepping
+                        test_dt += timedelta(minutes=15)
                     diff = int((test_dt - now).total_seconds())
                     _LOGGER.debug("In 0-polling window. Sleeping for %ds.", diff)
                     return max(MIN_AUTO_QUOTA_INTERVAL_S, diff)
@@ -534,7 +321,15 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             else MIN_AUTO_QUOTA_INTERVAL_S
         )
 
-        remaining_budget = self._get_remaining_polling_budget(seconds_until_reset)
+        background_cost_24h, _ = self.data_manager.estimate_daily_reserved_cost()
+        remaining_budget = calculate_remaining_polling_budget(
+            limit=self.rate_limit.limit,
+            remaining=self.rate_limit.remaining,
+            background_cost_24h=background_cost_24h,
+            throttle_threshold=self.rate_limit.throttle_threshold,
+            auto_quota_percent=self._auto_api_quota_percent,
+            seconds_until_reset=seconds_until_reset,
+        )
 
         if remaining_budget <= 0:
             return (
@@ -551,66 +346,16 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             adaptive_interval = seconds_until_reset / remaining_polls
             return int(max(min_floor, min(SECONDS_PER_HOUR, adaptive_interval)))
 
-        now = dt_util.now()
-        next_reset = self._get_next_reset_time()
-        return self._calculate_weighted_interval(
-            now, next_reset, remaining_budget, min_floor
-        )
-
-    def _calculate_weighted_interval(
-        self,
-        now: datetime,
-        next_reset: datetime,
-        remaining_budget: float,
-        min_floor: int,
-    ) -> int:
-        """Calculate weighted interval for performance hours (reinvesting savings)."""
-        try:
-            conf = self._get_reduced_window_config()
-            if not conf:
-                return SECONDS_PER_HOUR
-
-            # Calculate total normal and reduced seconds until next reset
-            normal_seconds = 0
-            reduced_seconds = 0
-            test_dt = now
-            while test_dt < next_reset:
-                # Ensure chunk is at least the floor to prevent infinite loops
-                chunk = max(
-                    MIN_AUTO_QUOTA_INTERVAL_S,
-                    min(3600, int((next_reset - test_dt).total_seconds())),
-                )
-                if self._is_in_reduced_window(test_dt, conf):
-                    reduced_seconds += chunk
-                else:
-                    normal_seconds += chunk
-                test_dt += timedelta(seconds=chunk)
-
-            predicted_cost = self.data_manager._measure_zones_poll_cost()
-            reduced_interval = conf["interval"]
-
-            if reduced_interval == 0:
-                reduced_budget_cost = 0.0
-            else:
-                reduced_polls_needed = reduced_seconds / reduced_interval
-                reduced_budget_cost = reduced_polls_needed * predicted_cost
-
-            # All remaining budget goes to performance (normal) hours
-            normal_budget = max(0, remaining_budget - reduced_budget_cost)
-
-            if normal_budget > 0:
-                normal_polls = normal_budget / predicted_cost
-                if normal_polls > 0:
-                    adaptive_interval = normal_seconds / normal_polls
-                    # Cap at reduced_interval to ensure night is always slower or equal
-                    cap = reduced_interval if reduced_interval > 0 else SECONDS_PER_HOUR
-                    return int(max(min_floor, min(cap, adaptive_interval)))
-
+        if conf := self._get_reduced_window_config():
+            return calculate_weighted_interval(
+                remaining_budget=remaining_budget,
+                predicted_poll_cost=self.data_manager._measure_zones_poll_cost(),
+                is_in_reduced_window_func=self._is_in_reduced_window,
+                reduced_window_conf=conf,
+                min_floor=min_floor,
+            )
+        else:
             return SECONDS_PER_HOUR
-
-        except Exception as e:
-            _LOGGER.error("Error in weighted polling calculation: %s", e)
-            return int(max(min_floor, SECONDS_PER_HOUR))
 
     def _adjust_interval_for_auto_quota(self) -> None:
         """Adjust update interval based on auto API quota percentage."""
@@ -641,14 +386,14 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         if self._auto_api_quota_percent <= 0:
             return
 
-        next_reset = self._get_next_reset_time()
+        next_reset = get_next_reset_time()
         now = dt_util.now()
         delay = (next_reset - now).total_seconds()
 
         _LOGGER.debug(
             "Quota: Scheduling reset poll at %s (in %.1f hours)",
             next_reset.strftime("%Y-%m-%d %H:%M:%S %Z"),
-            delay / 3600,
+            delay / SECONDS_PER_HOUR,
         )
 
         if self._reset_poll_unsub:
@@ -668,19 +413,48 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
 
         self._schedule_reset_poll()
 
+    def _schedule_expiry_poll(self, delay_s: int) -> None:
+        """Schedule a poll to run when a timer expires."""
+        _LOGGER.debug("Scheduling expiry poll in %d seconds (plus buffer)", delay_s)
+        handle = self.hass.loop.call_later(delay_s + 2, self._execute_expiry_poll)
+        self._expiry_timers.add(handle)
+
+    def _execute_expiry_poll(self) -> None:
+        """Execute the delayed expiry poll."""
+        self._expiry_timers = {h for h in self._expiry_timers if not h.cancelled()}
+        _LOGGER.debug("Timer expired: Triggering post-action poll")
+        self.hass.async_create_task(self.async_manual_poll("zone", silent=True))
+
+    def _schedule_queued_refresh(self) -> None:
+        """Schedule a refresh after an action with grace period to collect stragglers."""
+        if self._post_action_poll_timer is not None:
+            self._post_action_poll_timer.cancel()
+
+        self._post_action_poll_timer = self.hass.loop.call_later(
+            RESUME_REFRESH_DELAY_S, self._execute_queued_refresh
+        )
+
+    def _execute_queued_refresh(self) -> None:
+        """Execute the queued refresh."""
+        self._post_action_poll_timer = None
+        _LOGGER.debug("Grace period expired: Triggering post-action poll")
+        self.hass.async_create_task(self.async_manual_poll("zone", silent=True))
+
     def shutdown(self) -> None:
         """Cleanup listeners and tasks."""
-        if self._unsub_listener:
-            self._unsub_listener()
-            self._unsub_listener = None
+        self.event_handler.shutdown()
 
         if self._reset_poll_unsub:
             self._reset_poll_unsub.cancel()
             self._reset_poll_unsub = None
 
-        if self._resume_refresh_timer:
-            self._resume_refresh_timer.cancel()
-            self._resume_refresh_timer = None
+        if self._post_action_poll_timer:
+            self._post_action_poll_timer.cancel()
+            self._post_action_poll_timer = None
+
+        for handle in self._expiry_timers:
+            handle.cancel()
+        self._expiry_timers.clear()
 
         self.api_manager.shutdown()
 
@@ -689,9 +463,15 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         self.data_manager.invalidate_cache(refresh_type)
         await self.async_refresh()
 
-    async def async_manual_poll(self, refresh_type: str = "all") -> None:
+    async def async_manual_poll(
+        self, refresh_type: str = "all", silent: bool = False
+    ) -> None:
         """Trigger a manual poll (debounced)."""
-        _LOGGER.info("Queued manual poll (type: %s)", refresh_type)
+        if not silent:
+            _LOGGER.info("Queued manual poll (type: %s)", refresh_type)
+        else:
+            _LOGGER.debug("Queued silent manual poll (type: %s)", refresh_type)
+
         self.api_manager.queue_command(
             f"manual_poll_{refresh_type}",
             TadoCommand(CommandType.MANUAL_POLL, data={"type": refresh_type}),
@@ -724,10 +504,11 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         temperature: float | None = None,
         duration: int | None = None,
         overlay_mode: str | None = None,
+        refresh_after: bool = False,
     ) -> None:
         """Set HVAC mode for a zone with integrated type-specific logic (DRY)."""
         if hvac_mode == "auto":
-            await self.async_set_zone_auto(zone_id)
+            await self.async_set_zone_auto(zone_id, refresh_after=refresh_after)
             return
 
         power = POWER_OFF if hvac_mode == "off" else POWER_ON
@@ -745,11 +526,17 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             duration=duration,
             overlay_type=None,  # Auto-resolve
             overlay_mode=overlay_mode,
+            refresh_after=refresh_after,
         )
 
-    async def async_set_zone_auto(self, zone_id: int):
+    async def async_set_zone_auto(
+        self,
+        zone_id: int,
+        refresh_after: bool = False,
+        ignore_global_config: bool = False,
+    ):
         """Set zone to auto mode."""
-        old_state = self._patch_zone_resume(zone_id)
+        old_state = patch_zone_resume(self.data.zone_states.get(str(zone_id)))
 
         self.optimistic.set_zone(zone_id, False)
         self.async_update_listeners()
@@ -762,25 +549,8 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             ),
         )
 
-        if self._refresh_after_resume:
-            self._schedule_resume_refresh()
-
-    def _schedule_resume_refresh(self) -> None:
-        """Schedule a refresh after resume with grace period to collect stragglers."""
-        if self._resume_refresh_timer is not None:
-            self._resume_refresh_timer.cancel()
-
-        self._resume_refresh_timer = self.hass.loop.call_later(
-            RESUME_REFRESH_DELAY_S, self._execute_resume_refresh
-        )
-
-    def _execute_resume_refresh(self) -> None:
-        """Execute the resume refresh (called by timer)."""
-        self._resume_refresh_timer = None
-        self.api_manager.queue_command(
-            "refresh_after_resume",
-            TadoCommand(CommandType.MANUAL_POLL, data={"type": "zone"}),
-        )
+        if refresh_after or (self._refresh_after_resume and not ignore_global_config):
+            self._schedule_queued_refresh()
 
     async def async_set_zone_heat(self, zone_id: int, temp: float = 25.0):
         """Set zone to manual mode with temperature."""
@@ -798,7 +568,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             "termination": {"typeSkillBasedApp": "MANUAL"},
         }
 
-        old_state = self._patch_zone_local(zone_id, data)
+        old_state = patch_zone_overlay(self.data.zone_states.get(str(zone_id)), data)
 
         self.optimistic.set_zone(zone_id, True)
         self.async_update_listeners()
@@ -812,9 +582,14 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             ),
         )
 
-    async def async_set_hot_water_auto(self, zone_id: int):
+    async def async_set_hot_water_auto(
+        self,
+        zone_id: int,
+        refresh_after: bool = False,
+        ignore_global_config: bool = False,
+    ):
         """Set hot water zone to auto mode (resume schedule)."""
-        old_state = self._patch_zone_resume(zone_id)
+        old_state = patch_zone_resume(self.data.zone_states.get(str(zone_id)))
 
         self.optimistic.set_zone(zone_id, False, operation_mode="auto")
         self.async_update_listeners()
@@ -827,13 +602,16 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             ),
         )
 
-    async def async_set_hot_water_off(self, zone_id: int):
+        if refresh_after or (self._refresh_after_resume and not ignore_global_config):
+            self._schedule_queued_refresh()
+
+    async def async_set_hot_water_off(self, zone_id: int, refresh_after: bool = False):
         """Set hot water zone to off (manual overlay)."""
         data = {
             "setting": {"type": "HOT_WATER", "power": "OFF"},
             "termination": {"typeSkillBasedApp": "MANUAL"},
         }
-        old_state = self._patch_zone_local(zone_id, data)
+        old_state = patch_zone_overlay(self.data.zone_states.get(str(zone_id)), data)
 
         self.optimistic.set_zone(zone_id, True, operation_mode="off")
         self.async_update_listeners()
@@ -846,6 +624,9 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
                 rollback_context=old_state,
             ),
         )
+
+        if refresh_after:
+            self._schedule_queued_refresh()
 
     async def async_set_hot_water_heat(self, zone_id: int):
         """Set hot water zone to heat mode (manual overlay)."""
@@ -860,7 +641,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             "termination": {"typeSkillBasedApp": "MANUAL"},
         }
 
-        old_state = self._patch_zone_local(zone_id, data)
+        old_state = patch_zone_overlay(self.data.zone_states.get(str(zone_id)), data)
 
         self.optimistic.set_zone(zone_id, True, operation_mode="heat")
         self.async_update_listeners()
@@ -882,7 +663,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             "termination": {"typeSkillBasedApp": "MANUAL"},
         }
 
-        old_state = self._patch_zone_local(zone_id, data)
+        old_state = patch_zone_overlay(self.data.zone_states.get(str(zone_id)), data)
 
         self.optimistic.set_zone(zone_id, True, power="ON" if on else "OFF")
         self.async_update_listeners()
@@ -995,22 +776,63 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         else:
             self.update_interval = timedelta(seconds=new_interval_s)
 
+    async def _async_set_zone_property(
+        self,
+        zone_id: int,
+        cmd_type: CommandType,
+        data: dict[str, Any],
+        optimistic_func: Any,
+        optimistic_value: Any,
+        rollback_context: Any = None,
+    ) -> None:
+        """Set a zone property with optimistic state and queuing (Generic helper)."""
+        optimistic_func(zone_id, optimistic_value)
+        self.async_update_listeners()
+
+        self.api_manager.queue_command(
+            f"{cmd_type.value}_{zone_id}",
+            TadoCommand(
+                cmd_type,
+                zone_id=zone_id,
+                data=data,
+                rollback_context=rollback_context,
+            ),
+        )
+
+    async def _async_set_device_property(
+        self,
+        serial_no: str,
+        cmd_type: CommandType,
+        data: dict[str, Any],
+        optimistic_func: Any,
+        optimistic_value: Any,
+        rollback_context: Any = None,
+    ) -> None:
+        """Set a device property with optimistic state and queuing (Generic helper)."""
+        optimistic_func(serial_no, optimistic_value)
+        self.async_update_listeners()
+
+        self.api_manager.queue_command(
+            f"{cmd_type.value}_{serial_no}",
+            TadoCommand(
+                cmd_type,
+                data=data,
+                rollback_context=rollback_context,
+            ),
+        )
+
     async def async_set_child_lock(self, serial_no: str, enabled: bool) -> None:
         """Set child lock for a device."""
         old_val = None
         if device := self.devices_meta.get(serial_no):
             old_val = getattr(device, "child_lock_enabled", None)
-            device.child_lock_enabled = enabled
-
-        self.optimistic.set_child_lock(serial_no, enabled)
-        self.async_update_listeners()
-        self.api_manager.queue_command(
-            f"child_lock_{serial_no}",
-            TadoCommand(
-                CommandType.SET_CHILD_LOCK,
-                data={"serial": serial_no, "enabled": enabled},
-                rollback_context=old_val,
-            ),
+        await self.property_manager.async_set_device_property(
+            serial_no,
+            CommandType.SET_CHILD_LOCK,
+            {"serial": serial_no, "enabled": enabled},
+            self.optimistic.set_child_lock,
+            enabled,
+            rollback_context=old_val,
         )
 
     async def async_set_temperature_offset(self, serial_no: str, offset: float) -> None:
@@ -1024,15 +846,13 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             except Exception:
                 old_val = None
 
-        self.optimistic.set_offset(serial_no, offset)
-        self.async_update_listeners()
-        self.api_manager.queue_command(
-            f"offset_{serial_no}",
-            TadoCommand(
-                CommandType.SET_OFFSET,
-                data={"serial": serial_no, "offset": offset},
-                rollback_context=old_val,
-            ),
+        await self.property_manager.async_set_device_property(
+            serial_no,
+            CommandType.SET_OFFSET,
+            {"serial": serial_no, "offset": offset},
+            self.optimistic.set_offset,
+            offset,
+            rollback_context=old_val,
         )
 
     async def async_set_away_temperature(self, zone_id: int, temp: float) -> None:
@@ -1040,15 +860,13 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         old_val = self.data_manager.away_cache.get(zone_id)
         self.data_manager.away_cache[zone_id] = temp
 
-        self.optimistic.set_away_temp(zone_id, temp)
-        self.async_update_listeners()
-        self.api_manager.queue_command(
-            f"away_temp_{zone_id}",
-            TadoCommand(
-                CommandType.SET_AWAY_TEMP,
-                data={"zone_id": zone_id, "temp": temp},
-                rollback_context=old_val,
-            ),
+        await self.property_manager.async_set_zone_property(
+            zone_id,
+            CommandType.SET_AWAY_TEMP,
+            {"zone_id": zone_id, "temp": temp},
+            self.optimistic.set_away_temp,
+            temp,
+            rollback_context=old_val,
         )
 
     async def async_set_dazzle_mode(self, zone_id: int, enabled: bool) -> None:
@@ -1058,15 +876,13 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             old_val = getattr(zone, "dazzle_enabled", None)
             zone.dazzle_enabled = enabled
 
-        self.optimistic.set_dazzle(zone_id, enabled)
-        self.async_update_listeners()
-        self.api_manager.queue_command(
-            f"dazzle_{zone_id}",
-            TadoCommand(
-                CommandType.SET_DAZZLE,
-                data={"zone_id": zone_id, "enabled": enabled},
-                rollback_context=old_val,
-            ),
+        await self.property_manager.async_set_zone_property(
+            zone_id,
+            CommandType.SET_DAZZLE,
+            {"zone_id": zone_id, "enabled": enabled},
+            self.optimistic.set_dazzle,
+            enabled,
+            rollback_context=old_val,
         )
 
     async def async_set_early_start(self, zone_id: int, enabled: bool) -> None:
@@ -1077,15 +893,13 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             # tadoasync Zone model misses this field, so we set it dynamically
             setattr(zone, "early_start_enabled", enabled)
 
-        self.optimistic.set_early_start(zone_id, enabled)
-        self.async_update_listeners()
-        self.api_manager.queue_command(
-            f"early_start_{zone_id}",
-            TadoCommand(
-                CommandType.SET_EARLY_START,
-                data={"zone_id": zone_id, "enabled": enabled},
-                rollback_context=old_val,
-            ),
+        await self.property_manager.async_set_zone_property(
+            zone_id,
+            CommandType.SET_EARLY_START,
+            {"zone_id": zone_id, "enabled": enabled},
+            self.optimistic.set_early_start,
+            enabled,
+            rollback_context=old_val,
         )
 
     async def async_set_open_window_detection(
@@ -1098,15 +912,13 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
                 old_val = zone.open_window_detection.enabled
                 zone.open_window_detection.enabled = enabled
 
-        self.optimistic.set_open_window(zone_id, enabled)
-        self.async_update_listeners()
-        self.api_manager.queue_command(
-            f"open_window_{zone_id}",
-            TadoCommand(
-                CommandType.SET_OPEN_WINDOW,
-                data={"zone_id": zone_id, "enabled": enabled},
-                rollback_context=old_val,
-            ),
+        await self.property_manager.async_set_zone_property(
+            zone_id,
+            CommandType.SET_OPEN_WINDOW,
+            {"zone_id": zone_id, "enabled": enabled},
+            self.optimistic.set_open_window,
+            enabled,
+            rollback_context=old_val,
         )
 
     async def async_identify_device(self, serial_no: str) -> None:
@@ -1142,7 +954,8 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         }
 
         if key == "temperature":
-            setting["temperature"] = {"celsius": float(value)}
+            capped_temp = get_capped_temperature(zone_id, float(value), self.zones_meta)
+            setting["temperature"] = {"celsius": capped_temp}
         elif state.setting.temperature:
             setting["temperature"] = {"celsius": state.setting.temperature.celsius}
 
@@ -1166,7 +979,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             "termination": {"typeSkillBasedApp": "MANUAL"},
         }
 
-        old_state = self._patch_zone_local(zone_id, data)
+        old_state = patch_zone_overlay(self.data.zone_states.get(str(zone_id)), data)
 
         self.optimistic.set_zone(zone_id, True, power="ON")
         self.async_update_listeners()
@@ -1181,56 +994,28 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             ),
         )
 
-    def _patch_zone_local(self, zone_id: int, overlay_data: dict[str, Any]) -> Any:
-        """Patch local zone state and return old state for rollback."""
-        if not self.data or not self.data.zone_states:
-            return None
+    def _handle_overlay_side_effects(
+        self,
+        duration: int | None,
+        overlay_mode: str | None,
+        refresh_after: bool,
+    ) -> None:
+        """Handle side effects like expiry timers and automatic refreshes (DRY helper)."""
+        # 1. Schedule Expiry Poll for Timers (This is our long-term refresh)
+        if duration and duration > 0:
+            self._schedule_expiry_poll(duration * 60)
 
-        str_id = str(zone_id)
-        current = self.data.zone_states.get(str_id)
-        if not current:
-            return None
+        # 2. Trigger immediate Refresh ONLY if requested AND it's a permanent manual change
+        # Logic: If it has a duration, next_block or presence, we don't poll immediately
+        # because the cloud state is either known (timer) or unpredictable (next_block/presence).
+        is_timed_overlay = bool(
+            duration
+            or overlay_mode
+            in (OVERLAY_NEXT_BLOCK, "presence")  # Use string if const not imported
+        )
 
-        try:
-            old_state = copy.deepcopy(current)
-        except Exception as e:
-            _LOGGER.warning("Failed to copy state for zone %d: %s", zone_id, e)
-            return None
-
-        try:
-            sett_d = overlay_data.get("setting", {})
-            term_d = overlay_data.get("termination", {})
-
-            if current.setting:
-                if "power" in sett_d:
-                    current.setting.power = sett_d["power"]
-                if "temperature" in sett_d and "celsius" in sett_d["temperature"]:
-                    val = float(sett_d["temperature"]["celsius"])
-                    if current.setting.temperature:
-                        current.setting.temperature.celsius = val
-                    else:
-                        current.setting.temperature = Temperature(
-                            celsius=val, fahrenheit=0.0
-                        )
-
-            term_obj = Termination(
-                type=term_d.get("typeSkillBasedApp", "MANUAL"),
-                type_skill_based_app=term_d.get("typeSkillBasedApp"),
-                projected_expiry=None,
-            )
-
-            current.overlay = Overlay(
-                type="MANUAL",
-                setting=current.setting,
-                termination=term_obj,
-            )
-            current.overlay_active = True
-
-        except Exception as e:
-            _LOGGER.warning("Error patching local state for zone %d: %s", zone_id, e)
-            return None
-
-        return old_state
+        if refresh_after and not is_timed_overlay:
+            self._schedule_queued_refresh()
 
     async def async_set_zone_overlay(
         self,
@@ -1241,6 +1026,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         overlay_type: str | None = None,
         overlay_mode: str | None = None,
         optimistic_value: bool = True,
+        refresh_after: bool = False,
     ) -> None:
         """Set a manual overlay with timer/duration support."""
         # Central Validation: Check if temperature control is supported
@@ -1255,8 +1041,9 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
                 )
                 final_temp = None
 
-        data = self._build_overlay_data(
+        data = build_overlay_data(
             zone_id=zone_id,
+            zones_meta=self.zones_meta,
             power=power,
             temperature=final_temp,
             duration=duration,
@@ -1264,7 +1051,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             overlay_mode=overlay_mode,
         )
 
-        old_state = self._patch_zone_local(zone_id, data)
+        old_state = patch_zone_overlay(self.data.zone_states.get(str(zone_id)), data)
 
         self.optimistic.set_zone(zone_id, optimistic_value, power=power)
         self.async_update_listeners()
@@ -1279,54 +1066,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             ),
         )
 
-    def get_capped_temperature(self, zone_id: int, temperature: float) -> float:
-        """Get safety-capped temperature based on zone type."""
-        zone = self.zones_meta.get(zone_id)
-        ztype = getattr(zone, "type", ZONE_TYPE_HEATING) if zone else ZONE_TYPE_HEATING
-
-        limit = TEMP_MAX_HEATING if ztype == ZONE_TYPE_HEATING else TEMP_MAX_AC
-        if ztype == ZONE_TYPE_HOT_WATER:
-            limit = TEMP_MAX_HOT_WATER
-
-        return min(temperature, limit)
-
-    def _build_overlay_data(
-        self,
-        zone_id: int,
-        power: str = POWER_ON,
-        temperature: float | None = None,
-        duration: int | None = None,
-        overlay_type: str | None = None,
-        overlay_mode: str | None = None,
-    ) -> dict[str, Any]:
-        """Build the overlay data dictionary (DRY helper)."""
-        if not overlay_type:
-            zone = self.zones_meta.get(zone_id)
-            overlay_type = (
-                getattr(zone, "type", ZONE_TYPE_HEATING) if zone else ZONE_TYPE_HEATING
-            )
-
-        if overlay_mode == OVERLAY_NEXT_BLOCK:
-            termination: dict[str, Any] = {
-                "typeSkillBasedApp": TERMINATION_NEXT_TIME_BLOCK
-            }
-        elif overlay_mode == OVERLAY_PRESENCE:
-            termination = {"type": TERMINATION_TADO_MODE}
-        elif overlay_mode == OVERLAY_TIMER or duration:
-            duration_seconds = duration * 60 if duration else 1800
-            termination = {
-                "typeSkillBasedApp": TERMINATION_TIMER,
-                "durationInSeconds": duration_seconds,
-            }
-        else:
-            termination = {"typeSkillBasedApp": TERMINATION_MANUAL}
-
-        setting: dict[str, Any] = {"type": overlay_type, "power": power}
-        if temperature is not None and power == POWER_ON:
-            capped_temp = self.get_capped_temperature(zone_id, temperature)
-            setting["temperature"] = {"celsius": capped_temp}
-
-        return {"setting": setting, "termination": termination}
+        self._handle_overlay_side_effects(duration, overlay_mode, refresh_after)
 
     async def async_set_multiple_zone_overlays(
         self,
@@ -1336,6 +1076,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         duration: int | None = None,
         overlay_mode: str | None = None,
         overlay_type: str | None = None,
+        refresh_after: bool = False,
     ) -> None:
         """Set manual overlays for multiple zones in a single batched process."""
         if not zone_ids:
@@ -1352,8 +1093,9 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         self.async_update_listeners()
 
         for zone_id in zone_ids:
-            data = self._build_overlay_data(
+            data = build_overlay_data(
                 zone_id=zone_id,
+                zones_meta=self.zones_meta,
                 power=power,
                 temperature=temperature,
                 duration=duration,
@@ -1361,7 +1103,9 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
                 overlay_type=overlay_type,
             )
 
-            old_state = self._patch_zone_local(zone_id, data)
+            old_state = patch_zone_overlay(
+                self.data.zone_states.get(str(zone_id)), data
+            )
 
             self.api_manager.queue_command(
                 f"zone_{zone_id}",
@@ -1372,6 +1116,8 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
                     rollback_context=old_state,
                 ),
             )
+
+        self._handle_overlay_side_effects(duration, overlay_mode, refresh_after)
 
     async def async_resume_all_schedules(self) -> None:
         """Resume all heating zone schedules using bulk API endpoint (single call)."""
@@ -1388,7 +1134,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         )
 
         for zone_id in active_zones:
-            old_state = self._patch_zone_resume(zone_id)
+            old_state = patch_zone_resume(self.data.zone_states.get(str(zone_id)))
 
             self.optimistic.set_zone(zone_id, False)
 
@@ -1441,12 +1187,17 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         _LOGGER.info("Queued %s for %d active zones", action_name, len(zone_ids))
 
         for zone_id in zone_ids:
-            data = {
-                "setting": setting,
-                "termination": {"typeSkillBasedApp": "MANUAL"},
-            }
+            data = build_overlay_data(
+                zone_id=zone_id,
+                zones_meta=self.zones_meta,
+                power=setting.get("power", POWER_ON),
+                temperature=setting.get("temperature", {}).get("celsius"),
+                overlay_type=setting.get("type"),
+            )
 
-            old_state = self._patch_zone_local(zone_id, data)
+            old_state = patch_zone_overlay(
+                self.data.zone_states.get(str(zone_id)), data
+            )
 
             self.optimistic.set_zone(zone_id, True)
 
@@ -1461,24 +1212,3 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             )
 
         self.async_update_listeners()
-
-    def _patch_zone_resume(self, zone_id: int) -> Any:
-        """Patch local zone state to resume schedule and return old state."""
-        if not self.data or not self.data.zone_states:
-            return None
-
-        str_id = str(zone_id)
-        current = self.data.zone_states.get(str_id)
-        if not current:
-            return None
-
-        try:
-            old_state = copy.deepcopy(current)
-        except Exception as e:
-            _LOGGER.warning("Failed to copy state for zone %d: %s", zone_id, e)
-            return None
-
-        current.overlay = None
-        current.overlay_active = False
-
-        return old_state

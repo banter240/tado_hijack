@@ -194,7 +194,7 @@
           "offset_poll_interval": "Offset Update Interval (Seconds)"
         },
         "data_description": {
-          "scan_interval": "How often to check room data (temp, humidity, heating power). 1800s (30m) is recommended.",
+          "scan_interval": "Interval for room data (temp, humidity, heating power). IMPORTANT: Dynamically overridden by 'Auto API Quota' when enabled; serves as fallback when calculated budget is exhausted.",
           "presence_poll_interval": "How often to check Home/Away status. Set to a higher value (e.g. 43200s/12h) to save quota.",
           "slow_poll_interval": "How often to sync battery levels, firmware, capabilities and device list. 86400s (24h) is recommended.",
           "offset_poll_interval": "How often to fetch temperature offsets. Costs 1 API call PER VALVE. 0 = disabled."
@@ -270,7 +270,7 @@
           "offset_poll_interval": "Offset Update Interval (Seconds)"
         },
         "data_description": {
-          "scan_interval": "How often to check room data (temp, humidity, heating power). 1800s (30m) is recommended.",
+          "scan_interval": "Interval for room data (temp, humidity, heating power). IMPORTANT: Dynamically overridden by 'Auto API Quota' when enabled; serves as fallback when calculated budget is exhausted.",
           "presence_poll_interval": "How often to check Home/Away status. Set to a higher value (e.g. 43200s/12h) to save quota.",
           "slow_poll_interval": "How often to sync battery levels, firmware, capabilities and device list. 86400s (24h) is recommended.",
           "offset_poll_interval": "How often to fetch temperature offsets. Costs 1 API call PER VALVE. 0 = disabled."

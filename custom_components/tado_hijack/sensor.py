@@ -16,8 +16,14 @@ from homeassistant.core import HomeAssistant
 
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .const import (
+    ZONE_TYPE_AIR_CONDITIONING,
+    ZONE_TYPE_HEATING,
+)
 from .entity import TadoHomeEntity, TadoZoneEntity
+from .helpers.discovery import yield_zones
 from .helpers.logging_utils import get_redacted_logger
+from .helpers.parsers import parse_heating_power, parse_hot_water_in_use
 
 if TYPE_CHECKING:
     from . import TadoConfigEntry
@@ -66,14 +72,13 @@ async def async_setup_entry(
     entities.append(TadoApiStatusSensor(coordinator))
 
     # Per-Zone Sensors
-    for zone in coordinator.zones_meta.values():
-        # Heating Power (Percentage) - Heat request for TRVs or Boiler Load for Receivers
-        if zone.type == "HEATING":
+    for zone in yield_zones(
+        coordinator, {ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING}
+    ):
+        if zone.type == ZONE_TYPE_HEATING:
             entities.append(TadoHeatingPowerSensor(coordinator, zone.id, zone.name))
 
-        # Humidity (Percentage)
-        if zone.type in ("HEATING", "AIR_CONDITIONING"):
-            entities.append(TadoHumiditySensor(coordinator, zone.id, zone.name))
+        entities.append(TadoHumiditySensor(coordinator, zone.id, zone.name))
 
     async_add_entities(entities)
 
@@ -143,26 +148,14 @@ class TadoHeatingPowerSensor(TadoZoneEntity, SensorEntity):
     def native_value(self) -> float | None:
         """Return the current heating or hot water power."""
         state = self.coordinator.data.zone_states.get(str(self._zone_id))
-        if not state or not state.activity_data_points:
-            return 0.0
+        zone = self.coordinator.zones_meta.get(self._zone_id)
 
-        # Heating Power (Percentage)
-        if (
-            hasattr(state.activity_data_points, "heating_power")
-            and state.activity_data_points.heating_power
-        ):
-            return float(state.activity_data_points.heating_power.percentage)
+        # Hot Water Power: ON -> 100%, OFF -> 0%
+        if zone and zone.type == "HOT_WATER":
+            return 100.0 if parse_hot_water_in_use(state) else 0.0
 
-        # Hot Water Power (often binary/status in API)
-        # If we have hot water activity, we map it to 100% power if ON
-        if (
-            hasattr(state.activity_data_points, "hot_water_in_use")
-            and state.activity_data_points.hot_water_in_use
-        ):
-            value = state.activity_data_points.hot_water_in_use.value
-            return 100.0 if value == "ON" else 0.0
-
-        return 0.0
+        # Regular Heating Power (%)
+        return parse_heating_power(state)
 
 
 class TadoHumiditySensor(TadoZoneEntity, SensorEntity):

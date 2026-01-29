@@ -298,7 +298,7 @@ class TadoHijackConfigFlow(
 ):  # type: ignore[call-arg]
     """Handle a config flow for Tado Hijack."""
 
-    VERSION = 5
+    VERSION = 6
     login_task: asyncio.Task | None = None
     refresh_token: str | None = None
     tado: Tado | None = None
@@ -391,6 +391,14 @@ class TadoHijackConfigFlow(
 
         home = tado_me.homes[0]
         await self.async_set_unique_id(str(home.id))
+
+        if self.source == config_entries.SOURCE_REAUTH:
+            reauth_entry = self._get_reauth_entry()
+            return self.async_update_reload_and_abort(
+                reauth_entry,
+                data={**reauth_entry.data, CONF_REFRESH_TOKEN: self.refresh_token},
+            )
+
         self._abort_if_unique_id_configured()
 
         return self.async_create_entry(

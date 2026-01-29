@@ -11,7 +11,14 @@ from homeassistant.components.binary_sensor import (
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .const import (
+    ZONE_TYPE_AIR_CONDITIONING,
+    ZONE_TYPE_HEATING,
+    ZONE_TYPE_HOT_WATER,
+)
 from .entity import TadoDeviceEntity, TadoHomeEntity, TadoHotWaterZoneEntity
+from .helpers.discovery import yield_devices, yield_zones
+from .helpers.parsers import parse_hot_water_in_use
 
 if TYPE_CHECKING:
     from . import TadoConfigEntry
@@ -26,24 +33,19 @@ async def async_setup_entry(
     """Set up Tado binary sensors."""
     coordinator: TadoDataUpdateCoordinator = entry.runtime_data
     entities: list[BinarySensorEntity] = []
-    seen_devices: set[str] = set()
 
-    for zone in coordinator.zones_meta.values():
-        if zone.type not in ("HEATING", "AIR_CONDITIONING", "HOT_WATER"):
-            continue
-
-        for device in zone.devices:
-            # Skip devices we've already processed (can appear in multiple zones)
-            if device.serial_no in seen_devices:
-                continue
-            seen_devices.add(device.serial_no)
-
-            entities.extend(
-                (
-                    TadoBatterySensor(coordinator, device, zone.id),
-                    TadoConnectionSensor(coordinator, device, zone.id),
-                )
+    # Device Level Sensors
+    for device, zone_id in yield_devices(
+        coordinator,
+        {ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING, ZONE_TYPE_HOT_WATER},
+    ):
+        entities.extend(
+            (
+                TadoBatterySensor(coordinator, device, zone_id),
+                TadoConnectionSensor(coordinator, device, zone_id),
             )
+        )
+
     # Bridge Connection Sensors
     entities.extend(
         TadoBridgeConnectionSensor(coordinator, bridge)
@@ -51,15 +53,14 @@ async def async_setup_entry(
     )
 
     # Hot Water Zone Sensors
-    for zone in coordinator.zones_meta.values():
-        if zone.type == "HOT_WATER":
-            entities.extend(
-                (
-                    TadoHotWaterOverlaySensor(coordinator, zone.id, zone.name),
-                    TadoHotWaterPowerSensor(coordinator, zone.id, zone.name),
-                    TadoHotWaterConnectivitySensor(coordinator, zone.id, zone.name),
-                )
+    for zone in yield_zones(coordinator, {ZONE_TYPE_HOT_WATER}):
+        entities.extend(
+            (
+                TadoHotWaterOverlaySensor(coordinator, zone.id, zone.name),
+                TadoHotWaterPowerSensor(coordinator, zone.id, zone.name),
+                TadoHotWaterConnectivitySensor(coordinator, zone.id, zone.name),
             )
+        )
 
     async_add_entities(entities)
 
@@ -182,11 +183,7 @@ class TadoHotWaterPowerSensor(TadoHotWaterZoneEntity, BinarySensorEntity):
     def is_on(self) -> bool:
         """Return true if hot water power is ON."""
         state = self.coordinator.data.zone_states.get(str(self._zone_id))
-        if state is None:
-            return False
-        if setting := getattr(state, "setting", None):
-            return getattr(setting, "power", "OFF") == "ON"
-        return False
+        return parse_hot_water_in_use(state)
 
 
 class TadoHotWaterConnectivitySensor(TadoHotWaterZoneEntity, BinarySensorEntity):

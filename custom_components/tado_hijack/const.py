@@ -56,6 +56,7 @@ MAX_API_QUOTA: Final = 5000  # Default Tado daily limit
 
 # Timing & Logic
 SECONDS_PER_HOUR: Final = 3600
+SECONDS_PER_DAY: Final = 86400
 RATELIMIT_SMOOTHING_ALPHA: Final = 0.3  # Exponential moving average factor
 DEBOUNCE_COOLDOWN_S: Final = 5  # Legacy fallback / initial value
 OPTIMISTIC_GRACE_PERIOD_S: Final = 30

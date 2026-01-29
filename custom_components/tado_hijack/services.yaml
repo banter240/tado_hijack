@@ -1,26 +1,4 @@
-manual_poll:
-  description: "Force a refresh of data from Tado API."
-  fields:
-    refresh_type:
-      description: "Type of refresh (all, metadata, offsets, away)."
-      example: "offsets"
-      selector:
-        select:
-          options:
-            - "all"
-            - "metadata"
-            - "offsets"
-            - "away"
-
-resume_all_schedules:
-  description: "Resume smart schedule for all heating zones."
-
-turn_off_all_zones:
-  description: "Turn off all heating zones."
-
-boost_all_zones:
-  description: "Boost all heating zones to 25°C."
-
+# Shared Field Definitions (DRY)
 set_mode:
   description: "Set a manual mode (overlay) with optional timer for Heating and AC zones."
   fields:
@@ -30,37 +8,48 @@ set_mode:
       selector:
         entity:
           integration: tado_hijack
-    duration:
+    hvac_mode:
+      description: "Operation mode: 'auto' (resume schedule), 'heat' (manual overlay), or 'off'."
+      required: true
+      default: "heat"
+      selector:
+        select:
+          options:
+            - "off"
+            - "heat"
+            - "auto"
+    duration: &field_duration
       description: "Duration in minutes after which the manual mode ends."
       selector:
         number:
           min: 1
           max: 1440
           unit_of_measurement: "min"
-    overlay:
+    overlay: &field_overlay
       description: "Termination mode: 'manual' (indefinite), 'next_block' (return to schedule at next time block), or 'presence' (until presence change)."
+      required: true
+      default: "manual"
       selector:
         select:
           options:
             - "manual"
             - "next_block"
             - "presence"
-    power:
-      description: "Power state during timer (ON/OFF)."
-      default: "ON"
-      selector:
-        select:
-          options:
-            - "ON"
-            - "OFF"
     temperature:
       description: "Target temperature (optional, 5-30°C)."
+      default: 21.0
       selector:
         number:
           min: 5
           max: 30
           step: 0.1
           unit_of_measurement: "°C"
+    refresh_after: &field_refresh_after
+      description: "Force immediate data refresh. Note: For permanent changes or 'Resume Schedule' (auto), this triggers immediately. For timed modes (duration), the refresh is deferred until the timer expires."
+      required: true
+      default: false
+      selector:
+        boolean: {}
 
 set_mode_all_zones:
   description: "Set a manual overlay for all heating and/or AC zones at once."
@@ -77,37 +66,28 @@ set_mode_all_zones:
       default: false
       selector:
         boolean: {}
-    duration:
-      description: "Duration in minutes."
-      selector:
-        number:
-          min: 1
-          max: 1440
-          unit_of_measurement: "min"
-    overlay:
-      description: "Termination mode: 'manual', 'next_block', or 'presence'."
+    hvac_mode:
+      description: "Operation mode: 'auto' (resume schedule), 'heat' (manual overlay), or 'off'."
+      required: true
+      default: "heat"
       selector:
         select:
           options:
-            - "manual"
-            - "next_block"
-            - "presence"
-    power:
-      description: "Power state (ON/OFF)."
-      default: "ON"
-      selector:
-        select:
-          options:
-            - "ON"
-            - "OFF"
+            - "off"
+            - "heat"
+            - "auto"
+    duration: *field_duration
+    overlay: *field_overlay
     temperature:
       description: "Target temperature (will be automatically capped)."
+      default: 21.0
       selector:
         number:
           min: 5
           max: 30
           step: 0.1
           unit_of_measurement: "°C"
+    refresh_after: *field_refresh_after
 
 set_water_heater_mode:
   description: "Set a manual mode (overlay) with optional timer for Water Heater zones."
@@ -119,34 +99,25 @@ set_water_heater_mode:
         entity:
           domain: water_heater
           integration: tado_hijack
-    duration:
-      description: "Duration in minutes after which the manual mode ends."
-      selector:
-        number:
-          min: 1
-          max: 1440
-          unit_of_measurement: "min"
-    overlay:
-      description: "Termination mode: 'manual' (indefinite), 'next_block' (return to schedule at next time block), or 'presence' (until presence change)."
-      selector:
-        select:
-          options:
-            - "manual"
-            - "next_block"
-            - "presence"
     operation_mode:
       description: "Operation mode: 'auto' (resume schedule), 'heat' (on), or 'off'."
+      required: true
+      default: "heat"
       selector:
         select:
           options:
-            - "auto"
-            - "heat"
             - "off"
+            - "heat"
+            - "auto"
+    duration: *field_duration
+    overlay: *field_overlay
     temperature:
       description: "Target temperature (30-65°C)."
+      default: 50
       selector:
         number:
           min: 30
           max: 65
           step: 1
           unit_of_measurement: "°C"
+    refresh_after: *field_refresh_after
