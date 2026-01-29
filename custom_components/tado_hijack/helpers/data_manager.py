@@ -180,11 +180,16 @@ class TadoDataManager:
         now = time.monotonic()
         plan = self._build_poll_plan(now)
 
+        # Local storage for results to handle the cold-start (init) phase
+        is_init = self.coordinator.data is None
+        home_state = getattr(self.coordinator.data, "home_state", None)
+        zone_states = getattr(self.coordinator.data, "zone_states", {})
+
         for task in plan:
             if task.coroutine == self._tado.get_home_state:
-                await self._fetch_presence(now)
+                home_state = await self._fetch_presence(now)
             elif task.coroutine == self._tado.get_zone_states:
-                await self._fetch_zones(now)
+                zone_states = await self._fetch_zones(now)
             elif task.coroutine == self._tado.get_zones:
                 await self._fetch_metadata(now)
             elif task.coroutine == self._fetch_away_config:
@@ -194,9 +199,10 @@ class TadoDataManager:
                 await self._fetch_offsets()
                 self._last_offset_poll = now
 
+        # Use freshly fetched data if we are in init phase, otherwise rely on coordinator sync
         return TadoData(
-            home_state=getattr(self.coordinator.data, "home_state", None),
-            zone_states=getattr(self.coordinator.data, "zone_states", {}),
+            home_state=home_state if is_init else getattr(self.coordinator.data, "home_state", home_state),
+            zone_states=zone_states if is_init else getattr(self.coordinator.data, "zone_states", zone_states),
             zones=self.zones_meta,
             devices=self.devices_meta,
             capabilities=self.capabilities_cache,
