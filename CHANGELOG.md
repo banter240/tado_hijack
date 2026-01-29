@@ -1,3 +1,30 @@
+## [4.0.0-dev.9](https://github.com/banter240/tado_hijack/compare/v4.0.0-dev.8...v4.0.0-dev.9) (2026-01-29)
+
+### ✨ New Features
+
+* feat(core): implement comprehensive state persistence, polling track isolation and architectural polish
+
+This major update consolidates architectural improvements, stability enhancements and critical bug fixes to harden the integration against state flickering and API pollution.
+
+Core Architecture & State:
+- State Persistence: Migrated TadoClimateEntity and TadoHotWater to RestoreEntity. Implemented tracking and restoration of target temperatures via 'last_target_temperature' extra state attribute, ensuring continuity across restarts.
+- Polling Engine Refactoring: Redesigned TadoDataManager with independent initialization flags (_metadata_init, _zones_init, _presence_init). Enforces strict track separation and prevents redundant API calls.
+- Task Dispatching: Migrated DataManager from lambda closures to explicit method references for PollTask execution, improving traceability and stability.
+- Optimistic UI: Implemented optimistic temperature tracking for AC and hot water sliders to eliminate UI 'jumping' during manual adjustments.
+
+Functional Enhancements & Logic:
+- Hot Water Evolution: Integrated dynamic temperature control detection for non-OpenTherm boilers and added heating-power fallback to the activity parser.
+- Polling Optimization: Implemented lazy capabilities fetching in the slow poll track to reduce API quota consumption by ~30% in large setups.
+- Unified Discovery: Refactored zone and device iteration loops to use centralized yield_zones/yield_devices helpers, ensuring consistent filtering project-wide.
+- Manual Poll Härtung: Hardened force-flag reset logic to occur only after confirmed API success, preventing lost user-driven updates.
+
+Maintenance & Cleanup:
+- Standards: Adjusted default hot water fallback to 30°C and applied gitleaks allow-list markers to configuration migrations.
+- Hygiene: Stripped technical debt meta-comments (noqa, sourcery skip) project-wide and removed deprecated TadoHotWaterSwitch class.
+- Validation: Resolved all Mypy/Ruff errors and ensured full compatibility with Home Assistant 2024.x+ standards.
+
+Co-authored-by: krisswiltshire30 <kriss.wiltshire@googlemail.com>
+
 ## [4.0.0-dev.8](https://github.com/banter240/tado_hijack/compare/v4.0.0-dev.7...v4.0.0-dev.8) (2026-01-29)
 
 ### 🐛 Bug Fixes
