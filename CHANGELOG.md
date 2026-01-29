@@ -1,3 +1,14 @@
+## [4.0.0-dev.7](https://github.com/banter240/tado_hijack/compare/v4.0.0-dev.6...v4.0.0-dev.7) (2026-01-29)
+
+### 🐛 Bug Fixes
+
+* fix(core): resolve UI mode flickering and persistent temperatures
+
+Ensures absolute UI consistency during mode transitions:
+- Explicitly clears optimistic state when resuming schedules to prevent target temperatures from 'sticking'.
+- Synchronizes 'power' and 'operation_mode' keys in OptimisticManager to keep both Climate and WaterHeater entities stable during manual overlays.
+- Eliminates the 'UI Auto vs App Heat' discrepancy by enforcing correct optimistic overlay markers.
+
 ## [4.0.0-dev.6](https://github.com/banter240/tado_hijack/compare/v4.0.0-dev.5...v4.0.0-dev.6) (2026-01-29)
 
 ### 🐛 Bug Fixes
