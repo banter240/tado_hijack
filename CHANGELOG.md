@@ -1,3 +1,16 @@
+## [4.0.0-dev.6](https://github.com/banter240/tado_hijack/compare/v4.0.0-dev.5...v4.0.0-dev.6) (2026-01-29)
+
+### 🐛 Bug Fixes
+
+* fix(core): enhance UI stability with optimistic temperatures and dynamic AC modes
+
+This comprehensive stability update ensures a seamless user experience:
+- Implemented optimistic temperature tracking in 'OptimisticManager' to prevent UI sliders from jumping or disappearing.
+- Added 'last known temperature' memory to climate entities for intelligent restoration when switching to HEAT mode.
+- Centralized temperature fallback logic in the Coordinator (DRY) to prevent 422 API errors.
+- Transformed AC entities to use dynamic HVAC modes based on hardware capabilities (HEAT/DRY/FAN support).
+- Optimized service validation to allow mode switching without redundant error prompts.
+
 ## [4.0.0-dev.5](https://github.com/banter240/tado_hijack/compare/v4.0.0-dev.4...v4.0.0-dev.5) (2026-01-29)
 
 ### 🐛 Bug Fixes
