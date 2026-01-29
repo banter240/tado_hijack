@@ -1,3 +1,25 @@
+## [4.0.0-dev.5](https://github.com/banter240/tado_hijack/compare/v4.0.0-dev.4...v4.0.0-dev.5) (2026-01-29)
+
+### 🐛 Bug Fixes
+
+* fix(services): implement robust temperature fallbacks, resolve mode case-sensitivity and establish design documentation
+
+This update resolves critical service issues and enhances documentation:
+- Resolved 422 'temperature required' errors by implementing automatic default temperature resolution in the coordinator.
+- Fixed 'Unsupported operation_mode' errors by normalizing all mode comparisons to lowercase.
+- Refined service validation to be mode-aware, allowing seamless UI switching without redundant error blocks.
+- Added comprehensive design documentation in 'docs/DESIGN.md' including high-depth system schematics and quota logic distribution.
+
+
+### 📚 Documentation
+
+* docs(ci/readme): update service examples and integrate local HACS/hassfest validation
+
+This clean commit includes:
+- Corrected mandatory fields in README service examples.
+- Fixed Table of Contents links in README.
+- Added local pre-commit hooks for Home Assistant and HACS validation.
+
 ## [4.0.0-dev.4](https://github.com/banter240/tado_hijack/compare/v4.0.0-dev.3...v4.0.0-dev.4) (2026-01-29)
 
 ### ✨ New Features
