@@ -1,3 +1,15 @@
+## [4.0.0-dev.8](https://github.com/banter240/tado_hijack/compare/v4.0.0-dev.7...v4.0.0-dev.8) (2026-01-29)
+
+### 🐛 Bug Fixes
+
+* fix(core): optimize optimistic state orchestration and clean up internal logic
+
+This structural update ensures stable UI feedback and triggers a release:
+- Centralized optimistic state logic into 'apply_zone_state' helper.
+- Fixed UI inconsistencies between Climate and WaterHeater entities.
+- Resolved method nesting issues in coordinator.py.
+- Improved 'Boost All' and 'Turn Off All' immediate UI feedback.
+
 ## [4.0.0-dev.7](https://github.com/banter240/tado_hijack/compare/v4.0.0-dev.6...v4.0.0-dev.7) (2026-01-29)
 
 ### 🐛 Bug Fixes
