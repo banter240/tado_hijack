@@ -85,6 +85,11 @@ class TadoHotWater(
         """Handle entity being added to Home Assistant."""
         await super().async_added_to_hass()
 
+        if not self.tado_coordinator.supports_temperature(self._zone_id):
+            self._attr_supported_features = WaterHeaterEntityFeature.OPERATION_MODE
+            self.async_write_ha_state()
+            return
+
         # Restore last known temperature from HA state machine
         if last_state := await self.async_get_last_state():
             if "last_target_temperature" in last_state.attributes:
@@ -204,6 +209,13 @@ class TadoHotWater(
         """Set new target temperature."""
         temperature = kwargs.get(ATTR_TEMPERATURE)
         if temperature is None:
+            return
+
+        if not self.tado_coordinator.supports_temperature(self._zone_id):
+            _LOGGER.warning(
+                "Hot water zone %d does not support temperature control",
+                self._zone_id,
+            )
             return
 
         # Round to integer for hot water (Tado requirement)
