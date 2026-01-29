@@ -553,6 +553,8 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         """Set zone to auto mode."""
         old_state = patch_zone_resume(self.data.zone_states.get(str(zone_id)))
 
+        # Clear any old optimistic values (like temperature) before setting AUTO
+        self.optimistic.clear_zone(zone_id)
         self.optimistic.set_zone(zone_id, False)
         self.async_update_listeners()
         self.api_manager.queue_command(
@@ -606,6 +608,8 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         """Set hot water zone to auto mode (resume schedule)."""
         old_state = patch_zone_resume(self.data.zone_states.get(str(zone_id)))
 
+        # Clear any old optimistic values (like temperature) before setting AUTO
+        self.optimistic.clear_zone(zone_id)
         self.optimistic.set_zone(zone_id, False, operation_mode="auto")
         self.async_update_listeners()
         self.api_manager.queue_command(
@@ -1124,7 +1128,11 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
 
         for zone_id in zone_ids:
             self.optimistic.set_zone(
-                zone_id, True, power=power, temperature=temperature
+                zone_id,
+                True,
+                power=power,
+                temperature=temperature,
+                operation_mode="heat" if power == POWER_ON else "off",
             )
         self.async_update_listeners()
 
