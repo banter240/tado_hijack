@@ -55,7 +55,7 @@ class TadoRequestHandler:
 
         if not proxy_url and not is_auth_request:
             if hasattr(instance, "_refresh_auth"):
-                await instance._refresh_auth()  # noqa: SLF001
+                await instance._refresh_auth()
             else:
                 _LOGGER.warning(
                     "_refresh_auth not found in Tado instance (library may have changed)"
@@ -84,9 +84,9 @@ class TadoRequestHandler:
             async with asyncio.timeout(request_timeout):
                 # Get session (private API with fallback)
                 if hasattr(instance, "_ensure_session"):
-                    session = instance._ensure_session()  # noqa: SLF001
+                    session = instance._ensure_session()
                 elif hasattr(instance, "_session") and instance._session is not None:
-                    session = instance._session  # noqa: SLF001
+                    session = instance._session
                 else:
                     _LOGGER.error(
                         "Cannot access session from Tado instance (library may have changed)"

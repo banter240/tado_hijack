@@ -160,7 +160,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         self._climate_to_zone: dict[str, int] = {}
         self._polling_calls_today = 0
         self._last_quota_reset: datetime | None = None
-        self._reset_poll_unsub: asyncio.TimerHandle | None = None  # gitleaks:allow
+        self._reset_poll_unsub: asyncio.TimerHandle | None = None
         self._post_action_poll_timer: asyncio.TimerHandle | None = None
         self._expiry_timers: set[asyncio.TimerHandle] = set()
         self._force_next_update: bool = False

@@ -100,7 +100,6 @@ async def async_migrate_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bo
 
     if entry.version < 6:
         # Migration to version 6 (Reset intervals to defaults to fix unit confusion)
-        # sourcery skip: merge-dict-assign
         _LOGGER.info("Migrating to version 6: Resetting intervals to defaults")
         new_data = {**entry.data}
         new_data[CONF_SCAN_INTERVAL] = DEFAULT_SCAN_INTERVAL
