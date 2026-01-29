@@ -69,12 +69,49 @@ class OptimisticManager:
         operation_mode: str | None = None,
         temperature: float | None = None,
     ) -> None:
-        """Set optimistic zone overlay state."""
+        """Set optimistic zone overlay state (Legacy/Simple)."""
         self.set_optimistic("zone", zone_id, "overlay", overlay)
         if power is not None:
             self.set_optimistic("zone", zone_id, "power", power)
         if operation_mode is not None:
             self.set_optimistic("zone", zone_id, "operation_mode", operation_mode)
+        if temperature is not None:
+            self.set_optimistic("zone", zone_id, "temperature", temperature)
+
+    def apply_zone_state(
+        self,
+        zone_id: int,
+        overlay: bool,
+        power: str | None = None,
+        temperature: float | None = None,
+        operation_mode: str | None = None,
+    ) -> None:
+        """Apply a comprehensive optimistic state to a zone (DRY Orchestrator).
+
+        This helper ensures all entity types (Climate, WaterHeater) stay in sync.
+        """
+        # 1. Clear previous state to avoid 'sticking' values (e.g. old temperatures)
+        self.clear_zone(zone_id)
+
+        # 2. Set the mandatory overlay marker
+        self.set_optimistic("zone", zone_id, "overlay", overlay)
+
+        # 3. Resolve and sync power vs operation_mode
+        # If one is missing, we derive it from the other to support all entity types
+        final_power = power
+        final_op_mode = operation_mode
+
+        if overlay:
+            if final_power is None and final_op_mode:
+                final_power = "OFF" if final_op_mode == "off" else "ON"
+            elif final_op_mode is None and final_power:
+                final_op_mode = "off" if final_power == "OFF" else "heat"
+
+        # 4. Set the resolved optimistic keys
+        if final_power is not None:
+            self.set_optimistic("zone", zone_id, "power", final_power)
+        if final_op_mode is not None:
+            self.set_optimistic("zone", zone_id, "operation_mode", final_op_mode)
         if temperature is not None:
             self.set_optimistic("zone", zone_id, "temperature", temperature)
 

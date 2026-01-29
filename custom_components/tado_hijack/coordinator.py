@@ -553,9 +553,8 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         """Set zone to auto mode."""
         old_state = patch_zone_resume(self.data.zone_states.get(str(zone_id)))
 
-        # Clear any old optimistic values (like temperature) before setting AUTO
-        self.optimistic.clear_zone(zone_id)
-        self.optimistic.set_zone(zone_id, False)
+        # Use centralized orchestrator to clear manual state and set AUTO
+        self.optimistic.apply_zone_state(zone_id, overlay=False)
         self.async_update_listeners()
         self.api_manager.queue_command(
             f"zone_{zone_id}",
@@ -587,7 +586,9 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
 
         old_state = patch_zone_overlay(self.data.zone_states.get(str(zone_id)), data)
 
-        self.optimistic.set_zone(zone_id, True)
+        self.optimistic.apply_zone_state(
+            zone_id, overlay=True, power="ON", temperature=temp
+        )
         self.async_update_listeners()
         self.api_manager.queue_command(
             f"zone_{zone_id}",
@@ -608,9 +609,8 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         """Set hot water zone to auto mode (resume schedule)."""
         old_state = patch_zone_resume(self.data.zone_states.get(str(zone_id)))
 
-        # Clear any old optimistic values (like temperature) before setting AUTO
-        self.optimistic.clear_zone(zone_id)
-        self.optimistic.set_zone(zone_id, False, operation_mode="auto")
+        # Use centralized orchestrator to clear manual state and set AUTO
+        self.optimistic.apply_zone_state(zone_id, overlay=False, operation_mode="auto")
         self.async_update_listeners()
         self.api_manager.queue_command(
             f"zone_{zone_id}",
@@ -632,7 +632,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         }
         old_state = patch_zone_overlay(self.data.zone_states.get(str(zone_id)), data)
 
-        self.optimistic.set_zone(zone_id, True, operation_mode="off")
+        self.optimistic.apply_zone_state(zone_id, overlay=True, power="OFF")
         self.async_update_listeners()
         self.api_manager.queue_command(
             f"zone_{zone_id}",
@@ -665,7 +665,9 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
 
         old_state = patch_zone_overlay(self.data.zone_states.get(str(zone_id)), data)
 
-        self.optimistic.set_zone(zone_id, True, operation_mode="heat", temperature=temp)
+        self.optimistic.apply_zone_state(
+            zone_id, overlay=True, operation_mode="heat", temperature=temp
+        )
         self.async_update_listeners()
 
         self.api_manager.queue_command(
@@ -687,7 +689,9 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
 
         old_state = patch_zone_overlay(self.data.zone_states.get(str(zone_id)), data)
 
-        self.optimistic.set_zone(zone_id, True, power="ON" if on else "OFF")
+        self.optimistic.apply_zone_state(
+            zone_id, overlay=True, power="ON" if on else "OFF"
+        )
         self.async_update_listeners()
         self.api_manager.queue_command(
             f"zone_{zone_id}",
@@ -1003,7 +1007,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
 
         old_state = patch_zone_overlay(self.data.zone_states.get(str(zone_id)), data)
 
-        self.optimistic.set_zone(zone_id, True, power="ON")
+        self.optimistic.apply_zone_state(zone_id, overlay=True, power="ON")
         self.async_update_listeners()
 
         self.api_manager.queue_command(
@@ -1089,7 +1093,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
 
         old_state = patch_zone_overlay(self.data.zone_states.get(str(zone_id)), data)
 
-        self.optimistic.set_zone(
+        self.optimistic.apply_zone_state(
             zone_id, optimistic_value, power=power, temperature=final_temp
         )
         self.async_update_listeners()
@@ -1127,12 +1131,11 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         )
 
         for zone_id in zone_ids:
-            self.optimistic.set_zone(
+            self.optimistic.apply_zone_state(
                 zone_id,
-                True,
+                overlay=True,
                 power=power,
                 temperature=temperature,
-                operation_mode="heat" if power == POWER_ON else "off",
             )
         self.async_update_listeners()
 
@@ -1243,7 +1246,12 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
                 self.data.zone_states.get(str(zone_id)), data
             )
 
-            self.optimistic.set_zone(zone_id, True)
+            self.optimistic.apply_zone_state(
+                zone_id,
+                overlay=True,
+                power=setting.get("power", POWER_ON),
+                temperature=setting.get("temperature", {}).get("celsius"),
+            )
 
             self.api_manager.queue_command(
                 f"zone_{zone_id}",

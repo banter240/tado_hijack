@@ -74,7 +74,9 @@ class TadoEventHandler:
                             eid,
                             zone_id,
                         )
-                        self.coordinator.optimistic.set_zone(zone_id, True)
+                        self.coordinator.optimistic.apply_zone_state(
+                            zone_id, overlay=True
+                        )
                         self.coordinator.async_update_listeners()
 
         self._unsub_listener = self.hass.bus.async_listen(
