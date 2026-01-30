@@ -7,9 +7,7 @@ and save API quota. Simulates API-side validation rules.
 from __future__ import annotations
 
 
-def validate_overlay_payload(
-    data: dict, zone_type: str
-) -> tuple[bool, str | None]:
+def validate_overlay_payload(data: dict, zone_type: str) -> tuple[bool, str | None]:
     """Validate overlay payload before sending to Tado API.
 
     Args:
@@ -18,6 +16,7 @@ def validate_overlay_payload(
 
     Returns:
         (is_valid, error_message) - error_message is None if valid
+
     """
     setting = data.get("setting", {})
     power = setting.get("power")

@@ -230,12 +230,29 @@ class TadoDataManager:
         self._last_zones_poll = now
         self._zones_init = True
         if self.coordinator.data:
-            # Skip zones with pending commands to prevent race conditions
+            # Selective merge: protect overlay for pending zones, but update sensor data
             pending_keys = self.coordinator.api_manager.pending_keys
-            for zone_id, state in states.items():
-                # Skip if this zone has a pending command in the queue
+            for zone_id, new_state in states.items():
                 if f"zone_{zone_id}" not in pending_keys:
-                    self.coordinator.data.zone_states[zone_id] = state
+                    # No pending command - full update
+                    self.coordinator.data.zone_states[zone_id] = new_state
+                else:
+                    # Pending command - selective merge (keep overlay, update sensors)
+                    existing_state = self.coordinator.data.zone_states.get(zone_id)
+                    if existing_state:
+                        # Update sensor and activity data (humidity, temperature, power)
+                        if hasattr(new_state, "sensor_data_points"):
+                            existing_state.sensor_data_points = (
+                                new_state.sensor_data_points
+                            )
+                        if hasattr(new_state, "activity_data_points"):
+                            existing_state.activity_data_points = (
+                                new_state.activity_data_points
+                            )
+                        # Keep existing overlay/setting (protected)
+                    else:
+                        # No existing state - use new state fully
+                        self.coordinator.data.zone_states[zone_id] = new_state
         return states
 
     async def _fetch_metadata(self, now: float) -> None:
