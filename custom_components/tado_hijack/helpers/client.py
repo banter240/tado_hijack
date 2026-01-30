@@ -44,6 +44,7 @@ class TadoHijackClient(Tado):
         """Reset overlay for multiple zones (Bulk API)."""
         if not zones:
             return
+
         rooms_param = ",".join(str(z) for z in zones)
         await self._request(
             f"homes/{self._home_id}/overlay?rooms={rooms_param}",
@@ -54,6 +55,7 @@ class TadoHijackClient(Tado):
         """Set overlay for multiple zones (Bulk API)."""
         if not overlays:
             return
+
         await self._request(
             f"homes/{self._home_id}/overlay",
             data={"overlays": overlays},
@@ -133,6 +135,10 @@ class TadoHijackClient(Tado):
             data={"enabled": enabled},
             method=HttpMethod.PUT,
         )
+
+    async def get_capabilities(self, zone_id: int) -> Any:
+        """Get capabilities for a zone."""
+        return await super().get_capabilities(zone_id)
 
     async def identify_device(self, serial_no: str) -> None:
         """Identify a device (make it flash)."""

@@ -219,15 +219,62 @@ class TadoDataManager:
         self._last_presence_poll = now
         self._presence_init = True
         if self.coordinator.data:
-            self.coordinator.data.home_state = state
+            # Selective merge for presence
+            from .api_manager import TadoApiManager
+
+            pending_keys = self.coordinator.api_manager.pending_keys
+            if "presence" not in pending_keys:
+                # No pending command - full update
+                self.coordinator.data.home_state = state
+            else:
+                if existing_state := self.coordinator.data.home_state:
+                    # Get protected fields for presence command
+                    protected = TadoApiManager.get_protected_fields_for_key("presence")
+
+                    # Update all fields EXCEPT protected ones
+                    for field in vars(state):
+                        if field not in protected and not field.startswith("_"):
+                            setattr(existing_state, field, getattr(state, field))
+                else:
+                    # No existing state - use new state fully
+                    self.coordinator.data.home_state = state
         return state
 
     async def _fetch_zones(self, now: float) -> dict:
         states = await self._tado.get_zone_states()
+
+        # [DUMMY_HOOK]
+        if h := self.coordinator.dummy_handler:
+            h.inject_states(states)
+
         self._last_zones_poll = now
         self._zones_init = True
         if self.coordinator.data:
-            self.coordinator.data.zone_states = states
+            # Selective merge: protect specific fields based on command type
+            from .api_manager import TadoApiManager
+
+            pending_keys = self.coordinator.api_manager.pending_keys
+            for zone_id, new_state in states.items():
+                zone_key = f"zone_{zone_id}"
+                if zone_key not in pending_keys:
+                    # No pending command - full update
+                    self.coordinator.data.zone_states[zone_id] = new_state
+                else:
+                    if existing_state := self.coordinator.data.zone_states.get(zone_id):
+                        # Get which fields are protected for this command
+                        protected = TadoApiManager.get_protected_fields_for_key(
+                            zone_key
+                        )
+
+                        # Update all fields EXCEPT protected ones
+                        for field in vars(new_state):
+                            if field not in protected and not field.startswith("_"):
+                                setattr(
+                                    existing_state, field, getattr(new_state, field)
+                                )
+                    else:
+                        # No existing state - use new state fully
+                        self.coordinator.data.zone_states[zone_id] = new_state
         return states
 
     async def _fetch_metadata(self, now: float) -> None:
@@ -235,6 +282,12 @@ class TadoDataManager:
         devices = await self._tado.get_devices()
         self.zones_meta = {z.id: z for z in zones}
         self.devices_meta = {d.short_serial_no: d for d in devices}
+
+        # [DUMMY_HOOK]
+        if h := self.coordinator.dummy_handler:
+            h.inject_metadata(
+                self.zones_meta, self.devices_meta, self.capabilities_cache
+            )
 
         # Lazy refresh: Update capabilities for relevant zones if missing
         for z in zones:
@@ -319,7 +372,13 @@ class TadoDataManager:
         _LOGGER.info("DataManager: Fetching away config for %d zones", len(active))
         for z in active:
             try:
-                cfg = await self.coordinator.client.get_away_configuration(z.id)
+                # [DUMMY_HOOK]
+                h = self.coordinator.dummy_handler
+                if h and h.is_dummy_zone(z.id):
+                    cfg = h.get_away_configuration(z.id)
+                else:
+                    cfg = await self.coordinator.client.get_away_configuration(z.id)
+
                 if (
                     "minimumAwayTemperature" in cfg
                     and (t := cfg["minimumAwayTemperature"].get("celsius")) is not None
@@ -338,9 +397,15 @@ class TadoDataManager:
                     return self.capabilities_cache[zone_id]
                 _LOGGER.info("DataManager: Fetching capabilities for zone %d", zone_id)
                 try:
-                    self.capabilities_cache[
-                        zone_id
-                    ] = await self._tado.get_capabilities(zone_id)
+                    # [DUMMY_HOOK]
+                    h = self.coordinator.dummy_handler
+                    if h and h.is_dummy_zone(zone_id):
+                        caps = h.get_capabilities(zone_id)
+                    else:
+                        caps = await self._tado.get_capabilities(zone_id)
+
+                    if caps:
+                        self.capabilities_cache[zone_id] = caps
                 except Exception as e:
                     _LOGGER.error("Capabilities fail for zone %d: %s", zone_id, e)
                     return None

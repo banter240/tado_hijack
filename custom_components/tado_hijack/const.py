@@ -28,6 +28,9 @@ CONF_REDUCED_POLLING_INTERVAL: Final = "reduced_polling_interval"
 CONF_CALL_JITTER_ENABLED: Final = "call_jitter_enabled"
 CONF_JITTER_PERCENT: Final = "jitter_percent"
 
+# [DUMMY_HOOK]
+CONF_ENABLE_DUMMY_ZONES: Final = False  # Hardcoded to False for release candidate
+
 # Default Intervals
 DEFAULT_SCAN_INTERVAL: Final = 1800  # 30 minutes (Zone States)
 DEFAULT_PRESENCE_POLL_INTERVAL: Final = 43200  # 12 hours

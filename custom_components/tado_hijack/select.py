@@ -74,13 +74,27 @@ class TadoAcSelect(TadoZoneEntity, SelectEntity):
     @property
     def current_option(self) -> str | None:
         """Return the current selected option."""
-        state = self.tado_coordinator.data.zone_states.get(str(self._zone_id))
-        if state and state.setting:
-            val = getattr(state.setting, self._key, None)
-            if val is not None:
-                val_lower = str(val).lower()
-                if val_lower in self._attr_options:
-                    return val_lower
+        # 1. Check Optimistic Value (High Priority)
+        opt = self.tado_coordinator.optimistic
+        val = None
+        if self._key == "fan_speed":
+            # Note: We currently don't have optimistic fan_speed, but we can add it here if needed
+            pass
+        elif self._key == "vertical_swing":
+            val = opt.get_vertical_swing(self._zone_id)
+        elif self._key == "horizontal_swing":
+            val = opt.get_horizontal_swing(self._zone_id)
+
+        # 2. Fallback to API State
+        if val is None:
+            state = self.tado_coordinator.data.zone_states.get(str(self._zone_id))
+            if state and state.setting:
+                val = getattr(state.setting, self._key, None)
+
+        if val is not None:
+            val_lower = str(val).lower()
+            if val_lower in self._attr_options:
+                return val_lower
         return None
 
     async def async_select_option(self, option: str) -> None:

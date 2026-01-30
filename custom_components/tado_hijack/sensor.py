@@ -19,6 +19,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import (
     ZONE_TYPE_AIR_CONDITIONING,
     ZONE_TYPE_HEATING,
+    ZONE_TYPE_HOT_WATER,
 )
 from .entity import TadoHomeEntity, TadoZoneEntity
 from .helpers.discovery import yield_zones
@@ -147,17 +148,18 @@ class TadoHeatingPowerSensor(TadoZoneEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         """Return the current heating or hot water power."""
-        state = self.coordinator.data.zone_states.get(str(self._zone_id))
         zone = self.coordinator.zones_meta.get(self._zone_id)
+        zone_type = getattr(zone, "type", None)
 
-        # Hot Water Power: ON -> 100%, OFF -> 0% (Dev.2 Logic)
-        if zone and zone.type == "HOT_WATER":
-            if state and (setting := getattr(state, "setting", None)):
-                return 100.0 if getattr(setting, "power", "OFF") == "ON" else 0.0
-            return 0.0
+        # 1. For Hot Water, check optimistic power first
+        if zone_type == ZONE_TYPE_HOT_WATER:
+            power = self.coordinator.optimistic.get_zone_power(self._zone_id)
+            if power is not None:
+                return 100.0 if power == "ON" else 0.0
 
-        # Regular Heating Power (%)
-        return parse_heating_power(state)
+        # 2. Fallback to actual state
+        state = self.coordinator.data.zone_states.get(str(self._zone_id))
+        return parse_heating_power(state, zone_type)
 
 
 class TadoHumiditySensor(TadoZoneEntity, SensorEntity):

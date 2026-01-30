@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, cast
 
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import slugify
 
@@ -53,6 +54,51 @@ class TadoOptimisticMixin:
         if (opt := self._get_optimistic_value()) is not None:
             return opt
         return self._get_actual_value()
+
+
+class TadoStateMemoryMixin(RestoreEntity):
+    """Mixin to remember and restore specific states (like last temp)."""
+
+    _state_memory: dict[str, Any]
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """Initialize the memory mixin."""
+        super().__init__(*args, **kwargs)
+        self._state_memory = {}
+
+    async def async_added_to_hass(self) -> None:
+        """Restore state from HA state machine."""
+        await super().async_added_to_hass()
+        if last_state := await self.async_get_last_state():
+            for key in self._state_memory:
+                attr_key = f"last_{key}"
+                if attr_key in last_state.attributes:
+                    self._state_memory[key] = last_state.attributes[attr_key]
+
+    def _store_last_state(self, key: str, value: Any) -> None:
+        """Store a value in memory."""
+        if value is not None:
+            self._state_memory[key] = value
+
+    def _get_last_state(self, key: str, default: Any = None) -> Any:
+        """Retrieve a value from memory."""
+        return self._state_memory.get(key, default)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return entity specific state attributes including memory."""
+        attrs: dict[str, Any] = {}
+        # Try to get attributes from other mixins/bases if they exist
+        if (
+            hasattr(super(), "extra_state_attributes")
+            and (super_attrs := super().extra_state_attributes) is not None
+        ):
+            attrs |= super_attrs
+
+        # Add memory attributes (prefixed with last_)
+        for key, value in self._state_memory.items():
+            attrs[f"last_{key}"] = value
+        return attrs
 
 
 class TadoEntity(CoordinatorEntity):

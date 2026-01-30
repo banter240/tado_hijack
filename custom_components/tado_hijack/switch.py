@@ -45,7 +45,8 @@ async def async_setup_entry(
     for zone in yield_zones(
         coordinator, {ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING}
     ):
-        entities.append(TadoZoneScheduleSwitch(coordinator, zone.id, zone.name))
+        if zone.type == ZONE_TYPE_HEATING:
+            entities.append(TadoZoneScheduleSwitch(coordinator, zone.id, zone.name))
 
         if getattr(zone, "supports_dazzle", False):
             entities.append(TadoDazzleModeSwitch(coordinator, zone.id, zone.name))

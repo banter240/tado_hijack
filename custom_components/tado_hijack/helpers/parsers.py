@@ -63,12 +63,25 @@ def get_ac_capabilities(capabilities: Capabilities) -> dict[str, set[str]]:
     }
 
 
-def parse_heating_power(state: Any) -> float:
-    """Extract heating power percentage from zone state."""
-    if not state or not getattr(state, "activity_data_points", None):
+def parse_heating_power(state: Any, zone_type: str | None = None) -> float:
+    """Extract heating power percentage from zone state.
+
+    Hot Water Power: ON -> 100%, OFF -> 0% (Dev.2 Logic)
+    Regular Heating: Percentage from activityDataPoints
+    """
+    if not state:
         return 0.0
 
-    # Heating Power (Percentage)
+    # Handle Hot Water (Dev.2 Logic)
+    if zone_type == "HOT_WATER":
+        if setting := getattr(state, "setting", None):
+            return 100.0 if getattr(setting, "power", "OFF") == "ON" else 0.0
+        return 0.0
+
+    # Regular Heating Power (%)
+    if not getattr(state, "activity_data_points", None):
+        return 0.0
+
     if (
         hasattr(state.activity_data_points, "heating_power")
         and state.activity_data_points.heating_power

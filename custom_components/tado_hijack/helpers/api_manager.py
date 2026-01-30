@@ -16,7 +16,7 @@ from ..const import (
     CONF_JITTER_PERCENT,
     DEFAULT_JITTER_PERCENT,
 )
-from ..models import TadoCommand
+from ..models import CommandType, TadoCommand
 from .command_merger import CommandMerger
 from .logging_utils import get_redacted_logger
 from .utils import apply_jitter
@@ -44,6 +44,7 @@ class TadoApiManager:
         self._action_queue: dict[str, TadoCommand] = {}
         self._pending_timers: dict[str, CALLBACK_TYPE] = {}
         self._worker_task: asyncio.Task | None = None
+        self._pending_keys: set[str] = set()  # Track in-flight commands
 
     def start(self, entry: ConfigEntry) -> None:
         """Start background worker task."""
@@ -62,12 +63,74 @@ class TadoApiManager:
         self._pending_timers.clear()
         self._action_queue.clear()
 
+    def _get_command_key(self, command: TadoCommand) -> str:
+        """Reconstruct the key for a command (reverse of queue_command key logic)."""
+        if command.cmd_type == CommandType.MANUAL_POLL:
+            refresh_type = command.data.get("type", "all") if command.data else "all"
+            return f"manual_poll_{refresh_type}"
+        if command.cmd_type == CommandType.SET_PRESENCE:
+            return "presence"
+        if command.cmd_type == CommandType.IDENTIFY:
+            serial = command.data.get("serial", "") if command.data else ""
+            return f"identify_{serial}"
+        if command.cmd_type in (
+            CommandType.SET_CHILD_LOCK,
+            CommandType.SET_OFFSET,
+        ):
+            # Device properties use serial from data
+            serial = command.data.get("serial", "") if command.data else ""
+            return f"{command.cmd_type.value}_{serial}"
+        if command.cmd_type in (
+            CommandType.SET_AWAY_TEMP,
+            CommandType.SET_DAZZLE,
+            CommandType.SET_EARLY_START,
+            CommandType.SET_OPEN_WINDOW,
+        ):
+            # Zone properties
+            return f"{command.cmd_type.value}_{command.zone_id}"
+        if command.cmd_type in (CommandType.SET_OVERLAY, CommandType.RESUME_SCHEDULE):
+            # Zone overlay/resume commands
+            return f"zone_{command.zone_id}"
+
+        # Fallback for unknown types
+        return f"{command.cmd_type.value}_{command.zone_id or 'unknown'}"
+
+    @property
+    def pending_keys(self) -> set[str]:
+        """Return set of currently pending command keys."""
+        return self._pending_keys.copy()
+
+    @staticmethod
+    def get_protected_fields_for_key(key: str) -> set[str]:
+        """Return which state fields should be protected for a given command key.
+
+        Args:
+            key: Command key (e.g., "zone_12", "presence", "set_offset_ABC123")
+
+        Returns:
+            Set of field names that should not be overwritten by polls while
+            this command is pending.
+
+        Examples:
+            "zone_12" → {"overlay", "overlay_active", "setting"}
+            "presence" → {"presence"}
+            "set_offset_ABC123" → set() (device-level, no zone state protection)
+
+        """
+        # Zone overlay/resume commands protect overlay state
+        if key.startswith("zone_"):
+            return {"overlay", "overlay_active", "setting"}
+
+        # Presence commands protect home state presence field
+        return {"presence"} if key == "presence" else set()
+
     def queue_command(self, key: str, command: TadoCommand) -> None:
         """Add command to debounce queue."""
         if cancel_fn := self._pending_timers.pop(key, None):
             cancel_fn()
 
         self._action_queue[key] = command
+        self._pending_keys.add(key)  # Mark key as pending
 
         @callback
         def _move_to_worker(_now=None, target_key: str = key):
@@ -108,6 +171,9 @@ class TadoApiManager:
         """Merge and execute a batch of commands."""
         # Initial jitter to break temporal correlation with triggers (1.0s base)
         await self._maybe_apply_call_jitter(base_delay=1.0)
+
+        # Collect keys from batch for cleanup after execution
+        batch_keys = {self._get_command_key(cmd) for cmd in commands}
 
         merger = CommandMerger(self.coordinator.zones_meta)
         for cmd in commands:
@@ -163,6 +229,10 @@ class TadoApiManager:
             merged["zones"], merged.get("rollback_zones", {})
         )
 
+        # Clear pending keys after batch execution
+        for key in batch_keys:
+            self._pending_keys.discard(key)
+
         self.coordinator.update_rate_limit_local(silent=False)
         if merged["manual_poll"]:
             # Jitter manual poll as well
@@ -177,7 +247,12 @@ class TadoApiManager:
         try:
             await self.coordinator.client.set_presence(presence)
         except Exception as e:
-            _LOGGER.error("Failed to set presence: %s", e)
+            _LOGGER.error(
+                "Failed to set presence to '%s': %s (type: %s)",
+                presence,
+                e,
+                type(e).__name__,
+            )
             self.coordinator.optimistic.clear_presence()
 
             if old_presence and self.coordinator.data.home_state:
@@ -202,7 +277,14 @@ class TadoApiManager:
             try:
                 await api_call(serial, value)
             except Exception as e:
-                _LOGGER.error("Failed to %s for %s: %s", action_name, serial, e)
+                _LOGGER.error(
+                    "Failed to set %s for %s: %s (type: %s). Value: %s",
+                    action_name,
+                    serial,
+                    e,
+                    type(e).__name__,
+                    value,
+                )
                 rollback_fn(serial)
 
                 if serial in rollback_data and self.coordinator.devices_meta.get(
@@ -238,7 +320,13 @@ class TadoApiManager:
             try:
                 await self.coordinator.client.set_temperature_offset(serial, value)
             except Exception as e:
-                _LOGGER.error("Failed to set offset for %s: %s", serial, e)
+                _LOGGER.error(
+                    "Failed to set offset for %s: %s (type: %s). Value: %s",
+                    serial,
+                    e,
+                    type(e).__name__,
+                    value,
+                )
                 self.coordinator.optimistic.clear_offset(serial)
 
                 if serial in rollback_data:
@@ -265,12 +353,24 @@ class TadoApiManager:
             "open window": None,
         }
 
+        handler = self.coordinator.dummy_handler  # [DUMMY_HOOK]
         for zone_id, value in actions.items():
+            # [DUMMY_HOOK]
+            if handler and handler.is_dummy_zone(zone_id):
+                continue
+
             await self._maybe_apply_call_jitter()
             try:
                 await api_call(zone_id, value)
             except Exception as e:
-                _LOGGER.error("Failed to %s for zone %d: %s", action_name, zone_id, e)
+                _LOGGER.error(
+                    "Failed to set %s for zone %d: %s (type: %s). Value: %s",
+                    action_name,
+                    zone_id,
+                    e,
+                    type(e).__name__,
+                    value,
+                )
                 rollback_fn(zone_id)
 
                 if zone_id in rollback_data:
@@ -351,32 +451,53 @@ class TadoApiManager:
         self, zones: list[int], rollback_data: dict[int, Any]
     ) -> bool:
         """Execute bulk resume."""
+        # [DUMMY_HOOK] Intercept dummy zones and get remaining real zones
+        handler = self.coordinator.dummy_handler
+        real_zones = handler.filter_and_intercept_resume(zones) if handler else zones
+
+        if not real_zones:
+            return True
+
         await self._maybe_apply_call_jitter()
         try:
-            await self.coordinator.client.reset_all_zones_overlay(zones)
+            await self.coordinator.client.reset_all_zones_overlay(real_zones)
             return True
         except Exception as e:
-            _LOGGER.error("Failed to bulk resume: %s", e)
-            self._rollback_zones(zones, rollback_data)
+            _LOGGER.error(
+                "Failed to bulk resume: %s (type: %s). Zones: %s",
+                e,
+                type(e).__name__,
+                real_zones,
+            )
+            self._rollback_zones(real_zones, rollback_data)
             return False
 
     async def _run_bulk_overlay(
         self, overlays: list[dict[str, Any]], rollback_data: dict[int, Any]
     ) -> bool:
         """Execute bulk overlay."""
+        # [DUMMY_HOOK] Intercept dummy overlays and get remaining real overlays
+        handler = self.coordinator.dummy_handler
+        real_overlays = (
+            handler.filter_and_intercept_overlays(overlays) if handler else overlays
+        )
+
+        if not real_overlays:
+            return True
+
         await self._maybe_apply_call_jitter()
         try:
-            await self.coordinator.client.set_all_zones_overlay(overlays)
+            await self.coordinator.client.set_all_zones_overlay(real_overlays)
             return True
         except Exception as e:
             _LOGGER.error(
                 "Failed bulk overlay: %s (type: %s). Payload: %s",
                 e,
                 type(e).__name__,
-                overlays,
+                real_overlays,
                 exc_info=True,
             )
-            self._rollback_zones([ov["room"] for ov in overlays], rollback_data)
+            self._rollback_zones([ov["room"] for ov in real_overlays], rollback_data)
             return False
 
     async def _run_hw_actions(
@@ -386,7 +507,14 @@ class TadoApiManager:
     ) -> bool:
         """Execute hot water actions individually."""
         any_success = False
+        handler = self.coordinator.dummy_handler  # [DUMMY_HOOK]
+
         for zid, data in actions.items():
+            # [DUMMY_HOOK]
+            if handler and handler.intercept_command(zid, data):
+                any_success = True
+                continue
+
             await self._maybe_apply_call_jitter()
             try:
                 if data is None:
@@ -396,7 +524,12 @@ class TadoApiManager:
                 any_success = True
             except Exception as e:
                 _LOGGER.error(
-                    "Failed hot water overlay for zone %d: %s", zid, e, exc_info=True
+                    "Failed hot water overlay for zone %d: %s (type: %s). Payload: %s",
+                    zid,
+                    e,
+                    type(e).__name__,
+                    data,
+                    exc_info=True,
                 )
                 self._rollback_zones([zid], rollback_data)
         return any_success

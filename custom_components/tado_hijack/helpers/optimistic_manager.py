@@ -85,19 +85,23 @@ class OptimisticManager:
         power: str | None = None,
         temperature: float | None = None,
         operation_mode: str | None = None,
+        ac_mode: str | None = None,
+        vertical_swing: str | None = None,
+        horizontal_swing: str | None = None,
     ) -> None:
         """Apply a comprehensive optimistic state to a zone (DRY Orchestrator).
 
         This helper ensures all entity types (Climate, WaterHeater) stay in sync.
         """
-        # 1. Clear previous state to avoid 'sticking' values (e.g. old temperatures)
-        self.clear_zone(zone_id)
+        # If we are disabling the overlay (resuming schedule), wipe other optimistic states
+        # to ensure we don't carry over stale modes/temps into future commands.
+        if not overlay:
+            self.clear_zone(zone_id)
 
-        # 2. Set the mandatory overlay marker
+        # Set the mandatory overlay marker
         self.set_optimistic("zone", zone_id, "overlay", overlay)
 
-        # 3. Resolve and sync power vs operation_mode
-        # If one is missing, we derive it from the other to support all entity types
+        # Resolve and sync power vs operation_mode
         final_power = power
         final_op_mode = operation_mode
 
@@ -108,17 +112,22 @@ class OptimisticManager:
                 final_op_mode = "off" if final_power == "OFF" else "heat"
             elif final_power is None and final_op_mode is None:
                 # Default to ON/HEAT if we just know an overlay is requested
-                # This prevents entities from falling back to lagging API data (OFF/AUTO)
                 final_power = "ON"
                 final_op_mode = "heat"
 
-        # 4. Set the resolved optimistic keys
+        # Set the resolved optimistic keys
         if final_power is not None:
             self.set_optimistic("zone", zone_id, "power", final_power)
         if final_op_mode is not None:
             self.set_optimistic("zone", zone_id, "operation_mode", final_op_mode)
+        if ac_mode is not None:
+            self.set_optimistic("zone", zone_id, "ac_mode", ac_mode)
         if temperature is not None:
             self.set_optimistic("zone", zone_id, "temperature", temperature)
+        if vertical_swing is not None:
+            self.set_optimistic("zone", zone_id, "vertical_swing", vertical_swing)
+        if horizontal_swing is not None:
+            self.set_optimistic("zone", zone_id, "horizontal_swing", horizontal_swing)
 
     def set_child_lock(self, serial_no: str, enabled: bool) -> None:
         """Set optimistic child lock state."""
@@ -144,6 +153,14 @@ class OptimisticManager:
         """Set optimistic open window detection state."""
         self.set_optimistic("zone", zone_id, "open_window", enabled)
 
+    def set_vertical_swing(self, zone_id: int, value: str) -> None:
+        """Set optimistic vertical swing state."""
+        self.set_optimistic("zone", zone_id, "vertical_swing", value)
+
+    def set_horizontal_swing(self, zone_id: int, value: str) -> None:
+        """Set optimistic horizontal swing state."""
+        self.set_optimistic("zone", zone_id, "horizontal_swing", value)
+
     def get_presence(self) -> str | None:
         """Return optimistic presence if not expired."""
         return cast(str, self.get_optimistic("home", "global", "presence"))
@@ -161,6 +178,10 @@ class OptimisticManager:
         return cast(
             "str | None", self.get_optimistic("zone", zone_id, "operation_mode")
         )
+
+    def get_zone_ac_mode(self, zone_id: int) -> str | None:
+        """Return optimistic zone AC mode if not expired."""
+        return cast("str | None", self.get_optimistic("zone", zone_id, "ac_mode"))
 
     def get_zone_temperature(self, zone_id: int) -> float | None:
         """Return optimistic zone temperature if not expired."""
@@ -189,6 +210,14 @@ class OptimisticManager:
     def get_open_window(self, zone_id: int) -> bool | None:
         """Return optimistic open window detection if not expired."""
         return cast("bool", self.get_optimistic("zone", zone_id, "open_window"))
+
+    def get_vertical_swing(self, zone_id: int) -> str | None:
+        """Return optimistic vertical swing state if not expired."""
+        return cast("str", self.get_optimistic("zone", zone_id, "vertical_swing"))
+
+    def get_horizontal_swing(self, zone_id: int) -> str | None:
+        """Return optimistic horizontal swing state if not expired."""
+        return cast("str", self.get_optimistic("zone", zone_id, "horizontal_swing"))
 
     def clear_presence(self) -> None:
         """Clear optimistic presence state (for rollback)."""

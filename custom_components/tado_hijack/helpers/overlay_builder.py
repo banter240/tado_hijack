@@ -19,9 +19,13 @@ from ..const import (
     ZONE_TYPE_HEATING,
     ZONE_TYPE_HOT_WATER,
 )
+from .logging_utils import get_redacted_logger
+from .overlay_validator import validate_overlay_payload
 
 if TYPE_CHECKING:
     from tadoasync.models import Zone
+
+_LOGGER = get_redacted_logger(__name__)
 
 
 def get_capped_temperature(
@@ -46,6 +50,7 @@ def build_overlay_data(
     duration: int | None = None,
     overlay_type: str | None = None,
     overlay_mode: str | None = None,
+    ac_mode: str | None = None,
 ) -> dict[str, Any]:
     """Build the overlay data dictionary for Tado API."""
     if not overlay_type:
@@ -68,8 +73,24 @@ def build_overlay_data(
         termination = {"typeSkillBasedApp": TERMINATION_MANUAL}
 
     setting: dict[str, Any] = {"type": overlay_type, "power": power}
+    if ac_mode:
+        setting["mode"] = ac_mode
+
     if temperature is not None and power == POWER_ON:
         capped_temp = get_capped_temperature(zone_id, temperature, zones_meta)
         setting["temperature"] = {"celsius": capped_temp}
 
-    return {"setting": setting, "termination": termination}
+    payload = {"setting": setting, "termination": termination}
+
+    # Validate payload before returning (saves API quota on invalid requests)
+    is_valid, error = validate_overlay_payload(payload, overlay_type)
+    if not is_valid:
+        _LOGGER.error(
+            "Overlay validation failed for zone %d (type=%s): %s",
+            zone_id,
+            overlay_type,
+            error,
+        )
+        raise ValueError(f"Invalid overlay payload: {error}")
+
+    return payload
