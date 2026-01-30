@@ -658,23 +658,24 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         self, zone_id: int, temperature: float | None = None
     ):
         """Set hot water zone to heat mode (manual overlay)."""
-        setting: dict[str, Any] = {"type": "HOT_WATER", "power": "ON"}
+        # Resolve temperature with fallback chain
+        state = self.data.zone_states.get(str(zone_id))
+        temp = temperature or TEMP_DEFAULT_HOT_WATER
 
-        temp: float | None = None
-        if self.supports_temperature(zone_id):
-            state = self.data.zone_states.get(str(zone_id))
-            temp = temperature or TEMP_DEFAULT_HOT_WATER
+        # If no temp provided, try to get from current state as fallback
+        if (
+            temperature is None
+            and state
+            and state.setting
+            and state.setting.temperature
+        ):
+            temp = state.setting.temperature.celsius
 
-            # If no temp provided, try to get from current state as secondary fallback
-            if (
-                temperature is None
-                and state
-                and state.setting
-                and state.setting.temperature
-            ):
-                temp = state.setting.temperature.celsius
-
-            setting["temperature"] = {"celsius": temp}
+        setting: dict[str, Any] = {
+            "type": "HOT_WATER",
+            "power": "ON",
+            "temperature": {"celsius": float(temp)},
+        }
 
         data = {
             "setting": setting,
@@ -1064,19 +1065,22 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
     def supports_temperature(self, zone_id: int) -> bool:
         """Check if a zone supports temperature control in overlays.
 
-        For hot water zones, capabilities.temperatures can be truthy even when
-        the zone doesn't accept temperature in overlays (non-OpenTherm).
-        The reliable indicator is whether the zone's current state setting
-        includes a temperature value.
+        Uses capabilities as source of truth. For HOT_WATER zones, we check
+        if capabilities.temperatures exists. If the API later rejects with 422,
+        that's a real error that should be logged.
         """
         zone = self.zones_meta.get(zone_id)
         ztype = getattr(zone, "type", ZONE_TYPE_HEATING) if zone else ZONE_TYPE_HEATING
 
-        if ztype == ZONE_TYPE_HOT_WATER:
-            state = self.data.zone_states.get(str(zone_id))
-            return bool(state and state.setting and state.setting.temperature)
-
         # Heating/AC zones always support temperature
+        if ztype in (ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING):
+            return True
+
+        # Hot water: Check capabilities
+        if ztype == ZONE_TYPE_HOT_WATER:
+            capabilities = self.capabilities_cache.get(zone_id)
+            return bool(capabilities and capabilities.temperatures)
+
         return True
 
     def _resolve_zone_temperature(
