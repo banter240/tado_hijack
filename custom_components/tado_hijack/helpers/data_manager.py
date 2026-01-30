@@ -219,10 +219,27 @@ class TadoDataManager:
         self._last_presence_poll = now
         self._presence_init = True
         if self.coordinator.data:
-            # Skip if presence command is pending in queue
+            # Selective merge for presence
+            from .api_manager import TadoApiManager
+
             pending_keys = self.coordinator.api_manager.pending_keys
             if "presence" not in pending_keys:
+                # No pending command - full update
                 self.coordinator.data.home_state = state
+            else:
+                # Pending presence command - selective merge
+                existing_state = self.coordinator.data.home_state
+                if existing_state:
+                    # Get protected fields for presence command
+                    protected = TadoApiManager.get_protected_fields_for_key("presence")
+
+                    # Update all fields EXCEPT protected ones
+                    for field in vars(state):
+                        if field not in protected and not field.startswith("_"):
+                            setattr(existing_state, field, getattr(state, field))
+                else:
+                    # No existing state - use new state fully
+                    self.coordinator.data.home_state = state
         return state
 
     async def _fetch_zones(self, now: float) -> dict:
@@ -230,26 +247,30 @@ class TadoDataManager:
         self._last_zones_poll = now
         self._zones_init = True
         if self.coordinator.data:
-            # Selective merge: protect overlay for pending zones, but update sensor data
+            # Selective merge: protect specific fields based on command type
+            from .api_manager import TadoApiManager
+
             pending_keys = self.coordinator.api_manager.pending_keys
             for zone_id, new_state in states.items():
-                if f"zone_{zone_id}" not in pending_keys:
+                zone_key = f"zone_{zone_id}"
+                if zone_key not in pending_keys:
                     # No pending command - full update
                     self.coordinator.data.zone_states[zone_id] = new_state
                 else:
-                    # Pending command - selective merge (keep overlay, update sensors)
+                    # Pending command - selective merge
                     existing_state = self.coordinator.data.zone_states.get(zone_id)
                     if existing_state:
-                        # Update sensor and activity data (humidity, temperature, power)
-                        if hasattr(new_state, "sensor_data_points"):
-                            existing_state.sensor_data_points = (
-                                new_state.sensor_data_points
-                            )
-                        if hasattr(new_state, "activity_data_points"):
-                            existing_state.activity_data_points = (
-                                new_state.activity_data_points
-                            )
-                        # Keep existing overlay/setting (protected)
+                        # Get which fields are protected for this command
+                        protected = TadoApiManager.get_protected_fields_for_key(
+                            zone_key
+                        )
+
+                        # Update all fields EXCEPT protected ones
+                        for field in vars(new_state):
+                            if field not in protected and not field.startswith("_"):
+                                setattr(
+                                    existing_state, field, getattr(new_state, field)
+                                )
                     else:
                         # No existing state - use new state fully
                         self.coordinator.data.zone_states[zone_id] = new_state

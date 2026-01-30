@@ -100,6 +100,46 @@ class TadoApiManager:
         """Return set of currently pending command keys."""
         return self._pending_keys.copy()
 
+    @staticmethod
+    def get_protected_fields_for_key(key: str) -> set[str]:
+        """Return which state fields should be protected for a given command key.
+
+        Args:
+            key: Command key (e.g., "zone_12", "presence", "set_offset_ABC123")
+
+        Returns:
+            Set of field names that should not be overwritten by polls while
+            this command is pending.
+
+        Examples:
+            "zone_12" → {"overlay", "overlay_active", "setting"}
+            "presence" → {"presence"}
+            "set_offset_ABC123" → set() (device-level, no zone state protection)
+
+        """
+        # Zone overlay/resume commands protect overlay state
+        if key.startswith("zone_"):
+            return {"overlay", "overlay_active", "setting"}
+
+        # Presence commands protect home state presence field
+        if key == "presence":
+            return {"presence"}
+
+        # Manual poll, identify, and device properties don't protect zone state
+        if key.startswith(
+            ("manual_poll_", "identify_", "set_offset_", "set_child_lock_")
+        ):
+            return set()
+
+        # Zone properties (away_temp, dazzle, etc.) - these are in zone metadata, not state
+        if key.startswith(
+            ("set_away_temp_", "set_dazzle_", "set_early_start_", "set_open_window_")
+        ):
+            return set()
+
+        # Unknown key - be conservative, protect nothing
+        return set()
+
     def queue_command(self, key: str, command: TadoCommand) -> None:
         """Add command to debounce queue."""
         if cancel_fn := self._pending_timers.pop(key, None):
