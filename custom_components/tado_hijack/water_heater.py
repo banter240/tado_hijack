@@ -107,8 +107,9 @@ class TadoHotWater(
             self._attr_min_temp = float(capabilities.temperatures.celsius.min)
             self._attr_max_temp = float(capabilities.temperatures.celsius.max)
             if capabilities.temperatures.celsius.step:
-                self._attr_target_temperature_step = float(
-                    capabilities.temperatures.celsius.step
+                # Hot water requires integer steps (minimum 1.0)
+                self._attr_target_temperature_step = max(
+                    float(capabilities.temperatures.celsius.step), 1.0
                 )
             self.async_write_ha_state()
 
@@ -168,13 +169,17 @@ class TadoHotWater(
         if self.current_operation == OPERATION_MODE_OFF:
             return None
 
+        # In AUTO mode, temperature is controlled by schedule (no slider)
+        if self.current_operation == OPERATION_MODE_AUTO:
+            return None
+
         # 1. Check Optimistic Temperature
         if (
             opt_temp := self.tado_coordinator.optimistic.get_zone_temperature(
                 self._zone_id
             )
         ) is not None:
-            return float(opt_temp)
+            return int(float(opt_temp))
 
         # 2. Real API State
         state = self.tado_coordinator.data.zone_states.get(str(self._zone_id))
@@ -183,7 +188,8 @@ class TadoHotWater(
 
         if setting := getattr(state, "setting", None):
             if temp := getattr(setting, "temperature", None):
-                return getattr(temp, "celsius", None)
+                celsius = getattr(temp, "celsius", None)
+                return int(celsius) if celsius is not None else None
 
         return None
 
@@ -237,8 +243,8 @@ class TadoHotWater(
             return
 
         # Round to integer for hot water (Tado requirement)
-        rounded_temp = round(float(temperature))
-        self._last_target_temp = float(rounded_temp)
+        rounded_temp = float(round(float(temperature)))
+        self._last_target_temp = rounded_temp
 
         await self.tado_coordinator.async_set_zone_overlay(
             self._zone_id,
