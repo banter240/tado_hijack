@@ -235,13 +235,6 @@ class TadoHotWater(
         if temperature is None:
             return
 
-        if not self.tado_coordinator.supports_temperature(self._zone_id):
-            _LOGGER.warning(
-                "Hot water zone %d does not support temperature control",
-                self._zone_id,
-            )
-            return
-
         # Round to integer for hot water (Tado requirement)
         rounded_temp = float(round(float(temperature)))
         self._last_target_temp = rounded_temp

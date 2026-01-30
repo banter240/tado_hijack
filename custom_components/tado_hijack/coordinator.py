@@ -71,6 +71,7 @@ from .helpers.event_handlers import TadoEventHandler
 from .helpers.logging_utils import get_redacted_logger
 from .helpers.optimistic_manager import OptimisticManager
 from .helpers.overlay_builder import build_overlay_data, get_capped_temperature
+from .helpers.overlay_validator import validate_overlay_payload
 from .helpers.patch import get_handler
 from .helpers.property_manager import PropertyManager
 from .helpers.quota_math import (
@@ -523,28 +524,12 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
 
         power = POWER_OFF if hvac_mode == "off" else POWER_ON
 
-        final_temp = temperature
-        if final_temp is None and power == POWER_ON:
-            zone = self.zones_meta.get(zone_id)
-            ztype = (
-                getattr(zone, "type", ZONE_TYPE_HEATING) if zone else ZONE_TYPE_HEATING
-            )
-            if ztype == ZONE_TYPE_HOT_WATER:
-                final_temp = TEMP_DEFAULT_HOT_WATER
-            elif ztype == ZONE_TYPE_AIR_CONDITIONING:
-                final_temp = TEMP_DEFAULT_AC
-            else:
-                final_temp = TEMP_DEFAULT_HEATING
-
-        if final_temp is not None:
-            zone = self.zones_meta.get(zone_id)
-            if zone and getattr(zone, "type", "") == ZONE_TYPE_HOT_WATER:
-                final_temp = float(round(final_temp))
-
+        # Temperature resolution happens in async_set_zone_overlay -> _resolve_zone_temperature
+        # No need to duplicate that logic here
         await self.async_set_zone_overlay(
             zone_id=zone_id,
             power=power,
-            temperature=final_temp,
+            temperature=temperature,
             duration=duration,
             overlay_type=None,  # Auto-resolve
             overlay_mode=overlay_mode,
@@ -683,8 +668,6 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         }
 
         # Validate payload before queuing (catch 422 errors early)
-        from .helpers.overlay_validator import validate_overlay_payload
-
         is_valid, error = validate_overlay_payload(data, "HOT_WATER")
         if not is_valid:
             _LOGGER.error("Hot water overlay validation failed for zone %d: %s", zone_id, error)
@@ -1094,33 +1077,27 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
     def _resolve_zone_temperature(
         self, zone_id: int, temperature: float | None, power: str
     ) -> float | None:
-        """Resolve the effective temperature for a zone overlay.
+        """Resolve temperature with simple fallback chain.
 
-        Strips temperature for zones that don't support it, and resolves a
-        fallback default when power is ON and no temperature is provided.
+        Validator will catch invalid payloads later, no need for defensive logic here.
         """
-        supports_temp = self.supports_temperature(zone_id)
+        # If temperature provided, use it
+        if temperature is not None:
+            return temperature
 
-        if not supports_temp and temperature is not None:
-            _LOGGER.warning(
-                "Zone %d does not support temperature control, ignoring temperature=%s",
-                zone_id,
-                temperature,
-            )
+        # If power OFF, no temperature needed
+        if power != POWER_ON:
             return None
 
-        if temperature is None and power == POWER_ON and supports_temp:
-            zone = self.zones_meta.get(zone_id)
-            ztype = (
-                getattr(zone, "type", ZONE_TYPE_HEATING) if zone else ZONE_TYPE_HEATING
-            )
-            if ztype == ZONE_TYPE_HOT_WATER:
-                return TEMP_DEFAULT_HOT_WATER
-            if ztype == ZONE_TYPE_AIR_CONDITIONING:
-                return TEMP_DEFAULT_AC
-            return TEMP_DEFAULT_HEATING
+        # Fallback to zone-type defaults for power ON
+        zone = self.zones_meta.get(zone_id)
+        ztype = getattr(zone, "type", ZONE_TYPE_HEATING) if zone else ZONE_TYPE_HEATING
 
-        return temperature if supports_temp else None
+        if ztype == ZONE_TYPE_HOT_WATER:
+            return TEMP_DEFAULT_HOT_WATER
+        if ztype == ZONE_TYPE_AIR_CONDITIONING:
+            return TEMP_DEFAULT_AC
+        return TEMP_DEFAULT_HEATING
 
     async def async_set_zone_overlay(
         self,
