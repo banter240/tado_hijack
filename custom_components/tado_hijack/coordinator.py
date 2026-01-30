@@ -682,6 +682,14 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             "termination": {"typeSkillBasedApp": "MANUAL"},
         }
 
+        # Validate payload before queuing (catch 422 errors early)
+        from .helpers.overlay_validator import validate_overlay_payload
+
+        is_valid, error = validate_overlay_payload(data, "HOT_WATER")
+        if not is_valid:
+            _LOGGER.error("Hot water overlay validation failed for zone %d: %s", zone_id, error)
+            raise ValueError(f"Invalid hot water overlay: {error}")
+
         old_state = patch_zone_overlay(self.data.zone_states.get(str(zone_id)), data)
 
         self.optimistic.apply_zone_state(
