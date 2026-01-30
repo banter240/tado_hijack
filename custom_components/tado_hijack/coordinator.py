@@ -576,6 +576,14 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             "termination": {"typeSkillBasedApp": "MANUAL"},
         }
 
+        # Validate payload before queuing
+        is_valid, error = validate_overlay_payload(data, overlay_type)
+        if not is_valid:
+            _LOGGER.error(
+                "Zone heat validation failed for zone %d: %s", zone_id, error
+            )
+            raise ValueError(f"Invalid zone heat payload: {error}")
+
         old_state = patch_zone_overlay(self.data.zone_states.get(str(zone_id)), data)
 
         self.optimistic.apply_zone_state(
@@ -622,6 +630,15 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             "setting": {"type": "HOT_WATER", "power": "OFF"},
             "termination": {"typeSkillBasedApp": "MANUAL"},
         }
+
+        # Validate payload before queuing
+        is_valid, error = validate_overlay_payload(data, "HOT_WATER")
+        if not is_valid:
+            _LOGGER.error(
+                "Hot water off validation failed for zone %d: %s", zone_id, error
+            )
+            raise ValueError(f"Invalid hot water off payload: {error}")
+
         old_state = patch_zone_overlay(self.data.zone_states.get(str(zone_id)), data)
 
         self.optimistic.apply_zone_state(zone_id, overlay=True, power="OFF")
@@ -680,29 +697,6 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         )
         self.async_update_listeners()
 
-        self.api_manager.queue_command(
-            f"zone_{zone_id}",
-            TadoCommand(
-                CommandType.SET_OVERLAY,
-                zone_id=zone_id,
-                data=data,
-                rollback_context=old_state,
-            ),
-        )
-
-    async def async_set_hot_water_power(self, zone_id: int, on: bool) -> None:
-        """Set hot water power state."""
-        data = {
-            "setting": {"type": "HOT_WATER", "power": "ON" if on else "OFF"},
-            "termination": {"typeSkillBasedApp": "MANUAL"},
-        }
-
-        old_state = patch_zone_overlay(self.data.zone_states.get(str(zone_id)), data)
-
-        self.optimistic.apply_zone_state(
-            zone_id, overlay=True, power="ON" if on else "OFF"
-        )
-        self.async_update_listeners()
         self.api_manager.queue_command(
             f"zone_{zone_id}",
             TadoCommand(
@@ -1014,6 +1008,17 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             "setting": {k: v for k, v in setting.items() if v is not None},
             "termination": {"typeSkillBasedApp": "MANUAL"},
         }
+
+        # Validate payload before queuing
+        is_valid, error = validate_overlay_payload(data, state.setting.type)
+        if not is_valid:
+            _LOGGER.error(
+                "AC setting validation failed for zone %d (key=%s): %s",
+                zone_id,
+                key,
+                error,
+            )
+            raise ValueError(f"Invalid AC setting payload: {error}")
 
         old_state = patch_zone_overlay(self.data.zone_states.get(str(zone_id)), data)
 
