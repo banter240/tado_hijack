@@ -16,7 +16,7 @@ from ..const import (
     CONF_JITTER_PERCENT,
     DEFAULT_JITTER_PERCENT,
 )
-from ..models import TadoCommand
+from ..models import CommandType, TadoCommand
 from .command_merger import CommandMerger
 from .logging_utils import get_redacted_logger
 from .utils import apply_jitter
@@ -44,6 +44,7 @@ class TadoApiManager:
         self._action_queue: dict[str, TadoCommand] = {}
         self._pending_timers: dict[str, CALLBACK_TYPE] = {}
         self._worker_task: asyncio.Task | None = None
+        self._pending_keys: set[str] = set()  # Track in-flight commands
 
     def start(self, entry: ConfigEntry) -> None:
         """Start background worker task."""
@@ -62,12 +63,50 @@ class TadoApiManager:
         self._pending_timers.clear()
         self._action_queue.clear()
 
+    def _get_command_key(self, command: TadoCommand) -> str:
+        """Reconstruct the key for a command (reverse of queue_command key logic)."""
+        if command.cmd_type == CommandType.MANUAL_POLL:
+            refresh_type = command.data.get("type", "all") if command.data else "all"
+            return f"manual_poll_{refresh_type}"
+        if command.cmd_type == CommandType.SET_PRESENCE:
+            return "presence"
+        if command.cmd_type == CommandType.IDENTIFY:
+            serial = command.data.get("serial", "") if command.data else ""
+            return f"identify_{serial}"
+        if command.cmd_type in (
+            CommandType.SET_CHILD_LOCK,
+            CommandType.SET_OFFSET,
+        ):
+            # Device properties use serial from data
+            serial = command.data.get("serial", "") if command.data else ""
+            return f"{command.cmd_type.value}_{serial}"
+        if command.cmd_type in (
+            CommandType.SET_AWAY_TEMP,
+            CommandType.SET_DAZZLE,
+            CommandType.SET_EARLY_START,
+            CommandType.SET_OPEN_WINDOW,
+        ):
+            # Zone properties
+            return f"{command.cmd_type.value}_{command.zone_id}"
+        if command.cmd_type in (CommandType.SET_OVERLAY, CommandType.RESUME_SCHEDULE):
+            # Zone overlay/resume commands
+            return f"zone_{command.zone_id}"
+
+        # Fallback for unknown types
+        return f"{command.cmd_type.value}_{command.zone_id or 'unknown'}"
+
+    @property
+    def pending_keys(self) -> set[str]:
+        """Return set of currently pending command keys."""
+        return self._pending_keys.copy()
+
     def queue_command(self, key: str, command: TadoCommand) -> None:
         """Add command to debounce queue."""
         if cancel_fn := self._pending_timers.pop(key, None):
             cancel_fn()
 
         self._action_queue[key] = command
+        self._pending_keys.add(key)  # Mark key as pending
 
         @callback
         def _move_to_worker(_now=None, target_key: str = key):
@@ -108,6 +147,9 @@ class TadoApiManager:
         """Merge and execute a batch of commands."""
         # Initial jitter to break temporal correlation with triggers (1.0s base)
         await self._maybe_apply_call_jitter(base_delay=1.0)
+
+        # Collect keys from batch for cleanup after execution
+        batch_keys = {self._get_command_key(cmd) for cmd in commands}
 
         merger = CommandMerger(self.coordinator.zones_meta)
         for cmd in commands:
@@ -162,6 +204,10 @@ class TadoApiManager:
         await self._execute_zone_actions(
             merged["zones"], merged.get("rollback_zones", {})
         )
+
+        # Clear pending keys after batch execution
+        for key in batch_keys:
+            self._pending_keys.discard(key)
 
         self.coordinator.update_rate_limit_local(silent=False)
         if merged["manual_poll"]:

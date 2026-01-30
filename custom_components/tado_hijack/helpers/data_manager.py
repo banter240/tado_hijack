@@ -219,7 +219,10 @@ class TadoDataManager:
         self._last_presence_poll = now
         self._presence_init = True
         if self.coordinator.data:
-            self.coordinator.data.home_state = state
+            # Skip if presence command is pending in queue
+            pending_keys = self.coordinator.api_manager.pending_keys
+            if "presence" not in pending_keys:
+                self.coordinator.data.home_state = state
         return state
 
     async def _fetch_zones(self, now: float) -> dict:
@@ -227,7 +230,12 @@ class TadoDataManager:
         self._last_zones_poll = now
         self._zones_init = True
         if self.coordinator.data:
-            self.coordinator.data.zone_states = states
+            # Skip zones with pending commands to prevent race conditions
+            pending_keys = self.coordinator.api_manager.pending_keys
+            for zone_id, state in states.items():
+                # Skip if this zone has a pending command in the queue
+                if f"zone_{zone_id}" not in pending_keys:
+                    self.coordinator.data.zone_states[zone_id] = state
         return states
 
     async def _fetch_metadata(self, now: float) -> None:
