@@ -263,7 +263,12 @@ class TadoApiManager:
         try:
             await self.coordinator.client.set_presence(presence)
         except Exception as e:
-            _LOGGER.error("Failed to set presence: %s", e)
+            _LOGGER.error(
+                "Failed to set presence to '%s': %s (type: %s)",
+                presence,
+                e,
+                type(e).__name__,
+            )
             self.coordinator.optimistic.clear_presence()
 
             if old_presence and self.coordinator.data.home_state:
@@ -288,7 +293,14 @@ class TadoApiManager:
             try:
                 await api_call(serial, value)
             except Exception as e:
-                _LOGGER.error("Failed to %s for %s: %s", action_name, serial, e)
+                _LOGGER.error(
+                    "Failed to set %s for %s: %s (type: %s). Value: %s",
+                    action_name,
+                    serial,
+                    e,
+                    type(e).__name__,
+                    value,
+                )
                 rollback_fn(serial)
 
                 if serial in rollback_data and self.coordinator.devices_meta.get(
@@ -324,7 +336,13 @@ class TadoApiManager:
             try:
                 await self.coordinator.client.set_temperature_offset(serial, value)
             except Exception as e:
-                _LOGGER.error("Failed to set offset for %s: %s", serial, e)
+                _LOGGER.error(
+                    "Failed to set offset for %s: %s (type: %s). Value: %s",
+                    serial,
+                    e,
+                    type(e).__name__,
+                    value,
+                )
                 self.coordinator.optimistic.clear_offset(serial)
 
                 if serial in rollback_data:
@@ -356,7 +374,14 @@ class TadoApiManager:
             try:
                 await api_call(zone_id, value)
             except Exception as e:
-                _LOGGER.error("Failed to %s for zone %d: %s", action_name, zone_id, e)
+                _LOGGER.error(
+                    "Failed to set %s for zone %d: %s (type: %s). Value: %s",
+                    action_name,
+                    zone_id,
+                    e,
+                    type(e).__name__,
+                    value,
+                )
                 rollback_fn(zone_id)
 
                 if zone_id in rollback_data:
@@ -442,7 +467,12 @@ class TadoApiManager:
             await self.coordinator.client.reset_all_zones_overlay(zones)
             return True
         except Exception as e:
-            _LOGGER.error("Failed to bulk resume: %s", e)
+            _LOGGER.error(
+                "Failed to bulk resume: %s (type: %s). Zones: %s",
+                e,
+                type(e).__name__,
+                zones,
+            )
             self._rollback_zones(zones, rollback_data)
             return False
 
@@ -482,7 +512,12 @@ class TadoApiManager:
                 any_success = True
             except Exception as e:
                 _LOGGER.error(
-                    "Failed hot water overlay for zone %d: %s", zid, e, exc_info=True
+                    "Failed hot water overlay for zone %d: %s (type: %s). Payload: %s",
+                    zid,
+                    e,
+                    type(e).__name__,
+                    data,
+                    exc_info=True,
                 )
                 self._rollback_zones([zid], rollback_data)
         return any_success
