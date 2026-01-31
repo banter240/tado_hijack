@@ -1,3 +1,17 @@
+## [4.1.0](https://github.com/banter240/tado_hijack/compare/v4.0.1...v4.1.0) (2026-01-31)
+
+### ✨ New Features
+
+* feat(quota): dynamic reset detection, safety throttle, and reconnect logic
+
+This release introduces a more robust and adaptive API quota management system:
+
+- Dynamic API Reset Detection: Monitors remaining quota percentage during a safe window (12-13h Berlin) to detect and adapt to Tado's variable reset times.
+- Persistent Reconnect Logic: Reduced the recovery check interval to 15 minutes (THROTTLE_RECOVERY_INTERVAL_S) for faster service resumption after outages.
+- Safety Throttle: Automatically enforces a 5-minute safety interval and logs warnings if the API reports invalid limit data (<= 0).
+- Enhanced Documentation: Updated README and DESIGN.md to reflect the new architecture and the 3000-call Proxy bypass advantage.
+- Internal Refactoring: Optimized reset logic and stabilized data structures for more reliable quota tracking.
+
 ## [4.0.1](https://github.com/banter240/tado_hijack/compare/v4.0.0...v4.0.1) (2026-01-31)
 
 ### 🐛 Bug Fixes
