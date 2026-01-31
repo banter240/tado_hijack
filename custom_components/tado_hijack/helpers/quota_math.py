@@ -8,23 +8,48 @@ from typing import Any, cast
 from homeassistant.util import dt as dt_util
 
 from ..const import (
-    API_RESET_BUFFER_MINUTES,
-    API_RESET_HOUR,
+    API_RESET_HOUR_END,
+    API_RESET_HOUR_START,
     MIN_AUTO_QUOTA_INTERVAL_S,
     SECONDS_PER_DAY,
     SECONDS_PER_HOUR,
 )
 
 
+def is_in_reset_safe_window() -> bool:
+    """Check if current time (Berlin) is in the reset safe window (12-13h)."""
+    berlin_tz = dt_util.get_time_zone("Europe/Berlin")
+    now_berlin = dt_util.now().astimezone(berlin_tz)
+    hour: int = now_berlin.hour
+    return hour >= API_RESET_HOUR_START and hour < API_RESET_HOUR_END
+
+
+def check_quota_reset(
+    limit: int, remaining: int, last_percent: float, threshold: float
+) -> tuple[bool, float]:
+    """Check if a quota reset occurred based on percentage jump.
+
+    Returns (is_detected, current_percent).
+    """
+    if limit <= 0:
+        return False, 1.0
+
+    current_percent = remaining / limit
+    is_detected = bool(
+        is_in_reset_safe_window()
+        and (last_percent < threshold and current_percent >= threshold)
+    )
+    return is_detected, current_percent
+
+
 def get_next_reset_time() -> datetime:
-    """Get the next API quota reset time (12:01 AM Berlin)."""
+    """Get the next API quota reset safe window midpoint (12:30 Berlin)."""
     berlin_tz = dt_util.get_time_zone("Europe/Berlin")
     now_berlin = dt_util.now().astimezone(berlin_tz)
 
-    # Reset happens at 12:01 Berlin (CET/CEST)
     reset_berlin = now_berlin.replace(
-        hour=API_RESET_HOUR,
-        minute=API_RESET_BUFFER_MINUTES,
+        hour=12,
+        minute=30,
         second=0,
         microsecond=0,
     )

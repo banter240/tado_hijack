@@ -15,7 +15,8 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 
 from .const import (
-    API_RESET_HOUR,
+    API_RESET_HOUR_END,
+    API_RESET_HOUR_START,
     DIAGNOSTICS_REDACTED_PLACEHOLDER,
     DIAGNOSTICS_TO_REDACT_CONFIG_KEYS,
     DIAGNOSTICS_TO_REDACT_DATA_KEYS,
@@ -208,7 +209,7 @@ def _get_quota_diagnostics(coordinator: TadoDataUpdateCoordinator) -> dict[str, 
 
     return {
         "polling_interval": str(coordinator.update_interval),
-        "quota_reset_hour": API_RESET_HOUR,
+        "quota_reset_window_berlin": f"{API_RESET_HOUR_START:02d}:00-{API_RESET_HOUR_END:02d}:00",
         "seconds_until_reset": seconds_until_reset,
         "day_progress": round(progress_done, 4),
         "reserved_24h": res_total,

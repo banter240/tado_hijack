@@ -424,6 +424,8 @@ Unlike other integrations that group everything by "Zone", Tado Hijack maps enti
 *   **JIT Poll Planning:** Uses high-precision timestamps instead of simple flags to decide exactly when a data fetch is required (Zero-Waste).
 *   **Monkey-Patching Utilities:** We actively fix `tadoasync` library limitations at runtime, including robust deserialization for tricky cloud states (like `nextTimeBlock` null errors).
 *   **Custom Client Layer:** I extend the underlying library via inheritance to handle API communication reliably and fix common deserialization errors.
+*   **Safety Throttle (Anti-Spam):** If the Tado API reports an invalid limit (e.g., `<= 0` during outages), the integration automatically throttles to a **5-minute safety interval** and logs a warning to prevent rapid re-polling.
+*   **Persistent Reconnect & Recovery:** When the API quota is exhausted (throttled), the system now performs a recovery check every **15 minutes** (reduced from 1h) to ensure immediate resumption of services as soon as the API becomes available or the quota resets.
 *   **Privacy by Design:** All standard logs and diagnostic reports are automatically redacted. Sensitive data is stripped before any output is generated. (See [Support & Diagnostics](#expert-level-diagnostics) for details).
 
 <br>
@@ -459,7 +461,7 @@ Unlike other integrations that group everything by "Zone", Tado Hijack maps enti
 | :--- | :--- | :--- |
 | **Status Polling** | `30m` | Base interval for room states. **Note:** Dynamically overridden by *Auto API Quota* when enabled; serves as fallback during throttling or budget exhaustion. |
 | **Presence Polling** | `12h` | Interval for Home/Away state. High interval saves mass quota. (1 API call) |
-| **Auto API Quota** | `80%` | Target X% of FREE quota. FREE = Daily Limit - Background Reserve (Scheduled Syncs) - User Excess. Uses a weighted profile to prioritize performance hours. |
+| **Auto API Quota** | `80%` | Target X% of FREE quota. **Note:** While the official API is being choked to **100 calls/day**, using the **API Proxy** bypasses this trap, granting **3000 calls per account**. Uses a weighted profile to prioritize performance hours. |
 | **Reduced Polling Active** | `Off` | Enable the time-based weighted polling profile. |
 | **Reduced Polling Start** | `22:00` | Start time for the economy window (e.g. when you sleep). |
 | **Reduced Polling End** | `07:00` | End time for the economy window. |

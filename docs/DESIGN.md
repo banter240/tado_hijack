@@ -146,15 +146,16 @@ The integration uses a **Weighted Predictive Model** to distribute calls intelli
                                        │
                                        ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ (3) TIME SYNC (Berlin 12:01 AM)                                             │
-│ Quota resets exactly at 12:01 AM Europe/Berlin. The model continuously      │
-│ recalculates the interval based on seconds_until_reset to prevent a crash.  │
+│ (3) TIME SYNC (Berlin 12:00 PM - 01:00 PM Window)                           │
+│ Quota resets dynamically within this window. The system monitors the        │
+│ remaining percentage and detects the jump (Reset Recovery). The model       │
+│ continuously recalculates based on the newly detected baseline.             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 - **Economy Window:** Automatically slows down polling during your sleep window (e.g., 22:00 - 07:00).
 - **Performance Reinvestment:** Saved calls from the night are reinvested into faster updates during the day.
-- **Berlin-Sync:** Precision tracking against Tado's hard-coded reset time (**12:01 AM Europe/Berlin**).
+- **Dynamic Reset Detection:** Instead of a fixed timer, the system uses a **Reset Safe Window (12:00 PM - 01:00 PM Berlin)**. If a significant jump in the remaining quota percentage is detected, the internal baseline is reset immediately.
 
 ### 4. Safety Floors & Adaptive Behavior
 
@@ -162,6 +163,8 @@ To protect your Tado account from automated detection and "Account Locks", the i
 
 - **🛡️ Standard Cloud:** Minimum **45 seconds** per update.
 - **🛡️ API Proxy:** Minimum **120 seconds** per update (Conservative floor required for stable proxy operation).
+- **🛡️ Safety Throttle:** If the Tado API reports an invalid limit (e.g., `<= 0` during outages), the integration automatically enforces a **5-minute (300s)** safety interval to prevent rapid retry loops.
+- **🛡️ Persistent Reconnect:** When the API quota is exhausted (throttled), the system performs a recovery check every **15 minutes** (THROTTLE_RECOVERY_INTERVAL_S) to ensure immediate service resumption once the quota is available.
 
 *Note: These limits apply even if your daily budget allows for higher frequencies. Continuity and account safety always take precedence over speed.*
 
@@ -512,24 +515,24 @@ For power users, Tado Hijack supports a local **API Proxy** to further decouple 
 │    (Home Assistant)       │          │     (e.g., Docker Container)      │
 └─────────────┬─────────────┘          └──────────────────┬────────────────┘
               │                                           │
-              │ (1) Request (No Auth)                     │ (2) Auth Injection
-              ├──────────────────────────────────────────►│ (Local Secrets)
+              │ (1) Request (No Auth)                     │ (2) Process Request
+              ├──────────────────────────────────────────►│     (Auth & Cache)
               │                                           │
               │                                           ▼
               │                        ┌───────────────────────────────────┐
-              │                        │        Tado Cloud API             │
-              │                        │ (Status: 100/day hard limit)      │
+              │                        │          Tado Cloud API           │
+              │                        │   (Quota: 3000/day per account)   │
               │                        └──────────────────┬────────────────┘
               │                                           │
               │ (4) Return Cached/Real                    │ (3) Response
-              │◄──────────────────────────────────────────┤
+              │◄──────────────────────────────────────────┤     (Status & Data)
               │                                           │
 └─────────────┴─────────────┘          └──────────────────┴────────────────┘
 ```
 
 ### Quota Scalability Comparison
 
-Tado is actively choking the standard API. Tado Hijack is engineered to handle this **without any user intervention**, but the Proxy Bypass offers a significant boost for power users.
+Tado is actively choking the official API to a near-useless level. Tado Hijack is engineered to survive this via Adaptive Polling, but the **Proxy Bypass** is the only way to regain full control by utilizing a specialized "Web-Base" access method.
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -537,26 +540,26 @@ Tado is actively choking the standard API. Tado Hijack is engineered to handle t
 └─────────────────────────────────────────────────────────────────────────────┘
          DIRECT CLOUD ACCESS                      LOCAL PROXY BYPASS
  ┌────────────────────────────────┐        ┌──────────────────────────────────┐
- │ Tado Cloud API (Single Acc)    │        │ Multi-Account Proxy Cluster      │
+ │ Official Tado API (Legacy)     │        │ Multi-Account Proxy Cluster      │
  ├────────────────────────────────┤        ├──────────────────────────────────┤
- │ Current: ~5000 calls / day     │        │ 3000 calls / account / day       │
- │ Future:  ~100 calls / day      │        │ Scalable: N x 3000 calls / day   │
+ │ CURRENT LIMIT: ~5000 calls/day │        │ PROXY LIMIT: ~3000 calls / acc   │
+ │ FUTURE LIMIT:  ~100 calls/day  │        │ (Scalable: N x 3000 / day)       │
  └──────────────┬─────────────────┘        └───────────────┬──────────────────┘
                 │                                          │
                 ▼                                          ▼
       [ ADAPTIVE SURVIVAL ]                       [ TOTAL FREEDOM ]
- System automatically slows down.          High-frequency polling (120s).
- CONTINUITY is guaranteed.                 Unlimited bandwidth for automation.
+ High speed today (45s floor).             High-speed polling (120s floor).
+ Adaptive slowdown once limited.           Full bandwidth (Jitter enabled).
 ```
 
 ### Strategic Benefits of the Proxy
 
-1.  **Auth Outsourcing:** The proxy handles OAuth2 token management and refreshes internally. Hijack simply sends requests to the local proxy URL.
-2.  **Pattern Obfuscation:** The proxy allows for advanced **Multi-Level Jitter**, breaking the temporal correlation between Home Assistant actions and Tado cloud logs.
+1.  **Auth Outsourcing:** The proxy handles OAuth2 token management and refreshes internally using its own local secrets. Hijack simply sends requests to the local proxy URL.
+2.  **Bypass the 100-Call Trap:** While the official Cloud API is moving towards a strict 100-call daily limit, the proxy utilizes a specialized access method (Chrome-based/Web-API) granting **3000 calls per account**.
 3.  **Local Cache Layer:** Frequently requested data can be served directly from the proxy's local memory, saving precious API calls for critical commands.
-4.  **Bypass Throttling:** By presenting a stable, single-IP endpoint to Tado, the proxy mitigates common "Account Lock" scenarios triggered by multiple rapid connections from different HA components.
-5.  **Multi-Account Scaling:** While a single cloud account is doomed to the 100-call wall, the proxy can orchestrate multiple accounts to pool their quota, effectively providing unlimited bandwidth.
-6.  **Performance Boost:** While the Direct Cloud mode must adaptively slow down to survive the 100-call limit, the Proxy mode allows for consistent, high-speed updates (45s - 120s) regardless of daily usage.
+4.  **Multi-Account Scaling:** Power users can orchestrate multiple accounts to pool their quota, effectively providing unlimited bandwidth for complex smart home setups.
+5.  **Ban Protection & Obfuscation:** The proxy allows for advanced **Multi-Level Jitter**, breaking the temporal correlation between Home Assistant actions and Tado cloud logs.
+6.  **Safety First Performance:** While Cloud mode allows 45s updates (technical floor), Proxy mode enforces a conservative **120s minimum interval** combined with jitter to keep your account safe from automated detection during high-frequency polling.
 
 ---
 

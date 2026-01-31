@@ -263,7 +263,9 @@ class TadoHijackCommonFlow:
                     vol.Optional(
                         CONF_API_PROXY_URL,
                         description={
-                            "suggested_value": self._get_current_data(CONF_API_PROXY_URL, "")
+                            "suggested_value": self._get_current_data(
+                                CONF_API_PROXY_URL, ""
+                            )
                         },
                     ): vol.Any(None, str),
                     vol.Optional(
