@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from .helpers.client import TadoHijackClient
 
 from .const import (
+    API_RESET_RECOVERY_THRESHOLD,
     BOOST_MODE_TEMP,
     CONF_API_PROXY_URL,
     CONF_AUTO_API_QUOTA_PERCENT,
@@ -79,6 +80,7 @@ from .helpers.property_manager import PropertyManager
 from .helpers.quota_math import (
     calculate_remaining_polling_budget,
     calculate_weighted_interval,
+    check_quota_reset,
     get_next_reset_time,
     get_seconds_until_reset,
 )
@@ -167,6 +169,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         self._climate_to_zone: dict[str, int] = {}
         self._polling_calls_today = 0
         self._last_quota_reset: datetime | None = None
+        self._last_remaining_percent: float = 1.0
         self._reset_poll_unsub: asyncio.TimerHandle | None = None
         self._post_action_poll_timer: asyncio.TimerHandle | None = None
         self._expiry_timers: set[asyncio.TimerHandle] = set()
@@ -269,6 +272,8 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             actual_cost = quota_start - self.rate_limit.remaining
             if actual_cost > 0:
                 self.rate_limit.last_poll_cost = float(actual_cost)
+
+            self._detect_quota_reset()
 
             data.rate_limit = RateLimit(
                 limit=self.rate_limit.limit,
@@ -417,6 +422,27 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         self._reset_poll_unsub = self.hass.loop.call_later(
             max(1.0, delay), lambda: self.hass.async_create_task(self._on_reset_poll())
         )
+
+    def _detect_quota_reset(self) -> None:
+        """Detect quota reset by monitoring remaining percentage jump during safe window."""
+        is_detected, current_percent = check_quota_reset(
+            limit=self.rate_limit.limit,
+            remaining=self.rate_limit.remaining,
+            last_percent=self._last_remaining_percent,
+            threshold=API_RESET_RECOVERY_THRESHOLD,
+        )
+
+        if is_detected:
+            self._last_quota_reset = dt_util.now()
+            _LOGGER.info(
+                "Quota reset detected! remaining: %d/%d (%.1f%% -> %.1f%%)",
+                self.rate_limit.remaining,
+                self.rate_limit.limit,
+                self._last_remaining_percent * 100,
+                current_percent * 100,
+            )
+
+        self._last_remaining_percent = current_percent
 
     async def _on_reset_poll(self) -> None:
         """Execute automatic poll at quota reset time."""
@@ -1100,9 +1126,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
             self._schedule_expiry_poll(duration * 60)
 
         is_timed_overlay = bool(
-            duration
-            or overlay_mode
-            in (OVERLAY_NEXT_BLOCK, "presence")
+            duration or overlay_mode in (OVERLAY_NEXT_BLOCK, "presence")
         )
 
         if refresh_after and not is_timed_overlay:

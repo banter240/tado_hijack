@@ -116,8 +116,11 @@ TERMINATION_TADO_MODE: Final = "TADO_MODE"
 TERMINATION_NEXT_TIME_BLOCK: Final = "NEXT_TIME_BLOCK"
 
 # Auto API Quota
-API_RESET_HOUR: Final = 12  # Hour when Tado resets API quota (12:01 Berlin)
-API_RESET_BUFFER_MINUTES: Final = 1  # Buffer after reset to ensure fresh data
+# Reset happens somewhere in this window (Berlin time)
+API_RESET_HOUR_START: Final = 12
+API_RESET_HOUR_END: Final = 13
+API_RESET_RECOVERY_THRESHOLD: Final = 0.9
+API_RESET_BUFFER_MINUTES: Final = 1
 
 # Service Names
 SERVICE_MANUAL_POLL = "manual_poll"
