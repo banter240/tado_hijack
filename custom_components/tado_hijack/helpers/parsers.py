@@ -92,9 +92,17 @@ def parse_heating_power(state: Any, zone_type: str | None = None) -> float:
 
 
 def parse_schedule_temperature(state: Any) -> float | None:
-    """Extract the target temperature from the active schedule in zone state."""
+    """Extract the target temperature from the active schedule in zone state.
+
+    Returns None if the schedule is OFF or no temperature is defined.
+    """
     if not state or not (setting := getattr(state, "setting", None)):
         return None
+
+    # If schedule power is explicitly OFF, there is no target temperature
+    if getattr(setting, "power", "ON") == "OFF":
+        return None
+
     if temp := getattr(setting, "temperature", None):
         celsius = getattr(temp, "celsius", None)
         return float(celsius) if celsius is not None else None

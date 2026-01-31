@@ -245,6 +245,10 @@ class TadoHijackCommonFlow:
     ) -> ConfigFlowResult:
         """Handle Wizard Page 4: Advanced & Debug."""
         if user_input is not None:
+            proxy_url = user_input.get(CONF_API_PROXY_URL, "")
+            if not proxy_url or not str(proxy_url).strip():
+                user_input[CONF_API_PROXY_URL] = None
+
             self._data.update(user_input)
             return await self._async_finish_flow()
 
@@ -258,7 +262,9 @@ class TadoHijackCommonFlow:
                 {
                     vol.Optional(
                         CONF_API_PROXY_URL,
-                        default=self._get_current_data(CONF_API_PROXY_URL, "") or "",
+                        description={
+                            "suggested_value": self._get_current_data(CONF_API_PROXY_URL, "")
+                        },
                     ): vol.Any(None, str),
                     vol.Optional(
                         CONF_CALL_JITTER_ENABLED,
@@ -454,12 +460,18 @@ class TadoHijackOptionsFlowHandler(TadoHijackCommonFlow, config_entries.OptionsF
 
     async def _async_finish_flow(self) -> ConfigFlowResult:
         """Update the config entry."""
-        if not self._data.get(CONF_API_PROXY_URL):
-            self._data[CONF_API_PROXY_URL] = None
+        new_data = dict(self.config_entry.data)
+        new_data |= self._data
+
+        if (
+            not new_data.get(CONF_API_PROXY_URL)
+            or not str(new_data.get(CONF_API_PROXY_URL, "")).strip()
+        ):
+            new_data[CONF_API_PROXY_URL] = None
 
         self.hass.config_entries.async_update_entry(
             self.config_entry,
-            data={**self.config_entry.data, **self._data},
+            data=new_data,
         )
         await self.hass.config_entries.async_reload(self.config_entry.entry_id)
         return self.async_create_entry(data={})

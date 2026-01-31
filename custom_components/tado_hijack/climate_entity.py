@@ -96,17 +96,13 @@ class TadoClimateEntity(
     @property
     def hvac_mode(self) -> HVACMode:
         """Return current operation mode."""
-        # 1. Optimistic Overlay Check (Highest Priority)
         opt_overlay = self.tado_coordinator.optimistic.get_zone_overlay(self._zone_id)
 
-        # Explicit False = Resume Schedule (AUTO)
         if opt_overlay is False:
             return HVACMode.AUTO
 
-        # Explicit True = Manual Overlay (HEAT/OFF/COOL)
         is_manual_intent = opt_overlay is True
 
-        # 2. Resolved State Check (Power only via Mixin)
         resolved_state = self._resolve_state()
         power = (
             resolved_state.get("power")
@@ -114,11 +110,9 @@ class TadoClimateEntity(
             else str(resolved_state)
         )
 
-        # 3. Real API State Overlay Check (Fallback)
         state = self._current_state
         api_has_overlay = bool(state and getattr(state, "overlay_active", False))
 
-        # If no optimistic intent AND API says no overlay -> AUTO
         if not api_has_overlay and not is_manual_intent:
             return HVACMode.AUTO
 
@@ -187,7 +181,6 @@ class TadoClimateEntity(
         if self.hvac_mode in (HVACMode.OFF, HVACMode.FAN_ONLY):
             return None
 
-        # 1. Check Optimistic Temperature (High Priority for immediate feedback)
         if (
             opt_temp := self.tado_coordinator.optimistic.get_zone_temperature(
                 self._zone_id
@@ -195,7 +188,6 @@ class TadoClimateEntity(
         ) is not None:
             return float(opt_temp)
 
-        # 2. Real API State
         state = self._current_state
         if state and state.setting and state.setting.temperature:
             if temp := getattr(state.setting.temperature, "celsius", None):
@@ -210,7 +202,6 @@ class TadoClimateEntity(
                 )
                 return result
 
-        # 3. Last Known Target (for when device is ON but API state is lagging)
         if (last_temp := self._get_last_state("target_temperature")) is not None:
             return float(last_temp)
 
@@ -342,8 +333,8 @@ class TadoAirConditioning(TadoClimateEntity):
         # Recovery of the target temperature of the planning in AUTO mode
         if self.hvac_mode == HVACMode.AUTO:
             state = self._current_state
-            if (temp := parse_schedule_temperature(state)) is not None:
-                attrs["auto_target_temperature"] = float(temp)
+            temp = parse_schedule_temperature(state)
+            attrs["auto_target_temperature"] = float(temp) if temp is not None else None
 
         return attrs
 
@@ -382,7 +373,6 @@ class TadoAirConditioning(TadoClimateEntity):
 
     def _get_active_hvac_mode(self) -> HVACMode:
         """Return hvac mode when power is ON based on current state."""
-        # 1. Check Optimistic Mode
         if (
             opt_mode := self.tado_coordinator.optimistic.get_zone_ac_mode(self._zone_id)
         ) is not None:
@@ -396,7 +386,6 @@ class TadoAirConditioning(TadoClimateEntity):
             if mode == "fan":
                 return HVACMode.FAN_ONLY
 
-        # 2. Actual API State
         state = self._current_state
         if state and state.setting and state.setting.mode:
             mode = str(state.setting.mode).lower()
@@ -412,7 +401,6 @@ class TadoAirConditioning(TadoClimateEntity):
 
     def _is_active(self, state: Any) -> bool:
         """Check if the device is currently active (heating/cooling)."""
-        # 1. Basic power check using resolved state (Optimistic > Actual)
         resolved_state = self._resolve_state()
         power = (
             resolved_state.get("power")
@@ -427,30 +415,24 @@ class TadoAirConditioning(TadoClimateEntity):
         target_temp = self.target_temperature
         mode = self.hvac_mode
 
-        # Check if we are currently in an optimistic state (temp or overlay change)
         opt = self.tado_coordinator.optimistic
         is_optimistic = (
             opt.get_zone_temperature(self._zone_id) is not None
             or opt.get_zone_overlay(self._zone_id) is not None
         )
 
-        # 2. If optimistic, PRIORITIZE comparison for immediate feedback
         if is_optimistic and current_temp is not None and target_temp is not None:
             if mode == HVACMode.HEAT:
                 return current_temp < target_temp
             if mode in (HVACMode.COOL, HVACMode.DRY):
                 return current_temp > target_temp
 
-        # 3. Otherwise, trust Tado API activity data if available (steady state)
         if hasattr(state, "activity_data_points") and state.activity_data_points:
-            # AC Zone: Check ac_power
             if ac_p := getattr(state.activity_data_points, "ac_power", None):
                 return str(ac_p.value) == POWER_ON
-            # Heating Zone: Check heating_power percentage
             if h_p := getattr(state.activity_data_points, "heating_power", None):
                 return float(getattr(h_p, "percentage", 0)) > 0
 
-        # 4. Final fallback: Standard comparison if no API activity data
         if current_temp is None or target_temp is None:
             return False
 
@@ -501,11 +483,9 @@ class TadoAirConditioning(TadoClimateEntity):
     @property
     def swing_mode(self) -> str | None:
         """Return current swing mode."""
-        # 1. Check Optimistic Swing (High Priority)
         v_swing = self.tado_coordinator.optimistic.get_vertical_swing(self._zone_id)
         h_swing = self.tado_coordinator.optimistic.get_horizontal_swing(self._zone_id)
 
-        # Update memory if anything is ON
         if v_swing and v_swing != "OFF":
             self._store_last_state("vertical_swing", v_swing)
         if h_swing and h_swing != "OFF":
@@ -516,13 +496,11 @@ class TadoAirConditioning(TadoClimateEntity):
         if h_swing is not None:
             return h_swing
 
-        # 2. Actual API State
         state = self._current_state
         if state and state.setting:
             v_val = getattr(state.setting, "vertical_swing", "OFF")
             h_val = getattr(state.setting, "horizontal_swing", "OFF")
 
-            # Update memory from API state if active
             if v_val != "OFF":
                 self._store_last_state("vertical_swing", v_val)
             if h_val != "OFF":
@@ -544,16 +522,13 @@ class TadoAirConditioning(TadoClimateEntity):
 
     async def async_set_swing_mode(self, swing_mode: str) -> None:
         """Set new swing mode."""
-        # Check capabilities to see what we can toggle
         capabilities = self.tado_coordinator.data.capabilities.get(self._zone_id)
         if not capabilities:
-            # Fallback to vertical only if no metadata yet
             await self.tado_coordinator.async_set_ac_setting(
                 self._zone_id, "vertical_swing", swing_mode
             )
             return
 
-        # Track and restore specific swing states
         ac_caps = get_ac_capabilities(capabilities)
         tasks = []
 

@@ -168,14 +168,14 @@ class TadoHotWater(
         """Return entity specific state attributes."""
         attrs = super().extra_state_attributes
 
-        # Only show schedule temperature for OpenTherm systems
+        # Show schedule temperature for OpenTherm systems in AUTO mode
         if (
             self.tado_coordinator.supports_temperature(self._zone_id)
             and self.current_operation == OPERATION_MODE_AUTO
         ):
             state = self.coordinator.data.zone_states.get(str(self._zone_id))
-            if (temp := parse_schedule_temperature(state)) is not None:
-                attrs["auto_target_temperature"] = int(temp)
+            temp = parse_schedule_temperature(state)
+            attrs["auto_target_temperature"] = int(temp) if temp is not None else None
 
         return attrs
 

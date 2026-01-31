@@ -151,13 +151,11 @@ class TadoHeatingPowerSensor(TadoZoneEntity, SensorEntity):
         zone = self.coordinator.zones_meta.get(self._zone_id)
         zone_type = getattr(zone, "type", None)
 
-        # 1. For Hot Water, check optimistic power first
         if zone_type == ZONE_TYPE_HOT_WATER:
             power = self.coordinator.optimistic.get_zone_power(self._zone_id)
             if power is not None:
                 return 100.0 if power == "ON" else 0.0
 
-        # 2. Fallback to actual state
         state = self.coordinator.data.zone_states.get(str(self._zone_id))
         return parse_heating_power(state, zone_type)
 

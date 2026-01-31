@@ -1096,17 +1096,13 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         refresh_after: bool,
     ) -> None:
         """Handle side effects like expiry timers and automatic refreshes (DRY helper)."""
-        # 1. Schedule Expiry Poll for Timers (This is our long-term refresh)
         if duration and duration > 0:
             self._schedule_expiry_poll(duration * 60)
 
-        # 2. Trigger immediate Refresh ONLY if requested AND it's a permanent manual change
-        # Logic: If it has a duration, next_block or presence, we don't poll immediately
-        # because the cloud state is either known (timer) or unpredictable (next_block/presence).
         is_timed_overlay = bool(
             duration
             or overlay_mode
-            in (OVERLAY_NEXT_BLOCK, "presence")  # Use string if const not imported
+            in (OVERLAY_NEXT_BLOCK, "presence")
         )
 
         if refresh_after and not is_timed_overlay:
@@ -1129,7 +1125,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[TadoData]):
         # Hot water: Check capabilities
         if ztype == ZONE_TYPE_HOT_WATER:
             capabilities = self.data_manager.capabilities_cache.get(zone_id)
-            return bool(capabilities and capabilities.temperatures)
+            return bool(capabilities and getattr(capabilities, "temperatures", None))
 
         return True
 
