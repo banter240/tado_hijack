@@ -1,3 +1,27 @@
+## [4.0.1](https://github.com/banter240/tado_hijack/compare/v4.0.0...v4.0.1) (2026-01-31)
+
+### 🐛 Bug Fixes
+
+* fix(core): proxy URL deletion, AttributeError fix
+
+Proxy URL Deletion Fix:
+- Changed from 'default' to 'suggested_value' in config schema (config_flow.py)
+- Allows users to properly clear/delete the proxy URL field in settings
+- Previously, 'default' would revert to old value when field was cleared
+- Added explicit None handling in async_step_advanced and _async_finish_flow
+
+AttributeError Protection:
+- Added getattr() in supports_temperature() for non-OpenTherm systems (coordinator.py)
+- Prevents crash: "AttributeError: 'types.SimpleNamespace' object has no attribute 'temperatures'"
+- Enables dummy zones without temperature capabilities to work correctly
+
+Hot Water Improvements:
+- Added parse_schedule_temperature() helper for consistent parsing (parsers.py)
+- Fixed auto_target_temperature to return null instead of omitting attribute (water_heater.py)
+- Improves UI consistency when schedule is OFF
+
+All functional logic remains unchanged.
+
 ## [4.0.0](https://github.com/banter240/tado_hijack/compare/v3.0.0...v4.0.0) (2026-01-31)
 
 ### ⚠ BREAKING CHANGES
