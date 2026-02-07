@@ -1,3 +1,14 @@
+## [4.2.3](https://github.com/banter240/tado_hijack/compare/v4.2.2...v4.2.3) (2026-02-07)
+
+### 🐛 Bug Fixes
+
+* fix(ci): enable full HACS brands validation
+
+Removes the 'brands' ignore flag from the HACS validation workflow.
+
+- This change is required to pass the strict validation checks for submitting the integration to the official HACS Default Store.
+- Ensures all brand assets (logos, icons) are correctly verified.
+
 ## [4.2.2](https://github.com/banter240/tado_hijack/compare/v4.2.1...v4.2.2) (2026-02-07)
 
 ### 🐛 Bug Fixes
