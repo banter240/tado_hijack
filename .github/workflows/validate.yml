@@ -31,5 +31,3 @@ jobs:
         uses: "hacs/action@main"
         with:
           category: "integration"
-          # The 'brands' check is ignored until custom brand images are added.
-          ignore: "brands"
