@@ -88,4 +88,3 @@ class TadoGenericZoneSensor(TadoZoneEntity, TadoGenericEntityMixin, SensorEntity
 
         TadoZoneEntity.__init__(self, coordinator, trans_key, zone_id, zone_name)
         TadoGenericEntityMixin.__init__(self, definition)
-        self._set_entity_id("sensor", definition["key"])

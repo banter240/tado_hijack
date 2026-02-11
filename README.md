@@ -32,6 +32,13 @@ While other integrations **die** when Tado slashes API limits, Tado Hijack **jus
 
 <br>
 
+> [!IMPORTANT]
+> **Migration Note (Zone Sensor Naming):**
+> Zone sensor entity names have been standardized to use zone names (e.g., `sensor.wohnzimmer_mitte_humidity`) instead of the old format (e.g., `sensor.tado_daheim_12_humidity`).
+> **Note:** Existing installations will likely retain the old IDs due to Home Assistant's registry persistence. To apply the new naming scheme, deleting and re-adding the **Tado Home configuration entry** is recommended.
+
+<br>
+
 > [!NOTE]
 > **High API Usage is Expected (And Good!):**
 > **You might see 2,000-4,000 API calls per day.** This is **completely normal** and exactly how Auto Quota is designed to work!
@@ -46,8 +53,8 @@ While other integrations **die** when Tado slashes API limits, Tado Hijack **jus
 
 <br>
 
-> [!CAUTION]
-> **Breaking Change (Migration v6):**
+> [!NOTE]
+> **Migration v6:**
 > All polling intervals have been reset to their default values. This migration was necessary because the configuration schema switched from **hours to seconds** to allow for much higher precision and consistency across all features. Please review your settings in the integration options.
 
 <br>

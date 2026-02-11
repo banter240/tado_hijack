@@ -10,13 +10,14 @@ from tadoasync import Tado, TadoError
 import voluptuous as vol
 from yarl import URL
 
-from homeassistant import config_entries
+from homeassistant import config_entries, data_entry_flow
 from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.const import CONF_SCAN_INTERVAL
 from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    BooleanSelector,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
@@ -107,232 +108,299 @@ class TadoHijackCommonFlow:
             return self.config_entry.data.get(key, default)
         return default
 
-    def _get_advanced_schema(self) -> vol.Schema:
-        """Get the schema for the advanced/debug step."""
-        return vol.Schema(
-            {
-                vol.Optional(
-                    CONF_API_PROXY_URL,
-                    description={
-                        "suggested_value": self._get_current_data(
-                            CONF_API_PROXY_URL, ""
-                        )
-                    },
-                ): vol.Any(None, str),
-                vol.Optional(
-                    CONF_PROXY_TOKEN,
-                    description={
-                        "suggested_value": self._get_current_data(CONF_PROXY_TOKEN, "")
-                    },
-                ): vol.Any(None, str),
-                vol.Optional(
-                    CONF_CALL_JITTER_ENABLED,
-                    default=self._get_current_data(CONF_CALL_JITTER_ENABLED, False),
-                ): bool,
-                vol.Optional(
-                    CONF_JITTER_PERCENT,
-                    default=self._get_current_data(
-                        CONF_JITTER_PERCENT, DEFAULT_JITTER_PERCENT
-                    ),
-                ): NumberSelector(
-                    NumberSelectorConfig(
-                        min=0, max=50, step=0.1, mode=NumberSelectorMode.BOX
-                    )
-                ),
-                vol.Optional(
-                    CONF_DEBOUNCE_TIME,
-                    default=self._get_current_data(
-                        CONF_DEBOUNCE_TIME, DEFAULT_DEBOUNCE_TIME
-                    ),
-                ): vol.All(vol.Coerce(int), vol.Range(min=MIN_DEBOUNCE_TIME)),
-                vol.Optional(
-                    CONF_MIN_AUTO_QUOTA_INTERVAL_S,
-                    default=self._get_current_data(
-                        CONF_MIN_AUTO_QUOTA_INTERVAL_S,
-                        DEFAULT_MIN_AUTO_QUOTA_INTERVAL_S,
-                    ),
-                ): vol.All(
-                    vol.Coerce(int),
-                    vol.Range(
-                        min=MIN_AUTO_QUOTA_INTERVAL_S, max=MAX_AUTO_QUOTA_INTERVAL_S
-                    ),
-                ),
-                vol.Required(
-                    CONF_LOG_LEVEL,
-                    default=self._get_current_data(CONF_LOG_LEVEL, DEFAULT_LOG_LEVEL),
-                ): SelectSelector(
-                    SelectSelectorConfig(
-                        options=LOG_LEVELS, mode=SelectSelectorMode.DROPDOWN
-                    )
-                ),
-            }
-        )
+    def _flatten_section_data(self, user_input: dict[str, Any]) -> dict[str, Any]:
+        """Flatten nested section data into flat configuration.
+
+        Sections like 'general_polling', 'api_quota', etc. are unpacked
+        into top-level config keys.
+        """
+        processed_input = {}
+
+        # Flatten general_polling section
+        if "general_polling" in user_input:
+            polling = user_input["general_polling"]
+            for key in [
+                CONF_SCAN_INTERVAL,
+                CONF_PRESENCE_POLL_INTERVAL,
+                CONF_SLOW_POLL_INTERVAL,
+                CONF_OFFSET_POLL_INTERVAL,
+            ]:
+                if key in polling:
+                    processed_input[key] = polling[key]
+
+        # Flatten api_quota section
+        if "api_quota" in user_input:
+            quota = user_input["api_quota"]
+            for key in [
+                CONF_AUTO_API_QUOTA_PERCENT,
+                CONF_THROTTLE_THRESHOLD,
+                CONF_DISABLE_POLLING_WHEN_THROTTLED,
+                CONF_REFRESH_AFTER_RESUME,
+            ]:
+                if key in quota:
+                    processed_input[key] = quota[key]
+
+        # Flatten reduced_polling section
+        if "reduced_polling" in user_input:
+            schedule = user_input["reduced_polling"]
+            for key in [
+                CONF_REDUCED_POLLING_ACTIVE,
+                CONF_REDUCED_POLLING_START,
+                CONF_REDUCED_POLLING_END,
+                CONF_REDUCED_POLLING_INTERVAL,
+            ]:
+                if key in schedule:
+                    processed_input[key] = schedule[key]
+
+        # Flatten advanced section
+        if "advanced" in user_input:
+            advanced = user_input["advanced"]
+            for key in [
+                CONF_API_PROXY_URL,
+                CONF_PROXY_TOKEN,
+                CONF_CALL_JITTER_ENABLED,
+                CONF_JITTER_PERCENT,
+                CONF_DEBOUNCE_TIME,
+                CONF_MIN_AUTO_QUOTA_INTERVAL_S,
+                CONF_LOG_LEVEL,
+            ]:
+                if key in advanced:
+                    processed_input[key] = advanced[key]
+
+        return processed_input
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Handle Wizard Page 1: General Polling Intervals."""
-        if user_input is not None:
-            self._data.update(user_input)
-            return await self.async_step_quota()
-
-        return self.async_show_form(
-            step_id="init",
-            description_placeholders={
-                "docs_url": "https://github.com/banter240/tado_hijack?tab=readme-ov-file#api-consumption-strategy"
-            },
-            data_schema=vol.Schema(
-                {
-                    vol.Required(
-                        CONF_SCAN_INTERVAL,
-                        default=self._get_current_data(
-                            CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
-                        ),
-                    ): vol.All(vol.Coerce(int), vol.Range(min=MIN_SCAN_INTERVAL)),
-                    vol.Required(
-                        CONF_PRESENCE_POLL_INTERVAL,
-                        default=self._get_current_data(
-                            CONF_PRESENCE_POLL_INTERVAL, DEFAULT_PRESENCE_POLL_INTERVAL
-                        ),
-                    ): vol.All(vol.Coerce(int), vol.Range(min=MIN_SCAN_INTERVAL)),
-                    vol.Required(
-                        CONF_SLOW_POLL_INTERVAL,
-                        default=self._get_current_data(
-                            CONF_SLOW_POLL_INTERVAL, DEFAULT_SLOW_POLL_INTERVAL
-                        ),
-                    ): vol.All(vol.Coerce(int), vol.Range(min=MIN_SLOW_POLL_INTERVAL)),
-                    vol.Optional(
-                        CONF_OFFSET_POLL_INTERVAL,
-                        default=self._get_current_data(
-                            CONF_OFFSET_POLL_INTERVAL, DEFAULT_OFFSET_POLL_INTERVAL
-                        ),
-                    ): vol.All(
-                        vol.Coerce(int), vol.Range(min=MIN_OFFSET_POLL_INTERVAL)
-                    ),
-                }
-            ),
-        )
-
-    async def async_step_quota(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Handle Wizard Page 2: Auto API Quota & Safety."""
-        if user_input is not None:
-            self._data.update(user_input)
-            return await self.async_step_schedule()
-
-        return self.async_show_form(
-            step_id="quota",
-            description_placeholders={
-                "docs_url": "https://github.com/banter240/tado_hijack?tab=readme-ov-file#auto-api-quota--economy-window"
-            },
-            data_schema=vol.Schema(
-                {
-                    vol.Optional(
-                        CONF_AUTO_API_QUOTA_PERCENT,
-                        default=self._get_current_data(
-                            CONF_AUTO_API_QUOTA_PERCENT, DEFAULT_AUTO_API_QUOTA_PERCENT
-                        ),
-                    ): NumberSelector(
-                        NumberSelectorConfig(
-                            min=0, max=100, step=1, mode=NumberSelectorMode.BOX
-                        )
-                    ),
-                    vol.Optional(
-                        CONF_THROTTLE_THRESHOLD,
-                        default=self._get_current_data(
-                            CONF_THROTTLE_THRESHOLD, DEFAULT_THROTTLE_THRESHOLD
-                        ),
-                    ): NumberSelector(
-                        NumberSelectorConfig(
-                            min=0,
-                            max=MAX_API_QUOTA,
-                            step=1,
-                            mode=NumberSelectorMode.BOX,
-                        )
-                    ),
-                    vol.Optional(
-                        CONF_DISABLE_POLLING_WHEN_THROTTLED,
-                        default=self._get_current_data(
-                            CONF_DISABLE_POLLING_WHEN_THROTTLED, False
-                        ),
-                    ): bool,
-                    vol.Optional(
-                        CONF_REFRESH_AFTER_RESUME,
-                        default=self._get_current_data(
-                            CONF_REFRESH_AFTER_RESUME, DEFAULT_REFRESH_AFTER_RESUME
-                        ),
-                    ): bool,
-                }
-            ),
-        )
-
-    async def async_step_schedule(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Handle Wizard Page 3: Reduced Polling."""
-        if user_input is not None:
-            self._data.update(user_input)
-            return await self.async_step_advanced()
-
-        return self.async_show_form(
-            step_id="schedule",
-            description_placeholders={
-                "docs_url": "https://github.com/banter240/tado_hijack?tab=readme-ov-file#auto-api-quota--economy-window"
-            },
-            data_schema=vol.Schema(
-                {
-                    vol.Optional(
-                        CONF_REDUCED_POLLING_ACTIVE,
-                        default=self._get_current_data(
-                            CONF_REDUCED_POLLING_ACTIVE, False
-                        ),
-                    ): bool,
-                    vol.Optional(
-                        CONF_REDUCED_POLLING_START,
-                        default=self._get_current_data(
-                            CONF_REDUCED_POLLING_START, DEFAULT_REDUCED_POLLING_START
-                        ),
-                    ): TimeSelector(),
-                    vol.Optional(
-                        CONF_REDUCED_POLLING_END,
-                        default=self._get_current_data(
-                            CONF_REDUCED_POLLING_END, DEFAULT_REDUCED_POLLING_END
-                        ),
-                    ): TimeSelector(),
-                    vol.Optional(
-                        CONF_REDUCED_POLLING_INTERVAL,
-                        default=self._get_current_data(
-                            CONF_REDUCED_POLLING_INTERVAL,
-                            DEFAULT_REDUCED_POLLING_INTERVAL,
-                        ),
-                    ): vol.All(vol.Coerce(int), vol.Range(min=0)),
-                }
-            ),
-        )
-
-    async def async_step_advanced(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Handle Wizard Page 4: Advanced & Debug."""
+        """Handle single-page configuration with collapsible sections."""
         if user_input is None:
             return self.async_show_form(
-                step_id="advanced",
-                description_placeholders={
-                    "proxy_repo_url": "https://github.com/s1adem4n/tado-api-proxy",
-                    "docs_url": "https://github.com/banter240/tado_hijack?tab=readme-ov-file#unleashed-features-non-homekit",
-                },
-                data_schema=self._get_advanced_schema(),
+                step_id="init",
+                data_schema=vol.Schema(
+                    {
+                        # === General Polling Intervals ===
+                        vol.Required("general_polling"): data_entry_flow.section(
+                            vol.Schema(
+                                {
+                                    vol.Required(
+                                        CONF_SCAN_INTERVAL,
+                                        default=self._get_current_data(
+                                            CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
+                                        ),
+                                    ): vol.All(
+                                        vol.Coerce(int),
+                                        vol.Range(min=MIN_SCAN_INTERVAL),
+                                    ),
+                                    vol.Required(
+                                        CONF_PRESENCE_POLL_INTERVAL,
+                                        default=self._get_current_data(
+                                            CONF_PRESENCE_POLL_INTERVAL,
+                                            DEFAULT_PRESENCE_POLL_INTERVAL,
+                                        ),
+                                    ): vol.All(
+                                        vol.Coerce(int),
+                                        vol.Range(min=MIN_SCAN_INTERVAL),
+                                    ),
+                                    vol.Required(
+                                        CONF_SLOW_POLL_INTERVAL,
+                                        default=self._get_current_data(
+                                            CONF_SLOW_POLL_INTERVAL,
+                                            DEFAULT_SLOW_POLL_INTERVAL,
+                                        ),
+                                    ): vol.All(
+                                        vol.Coerce(int),
+                                        vol.Range(min=MIN_SLOW_POLL_INTERVAL),
+                                    ),
+                                    vol.Optional(
+                                        CONF_OFFSET_POLL_INTERVAL,
+                                        default=self._get_current_data(
+                                            CONF_OFFSET_POLL_INTERVAL,
+                                            DEFAULT_OFFSET_POLL_INTERVAL,
+                                        ),
+                                    ): vol.All(
+                                        vol.Coerce(int),
+                                        vol.Range(min=MIN_OFFSET_POLL_INTERVAL),
+                                    ),
+                                }
+                            ),
+                            {"collapsed": True},
+                        ),
+                        # === API Quota & Safety ===
+                        vol.Required("api_quota"): data_entry_flow.section(
+                            vol.Schema(
+                                {
+                                    vol.Optional(
+                                        CONF_AUTO_API_QUOTA_PERCENT,
+                                        default=self._get_current_data(
+                                            CONF_AUTO_API_QUOTA_PERCENT,
+                                            DEFAULT_AUTO_API_QUOTA_PERCENT,
+                                        ),
+                                    ): NumberSelector(
+                                        NumberSelectorConfig(
+                                            min=0,
+                                            max=100,
+                                            step=1,
+                                            mode=NumberSelectorMode.BOX,
+                                        )
+                                    ),
+                                    vol.Optional(
+                                        CONF_THROTTLE_THRESHOLD,
+                                        default=self._get_current_data(
+                                            CONF_THROTTLE_THRESHOLD,
+                                            DEFAULT_THROTTLE_THRESHOLD,
+                                        ),
+                                    ): NumberSelector(
+                                        NumberSelectorConfig(
+                                            min=0,
+                                            max=MAX_API_QUOTA,
+                                            step=1,
+                                            mode=NumberSelectorMode.BOX,
+                                        )
+                                    ),
+                                    vol.Optional(
+                                        CONF_DISABLE_POLLING_WHEN_THROTTLED,
+                                        default=self._get_current_data(
+                                            CONF_DISABLE_POLLING_WHEN_THROTTLED, False
+                                        ),
+                                    ): BooleanSelector(),
+                                    vol.Optional(
+                                        CONF_REFRESH_AFTER_RESUME,
+                                        default=self._get_current_data(
+                                            CONF_REFRESH_AFTER_RESUME,
+                                            DEFAULT_REFRESH_AFTER_RESUME,
+                                        ),
+                                    ): BooleanSelector(),
+                                }
+                            ),
+                            {"collapsed": True},
+                        ),
+                        # === Reduced Polling Schedule ===
+                        vol.Required("reduced_polling"): data_entry_flow.section(
+                            vol.Schema(
+                                {
+                                    vol.Optional(
+                                        CONF_REDUCED_POLLING_ACTIVE,
+                                        default=self._get_current_data(
+                                            CONF_REDUCED_POLLING_ACTIVE, False
+                                        ),
+                                    ): BooleanSelector(),
+                                    vol.Optional(
+                                        CONF_REDUCED_POLLING_START,
+                                        default=self._get_current_data(
+                                            CONF_REDUCED_POLLING_START,
+                                            DEFAULT_REDUCED_POLLING_START,
+                                        ),
+                                    ): TimeSelector(),
+                                    vol.Optional(
+                                        CONF_REDUCED_POLLING_END,
+                                        default=self._get_current_data(
+                                            CONF_REDUCED_POLLING_END,
+                                            DEFAULT_REDUCED_POLLING_END,
+                                        ),
+                                    ): TimeSelector(),
+                                    vol.Optional(
+                                        CONF_REDUCED_POLLING_INTERVAL,
+                                        default=self._get_current_data(
+                                            CONF_REDUCED_POLLING_INTERVAL,
+                                            DEFAULT_REDUCED_POLLING_INTERVAL,
+                                        ),
+                                    ): vol.All(vol.Coerce(int), vol.Range(min=0)),
+                                }
+                            ),
+                            {"collapsed": True},
+                        ),
+                        # === Advanced & Debug ===
+                        vol.Required("advanced"): data_entry_flow.section(
+                            vol.Schema(
+                                {
+                                    vol.Optional(
+                                        CONF_API_PROXY_URL,
+                                        description={
+                                            "suggested_value": self._get_current_data(
+                                                CONF_API_PROXY_URL, ""
+                                            )
+                                        },
+                                    ): vol.Any(None, str),
+                                    vol.Optional(
+                                        CONF_PROXY_TOKEN,
+                                        description={
+                                            "suggested_value": self._get_current_data(
+                                                CONF_PROXY_TOKEN, ""
+                                            )
+                                        },
+                                    ): vol.Any(None, str),
+                                    vol.Optional(
+                                        CONF_CALL_JITTER_ENABLED,
+                                        default=self._get_current_data(
+                                            CONF_CALL_JITTER_ENABLED, False
+                                        ),
+                                    ): BooleanSelector(),
+                                    vol.Optional(
+                                        CONF_JITTER_PERCENT,
+                                        default=self._get_current_data(
+                                            CONF_JITTER_PERCENT, DEFAULT_JITTER_PERCENT
+                                        ),
+                                    ): NumberSelector(
+                                        NumberSelectorConfig(
+                                            min=0,
+                                            max=50,
+                                            step=0.1,
+                                            mode=NumberSelectorMode.BOX,
+                                        )
+                                    ),
+                                    vol.Optional(
+                                        CONF_DEBOUNCE_TIME,
+                                        default=self._get_current_data(
+                                            CONF_DEBOUNCE_TIME, DEFAULT_DEBOUNCE_TIME
+                                        ),
+                                    ): vol.All(
+                                        vol.Coerce(int),
+                                        vol.Range(min=MIN_DEBOUNCE_TIME),
+                                    ),
+                                    vol.Optional(
+                                        CONF_MIN_AUTO_QUOTA_INTERVAL_S,
+                                        default=self._get_current_data(
+                                            CONF_MIN_AUTO_QUOTA_INTERVAL_S,
+                                            DEFAULT_MIN_AUTO_QUOTA_INTERVAL_S,
+                                        ),
+                                    ): vol.All(
+                                        vol.Coerce(int),
+                                        vol.Range(
+                                            min=MIN_AUTO_QUOTA_INTERVAL_S,
+                                            max=MAX_AUTO_QUOTA_INTERVAL_S,
+                                        ),
+                                    ),
+                                    vol.Required(
+                                        CONF_LOG_LEVEL,
+                                        default=self._get_current_data(
+                                            CONF_LOG_LEVEL, DEFAULT_LOG_LEVEL
+                                        ),
+                                    ): SelectSelector(
+                                        SelectSelectorConfig(
+                                            options=LOG_LEVELS,
+                                            mode=SelectSelectorMode.DROPDOWN,
+                                        )
+                                    ),
+                                }
+                            ),
+                            {"collapsed": True},
+                        ),
+                    }
+                ),
             )
-        proxy_url = user_input.get(CONF_API_PROXY_URL, "")
+        # Flatten nested section data
+        processed_input = self._flatten_section_data(user_input)
+
+        # Handle proxy URL cleanup
+        proxy_url = processed_input.get(CONF_API_PROXY_URL, "")
         if not proxy_url or not str(proxy_url).strip():
-            user_input[CONF_API_PROXY_URL] = None
+            processed_input[CONF_API_PROXY_URL] = None
 
-        proxy_token = user_input.get(CONF_PROXY_TOKEN, "")
+        proxy_token = processed_input.get(CONF_PROXY_TOKEN, "")
         if not proxy_token or not str(proxy_token).strip():
-            user_input[CONF_PROXY_TOKEN] = None
+            processed_input[CONF_PROXY_TOKEN] = None
 
-        self._data.update(user_input)
+        self._data.update(processed_input)
         return await self._async_finish_flow()
 
     async def _async_finish_flow(self) -> ConfigFlowResult:

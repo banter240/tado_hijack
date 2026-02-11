@@ -137,4 +137,4 @@ class TadoGenericBridgeBinarySensor(
             bridge.serial_no,
         )
         TadoGenericEntityMixin.__init__(self, definition)
-        self._set_entity_id("binary_sensor", definition["key"], prefix="tado_ib")
+        self._set_entity_id("binary_sensor", definition["key"])

@@ -179,6 +179,10 @@ class TadoEntity(CoordinatorEntity):
 
     _attr_has_entity_name = True
 
+    # Default entity_id configuration (can be overridden by subclasses)
+    _entity_id_prefix: str = "tado"
+    _entity_id_include_context: bool = True
+
     def __init__(
         self,
         coordinator: TadoDataUpdateCoordinator,
@@ -188,8 +192,30 @@ class TadoEntity(CoordinatorEntity):
         super().__init__(coordinator)
         self._attr_translation_key = translation_key
 
-    def _set_entity_id(self, domain: str, key: str, prefix: str = "tado") -> None:
-        """Set entity_id before registration. Call in subclass __init__."""
+    def _set_entity_id(
+        self,
+        domain: str,
+        key: str,
+        prefix: str | None = None,
+        include_context_id: bool | None = None,
+    ) -> None:
+        """Set entity_id before registration. Call in subclass __init__.
+
+        Args:
+            domain: The entity domain (e.g., "sensor", "binary_sensor")
+            key: The entity key from the definition
+            prefix: Optional override for entity_id prefix (default: class attribute)
+            include_context_id: Optional override for including context ID (default: class attribute)
+
+        """
+        # Use provided values or fall back to class defaults
+        prefix = prefix if prefix is not None else self._entity_id_prefix
+        include_context_id = (
+            include_context_id
+            if include_context_id is not None
+            else self._entity_id_include_context
+        )
+
         title = (
             self.coordinator.config_entry.title
             if self.coordinator.config_entry
@@ -201,10 +227,11 @@ class TadoEntity(CoordinatorEntity):
 
         # For zone/device entities, add the context ID to the slug
         suffix = f"_{key}"
-        if hasattr(self, "_zone_id"):
-            suffix = f"_{self._zone_id}_{key}"
-        elif hasattr(self, "_serial_no"):
-            suffix = f"_{self._serial_no}_{key}"
+        if include_context_id:
+            if hasattr(self, "_zone_id"):
+                suffix = f"_{self._zone_id}_{key}"
+            elif hasattr(self, "_serial_no"):
+                suffix = f"_{self._serial_no}_{key}"
 
         self.entity_id = f"{domain}.{prefix}_{home_slug}{suffix}"
 
@@ -291,6 +318,10 @@ class TadoHomeEntity(TadoEntity):
 
 class TadoBridgeEntity(TadoHomeEntity):
     """Entity belonging to a Tado Internet Bridge."""
+
+    # Bridge entities use 'tado_ib' prefix and exclude serial number from entity_id
+    _entity_id_prefix = "tado_ib"
+    _entity_id_include_context = False
 
     def __init__(
         self,

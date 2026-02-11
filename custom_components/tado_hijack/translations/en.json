@@ -257,73 +257,75 @@
         "description": "Authentication timed out. This often happens when the Tado API rate limit is exhausted. The limit resets daily at 12:00 CET. Click SUBMIT to try again."
       },
       "init": {
-        "title": "Background Polling",
-        "description": "Configure background polling intervals.\n[Documentation: API Consumption]({docs_url})",
-        "data": {
-          "scan_interval": "Status Polling Interval (Seconds)",
-          "presence_poll_interval": "Presence Polling Interval (Seconds)",
-          "slow_poll_interval": "Hardware Sync Interval (Seconds)",
-          "offset_poll_interval": "Offset Update Interval (Seconds)"
-        },
-        "data_description": {
-          "scan_interval": "Interval for room data (temp, humidity, heating power). IMPORTANT: Dynamically overridden by 'Auto API Quota' when enabled; serves as fallback when calculated budget is exhausted.",
-          "presence_poll_interval": "How often to check Home/Away status. Set to a higher value (e.g. 43200s/12h) to save quota.",
-          "slow_poll_interval": "How often to sync battery levels, firmware, capabilities and device list. 86400s (24h) is recommended.",
-          "offset_poll_interval": "How often to fetch temperature offsets. Costs 1 API call PER VALVE. 0 = disabled."
-        }
-      },
-      "quota": {
-        "title": "API Quota & Safety",
-        "description": "Configure automatic API quota management.\n[Documentation: Auto API Quota]({docs_url})",
-        "data": {
-          "auto_api_quota_percent": "Auto API Quota (%)",
-          "throttle_threshold": "Throttle Threshold (Safety Buffer)",
-          "disable_polling_when_throttled": "Disable polling when throttled",
-          "refresh_after_resume": "Refresh state after resume schedule"
-        },
-        "data_description": {
-          "auto_api_quota_percent": "Use X% of FREE daily quota for status polling (0 = disabled). FREE = Limit - Background Reserve (Syncs) - External Activity (Automations, App use beyond buffer). Hybrid strategy: Uses MAX(Daily Budget - Used, Remaining * X%) → System ALWAYS continues polling even when over daily budget.",
-          "throttle_threshold": "Reserve N calls for EVERYTHING outside of Hijack's periodic background polling (Automations, Scripts, Manual App use). Polling stops at this floor to ensure your automations never stall. Recommended: 20.",
-          "disable_polling_when_throttled": "Stop periodic polling entirely when remaining quota hits the safety buffer.",
-          "refresh_after_resume": "Automatically fetch target temperature/state after resume schedule (HVAC AUTO). Required because schedules are managed Tado cloud-side. Costs 1 API call."
-        }
-      },
-      "schedule": {
-        "title": "Economy Window",
-        "description": "Configure the Reduced Polling profile (e.g. Night Mode).\n[Documentation: Economy Window]({docs_url})",
-        "data": {
-          "reduced_polling_active": "Reduced Polling Active",
-          "reduced_polling_start": "Window Start Time",
-          "reduced_polling_end": "Window End Time",
-          "reduced_polling_interval": "Economy Interval (Seconds)"
-        },
-        "data_description": {
-          "reduced_polling_active": "Enable the time-based weighted polling profile.",
-          "reduced_polling_start": "Time when the economy window starts (e.g. 22:00).",
-          "reduced_polling_end": "Time when the economy window ends (e.g. 07:00).",
-          "reduced_polling_interval": "Polling interval during the economy window (e.g. 3600s = 1h). Set to 0 to pause updates."
-        }
-      },
-      "advanced": {
-        "title": "Advanced & Debug",
-        "description": "Advanced settings and [tado-api-proxy Repository]({proxy_repo_url}).\n[Documentation: API Proxy Bypass]({docs_url})",
-        "data": {
-          "api_proxy_url": "API Proxy URL (Optional)",
-          "proxy_token": "API Proxy Token (Optional)",
-          "debounce_time": "Debounce Time (Seconds)",
-          "min_auto_quota_interval_s": "Minimum Auto Quota Interval",
-          "call_jitter_enabled": "Enable Call Jitter (Proxy)",
-          "jitter_percent": "Jitter Strength (+/- %)",
-          "log_level": "Log Level"
-        },
-        "data_description": {
-          "api_proxy_url": "Advanced: Base URL of a local tado-api-proxy instance. Do NOT include /api/v2. See README for details.",
-          "proxy_token": "Optional: Authentication token for the proxy. Will be automatically injected into the URL path (base_url/token/api/v2).",
-          "debounce_time": "Time window to collect rapid changes before sending to API. Default 5s.",
-          "min_auto_quota_interval_s": "Minimum polling interval in seconds (20-43200 = 12h max). Standard API: 20s minimum. Proxy: 120s minimum enforced. Lower = faster updates but higher API usage. Default 20s.",
-          "call_jitter_enabled": "Adds random delays before API calls to obfuscate automation patterns. Only effective when using a proxy.",
-          "jitter_percent": "Strength of random variation for polls and calls. Default 10% (e.g. 60s -> 54-66s).",
-          "log_level": "Controls the verbosity of the logs. DEBUG shows all API interactions (masked), INFO shows important system events."
+        "title": "Configure Tado Hijack",
+        "description": "Configure all settings using collapsible sections.",
+        "sections": {
+          "general_polling": {
+            "name": "General Polling Intervals",
+            "data": {
+              "scan_interval": "Status Polling Interval (Seconds)",
+              "presence_poll_interval": "Presence Polling Interval (Seconds)",
+              "slow_poll_interval": "Hardware Sync Interval (Seconds)",
+              "offset_poll_interval": "Offset Update Interval (Seconds)"
+            },
+            "data_description": {
+              "scan_interval": "Interval for room data (temp, humidity, heating power). IMPORTANT: Dynamically overridden by 'Auto API Quota' when enabled; serves as fallback when calculated budget is exhausted.",
+              "presence_poll_interval": "How often to check Home/Away status. Set to a higher value (e.g. 43200s/12h) to save quota.",
+              "slow_poll_interval": "How often to sync battery levels, firmware, capabilities and device list. 86400s (24h) is recommended.",
+              "offset_poll_interval": "How often to fetch temperature offsets. Costs 1 API call PER VALVE. 0 = disabled."
+            }
+          },
+          "api_quota": {
+            "name": "Auto API Quota & Safety",
+            "data": {
+              "auto_api_quota_percent": "Auto API Quota (%)",
+              "throttle_threshold": "Throttle Threshold (Safety Buffer)",
+              "disable_polling_when_throttled": "Disable polling when throttled",
+              "refresh_after_resume": "Refresh state after resume schedule"
+            },
+            "data_description": {
+              "auto_api_quota_percent": "Use X% of FREE daily quota for status polling (0 = disabled). FREE = Limit - Background Reserve (Syncs) - External Activity (Automations, App use beyond buffer). Hybrid strategy: Uses MAX(Daily Budget - Used, Remaining * X%) → System ALWAYS continues polling even when over daily budget.",
+              "throttle_threshold": "Reserve N calls for EVERYTHING outside of Hijack's periodic background polling (Automations, Scripts, Manual App use). Polling stops at this floor to ensure your automations never stall. Recommended: 20.",
+              "disable_polling_when_throttled": "Stop periodic polling entirely when remaining quota hits the safety buffer.",
+              "refresh_after_resume": "Automatically fetch target temperature/state after resume schedule (HVAC AUTO). Required because schedules are managed Tado cloud-side. Costs 1 API call."
+            }
+          },
+          "reduced_polling": {
+            "name": "Economy Window",
+            "data": {
+              "reduced_polling_active": "Reduced Polling Active",
+              "reduced_polling_start": "Window Start Time",
+              "reduced_polling_end": "Window End Time",
+              "reduced_polling_interval": "Economy Interval (Seconds)"
+            },
+            "data_description": {
+              "reduced_polling_active": "Enable the time-based weighted polling profile.",
+              "reduced_polling_start": "Time when the economy window starts (e.g. 22:00).",
+              "reduced_polling_end": "Time when the economy window ends (e.g. 07:00).",
+              "reduced_polling_interval": "Polling interval during the economy window (e.g. 3600s = 1h). Set to 0 to pause updates."
+            }
+          },
+          "advanced": {
+            "name": "API Proxy & Advanced",
+            "data": {
+              "api_proxy_url": "API Proxy URL (Optional)",
+              "proxy_token": "API Proxy Token (Optional)",
+              "call_jitter_enabled": "Enable Call Jitter (Proxy)",
+              "jitter_percent": "Jitter Strength (+/- %)",
+              "debounce_time": "Debounce Time (Seconds)",
+              "min_auto_quota_interval_s": "Minimum Auto Quota Interval",
+              "log_level": "Log Level"
+            },
+            "data_description": {
+              "api_proxy_url": "Advanced: Base URL of a local tado-api-proxy instance. Do NOT include /api/v2. See README for details.",
+              "proxy_token": "Optional: Authentication token for the proxy. Will be automatically injected into the URL path (base_url/token/api/v2).",
+              "call_jitter_enabled": "Adds random delays before API calls to obfuscate automation patterns. Only effective when using a proxy.",
+              "jitter_percent": "Strength of random variation for polls and calls. Default 10% (e.g. 60s -> 54-66s).",
+              "debounce_time": "Time window to collect rapid changes before sending to API. Default 5s.",
+              "min_auto_quota_interval_s": "Minimum polling interval in seconds (20-43200 = 12h max). Standard API: 20s minimum. Proxy: 120s minimum enforced. Lower = faster updates but higher API usage. Default 20s.",
+              "log_level": "Controls the verbosity of the logs. DEBUG shows all API interactions (masked), INFO shows important system events."
+            }
+          }
         }
       }
     },
@@ -337,73 +339,75 @@
   "options": {
     "step": {
       "init": {
-        "title": "Background Polling",
-        "description": "Configure background polling intervals.\n[Documentation: API Consumption]({docs_url})",
-        "data": {
-          "scan_interval": "Status Polling Interval (Seconds)",
-          "presence_poll_interval": "Presence Polling Interval (Seconds)",
-          "slow_poll_interval": "Hardware Sync Interval (Seconds)",
-          "offset_poll_interval": "Offset Update Interval (Seconds)"
-        },
-        "data_description": {
-          "scan_interval": "Interval for room data (temp, humidity, heating power). IMPORTANT: Dynamically overridden by 'Auto API Quota' when enabled; serves as fallback when calculated budget is exhausted.",
-          "presence_poll_interval": "How often to check Home/Away status. Set to a higher value (e.g. 43200s/12h) to save quota.",
-          "slow_poll_interval": "How often to sync battery levels, firmware, capabilities and device list. 86400s (24h) is recommended.",
-          "offset_poll_interval": "How often to fetch temperature offsets. Costs 1 API call PER VALVE. 0 = disabled."
-        }
-      },
-      "quota": {
-        "title": "API Quota & Safety",
-        "description": "Configure automatic API quota management.\n[Documentation: Auto API Quota]({docs_url})",
-        "data": {
-          "auto_api_quota_percent": "Auto API Quota (%)",
-          "throttle_threshold": "Throttle Threshold (Safety Buffer)",
-          "disable_polling_when_throttled": "Disable polling when throttled",
-          "refresh_after_resume": "Refresh state after resume schedule"
-        },
-        "data_description": {
-          "auto_api_quota_percent": "Use X% of FREE daily quota for status polling (0 = disabled). FREE = Limit - Background Reserve (Syncs) - External Activity (Automations, App use beyond buffer). Hybrid strategy: Uses MAX(Daily Budget - Used, Remaining * X%) → System ALWAYS continues polling even when over daily budget.",
-          "throttle_threshold": "Reserve N calls for EVERYTHING outside of Hijack's periodic background polling (Automations, Scripts, Manual App use). Polling stops at this floor to ensure your automations never stall. Recommended: 20.",
-          "disable_polling_when_throttled": "Stop periodic polling entirely when remaining quota hits the safety buffer.",
-          "refresh_after_resume": "Automatically fetch target temperature/state after resume schedule (HVAC AUTO). Required because schedules are managed Tado cloud-side. Costs 1 API call."
-        }
-      },
-      "schedule": {
-        "title": "Economy Window",
-        "description": "Configure the Reduced Polling profile (e.g. Night Mode).\n[Documentation: Economy Window]({docs_url})",
-        "data": {
-          "reduced_polling_active": "Reduced Polling Active",
-          "reduced_polling_start": "Window Start Time",
-          "reduced_polling_end": "Window End Time",
-          "reduced_polling_interval": "Economy Interval (Seconds)"
-        },
-        "data_description": {
-          "reduced_polling_active": "Enable the time-based weighted polling profile.",
-          "reduced_polling_start": "Time when the economy window starts (e.g. 22:00).",
-          "reduced_polling_end": "Time when the economy window ends (e.g. 07:00).",
-          "reduced_polling_interval": "Polling interval during the economy window (e.g. 3600s = 1h). Set to 0 to pause updates."
-        }
-      },
-      "advanced": {
-        "title": "Advanced & Debug",
-        "description": "Advanced settings and [tado-api-proxy Repository]({proxy_repo_url}).\n[Documentation: API Proxy Bypass]({docs_url})",
-        "data": {
-          "api_proxy_url": "API Proxy URL (Optional)",
-          "proxy_token": "API Proxy Token (Optional)",
-          "debounce_time": "Debounce Time (Seconds)",
-          "min_auto_quota_interval_s": "Minimum Auto Quota Interval",
-          "call_jitter_enabled": "Enable Call Jitter (Proxy)",
-          "jitter_percent": "Jitter Strength (+/- %)",
-          "log_level": "Log Level"
-        },
-        "data_description": {
-          "api_proxy_url": "Advanced: Base URL of a local tado-api-proxy instance. Do NOT include /api/v2. See README for details.",
-          "proxy_token": "Optional: Authentication token for the proxy. Will be automatically injected into the URL path (base_url/token/api/v2).",
-          "debounce_time": "Time window to collect rapid changes before sending to API. Default 5s.",
-          "min_auto_quota_interval_s": "Minimum polling interval in seconds (20-43200 = 12h max). Standard API: 20s minimum. Proxy: 120s minimum enforced. Lower = faster updates but higher API usage. Default 20s.",
-          "call_jitter_enabled": "Adds random delays before API calls to obfuscate automation patterns. Only effective when using a proxy.",
-          "jitter_percent": "Strength of random variation for polls and calls. Default 10% (e.g. 60s -> 54-66s).",
-          "log_level": "Controls the verbosity of the logs. DEBUG shows all API interactions (masked), INFO shows important system events."
+        "title": "Configure Tado Hijack",
+        "description": "Configure all settings using collapsible sections.",
+        "sections": {
+          "general_polling": {
+            "name": "General Polling Intervals",
+            "data": {
+              "scan_interval": "Status Polling Interval (Seconds)",
+              "presence_poll_interval": "Presence Polling Interval (Seconds)",
+              "slow_poll_interval": "Hardware Sync Interval (Seconds)",
+              "offset_poll_interval": "Offset Update Interval (Seconds)"
+            },
+            "data_description": {
+              "scan_interval": "Interval for room data (temp, humidity, heating power). IMPORTANT: Dynamically overridden by 'Auto API Quota' when enabled; serves as fallback when calculated budget is exhausted.",
+              "presence_poll_interval": "How often to check Home/Away status. Set to a higher value (e.g. 43200s/12h) to save quota.",
+              "slow_poll_interval": "How often to sync battery levels, firmware, capabilities and device list. 86400s (24h) is recommended.",
+              "offset_poll_interval": "How often to fetch temperature offsets. Costs 1 API call PER VALVE. 0 = disabled."
+            }
+          },
+          "api_quota": {
+            "name": "Auto API Quota & Safety",
+            "data": {
+              "auto_api_quota_percent": "Auto API Quota (%)",
+              "throttle_threshold": "Throttle Threshold (Safety Buffer)",
+              "disable_polling_when_throttled": "Disable polling when throttled",
+              "refresh_after_resume": "Refresh state after resume schedule"
+            },
+            "data_description": {
+              "auto_api_quota_percent": "Use X% of FREE daily quota for status polling (0 = disabled). FREE = Limit - Background Reserve (Syncs) - External Activity (Automations, App use beyond buffer). Hybrid strategy: Uses MAX(Daily Budget - Used, Remaining * X%) → System ALWAYS continues polling even when over daily budget.",
+              "throttle_threshold": "Reserve N calls for EVERYTHING outside of Hijack's periodic background polling (Automations, Scripts, Manual App use). Polling stops at this floor to ensure your automations never stall. Recommended: 20.",
+              "disable_polling_when_throttled": "Stop periodic polling entirely when remaining quota hits the safety buffer.",
+              "refresh_after_resume": "Automatically fetch target temperature/state after resume schedule (HVAC AUTO). Required because schedules are managed Tado cloud-side. Costs 1 API call."
+            }
+          },
+          "reduced_polling": {
+            "name": "Economy Window",
+            "data": {
+              "reduced_polling_active": "Reduced Polling Active",
+              "reduced_polling_start": "Window Start Time",
+              "reduced_polling_end": "Window End Time",
+              "reduced_polling_interval": "Economy Interval (Seconds)"
+            },
+            "data_description": {
+              "reduced_polling_active": "Enable the time-based weighted polling profile.",
+              "reduced_polling_start": "Time when the economy window starts (e.g. 22:00).",
+              "reduced_polling_end": "Time when the economy window ends (e.g. 07:00).",
+              "reduced_polling_interval": "Polling interval during the economy window (e.g. 3600s = 1h). Set to 0 to pause updates."
+            }
+          },
+          "advanced": {
+            "name": "API Proxy & Advanced",
+            "data": {
+              "api_proxy_url": "API Proxy URL (Optional)",
+              "proxy_token": "API Proxy Token (Optional)",
+              "call_jitter_enabled": "Enable Call Jitter (Proxy)",
+              "jitter_percent": "Jitter Strength (+/- %)",
+              "debounce_time": "Debounce Time (Seconds)",
+              "min_auto_quota_interval_s": "Minimum Auto Quota Interval",
+              "log_level": "Log Level"
+            },
+            "data_description": {
+              "api_proxy_url": "Advanced: Base URL of a local tado-api-proxy instance. Do NOT include /api/v2. See README for details.",
+              "proxy_token": "Optional: Authentication token for the proxy. Will be automatically injected into the URL path (base_url/token/api/v2).",
+              "call_jitter_enabled": "Adds random delays before API calls to obfuscate automation patterns. Only effective when using a proxy.",
+              "jitter_percent": "Strength of random variation for polls and calls. Default 10% (e.g. 60s -> 54-66s).",
+              "debounce_time": "Time window to collect rapid changes before sending to API. Default 5s.",
+              "min_auto_quota_interval_s": "Minimum polling interval in seconds (20-43200 = 12h max). Standard API: 20s minimum. Proxy: 120s minimum enforced. Lower = faster updates but higher API usage. Default 20s.",
+              "log_level": "Controls the verbosity of the logs. DEBUG shows all API interactions (masked), INFO shows important system events."
+            }
+          }
         }
       }
     }
