@@ -1,3 +1,26 @@
+## [4.3.0](https://github.com/banter240/tado_hijack/compare/v4.2.3...v4.3.0) (2026-02-11)
+
+### ✨ New Features
+
+* feat(entity): flexible entity_id configuration and zone sensor naming fix
+
+**Zone Sensor Naming Fix:**
+The naming logic for zone sensors was inconsistent (using 'home_id' instead of 'zone_name'). This commit aligns sensors with other zone entities (e.g., resulting in 'sensor.zone_name_humidity' instead of 'sensor.tado_home_name_zone_id_humidity').
+
+**Note on Migration:**
+Existing installations will likely retain the old 'sensor.tado_home_name_XX' IDs due to Home Assistant's Entity Registry persistence. To apply the new naming scheme, deleting and re-adding the integration is recommended.
+
+**Entity ID Configuration:**
+- Introduced '_entity_id_prefix' and '_entity_id_include_context' class attributes for fine-grained control.
+- Bridge entities now use 'tado_ib' prefix and exclude serial numbers from entity_id.
+- Simplified entity_id generation logic.
+
+**Config Flow Improvements:**
+- Consolidated multi-step config flow into single page.
+- All settings now visible and editable in one view.
+
+Affected entities: All zone-level sensors (humidity, heating_power, next_schedule_*, etc.)
+
 ## [4.2.3](https://github.com/banter240/tado_hijack/compare/v4.2.2...v4.2.3) (2026-02-07)
 
 ### 🐛 Bug Fixes
