@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, cast
 
 from homeassistant.const import CONF_SCAN_INTERVAL, Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from tadoasync import TadoAuthenticationError
 
@@ -190,7 +190,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bool
                 "Token likely invalid (HTTP 400/401 or auth error), triggering reauth"
             )
             raise ConfigEntryAuthFailed from e
-        return False
+        raise ConfigEntryNotReady from e
 
     coordinator = TadoDataUpdateCoordinator(hass, entry, client, scan_interval)
     await coordinator.async_config_entry_first_refresh()
