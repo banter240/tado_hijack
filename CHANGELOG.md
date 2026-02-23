@@ -1,3 +1,16 @@
+## [5.0.0-dev.2](https://github.com/banter240/tado_hijack/compare/v5.0.0-dev.1...v5.0.0-dev.2) (2026-02-23)
+
+### 🐛 Bug Fixes
+
+* fix(climate): comprehensive AC capability validation and refactoring
+
+- Resolved bug where AC overlays failed in HEAT/FAN mode due to invalid/missing parameters
+- Prevented temperature parameter from being sent in FAN mode
+- Added strict capability checking for fan speeds, levels, and all swing modes
+- Extracted AC configuration building into dedicated helper methods to improve maintainability and resolve Sourcery low-code-quality warnings
+- Removed redundant '# sourcery skip' comment
+- Cleaned up Tado X action provider AC stub
+
 ## [5.0.0-dev.1](https://github.com/banter240/tado_hijack/compare/v4.3.0...v5.0.0-dev.1) (2026-02-23)
 
 ### ⚠ BREAKING CHANGES
