@@ -6,7 +6,7 @@ import os
 import sys
 
 
-def validate_hacs():
+def validate_hacs() -> bool:
     """Execute simple HACS compliance check."""
     errors = []
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from homeassistant.components.sensor import (
     SensorEntity,
@@ -11,6 +11,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
+    GEN_X,
     ZONE_TYPE_HOT_WATER,
 )
 from .entity import (
@@ -66,6 +67,16 @@ class TadoGenericHomeSensor(TadoHomeEntity, TadoGenericEntityMixin, SensorEntity
             f"{coordinator.config_entry.entry_id}_{self._get_unique_id_suffix()}"
         )
 
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return entity specific state attributes."""
+        attrs = super().extra_state_attributes or {}
+
+        if self._definition["key"] == "quota_reset_next":
+            attrs["learned"] = self.coordinator.reset_tracker.is_learned
+
+        return attrs
+
 
 class TadoGenericZoneSensor(TadoZoneEntity, TadoGenericEntityMixin, SensorEntity):
     """Generic sensor for Zone scope."""
@@ -80,8 +91,8 @@ class TadoGenericZoneSensor(TadoZoneEntity, TadoGenericEntityMixin, SensorEntity
         """Initialize the generic zone sensor."""
         trans_key = cast(str, definition["translation_key"])
 
-        # Special handling for heating_power label
-        if definition["key"] == "heating_power":
+        # Special handling for heating_power label (v3 only - Tado X has no hot water zones)
+        if coordinator.generation != GEN_X and definition["key"] == "heating_power":
             zone = coordinator.zones_meta.get(zone_id)
             if zone and zone.type == ZONE_TYPE_HOT_WATER:
                 trans_key = "hot_water_power"

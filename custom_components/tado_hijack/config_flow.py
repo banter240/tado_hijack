@@ -29,16 +29,18 @@ from homeassistant.helpers.selector import (
 
 from .const import (
     CONF_API_PROXY_URL,
-    CONF_PROXY_TOKEN,
     CONF_AUTO_API_QUOTA_PERCENT,
     CONF_CALL_JITTER_ENABLED,
-    CONF_LOG_LEVEL,
     CONF_DEBOUNCE_TIME,
     CONF_DISABLE_POLLING_WHEN_THROTTLED,
+    CONF_GENERATION,
     CONF_JITTER_PERCENT,
+    CONF_LOG_LEVEL,
     CONF_MIN_AUTO_QUOTA_INTERVAL_S,
+    CONF_QUOTA_SAFETY_RESERVE,
     CONF_OFFSET_POLL_INTERVAL,
     CONF_PRESENCE_POLL_INTERVAL,
+    CONF_PROXY_TOKEN,
     CONF_REDUCED_POLLING_ACTIVE,
     CONF_REDUCED_POLLING_END,
     CONF_REDUCED_POLLING_INTERVAL,
@@ -46,12 +48,17 @@ from .const import (
     CONF_REFRESH_AFTER_RESUME,
     CONF_REFRESH_TOKEN,
     CONF_SLOW_POLL_INTERVAL,
+    CONF_SUPPRESS_REDUNDANT_BUTTONS,
+    CONF_SUPPRESS_REDUNDANT_CALLS,
     CONF_THROTTLE_THRESHOLD,
     DEFAULT_AUTO_API_QUOTA_PERCENT,
     DEFAULT_DEBOUNCE_TIME,
     DEFAULT_JITTER_PERCENT,
     DEFAULT_LOG_LEVEL,
     DEFAULT_MIN_AUTO_QUOTA_INTERVAL_S,
+    DEFAULT_QUOTA_SAFETY_RESERVE,
+    MAX_QUOTA_SAFETY_RESERVE,
+    MIN_QUOTA_SAFETY_RESERVE,
     DEFAULT_OFFSET_POLL_INTERVAL,
     DEFAULT_REDUCED_POLLING_END,
     DEFAULT_REDUCED_POLLING_INTERVAL,
@@ -60,8 +67,12 @@ from .const import (
     DEFAULT_REFRESH_AFTER_RESUME,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_SLOW_POLL_INTERVAL,
+    DEFAULT_SUPPRESS_REDUNDANT_BUTTONS,
+    DEFAULT_SUPPRESS_REDUNDANT_CALLS,
     DEFAULT_THROTTLE_THRESHOLD,
     DOMAIN,
+    GEN_CLASSIC,
+    GEN_X,
     LOG_LEVELS,
     MAX_API_QUOTA,
     MAX_AUTO_QUOTA_INTERVAL_S,
@@ -72,9 +83,9 @@ from .const import (
     MIN_SLOW_POLL_INTERVAL,
 )
 from .helpers.logging_utils import get_redacted_logger
-from .helpers.patch import apply_patch
+from .lib.patches import apply_patches
 
-apply_patch()
+apply_patches()
 
 _LOGGER = get_redacted_logger(__name__)
 
@@ -97,7 +108,25 @@ class TadoHijackCommonFlow:
             last_step: bool | None = None,
             title: str | None = None,
         ) -> ConfigFlowResult:
-            """Stub for Mypy."""
+            """Show the form to the user."""
+            ...
+
+        def async_create_entry(
+            self,
+            *,
+            title: str,
+            data: Mapping[str, Any],
+            description: str | None = None,
+            description_placeholders: dict[str, str] | None = None,
+            options: Mapping[str, Any] | None = None,
+        ) -> ConfigFlowResult:
+            """Finish config flow and create a config entry."""
+            ...
+
+        def async_abort(
+            self, *, reason: str, description_placeholders: dict[str, str] | None = None
+        ) -> ConfigFlowResult:
+            """Abort the config flow."""
             ...
 
     def _get_current_data(self, key: str, default: Any) -> Any:
@@ -136,6 +165,8 @@ class TadoHijackCommonFlow:
                 CONF_THROTTLE_THRESHOLD,
                 CONF_DISABLE_POLLING_WHEN_THROTTLED,
                 CONF_REFRESH_AFTER_RESUME,
+                CONF_SUPPRESS_REDUNDANT_CALLS,
+                CONF_SUPPRESS_REDUNDANT_BUTTONS,
             ]:
                 if key in quota:
                     processed_input[key] = quota[key]
@@ -162,6 +193,7 @@ class TadoHijackCommonFlow:
                 CONF_JITTER_PERCENT,
                 CONF_DEBOUNCE_TIME,
                 CONF_MIN_AUTO_QUOTA_INTERVAL_S,
+                CONF_QUOTA_SAFETY_RESERVE,
                 CONF_LOG_LEVEL,
             ]:
                 if key in advanced:
@@ -270,6 +302,48 @@ class TadoHijackCommonFlow:
                                             DEFAULT_REFRESH_AFTER_RESUME,
                                         ),
                                     ): BooleanSelector(),
+                                    vol.Optional(
+                                        CONF_SUPPRESS_REDUNDANT_CALLS,
+                                        default=self._get_current_data(
+                                            CONF_SUPPRESS_REDUNDANT_CALLS,
+                                            DEFAULT_SUPPRESS_REDUNDANT_CALLS,
+                                        ),
+                                    ): BooleanSelector(),
+                                    vol.Optional(
+                                        CONF_SUPPRESS_REDUNDANT_BUTTONS,
+                                        default=self._get_current_data(
+                                            CONF_SUPPRESS_REDUNDANT_BUTTONS,
+                                            DEFAULT_SUPPRESS_REDUNDANT_BUTTONS,
+                                        ),
+                                    ): BooleanSelector(),
+                                    vol.Optional(
+                                        CONF_MIN_AUTO_QUOTA_INTERVAL_S,
+                                        default=self._get_current_data(
+                                            CONF_MIN_AUTO_QUOTA_INTERVAL_S,
+                                            DEFAULT_MIN_AUTO_QUOTA_INTERVAL_S,
+                                        ),
+                                    ): NumberSelector(
+                                        NumberSelectorConfig(
+                                            min=MIN_AUTO_QUOTA_INTERVAL_S,
+                                            max=MAX_AUTO_QUOTA_INTERVAL_S,
+                                            step=1,
+                                            mode=NumberSelectorMode.BOX,
+                                        )
+                                    ),
+                                    vol.Optional(
+                                        CONF_QUOTA_SAFETY_RESERVE,
+                                        default=self._get_current_data(
+                                            CONF_QUOTA_SAFETY_RESERVE,
+                                            DEFAULT_QUOTA_SAFETY_RESERVE,
+                                        ),
+                                    ): NumberSelector(
+                                        NumberSelectorConfig(
+                                            min=MIN_QUOTA_SAFETY_RESERVE,
+                                            max=MAX_QUOTA_SAFETY_RESERVE,
+                                            step=1,
+                                            mode=NumberSelectorMode.BOX,
+                                        )
+                                    ),
                                 }
                             ),
                             {"collapsed": True},
@@ -357,19 +431,6 @@ class TadoHijackCommonFlow:
                                         vol.Coerce(int),
                                         vol.Range(min=MIN_DEBOUNCE_TIME),
                                     ),
-                                    vol.Optional(
-                                        CONF_MIN_AUTO_QUOTA_INTERVAL_S,
-                                        default=self._get_current_data(
-                                            CONF_MIN_AUTO_QUOTA_INTERVAL_S,
-                                            DEFAULT_MIN_AUTO_QUOTA_INTERVAL_S,
-                                        ),
-                                    ): vol.All(
-                                        vol.Coerce(int),
-                                        vol.Range(
-                                            min=MIN_AUTO_QUOTA_INTERVAL_S,
-                                            max=MAX_AUTO_QUOTA_INTERVAL_S,
-                                        ),
-                                    ),
                                     vol.Required(
                                         CONF_LOG_LEVEL,
                                         default=self._get_current_data(
@@ -413,20 +474,46 @@ class TadoHijackConfigFlow(
 ):  # type: ignore[call-arg]
     """Handle a config flow for Tado Hijack."""
 
-    VERSION = 7
-    login_task: asyncio.Task | None = None
+    VERSION = 8
+    login_task: asyncio.Task[Any] | None = None
     refresh_token: str | None = None
     tado: Tado | None = None
 
     def __init__(self) -> None:
         """Initialize config flow."""
         self._data: dict[str, Any] = {}
+        self._generation: str | None = None
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
+        """Step 1: Choice of Tado Generation."""
+        if user_input is not None:
+            self._generation = user_input[CONF_GENERATION]
+            return await self.async_step_init()
+
+        return self.async_show_form(
+            step_id="user",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_GENERATION, default=GEN_CLASSIC): SelectSelector(
+                        SelectSelectorConfig(
+                            options=[GEN_CLASSIC, GEN_X],
+                            mode=SelectSelectorMode.LIST,
+                            translation_key="generation",
+                        )
+                    )
+                }
+            ),
+        )
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Start the configuration (Auth-Last)."""
-        return await self.async_step_init()
+        # Store generation early
+        self._data[CONF_GENERATION] = self._generation
+        return await super().async_step_init(user_input)
 
     async def _async_finish_flow(self) -> ConfigFlowResult:
         """Finalize wizard and decide if OAuth is needed."""
@@ -444,16 +531,17 @@ class TadoHijackConfigFlow(
             await self.async_set_unique_id(f"proxy_{api_proxy_url}")
             self._abort_if_unique_id_configured()
             return self.async_create_entry(
-                title="Tado Hijack (Proxy)",
+                title=f"Tado Hijack (Proxy - {self._generation})",
                 data={CONF_REFRESH_TOKEN: self.refresh_token, **self._data},
             )
 
+        # Always use standard library auth
         return await self.async_step_tado_auth()
 
     async def async_step_tado_auth(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Authenticate with Tado Cloud."""
+        """Authenticate with Tado Cloud (Library Flow)."""
         if self.tado is None:
             try:
                 self.tado = Tado(
@@ -467,9 +555,11 @@ class TadoHijackConfigFlow(
             tado_device_url = self.tado.device_verification_url
             if tado_device_url is None:
                 return self.async_abort(reason="cannot_connect")
+
             user_code = URL(tado_device_url).query["user_code"]
 
         async def _wait_for_login() -> None:
+            """Poll for login status via library."""
             if self.tado is None:
                 raise CannotConnect
             try:
@@ -501,15 +591,15 @@ class TadoHijackConfigFlow(
     async def async_step_finish_login(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Complete the OAuth flow and create entry."""
-        if self.tado is None:
-            return self.async_abort(reason="cannot_connect")
-        tado_me = await self.tado.get_me()
-        if not tado_me.homes:
-            return self.async_abort(reason="no_homes")
-
-        home = tado_me.homes[0]
-        await self.async_set_unique_id(str(home.id))
+        """Complete login and create entry."""
+        # Use simple title for Tado X, detailed for v3
+        title = "Tado X Home"
+        if self.tado:
+            tado_me = await self.tado.get_me()
+            if tado_me.homes:
+                home = tado_me.homes[0]
+                await self.async_set_unique_id(str(home.id))
+                title = f"Tado {home.name}"
 
         if self.source == config_entries.SOURCE_REAUTH:
             reauth_entry = self._get_reauth_entry()
@@ -521,7 +611,7 @@ class TadoHijackConfigFlow(
         self._abort_if_unique_id_configured()
 
         return self.async_create_entry(
-            title=f"Tado {home.name}",
+            title=title,
             data={CONF_REFRESH_TOKEN: self.refresh_token, **self._data},
         )
 
@@ -547,6 +637,7 @@ class TadoHijackConfigFlow(
             return self.async_show_form(step_id="timeout")
         self.login_task = None
         self.tado = None
+
         return await self.async_step_tado_auth()
 
     @staticmethod
@@ -593,7 +684,7 @@ class TadoHijackOptionsFlowHandler(TadoHijackCommonFlow, config_entries.OptionsF
             data=new_data,
         )
         await self.hass.config_entries.async_reload(self.config_entry.entry_id)
-        return self.async_create_entry(data={})
+        return self.async_create_entry(title="", data={})
 
 
 class CannotConnect(HomeAssistantError):

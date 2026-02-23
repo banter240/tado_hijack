@@ -17,10 +17,26 @@ _URL_PARAM_PATTERNS = [
 ]
 
 
-def redact(data: Any) -> str:
-    """Redact sensitive information from the input string or object."""
+def redact(data: Any) -> Any:
+    """Redact sensitive information from the input string or object.
+
+    Args:
+        data: Input to redact (string, int, float, bool, None, etc.)
+
+    Returns:
+        - Strings: Redacted string
+        - Other types: Passed through unchanged (int, float, bool, None, etc.)
+
+    This preserves type information for logging format strings (%d, %f, etc.)
+
+    """
+    # Pass through non-string types unchanged
+    # This allows logging with %d, %f, etc. to work correctly
+    if isinstance(data, Exception):
+        return redact(str(data))
+
     if not isinstance(data, str):
-        data = str(data)
+        return data
 
     # URL Parameters
     for p in _URL_PARAM_PATTERNS:
@@ -30,7 +46,7 @@ def redact(data: Any) -> str:
     data = re.sub(r"homes/\d+", "homes/REDACTED", data, flags=re.IGNORECASE)
 
     # Serial Numbers (Tado format: 2 letters + 10 digits)
-    def partial_redact_sn(m: re.Match) -> str:
+    def partial_redact_sn(m: re.Match[str]) -> str:
         sn = m[0]
         prefix = ""
         if sn.startswith("_"):
@@ -38,7 +54,9 @@ def redact(data: Any) -> str:
             sn = sn[1:]
         return f"{prefix}{sn[:2]}...{sn[-4:]}"
 
-    data = re.sub(r"(?:\b|_|^)[A-Z]{2}\d{10}(?=\b|_|$)", partial_redact_sn, data)
+    data = re.sub(
+        r"(?:\b|_|^)[A-Z]{2,3}[A-Z0-9]{8,12}(?=\b|_|$)", partial_redact_sn, data
+    )
 
     # JSON Keys and Values
     json_keys = "user_code|password|access_token|refresh_token|username|email|serialNo|shortSerialNo"
@@ -49,7 +67,7 @@ def redact(data: Any) -> str:
         flags=re.IGNORECASE,
     )
 
-    return str(data)
+    return data
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -64,17 +82,20 @@ class TadoRedactionFilter(logging.Filter):
             record.msg = redact(record.msg)
 
         if record.args and isinstance(record.args, tuple):
-            new_args: list[Any] | None = None
-            for i, arg in enumerate(record.args):
-                if not isinstance(arg, int | float | bool | type(None)):
-                    if new_args is None:
-                        new_args = list(record.args[:i])
-                    new_args.append(redact(arg))
-                elif new_args is not None:
-                    new_args.append(arg)
-
-            if new_args is not None:
-                record.args = tuple(new_args)
+            # Check if format string contains home_id parameter
+            # If so, redact the corresponding arg (convert int to "REDACTED")
+            if isinstance(record.msg, str) and "home_id=" in record.msg:
+                redacted_args = []
+                for arg in record.args:
+                    # home_id is typically an integer - redact it
+                    if isinstance(arg, int) and len(str(arg)) >= 6:
+                        redacted_args.append("REDACTED")
+                    else:
+                        redacted_args.append(redact(arg))
+                record.args = tuple(redacted_args)
+            else:
+                # Redact all args normally (redact() handles type preservation)
+                record.args = tuple(redact(arg) for arg in record.args)
 
         return True
 

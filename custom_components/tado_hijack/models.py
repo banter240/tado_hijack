@@ -106,9 +106,11 @@ class TadoEntityDefinition(TypedDict, total=False):
     ha_device_class: SensorDeviceClass | None
     ha_state_class: SensorStateClass | None
     ha_native_unit_of_measurement: str | None
+    suggested_display_precision: int | None
     entity_category: EntityCategory | None
     entity_registry_enabled_default: bool | None
     supported_zone_types: set[str] | None
+    supported_generations: set[str] | None  # None = all generations
     required_device_capabilities: list[str] | None
     is_inverted: bool | None
 

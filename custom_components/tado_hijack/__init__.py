@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, cast
 
 from homeassistant.const import CONF_SCAN_INTERVAL, Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from tadoasync import TadoAuthenticationError
 
@@ -31,13 +31,13 @@ from .helpers.logging_utils import (
     get_redacted_logger,
     set_redacted_log_level,
 )
-from .helpers.patch import apply_patch
+from .lib.patches import apply_patches
 from .services import async_setup_services, async_unload_services
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
 
-apply_patch()
+apply_patches()
 
 logging.getLogger("tadoasync").addFilter(TadoRedactionFilter())
 logging.getLogger("tadoasync.tadoasync").addFilter(TadoRedactionFilter())
@@ -173,10 +173,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bool
 
     try:
         await client.async_init()
+        _LOGGER.debug(
+            "Client initialized: home_id=%s, token_status=%s",
+            getattr(client, "_home_id", None),
+            "SET" if getattr(client, "_access_token", None) else "NOT SET",
+        )
     except TadoAuthenticationError as e:
         _LOGGER.error("Authentication failed during setup: %s", e)
         raise ConfigEntryAuthFailed from e
     except Exception as e:
+        if "timeout" in str(e).lower():
+            _LOGGER.warning("Timeout connecting to Tado API, will retry: %s", e)
+            raise ConfigEntryNotReady from e
+
         _LOGGER.error("Failed to initialize Tado API: %s", e)
         error_str = str(e).lower()
         if (
@@ -190,9 +199,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bool
                 "Token likely invalid (HTTP 400/401 or auth error), triggering reauth"
             )
             raise ConfigEntryAuthFailed from e
-        return False
+        raise ConfigEntryNotReady from e
+
+    from .const import CONF_GENERATION, GEN_CLASSIC
+
+    gen = entry.data.get(CONF_GENERATION, GEN_CLASSIC)
+    _LOGGER.info("Setting up Tado Hijack entry: %s (Generation: %s)", entry.title, gen)
 
     coordinator = TadoDataUpdateCoordinator(hass, entry, client, scan_interval)
+    await coordinator.async_setup()
     await coordinator.async_config_entry_first_refresh()
 
     if (

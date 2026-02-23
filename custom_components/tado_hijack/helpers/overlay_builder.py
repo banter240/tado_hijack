@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from ..const import (
+    OFF_MAGIC_TEMP,
     OVERLAY_NEXT_BLOCK,
     OVERLAY_PRESENCE,
     OVERLAY_TIMER,
@@ -32,8 +33,10 @@ def get_capped_temperature(
     zone_id: int, temperature: float, zones_meta: dict[int, Zone]
 ) -> float:
     """Get safety-capped temperature based on zone type."""
+    from .zone_utils import get_zone_type
+
     zone = zones_meta.get(zone_id)
-    ztype = getattr(zone, "type", ZONE_TYPE_HEATING) if zone else ZONE_TYPE_HEATING
+    ztype = get_zone_type(zone)
 
     limit = TEMP_MAX_HEATING if ztype == ZONE_TYPE_HEATING else TEMP_MAX_AC
     if ztype == ZONE_TYPE_HOT_WATER:
@@ -69,11 +72,13 @@ def build_overlay_data(
         additional_setting_fields: Extra fields to merge into setting dict (for AC-specific properties)
 
     """
+    from .zone_utils import get_zone_type
+
     if not overlay_type:
         zone = zones_meta.get(zone_id)
-        overlay_type = (
-            getattr(zone, "type", ZONE_TYPE_HEATING) if zone else ZONE_TYPE_HEATING
-        )
+        overlay_type = get_zone_type(zone)
+        # Fallback should never be None when using default ZONE_TYPE_HEATING
+        assert overlay_type is not None, f"Zone {zone_id} has no type"
 
     if overlay_mode == OVERLAY_NEXT_BLOCK:
         termination: dict[str, Any] = {"typeSkillBasedApp": TERMINATION_NEXT_TIME_BLOCK}
@@ -94,12 +99,17 @@ def build_overlay_data(
 
     # Add temperature if supported and provided
     # Hot Water without OpenTherm does NOT support temperature in overlays
+    # Magic number: temperature=OFF_MAGIC_TEMP means OFF mode (will be mapped in executor)
     if (
         temperature is not None
         and power == POWER_ON
         and (overlay_type != ZONE_TYPE_HOT_WATER or supports_temp)
     ):
-        capped_temp = get_capped_temperature(zone_id, temperature, zones_meta)
+        # Don't cap magic number (used for OFF mode signaling)
+        if temperature == OFF_MAGIC_TEMP:
+            capped_temp = OFF_MAGIC_TEMP
+        else:
+            capped_temp = get_capped_temperature(zone_id, temperature, zones_meta)
         setting["temperature"] = {"celsius": capped_temp}
 
     # Merge additional AC-specific fields (fanSpeed, swing, etc.)

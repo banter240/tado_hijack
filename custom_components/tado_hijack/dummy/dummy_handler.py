@@ -6,12 +6,27 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, cast
 
 from .const import DUMMY_ZONE_ID_AC, DUMMY_ZONE_ID_HOT_WATER
+from ..const import (
+    DEVICE_TYPE_RU01,
+    DEVICE_TYPE_VA01,
+    ZONE_TYPE_AIR_CONDITIONING,
+    ZONE_TYPE_HEATING,
+    ZONE_TYPE_HOT_WATER,
+)
 from ..helpers.logging_utils import get_redacted_logger
 
 if TYPE_CHECKING:
     from ..coordinator import TadoDataUpdateCoordinator
 
 _LOGGER = get_redacted_logger(__name__)
+
+
+class RobustNamespace(SimpleNamespace):
+    """A namespace that returns None for missing attributes instead of crashing."""
+
+    def __getattr__(self, name: str) -> Any:
+        """Return None for any missing attribute to mimic Pydantic model behavior."""
+        return None
 
 
 class TadoDummyHandler:
@@ -26,35 +41,37 @@ class TadoDummyHandler:
     def _init_dummy_states(self) -> None:
         """Initialize internal dummy state objects."""
         # 1. Hot Water Dummy
-        self._states[DUMMY_ZONE_ID_HOT_WATER] = SimpleNamespace(
-            setting=SimpleNamespace(
-                type="HOT_WATER",
+        self._states[DUMMY_ZONE_ID_HOT_WATER] = RobustNamespace(
+            setting=RobustNamespace(
+                type=ZONE_TYPE_HOT_WATER,
                 power="OFF",
-                temperature=SimpleNamespace(celsius=50.0, fahrenheit=122.0),
+                temperature=RobustNamespace(celsius=50.0, fahrenheit=122.0),
             ),
             overlay=None,
             overlay_active=False,
-            sensor_data_points=SimpleNamespace(
-                inside_temperature=SimpleNamespace(celsius=45.0, fahrenheit=113.0)
+            # Classic HW doesn't have current_temperature at zone level, use RobustNamespace for safe access
+            current_temperature=RobustNamespace(celsius=45.0, fahrenheit=113.0),
+            sensor_data_points=RobustNamespace(
+                inside_temperature=RobustNamespace(celsius=45.0, fahrenheit=113.0)
             ),
-            activity_data_points=SimpleNamespace(
-                heating_power=SimpleNamespace(percentage=0.0, type="PERCENTAGE")
+            activity_data_points=RobustNamespace(
+                heating_power=RobustNamespace(percentage=0.0, type="PERCENTAGE")
             ),
-            connection_state=SimpleNamespace(
+            connection_state=RobustNamespace(
                 value=True, timestamp="2026-01-30T17:00:00Z"
             ),
             next_schedule_change=None,
-            link=SimpleNamespace(
+            link=RobustNamespace(
                 state=f"/api/v2/homes/DUMMY/zones/{DUMMY_ZONE_ID_HOT_WATER}/state"
             ),
         )
 
         # 2. AC Dummy
-        self._states[DUMMY_ZONE_ID_AC] = SimpleNamespace(
-            setting=SimpleNamespace(
-                type="AIR_CONDITIONING",
+        self._states[DUMMY_ZONE_ID_AC] = RobustNamespace(
+            setting=RobustNamespace(
+                type=ZONE_TYPE_AIR_CONDITIONING,
                 power="OFF",
-                temperature=SimpleNamespace(celsius=21.0, fahrenheit=69.8),
+                temperature=RobustNamespace(celsius=21.0, fahrenheit=69.8),
                 mode="COOL",
                 fan_speed="AUTO",
                 vertical_swing="OFF",
@@ -63,18 +80,19 @@ class TadoDummyHandler:
             ),
             overlay=None,
             overlay_active=False,
-            sensor_data_points=SimpleNamespace(
-                inside_temperature=SimpleNamespace(celsius=24.0, fahrenheit=75.2),
-                humidity=SimpleNamespace(percentage=60.0),
+            # Use sensor_data_points for consistency with Classic v3 structure
+            sensor_data_points=RobustNamespace(
+                inside_temperature=RobustNamespace(celsius=24.0, fahrenheit=75.2),
+                humidity=RobustNamespace(percentage=60.0),
             ),
-            activity_data_points=SimpleNamespace(
-                ac_power=SimpleNamespace(value="OFF", timestamp="2026-01-30T17:00:00Z")
+            activity_data_points=RobustNamespace(
+                ac_power=RobustNamespace(value="OFF", timestamp="2026-01-30T17:00:00Z")
             ),
-            connection_state=SimpleNamespace(
+            connection_state=RobustNamespace(
                 value=True, timestamp="2026-01-30T17:00:00Z"
             ),
             next_schedule_change=None,
-            link=SimpleNamespace(
+            link=RobustNamespace(
                 state=f"/api/v2/homes/DUMMY/zones/{DUMMY_ZONE_ID_AC}/state"
             ),
         )
@@ -130,7 +148,7 @@ class TadoDummyHandler:
         capabilities: dict[int, Any],
     ) -> None:
         """Inject dummy zone metadata into real data."""
-        _LOGGER.info("DUMMY ZONES ENABLED - Injecting fake zones")
+        _LOGGER.debug("Injecting dummy zones (998=AC, 999=HW)")
         # Inject Hot Water Zone
         zones[DUMMY_ZONE_ID_HOT_WATER] = self._create_hw_metadata()
         capabilities[DUMMY_ZONE_ID_HOT_WATER] = self._create_hw_capabilities()
@@ -142,15 +160,17 @@ class TadoDummyHandler:
         # Inject mock devices for connectivity sensors  # [DUMMY_HOOK]
         for zid in (DUMMY_ZONE_ID_AC, DUMMY_ZONE_ID_HOT_WATER):
             serial = f"DUMMY_DEV_{zid}"
-            devices[serial] = SimpleNamespace(
+            devices[serial] = RobustNamespace(
                 serial_no=serial,
                 short_serial_no=f"DUMMY{zid}",
-                device_type="VA01" if zid == DUMMY_ZONE_ID_AC else "RU01",
+                device_type=DEVICE_TYPE_VA01
+                if zid == DUMMY_ZONE_ID_AC
+                else DEVICE_TYPE_RU01,
                 current_fw_version="1.0.0",
-                connection_state=SimpleNamespace(
+                connection_state=RobustNamespace(
                     value=True, timestamp="2026-01-30T17:00:00Z"
                 ),
-                characteristics=SimpleNamespace(capabilities=[]),
+                characteristics=RobustNamespace(capabilities=[]),
                 battery_state="NORMAL",
             )
             # Add device to its zone
@@ -190,7 +210,7 @@ class TadoDummyHandler:
         if "mode" in new_setting:
             state.setting.mode = new_setting["mode"]
         if "temperature" in new_setting and new_setting["temperature"]:
-            state.setting.temperature = SimpleNamespace(
+            state.setting.temperature = RobustNamespace(
                 celsius=new_setting["temperature"].get("celsius"),
                 fahrenheit=new_setting["temperature"].get("fahrenheit"),
             )
@@ -212,7 +232,7 @@ class TadoDummyHandler:
     def get_away_configuration(self, zone_id: int) -> dict[str, Any]:
         """Return a mock away configuration."""
         return {
-            "type": "HEATING",
+            "type": ZONE_TYPE_HEATING,
             "preheatingLevel": "MEDIUM",
             "minimumAwayTemperature": {"celsius": 15.0, "fahrenheit": 59.0},
         }
@@ -245,7 +265,7 @@ class TadoDummyHandler:
 
         elif zone_id == DUMMY_ZONE_ID_HOT_WATER:
             is_on = state.setting.power == "ON"
-            state.activity_data_points.heating_power = SimpleNamespace(
+            state.activity_data_points.heating_power = RobustNamespace(
                 percentage=100.0 if is_on else 0.0, type="PERCENTAGE"
             )
 
@@ -253,8 +273,8 @@ class TadoDummyHandler:
         class DummyZone:
             id = DUMMY_ZONE_ID_HOT_WATER
             name = "DUMMY Hot Water"
-            type = "HOT_WATER"
-            device_types = ["RU01"]
+            type = ZONE_TYPE_HOT_WATER
+            device_types = [DEVICE_TYPE_RU01]
             devices: list[Any] = []
 
         return DummyZone()
@@ -263,25 +283,26 @@ class TadoDummyHandler:
         class DummyZone:
             id = DUMMY_ZONE_ID_AC
             name = "DUMMY Air Conditioning"
-            type = "AIR_CONDITIONING"
-            device_types = ["VA01"]
+            type = ZONE_TYPE_AIR_CONDITIONING
+            device_types = [DEVICE_TYPE_VA01]
             devices: list[Any] = []
 
         return DummyZone()
 
     def _create_hw_capabilities(self) -> Any:
-        return SimpleNamespace(
-            type="HOT_WATER",
-            temperatures=SimpleNamespace(
-                celsius=SimpleNamespace(min=30, max=65, step=1.0)
+        return RobustNamespace(
+            type=ZONE_TYPE_HOT_WATER,
+            # Classic HW typically doesn't expose temperature control, but use RobustNamespace for safe access
+            temperatures=RobustNamespace(
+                celsius=RobustNamespace(min=30, max=65, step=1.0)
             ),
         )
 
     def _create_ac_capabilities(self) -> Any:
-        return SimpleNamespace(
-            type="AIR_CONDITIONING",
-            temperatures=SimpleNamespace(
-                celsius=SimpleNamespace(min=16, max=30, step=1.0)
+        return RobustNamespace(
+            type=ZONE_TYPE_AIR_CONDITIONING,
+            temperatures=RobustNamespace(
+                celsius=RobustNamespace(min=16, max=30, step=1.0)
             ),
             cool=self._create_ac_mode_cap(),
             heat=self._create_ac_mode_cap(),
@@ -291,7 +312,7 @@ class TadoDummyHandler:
         )
 
     def _create_ac_mode_cap(self, fan_only: bool = False) -> Any:
-        return SimpleNamespace(
+        return RobustNamespace(
             fan_speeds=["HIGH", "LOW", "MIDDLE"]
             if fan_only
             else ["AUTO", "HIGH", "LOW", "MIDDLE"],

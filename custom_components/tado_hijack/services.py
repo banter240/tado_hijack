@@ -193,8 +193,14 @@ async def async_setup_services(
             return
 
         if operation_mode == "off":
-            await coordinator.async_set_hot_water_off(
-                zone_id, refresh_after=refresh_after
+            # Use overlay helper to support duration/overlay_mode for OFF
+            await coordinator.async_set_zone_overlay(
+                zone_id=zone_id,
+                power=POWER_OFF,
+                duration=duration,
+                overlay_type=ZONE_TYPE_HOT_WATER,
+                overlay_mode=overlay_mode,
+                refresh_after=refresh_after,
             )
             return
 

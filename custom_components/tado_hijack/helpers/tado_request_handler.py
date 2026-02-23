@@ -50,90 +50,139 @@ class TadoRequestHandler:
         for custom request handling. If tadoasync changes these internals, errors will
         be logged and handled gracefully.
         """
-        # Only refresh auth if NOT using a proxy (proxy handles auth)
-        # AND only if we are not in the middle of a device authorization flow
-        is_auth_request = uri and ("oauth/token" in uri or "oauth2/device" in uri)
+        is_auth_request = bool(uri and ("oauth/token" in uri or "oauth2/device" in uri))
 
-        if not proxy_url and not is_auth_request:
-            if hasattr(instance, "_refresh_auth"):
-                await instance._refresh_auth()
-            else:
-                _LOGGER.warning(
-                    "_refresh_auth not found in Tado instance (library may have changed)"
-                )
+        await self._refresh_auth_if_needed(instance, proxy_url, is_auth_request)
 
         url = self._build_url(uri, endpoint, proxy_url, proxy_token)
-
-        # Get access token only if NOT using proxy (proxy handles auth internally)
-        access_token: str | None = None
-        if not proxy_url and not is_auth_request:
-            access_token = getattr(instance, "_access_token", None)
-            if access_token is None:
-                _LOGGER.error(
-                    "_access_token not found in Tado instance (library may have changed)"
-                )
-                raise TadoConnectionError("Cannot access Tado authentication token")
-
+        access_token = self._get_access_token(instance, proxy_url, is_auth_request)
         headers = self._build_headers(access_token, method, bool(proxy_url))
 
-        _LOGGER.debug("Tado Request: %s %s (Proxy: %s)", method.value, url, proxy_url)
+        _LOGGER.debug(
+            "Tado Request: %s %s (Proxy: %s)", method.value, str(url), proxy_url
+        )
 
-        # Get timeout (private API with fallback)
+        return await self._execute_request(
+            instance, url, headers, method, data, proxy_url
+        )
+
+    async def _refresh_auth_if_needed(
+        self, instance: Tado, proxy_url: str | None, is_auth_request: bool
+    ) -> None:
+        """Refresh authentication if needed."""
+        if proxy_url or is_auth_request:
+            return
+
+        if hasattr(instance, "_refresh_auth"):
+            await instance._refresh_auth()
+        else:
+            _LOGGER.warning(
+                "_refresh_auth not found in Tado instance (library may have changed)"
+            )
+
+    def _get_access_token(
+        self, instance: Tado, proxy_url: str | None, is_auth_request: bool
+    ) -> str | None:
+        """Get access token from instance if not using proxy."""
+        if proxy_url or is_auth_request:
+            return None
+
+        access_token = getattr(instance, "_access_token", None)
+        if access_token is None:
+            _LOGGER.error(
+                "_access_token not found in Tado instance (library may have changed)"
+            )
+            raise TadoConnectionError("Cannot access Tado authentication token")
+        return cast(str, access_token)
+
+    def _get_session(self, instance: Tado) -> Any:
+        """Get HTTP session from instance."""
+        if hasattr(instance, "_ensure_session"):
+            return cast(Any, instance._ensure_session())
+        if hasattr(instance, "_session") and instance._session is not None:
+            return cast(Any, instance._session)
+
+        _LOGGER.error(
+            "Cannot access session from Tado instance (library may have changed)"
+        )
+        raise TadoConnectionError("Cannot access HTTP session")
+
+    async def _execute_request(
+        self,
+        instance: Tado,
+        url: Any,
+        headers: dict[str, str],
+        method: HttpMethod,
+        data: dict[str, object] | None,
+        proxy_url: str | None,
+    ) -> str:
+        """Execute HTTP request with timeout and error handling."""
         request_timeout = getattr(instance, "_request_timeout", 10)
 
         try:
             async with asyncio.timeout(request_timeout):
-                # Get session (private API with fallback)
-                if hasattr(instance, "_ensure_session"):
-                    session = instance._ensure_session()
-                elif hasattr(instance, "_session") and instance._session is not None:
-                    session = instance._session
-                else:
-                    _LOGGER.error(
-                        "Cannot access session from Tado instance (library may have changed)"
-                    )
-                    raise TadoConnectionError("Cannot access HTTP session")
-
-                request_kwargs: dict[str, Any] = {
-                    "method": method.value,
-                    "url": str(url),
-                    "headers": headers,
-                }
-                if method != HttpMethod.GET and data is not None:
-                    request_kwargs["json"] = data
+                session = self._get_session(instance)
+                request_kwargs = self._build_request_kwargs(url, headers, method, data)
 
                 async with session.request(**cast(Any, request_kwargs)) as response:
-                    if rl := parse_ratelimit_headers(dict(response.headers)):
-                        self.rate_limit_data["limit"] = rl.limit
-                        self.rate_limit_data["remaining"] = rl.remaining
-                        _LOGGER.debug(
-                            "Tado Response: %d %s. Quota: %d/%d remaining.",
-                            response.status,
-                            url.path,
-                            rl.remaining,
-                            rl.limit,
-                        )
+                    self._log_response(response, url)
 
                     if response.status >= 400:
-                        body = await response.text()
-                        _LOGGER.error(
-                            "Tado API Error %d: %s. Response: %s",
-                            response.status,
-                            url.path,
-                            body,
-                        )
-                        response.raise_for_status()
+                        await self._handle_error_response(response, url)
 
-                    return cast(str, await response.text())
-
+                    return (
+                        ""
+                        if response.status == 204
+                        else cast(str, await response.text())
+                    )
         except TimeoutError as err:
             raise TadoConnectionError("Timeout connecting to Tado") from err
         except ClientResponseError as err:
-            # Only check request status if NOT using proxy, or if proxy passes through Tado errors 1:1
             if not proxy_url:
                 with contextlib.suppress(KeyError):
                     await instance.check_request_status(err)
             raise
+
+    def _build_request_kwargs(
+        self,
+        url: Any,
+        headers: dict[str, str],
+        method: HttpMethod,
+        data: dict[str, object] | None,
+    ) -> dict[str, Any]:
+        """Build request kwargs dict."""
+        request_kwargs: dict[str, Any] = {
+            "method": method.value,
+            "url": str(url),
+            "headers": headers,
+        }
+        if method != HttpMethod.GET and data is not None:
+            request_kwargs["json"] = data
+        return request_kwargs
+
+    def _log_response(self, response: Any, url: Any) -> None:
+        """Log response with rate limit info if available."""
+        if rl := parse_ratelimit_headers(dict(response.headers)):
+            self.rate_limit_data["limit"] = rl.limit
+            self.rate_limit_data["remaining"] = rl.remaining
+            _LOGGER.debug(
+                "Tado Response: %d %s. Quota: %d/%d remaining.",
+                response.status,
+                url.path,
+                rl.remaining,
+                rl.limit,
+            )
+
+    async def _handle_error_response(self, response: Any, url: Any) -> None:
+        """Handle error response by logging and raising."""
+        body = await response.text()
+        _LOGGER.error(
+            "Tado API Error %d: %s. Response: %s",
+            response.status,
+            url.path,
+            body,
+        )
+        response.raise_for_status()
 
     def _build_url(
         self,

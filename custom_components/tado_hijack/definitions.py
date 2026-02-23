@@ -29,6 +29,10 @@ from .const import (
     CONF_REFRESH_AFTER_RESUME,
     CONF_SLOW_POLL_INTERVAL,
     CONF_THROTTLE_THRESHOLD,
+    CONF_SUPPRESS_REDUNDANT_CALLS,
+    CONF_SUPPRESS_REDUNDANT_BUTTONS,
+    DEFAULT_SUPPRESS_REDUNDANT_CALLS,
+    DEFAULT_SUPPRESS_REDUNDANT_BUTTONS,
     DEFAULT_AUTO_API_QUOTA_PERCENT,
     DEFAULT_DEBOUNCE_TIME,
     DEFAULT_JITTER_PERCENT,
@@ -42,7 +46,8 @@ from .const import (
     DEFAULT_REFRESH_AFTER_RESUME,
     DEFAULT_SLOW_POLL_INTERVAL,
     DEFAULT_THROTTLE_THRESHOLD,
-    PROTECTION_MODE_TEMP,
+    GEN_CLASSIC,
+    GEN_X,
     TEMP_MAX_AC,
     TEMP_MAX_HOT_WATER_OVERRIDE,
     TEMP_MIN_AC,
@@ -51,8 +56,42 @@ from .const import (
     ZONE_TYPE_HEATING,
     ZONE_TYPE_HOT_WATER,
 )
-from .helpers.parsers import get_ac_capabilities, parse_heating_power
+from .helpers.parsers import get_ac_capabilities
+from .helpers.quota_math import get_next_reset_time
+from .helpers.tadov3 import parsers as v3_parsers
+from .helpers.tadox import parsers as tadox_parsers
 from .models import TadoEntityDefinition
+
+
+def _get_owd_timeout(c: Any, zid: int) -> int:
+    """Resolve open window detection timeout (optimistic > cache)."""
+    opt = c.optimistic.get_open_window(zid)
+    if opt is not None:
+        return int(opt)
+
+    zone = c.zones_meta.get(zid)
+    if zone and zone.open_window_detection and zone.open_window_detection.enabled:
+        return int(zone.open_window_detection.timeout_in_seconds)
+    return 0
+
+
+def _get_away_temp(c: Any, zid: int) -> float:
+    """Resolve away temperature (optimistic > cache)."""
+    opt = c.optimistic.get_away_temp(zid)
+    return float(c.data.away_config.get(zid) or 0.0) if opt is None else float(opt)
+
+
+def _get_next_reset_timestamp(c: Any) -> Any:
+    """Get next expected quota reset as datetime object."""
+    try:
+        window = c.reset_tracker.get_expected_window()
+        expected_hour = window.hour if window.confidence == "learned" else None
+        expected_minute = window.minute if window.confidence == "learned" else None
+        return get_next_reset_time(
+            expected_hour, expected_minute, c.reset_tracker.get_last_reset()
+        )
+    except Exception:
+        return None
 
 
 def _create_definition(
@@ -68,6 +107,7 @@ def _create_definition(
     translation_key: str | None = None,
     enabled_default: bool = True,
     supported_zone_types: set[str] | None = None,
+    supported_generations: set[str] | None = None,
     required_device_capabilities: list[str] | None = None,
     is_supported_fn: Any | None = None,
     press_fn: Any | None = None,
@@ -88,6 +128,7 @@ def _create_definition(
     unique_id_suffix: str | None = None,
     use_legacy_unique_id_format: bool | None = None,
     optimistic_value_map: dict[str, bool] | None = None,
+    suggested_display_precision: int | None = None,
 ) -> TadoEntityDefinition:
     """Create a TadoEntityDefinition."""
     return cast(
@@ -111,9 +152,11 @@ def _create_definition(
             "ha_device_class": device_class,
             "ha_state_class": state_class,
             "ha_native_unit_of_measurement": unit,
+            "suggested_display_precision": suggested_display_precision,
             "entity_category": entity_category,
             "entity_registry_enabled_default": enabled_default,
             "supported_zone_types": supported_zone_types,
+            "supported_generations": supported_generations,
             "required_device_capabilities": required_device_capabilities,
             "min_value": min_value,
             "max_value": max_value,
@@ -180,6 +223,7 @@ def create_diagnostic_zone_sensor(
     state_class: SensorStateClass | None = None,
     unit: str | None = None,
     supported_zone_types: set[str] | None = None,
+    supported_generations: set[str] | None = None,
     unique_id_suffix: str | None = None,
 ) -> TadoEntityDefinition:
     """Create a diagnostic sensor for a Tado Zone."""
@@ -192,6 +236,7 @@ def create_diagnostic_zone_sensor(
         unit=unit,
         entity_category=EntityCategory.DIAGNOSTIC,
         supported_zone_types=supported_zone_types,
+        supported_generations=supported_generations,
         unique_id_suffix=unique_id_suffix,
     )
 
@@ -226,6 +271,7 @@ def create_zone_binary_sensor(
     device_class: Any | None = None,
     entity_category: EntityCategory | None = None,
     supported_zone_types: set[str] | None = None,
+    supported_generations: set[str] | None = None,
     translation_key: str | None = None,
     unique_id_suffix: str | None = None,
 ) -> TadoEntityDefinition:
@@ -239,6 +285,7 @@ def create_zone_binary_sensor(
         device_class=device_class,
         entity_category=entity_category,
         supported_zone_types=supported_zone_types,
+        supported_generations=supported_generations,
         translation_key=translation_key,
         unique_id_suffix=unique_id_suffix,
     )
@@ -329,6 +376,7 @@ def create_zone_switch(
     entity_category: EntityCategory | None = None,
     optimistic_key: str | None = None,
     supported_zone_types: set[str] | None = None,
+    supported_generations: set[str] | None = None,
     is_inverted: bool | None = None,
     translation_key: str | None = None,
     unique_id_suffix: str | None = None,
@@ -347,6 +395,7 @@ def create_zone_switch(
         optimistic_key=optimistic_key,
         optimistic_scope="zone",
         supported_zone_types=supported_zone_types,
+        supported_generations=supported_generations,
         is_inverted=is_inverted,
         translation_key=translation_key,
         unique_id_suffix=unique_id_suffix,
@@ -395,6 +444,8 @@ def create_device_number(
     unique_id_suffix: str | None = None,
     use_legacy_unique_id_format: bool | None = None,
     required_device_capabilities: list[str] | None = None,
+    supported_generations: set[str] | None = None,
+    suggested_display_precision: int | None = None,
 ) -> TadoEntityDefinition:
     """Create a number entity for a Tado Device."""
     return _create_definition(
@@ -413,6 +464,8 @@ def create_device_number(
         unique_id_suffix=unique_id_suffix,
         use_legacy_unique_id_format=use_legacy_unique_id_format,
         required_device_capabilities=required_device_capabilities,
+        supported_generations=supported_generations,
+        suggested_display_precision=suggested_display_precision,
     )
 
 
@@ -430,9 +483,11 @@ def create_zone_number(
     optimistic_key: str | None = None,
     entity_category: EntityCategory | None = None,
     supported_zone_types: set[str] | None = None,
+    supported_generations: set[str] | None = None,
     unique_id_suffix: str | None = None,
     use_legacy_unique_id_format: bool | None = None,
     is_supported_fn: Any | None = None,
+    suggested_display_precision: int | None = None,
 ) -> TadoEntityDefinition:
     """Create a number entity for a Tado Zone."""
     return _create_definition(
@@ -452,9 +507,11 @@ def create_zone_number(
         optimistic_scope="zone",
         entity_category=entity_category,
         supported_zone_types=supported_zone_types,
+        supported_generations=supported_generations,
         unique_id_suffix=unique_id_suffix,
         use_legacy_unique_id_format=use_legacy_unique_id_format,
         is_supported_fn=is_supported_fn,
+        suggested_display_precision=suggested_display_precision,
     )
 
 
@@ -486,6 +543,7 @@ def create_zone_button(
     icon: str | None = None,
     entity_category: EntityCategory | None = None,
     supported_zone_types: set[str] | None = None,
+    supported_generations: set[str] | None = None,
     translation_key: str | None = None,
     unique_id_suffix: str | None = None,
 ) -> TadoEntityDefinition:
@@ -499,6 +557,7 @@ def create_zone_button(
         icon=icon,
         entity_category=entity_category,
         supported_zone_types=supported_zone_types,
+        supported_generations=supported_generations,
         translation_key=translation_key,
         unique_id_suffix=unique_id_suffix,
     )
@@ -513,6 +572,7 @@ def create_zone_select(
     entity_category: EntityCategory | None = None,
     optimistic_key: str | None = None,
     supported_zone_types: set[str] | None = None,
+    supported_generations: set[str] | None = None,
     unique_id_suffix: str | None = None,
 ) -> TadoEntityDefinition:
     """Create a select entity for a Tado Zone."""
@@ -528,6 +588,7 @@ def create_zone_select(
         optimistic_key=optimistic_key,
         optimistic_scope="zone",
         supported_zone_types=supported_zone_types or {ZONE_TYPE_AIR_CONDITIONING},
+        supported_generations=supported_generations,
         unique_id_suffix=unique_id_suffix,
     )
 
@@ -541,6 +602,7 @@ def create_zone_sensor(
     unit: str | None = None,
     entity_category: EntityCategory | None = None,
     supported_zone_types: set[str] | None = None,
+    supported_generations: set[str] | None = None,
     unique_id_suffix: str | None = None,
 ) -> TadoEntityDefinition:
     """Create a sensor for a Tado Zone."""
@@ -555,6 +617,7 @@ def create_zone_sensor(
         unit=unit,
         entity_category=entity_category,
         supported_zone_types=supported_zone_types,
+        supported_generations=supported_generations,
         unique_id_suffix=unique_id_suffix,
     )
 
@@ -566,20 +629,29 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         device_class=SensorDeviceClass.ENUM,
     ),
     create_diagnostic_sensor(
+        key="tado_generation",
+        value_fn=lambda c: ("Tado X" if c.generation == GEN_X else "Tado Classic (v3)"),
+        icon="mdi:chip",
+    ),
+    create_diagnostic_sensor(
         key="proxy_url",
-        value_fn=lambda c: str(c.config_entry.data.get(CONF_API_PROXY_URL)).rstrip("/")
-        if c.config_entry.data.get(CONF_API_PROXY_URL)
-        else None,
+        value_fn=lambda c: (
+            str(c.config_entry.data.get(CONF_API_PROXY_URL)).rstrip("/")
+            if c.config_entry.data.get(CONF_API_PROXY_URL)
+            else None
+        ),
         icon="mdi:server-network",
     ),
     create_diagnostic_sensor(
         key="proxy_token",
         value_fn=lambda c: (
-            (token := c.config_entry.data.get(CONF_PROXY_TOKEN))
-            and f"****{str(token)[-3:]}"
-        )
-        if c.config_entry.data.get(CONF_PROXY_TOKEN)
-        else None,
+            (
+                (token := c.config_entry.data.get(CONF_PROXY_TOKEN))
+                and f"****{str(token)[-3:]}"
+            )
+            if c.config_entry.data.get(CONF_PROXY_TOKEN)
+            else None
+        ),
         icon="mdi:key-variant",
     ),
     create_diagnostic_sensor(
@@ -593,10 +665,39 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         state_class=SensorStateClass.MEASUREMENT,
     ),
     create_diagnostic_sensor(
+        key="quota_reset_last",
+        value_fn=lambda c: c.reset_tracker.get_last_reset(),
+        icon="mdi:clock-check",
+        device_class=SensorDeviceClass.TIMESTAMP,
+    ),
+    create_diagnostic_sensor(
+        key="quota_reset_expected_window",
+        value_fn=lambda c: str(c.reset_tracker.get_expected_window()),
+        icon="mdi:clock-time-four",
+    ),
+    create_diagnostic_sensor(
+        key="quota_reset_next",
+        value_fn=lambda c: _get_next_reset_timestamp(c),
+        icon="mdi:clock-alert",
+        device_class=SensorDeviceClass.TIMESTAMP,
+    ),
+    create_diagnostic_sensor(
+        key="quota_reset_pattern_confidence",
+        value_fn=lambda c: c.reset_tracker.get_expected_window().confidence,
+        icon="mdi:chart-timeline-variant",
+        device_class=SensorDeviceClass.ENUM,
+    ),
+    create_diagnostic_sensor(
+        key="quota_reset_history_count",
+        value_fn=lambda c: c.reset_tracker.history_count,
+        icon="mdi:counter",
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    create_diagnostic_sensor(
         key="current_zone_interval",
-        value_fn=lambda c: int(c.update_interval.total_seconds())
-        if c.update_interval
-        else None,
+        value_fn=lambda c: (
+            int(c.update_interval.total_seconds()) if c.update_interval else None
+        ),
         icon="mdi:timer",
         unit="s",
         state_class=SensorStateClass.MEASUREMENT,
@@ -605,7 +706,8 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         key="min_interval_configured",
         value_fn=lambda c: int(
             c.config_entry.data.get(
-                CONF_MIN_AUTO_QUOTA_INTERVAL_S, DEFAULT_MIN_AUTO_QUOTA_INTERVAL_S
+                CONF_MIN_AUTO_QUOTA_INTERVAL_S,
+                DEFAULT_MIN_AUTO_QUOTA_INTERVAL_S,
             )
         ),
         icon="mdi:timer-cog",
@@ -716,20 +818,46 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         ),
         icon="mdi:clock-end",
     ),
+    create_diagnostic_sensor(
+        key="suppress_redundant_calls",
+        value_fn=lambda c: bool(
+            c.config_entry.data.get(
+                CONF_SUPPRESS_REDUNDANT_CALLS, DEFAULT_SUPPRESS_REDUNDANT_CALLS
+            )
+        ),
+        icon="mdi:phone-hangup",
+        device_class=SensorDeviceClass.ENUM,
+    ),
+    create_diagnostic_sensor(
+        key="suppress_redundant_buttons",
+        value_fn=lambda c: bool(
+            c.config_entry.data.get(
+                CONF_SUPPRESS_REDUNDANT_BUTTONS, DEFAULT_SUPPRESS_REDUNDANT_BUTTONS
+            )
+        ),
+        icon="mdi:gesture-double-tap",
+        device_class=SensorDeviceClass.ENUM,
+    ),
     create_zone_sensor(
         key="heating_power",
-        value_fn=lambda c, zid: (
-            100.0 if c.optimistic.get_zone_power(zid) == "ON" else 0.0
-        )
-        if getattr(c.zones_meta.get(zid), "type", None) == ZONE_TYPE_HOT_WATER
-        and c.optimistic.get_zone_power(zid) is not None
-        else parse_heating_power(
+        supported_generations={"v3"},
+        value_fn=lambda c, zid: v3_parsers.parse_heating_power(
             c.data.zone_states.get(str(zid)),
-            getattr(c.zones_meta.get(zid), "type", None),
+            c.zones_meta[zid].type if c.zones_meta.get(zid) else None,
         ),
         unit="%",
         state_class=SensorStateClass.MEASUREMENT,
         supported_zone_types={ZONE_TYPE_HEATING},
+        unique_id_suffix="pwr",
+    ),
+    create_zone_sensor(
+        key="heating_power",
+        supported_generations={GEN_X},
+        value_fn=lambda c, zid: tadox_parsers.parse_heating_power(
+            c.data.zone_states.get(str(zid))
+        ),
+        unit="%",
+        state_class=SensorStateClass.MEASUREMENT,
         unique_id_suffix="pwr",
     ),
     create_zone_sensor(
@@ -763,44 +891,57 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     ),
     create_diagnostic_zone_sensor(
         key="next_schedule_temp",
-        value_fn=lambda c, zid: (
-            (state := c.data.zone_states.get(str(zid)))
-            and (nsc := getattr(state, "next_schedule_change", None))
-            and (setting := getattr(nsc, "setting", None))
-            and (temp := getattr(setting, "temperature", None))
-            and temp.celsius
-        )
-        or None,
+        value_fn=lambda c, zid: v3_parsers.parse_next_schedule_temp(
+            c.data.zone_states.get(str(zid))
+        ),
         unit=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         unique_id_suffix="next_sch_temp",
+        supported_generations={"v3"},
+    ),
+    create_diagnostic_zone_sensor(
+        key="next_schedule_temp",
+        value_fn=lambda c, zid: tadox_parsers.parse_next_schedule_temp(
+            c.data.zone_states.get(str(zid))
+        ),
+        unit=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        unique_id_suffix="next_sch_temp",
+        supported_generations={GEN_X},
     ),
     create_diagnostic_zone_sensor(
         key="next_schedule_mode",
-        value_fn=lambda c, zid: (
-            (state := c.data.zone_states.get(str(zid)))
-            and (nsc := getattr(state, "next_schedule_change", None))
-            and (setting := getattr(nsc, "setting", None))
-            and (
-                (setting.power == "ON" and (setting.mode or "HEATING"))
-                or (setting.power == "OFF" and "OFF")
-            )
-        )
-        or None,
+        value_fn=lambda c, zid: v3_parsers.parse_next_schedule_mode(
+            c.data.zone_states.get(str(zid))
+        ),
         unique_id_suffix="next_sch_mode",
+        supported_generations={"v3"},
+    ),
+    create_diagnostic_zone_sensor(
+        key="next_schedule_mode",
+        value_fn=lambda c, zid: tadox_parsers.parse_next_schedule_mode(
+            c.data.zone_states.get(str(zid))
+        ),
+        unique_id_suffix="next_sch_mode",
+        supported_generations={GEN_X},
     ),
     create_diagnostic_zone_sensor(
         key="next_time_block_start",
-        value_fn=lambda c, zid: (
-            (state := c.data.zone_states.get(str(zid)))
-            and (ntb := getattr(state, "next_time_block", None))
-            and isinstance(ntb, dict)
-            and (start := ntb.get("start"))
-            and dt_util.parse_datetime(start)
-        )
-        or None,
+        value_fn=lambda c, zid: v3_parsers.parse_next_time_block_start(
+            c.data.zone_states.get(str(zid))
+        ),
         device_class=SensorDeviceClass.TIMESTAMP,
         unique_id_suffix="next_block_start",
+        supported_generations={"v3"},
+    ),
+    create_diagnostic_zone_sensor(
+        key="next_time_block_start",
+        value_fn=lambda c, zid: tadox_parsers.parse_next_time_block_start(
+            c.data.zone_states.get(str(zid))
+        ),
+        device_class=SensorDeviceClass.TIMESTAMP,
+        unique_id_suffix="next_block_start",
+        supported_generations={GEN_X},
     ),
     create_home_binary_sensor(
         key="reduced_polling_active",
@@ -853,9 +994,7 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     create_device_binary_sensor(
         key="connection_state",
         value_fn=lambda c, serial: bool(
-            c.devices_meta.get(serial)
-            and c.devices_meta.get(serial).connection_state
-            and c.devices_meta.get(serial).connection_state.value
+            c.devices_meta.get(serial) and c.devices_meta.get(serial).connection_state
         ),
         device_class=BinarySensorDeviceClass.CONNECTIVITY,
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -865,7 +1004,7 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         key="cloud_connection",
         value_fn=lambda c, serial: next(
             (
-                bool(b.connection_state.value)
+                bool(b.connection_state)
                 for b in c.bridges
                 if b.serial_no == serial and b.connection_state
             ),
@@ -888,15 +1027,17 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     create_zone_binary_sensor(
         key="power",
         value_fn=lambda c, zid: (
-            getattr(
-                getattr(c.data.zone_states.get(str(zid)), "setting", None),
-                "power",
-                "OFF",
+            (
+                getattr(
+                    getattr(c.data.zone_states.get(str(zid)), "setting", None),
+                    "power",
+                    "OFF",
+                )
+                == "ON"
             )
-            == "ON"
-        )
-        if c.data.zone_states.get(str(zid))
-        else False,
+            if c.data.zone_states.get(str(zid))
+            else False
+        ),
         device_class=BinarySensorDeviceClass.POWER,
         supported_zone_types={ZONE_TYPE_HOT_WATER},
         translation_key="power",
@@ -908,7 +1049,6 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
             (
                 c.devices_meta.get(d.serial_no)
                 and c.devices_meta.get(d.serial_no).connection_state
-                and c.devices_meta.get(d.serial_no).connection_state.value
             )
             for d in (c.zones_meta.get(zid).devices if c.zones_meta.get(zid) else [])
         ),
@@ -920,9 +1060,9 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     ),
     create_device_number(
         key="temperature_offset",
-        value_fn=lambda c, serial: float(c.data.offsets.get(serial).celsius)
-        if c.data.offsets.get(serial)
-        else None,
+        value_fn=lambda c, serial: v3_parsers.parse_temperature_offset(
+            c.data.offsets.get(serial)
+        ),
         set_fn=lambda c, serial, val: c.async_set_temperature_offset(serial, val),
         min_value=-10.0,
         max_value=10.0,
@@ -933,14 +1073,34 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         unique_id_suffix="temperature_offset",
         use_legacy_unique_id_format=True,
         required_device_capabilities=[CAPABILITY_INSIDE_TEMP],
+        supported_generations={"v3"},
+    ),
+    create_device_number(
+        key="temperature_offset",
+        value_fn=lambda c, serial: tadox_parsers.parse_temperature_offset(
+            c.devices_meta.get(serial)
+        ),
+        set_fn=lambda c, serial, val: c.async_set_temperature_offset(serial, val),
+        min_value=-10.0,
+        max_value=10.0,
+        step=0.1,
+        unit=UnitOfTemperature.CELSIUS,
+        optimistic_key="offset",
+        entity_category=EntityCategory.CONFIG,
+        unique_id_suffix="temperature_offset",
+        use_legacy_unique_id_format=True,
+        required_device_capabilities=[CAPABILITY_INSIDE_TEMP],
+        supported_generations={GEN_X},
     ),
     create_zone_number(
         key="away_temperature",
-        value_fn=lambda c, zid: float(c.data.away_config.get(zid))
-        if c.data.away_config.get(zid) is not None
-        else None,
-        set_fn=lambda c, zid, val: c.async_set_away_temperature(zid, val),
-        min_value=5.0,
+        value_fn=lambda c, zid: (
+            0.0 if (val := _get_away_temp(c, zid)) <= 5.0 else val
+        ),
+        set_fn=lambda c, zid, val: c.async_set_away_temperature(
+            zid, None if val < 5.0 else val
+        ),
+        min_value=0,
         max_value=25.0,
         step=0.1,
         unit=UnitOfTemperature.CELSIUS,
@@ -949,6 +1109,8 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         entity_category=EntityCategory.CONFIG,
         unique_id_suffix="away_temperature",
         use_legacy_unique_id_format=True,
+        is_supported_fn=lambda c, zid: c.generation
+        == GEN_CLASSIC,  # v3 only - Tado X has no awayConfiguration API
     ),
     create_zone_number(
         key="target_temperature",
@@ -963,34 +1125,40 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
             and state.setting.temperature.celsius is not None
             else None
         ),
-        set_fn=lambda c, zid, val: c.async_set_hot_water_heat(zid, val)
-        if c.zones_meta.get(zid) and c.zones_meta.get(zid).type == ZONE_TYPE_HOT_WATER
-        else c.async_set_ac_setting(zid, "temperature", str(val)),
-        min_fn=lambda c, zid: float(
-            c.data.capabilities.get(zid).temperatures.celsius.min
-        )
-        if c.data.capabilities.get(zid) and c.data.capabilities.get(zid).temperatures
-        else (
-            TEMP_MIN_HOT_WATER
+        set_fn=lambda c, zid, val: (
+            c.async_set_hot_water_heat(zid, val)
             if c.zones_meta.get(zid)
             and c.zones_meta.get(zid).type == ZONE_TYPE_HOT_WATER
-            else TEMP_MIN_AC
+            else c.async_set_ac_setting(zid, "temperature", str(val))
         ),
-        max_fn=lambda c, zid: float(
-            c.data.capabilities.get(zid).temperatures.celsius.max
-        )
-        if c.data.capabilities.get(zid) and c.data.capabilities.get(zid).temperatures
-        else (
-            TEMP_MAX_HOT_WATER_OVERRIDE
-            if c.zones_meta.get(zid)
-            and c.zones_meta.get(zid).type == ZONE_TYPE_HOT_WATER
-            else TEMP_MAX_AC
+        min_fn=lambda c, zid: (
+            float(caps.temperatures.celsius.min)
+            if (caps := c.data_manager.capabilities_cache.get(zid))
+            and caps.temperatures
+            else (
+                TEMP_MIN_HOT_WATER
+                if c.zones_meta.get(zid)
+                and c.zones_meta.get(zid).type == ZONE_TYPE_HOT_WATER
+                else TEMP_MIN_AC
+            )
         ),
-        step_fn=lambda c, zid: float(
-            c.data.capabilities.get(zid).temperatures.celsius.step
-        )
-        if c.data.capabilities.get(zid) and c.data.capabilities.get(zid).temperatures
-        else 0.5,
+        max_fn=lambda c, zid: (
+            float(caps.temperatures.celsius.max)
+            if (caps := c.data_manager.capabilities_cache.get(zid))
+            and caps.temperatures
+            else (
+                TEMP_MAX_HOT_WATER_OVERRIDE
+                if c.zones_meta.get(zid)
+                and c.zones_meta.get(zid).type == ZONE_TYPE_HOT_WATER
+                else TEMP_MAX_AC
+            )
+        ),
+        step_fn=lambda c, zid: (
+            float(caps.temperatures.celsius.step)
+            if (caps := c.data_manager.capabilities_cache.get(zid))
+            and caps.temperatures
+            else 0.5
+        ),
         unit=UnitOfTemperature.CELSIUS,
         optimistic_key="temperature",
         supported_zone_types={ZONE_TYPE_AIR_CONDITIONING, ZONE_TYPE_HOT_WATER},
@@ -999,21 +1167,20 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     ),
     create_zone_number(
         key="open_window_timeout",
-        value_fn=lambda c, zid: float(
-            c.zones_meta.get(zid).open_window_detection.timeout_in_seconds / 60
-        )
-        if c.zones_meta.get(zid)
-        and c.zones_meta.get(zid).open_window_detection
-        and c.zones_meta.get(zid).open_window_detection.enabled
-        else 0.0,
-        set_fn=lambda c, zid, val: c.async_set_open_window_detection(
-            zid, enabled=val > 0, timeout_seconds=int(val * 60) if val > 0 else None
+        value_fn=lambda c, zid: (
+            round(_get_owd_timeout(c, zid) / 60)
+            if _get_owd_timeout(c, zid) >= 300
+            else 0
         ),
-        min_value=0.0,
-        max_value=1439.0,
-        step=1.0,
+        set_fn=lambda c, zid, val: c.async_set_open_window_detection(
+            zid,
+            enabled=val >= 5,
+            timeout_seconds=int(val * 60) if val >= 5 else None,
+        ),
+        min_value=0,
+        max_value=1439,
+        step=1,
         unit=UnitOfTime.MINUTES,
-        optimistic_key="open_window_timeout",
         supported_zone_types={ZONE_TYPE_HEATING},
         entity_category=EntityCategory.CONFIG,
         unique_id_suffix="open_window_timeout",
@@ -1022,6 +1189,7 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
             owd := getattr(c.zones_meta.get(zid), "open_window_detection", None)
         )
         and owd.supported,
+        suggested_display_precision=0,
     ),
     create_home_button(
         key="refresh_metadata",
@@ -1114,9 +1282,7 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
             getattr(c.data.zone_states.get(str(zid)), "overlay_active", False)
         ),
         turn_on_fn=lambda c, zid: c.async_set_zone_auto(zid),
-        turn_off_fn=lambda c, zid: c.async_set_zone_heat(
-            zid, temp=PROTECTION_MODE_TEMP
-        ),
+        turn_off_fn=lambda c, zid: c.async_set_zone_off(zid),
         optimistic_key="overlay",
         is_inverted=True,
         supported_zone_types={ZONE_TYPE_HEATING},
@@ -1134,9 +1300,10 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         entity_category=EntityCategory.CONFIG,
         translation_key="dazzle_mode",
         unique_id_suffix="dazzle",
-        is_supported_fn=lambda c, zid: getattr(
-            c.zones_meta.get(zid), "supports_dazzle", False
-        ),
+        is_supported_fn=lambda c, zid: (
+            c.generation == GEN_CLASSIC
+            and getattr(c.zones_meta.get(zid), "supports_dazzle", False)
+        ),  # v3 only - Tado X line_x models don't have dazzle_enabled
     ),
     create_zone_switch(
         key="early_start",
@@ -1150,19 +1317,22 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         supported_zone_types={ZONE_TYPE_HEATING},
         translation_key="early_start",
         unique_id_suffix="early",
+        is_supported_fn=lambda c, zid: c.generation
+        == GEN_CLASSIC,  # v3 only - Tado X line_x models don't have early_start_enabled
     ),
     create_zone_select(
         key="fan_speed",
-        value_fn=lambda c, zid: getattr(
-            c.data.zone_states.get(str(zid)).setting, "fan_speed", None
-        )
-        if c.data.zone_states.get(str(zid)) and c.data.zone_states.get(str(zid)).setting
-        else None,
-        options_fn=lambda c, zid: get_ac_capabilities(c.data.capabilities.get(zid)).get(
-            "fan_speeds"
-        )
-        if c.data.capabilities.get(zid)
-        else [],
+        value_fn=lambda c, zid: (
+            getattr(c.data.zone_states.get(str(zid)).setting, "fan_speed", None)
+            if c.data.zone_states.get(str(zid))
+            and c.data.zone_states.get(str(zid)).setting
+            else None
+        ),
+        options_fn=lambda c, zid: (
+            get_ac_capabilities(c.data.capabilities.get(zid)).get("fan_speeds")
+            if c.data.capabilities.get(zid)
+            else []
+        ),
         select_option_fn=lambda c, zid, val: c.async_set_ac_setting(
             zid, "fan_speed", val
         ),
@@ -1171,16 +1341,20 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         key="vertical_swing",
         value_fn=lambda c, zid: c.optimistic.get_vertical_swing(zid)
         or (
-            getattr(c.data.zone_states.get(str(zid)).setting, "vertical_swing", None)
+            getattr(
+                c.data.zone_states.get(str(zid)).setting,
+                "vertical_swing",
+                None,
+            )
             if c.data.zone_states.get(str(zid))
             and c.data.zone_states.get(str(zid)).setting
             else None
         ),
-        options_fn=lambda c, zid: get_ac_capabilities(c.data.capabilities.get(zid)).get(
-            "vertical_swings"
-        )
-        if c.data.capabilities.get(zid)
-        else [],
+        options_fn=lambda c, zid: (
+            get_ac_capabilities(c.data.capabilities.get(zid)).get("vertical_swings")
+            if c.data.capabilities.get(zid)
+            else []
+        ),
         select_option_fn=lambda c, zid, val: c.async_set_ac_setting(
             zid, "vertical_swing", val
         ),
@@ -1190,16 +1364,20 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         key="horizontal_swing",
         value_fn=lambda c, zid: c.optimistic.get_horizontal_swing(zid)
         or (
-            getattr(c.data.zone_states.get(str(zid)).setting, "horizontal_swing", None)
+            getattr(
+                c.data.zone_states.get(str(zid)).setting,
+                "horizontal_swing",
+                None,
+            )
             if c.data.zone_states.get(str(zid))
             and c.data.zone_states.get(str(zid)).setting
             else None
         ),
-        options_fn=lambda c, zid: get_ac_capabilities(c.data.capabilities.get(zid)).get(
-            "horizontal_swings"
-        )
-        if c.data.capabilities.get(zid)
-        else [],
+        options_fn=lambda c, zid: (
+            get_ac_capabilities(c.data.capabilities.get(zid)).get("horizontal_swings")
+            if c.data.capabilities.get(zid)
+            else []
+        ),
         select_option_fn=lambda c, zid, val: c.async_set_ac_setting(
             zid, "horizontal_swing", val
         ),

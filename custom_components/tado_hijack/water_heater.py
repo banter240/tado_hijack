@@ -12,6 +12,7 @@ from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
+    GEN_X,
     TEMP_MAX_HOT_WATER,
     TEMP_MIN_HOT_WATER,
     TEMP_STEP_HOT_WATER,
@@ -36,6 +37,26 @@ OPERATION_MODE_OFF = "off"
 OPERATION_MODES = [OPERATION_MODE_AUTO, OPERATION_MODE_HEAT, OPERATION_MODE_OFF]
 
 
+def _setup_water_heater_entities_tadox(
+    coordinator: TadoDataUpdateCoordinator,
+) -> list[TadoHotWater]:
+    """Set up hot water entities for Tado X."""
+    return []  # [TADO_X] Not yet supported
+
+
+def _setup_water_heater_entities_v3(
+    coordinator: TadoDataUpdateCoordinator,
+) -> list[TadoHotWater]:
+    """Set up hot water entities for v3 Classic."""
+    entities = [
+        TadoHotWater(coordinator, zone.id, zone.name)
+        for zone in yield_zones(coordinator, {ZONE_TYPE_HOT_WATER})
+    ]
+    if not entities:
+        _LOGGER.debug("No hot water zones found")
+    return entities
+
+
 async def async_setup_entry(
     hass: Any,
     entry: TadoConfigEntry,
@@ -43,13 +64,13 @@ async def async_setup_entry(
 ) -> None:
     """Set up Tado hot water based on a config entry."""
     coordinator: TadoDataUpdateCoordinator = entry.runtime_data
-    if entities := [
-        TadoHotWater(coordinator, zone.id, zone.name)
-        for zone in yield_zones(coordinator, {ZONE_TYPE_HOT_WATER})
-    ]:
-        async_add_entities(entities)
-    else:
-        _LOGGER.debug("No hot water zones found")
+
+    entities = (
+        _setup_water_heater_entities_tadox(coordinator)
+        if coordinator.generation == GEN_X
+        else _setup_water_heater_entities_v3(coordinator)
+    )
+    async_add_entities(entities)
 
 
 class TadoHotWater(

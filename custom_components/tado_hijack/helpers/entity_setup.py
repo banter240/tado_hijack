@@ -30,6 +30,10 @@ ALL_ZONE_TYPES = {
     ZONE_TYPE_HOT_WATER,
 }
 
+# Zone types not yet supported on Tado X - entities limited to these are skipped.
+# Remove a type from this set once it is implemented for Tado X.
+_TADOX_UNSUPPORTED_ZONE_TYPES = {ZONE_TYPE_HOT_WATER, ZONE_TYPE_AIR_CONDITIONING}
+
 
 async def async_setup_generic_platform(
     hass: HomeAssistant,
@@ -44,6 +48,11 @@ async def async_setup_generic_platform(
 
     for d in ENTITY_DEFINITIONS:
         if d["platform"] != platform:
+            continue
+
+        if (
+            gens := d.get("supported_generations")
+        ) and coordinator.generation not in gens:
             continue
 
         scope = d["scope"]
@@ -62,10 +71,9 @@ async def async_setup_generic_platform(
 
     if entities:
         _LOGGER.debug(
-            "Adding %d entities for platform %s: %s",
+            "Adding %d entities for platform %s",
             len(entities),
             platform,
-            [e.unique_id for e in entities],
         )
         async_add_entities(entities)
 
@@ -90,7 +98,22 @@ def _process_zone_scope(
     cls: Any,
     entities: list[Any],
 ) -> None:
-    """Process entities with Zone scope."""
+    """Process entities with Zone scope - generation-aware dispatcher."""
+    from ..const import GEN_X
+
+    if coordinator.generation == GEN_X:
+        _process_zone_scope_tadox(coordinator, definition, cls, entities)
+    else:
+        _process_zone_scope_v3(coordinator, definition, cls, entities)
+
+
+def _process_zone_scope_v3(
+    coordinator: TadoDataUpdateCoordinator,
+    definition: TadoEntityDefinition,
+    cls: Any,
+    entities: list[Any],
+) -> None:
+    """Process zone entities for v3 Classic (filtered by zone type, uses zone.id/zone.name)."""
     supported_types = definition.get("supported_zone_types") or ALL_ZONE_TYPES
     for zone in yield_zones(coordinator, supported_types):
         if (is_supported := definition.get("is_supported_fn")) and not is_supported(
@@ -98,6 +121,30 @@ def _process_zone_scope(
         ):
             continue
         entities.append(cls(coordinator, definition, zone.id, zone.name))
+
+
+def _process_zone_scope_tadox(
+    coordinator: TadoDataUpdateCoordinator,
+    definition: TadoEntityDefinition,
+    cls: Any,
+    entities: list[Any],
+) -> None:
+    """Process zone entities for Tado X (all rooms, uses room.room_id/room.room_name).
+
+    Entities limited to HOT_WATER or AIR_CONDITIONING zone types are skipped
+    until those zone types are implemented for Tado X.
+    """
+    supported_types = definition.get("supported_zone_types")
+    if supported_types and supported_types.issubset(_TADOX_UNSUPPORTED_ZONE_TYPES):
+        # Not yet implemented for Tado X (e.g. HOT_WATER-only, AC-only).
+        return
+
+    for room in yield_zones(coordinator):
+        if (is_supported := definition.get("is_supported_fn")) and not is_supported(
+            coordinator, room.room_id
+        ):
+            continue
+        entities.append(cls(coordinator, definition, room.room_id, room.room_name))
 
 
 def _process_device_scope(

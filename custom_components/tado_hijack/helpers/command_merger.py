@@ -19,7 +19,7 @@ class CommandMerger:
         self.zones: dict[int, dict[str, Any] | None] = {}
         self.child_locks: dict[str, bool] = {}
         self.offsets: dict[str, float] = {}
-        self.away_temps: dict[int, float] = {}
+        self.away_temps: dict[int, float | None] = {}
         self.dazzle_modes: dict[int, bool] = {}
         self.early_starts: dict[int, bool] = {}
         self.open_windows: dict[int, Any] = {}
@@ -80,7 +80,8 @@ class CommandMerger:
     def _merge_away_temp(self, cmd: TadoCommand) -> None:
         if cmd.data and "zone_id" in cmd.data and "temp" in cmd.data:
             zid = int(cmd.data["zone_id"])
-            self.away_temps[zid] = float(cmd.data["temp"])
+            raw = cmd.data["temp"]
+            self.away_temps[zid] = float(raw) if raw is not None else None
             if cmd.rollback_context is not None and zid not in self.rollback_away_temps:
                 self.rollback_away_temps[zid] = cmd.rollback_context
 
@@ -146,8 +147,11 @@ class CommandMerger:
                 self.rollback_zones[cmd.zone_id] = cmd.rollback_context
         else:
             # Bulk operation for all heating zones
+            from .zone_utils import get_zone_type
+            from ..const import ZONE_TYPE_HEATING
+
             for zid, zone in self.zones_meta.items():
-                if getattr(zone, "type", "HEATING") == "HEATING":
+                if get_zone_type(zone) == ZONE_TYPE_HEATING:
                     self._apply_overlay(zid, cmd.data)
                     # Bulk overlay rollback handled in coordinator
 

@@ -16,7 +16,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+/lib/
 lib64/
 parts/
 sdist/
@@ -179,3 +179,7 @@ GEMINI.md
 
 # Local testing directory
 testing_config/
+
+# AI Workspace (Vibe/Claude/Gemini)
+dev/
+local/

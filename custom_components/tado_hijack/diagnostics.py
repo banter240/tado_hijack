@@ -15,14 +15,13 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 
 from .const import (
-    API_RESET_HOUR_END,
-    API_RESET_HOUR_START,
     DIAGNOSTICS_REDACTED_PLACEHOLDER,
     DIAGNOSTICS_TO_REDACT_CONFIG_KEYS,
     DIAGNOSTICS_TO_REDACT_DATA_KEYS,
     SECONDS_PER_DAY,
 )
 from .coordinator import TadoDataUpdateCoordinator
+from .helpers.logging_utils import redact
 from .helpers.quota_math import get_next_reset_time
 
 __all__ = ["async_get_config_entry_diagnostics"]
@@ -30,9 +29,8 @@ __all__ = ["async_get_config_entry_diagnostics"]
 
 def _mask_string(text: str) -> str:
     """Mask serial numbers and sensitive patterns in strings."""
-    # 1. Pattern for Tado serials: VA/RU/IB/WR + 10 digits
-    serial_pattern = r"(?i)(va|ru|ib|wr|id|sn|zo|home|user)\d{4,}"
-    text = re.sub(serial_pattern, r"\1********", text)
+    # 1. Serial numbers and home IDs in URLs - delegated to shared redact()
+    text = redact(text)
 
     # 2. Pattern for Emails
     email_pattern = r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"
@@ -132,6 +130,11 @@ async def async_get_config_entry_diagnostics(
         hass, entry.entry_id, coordinator
     )
 
+    # AUTO: Collect all diagnostic sensors automatically
+    diag_data["diagnostic_sensors_auto"] = _get_all_diagnostic_sensors(
+        hass, entry.entry_id
+    )
+
     # Redact everything for PII
     redacted = _redact_pii(diag_data, coordinator)
 
@@ -188,18 +191,34 @@ def _get_coordinator_diagnostics(
 
 
 def _get_quota_diagnostics(coordinator: TadoDataUpdateCoordinator) -> dict[str, Any]:
-    """Return diagnostic information about the auto API quota system."""
+    """Return calculated quota diagnostics (sensors are auto-collected elsewhere).
+
+    This function only returns CALCULATED values that don't exist as sensors.
+    All sensor values (reset window, history, etc.) are automatically collected
+    via _get_all_diagnostic_sensors().
+    """
     dm = coordinator.data_manager
     res_total, res_breakdown = dm.estimate_daily_reserved_cost()
 
-    # Timing (Aware)
+    # Get learned reset window for calculations
+    expected_window = coordinator.reset_tracker.get_expected_window()
+    expected_hour = (
+        expected_window.hour if expected_window.confidence == "learned" else None
+    )
+    expected_minute = (
+        expected_window.minute if expected_window.confidence == "learned" else None
+    )
+
+    # Timing calculations
     now_dt = dt_util.now()
-    next_reset = get_next_reset_time()
+    next_reset = get_next_reset_time(
+        expected_hour, expected_minute, coordinator._last_quota_reset
+    )
     seconds_until_reset = int((next_reset - now_dt).total_seconds())
     seconds_since_reset = SECONDS_PER_DAY - seconds_until_reset
     progress_done = max(0.0, min(1.0, seconds_since_reset / SECONDS_PER_DAY))
 
-    # Adaptive Calculation
+    # Usage calculations (not available as sensors)
     limit = getattr(coordinator.rate_limit, "limit", 0)
     remaining = getattr(coordinator.rate_limit, "remaining", 0)
     expected_poll_usage = res_total * progress_done
@@ -209,21 +228,14 @@ def _get_quota_diagnostics(coordinator: TadoDataUpdateCoordinator) -> dict[str, 
 
     return {
         "polling_interval": str(coordinator.update_interval),
-        "quota_reset_window_berlin": f"{API_RESET_HOUR_START:02d}:00-{API_RESET_HOUR_END:02d}:00",
         "seconds_until_reset": seconds_until_reset,
         "day_progress": round(progress_done, 4),
         "reserved_24h": res_total,
         "reserved_breakdown": res_breakdown,
         "estimated_usage": {
-            "api_limit": limit,
-            "api_remaining": remaining,
             "polling_so_far": int(expected_poll_usage),
             "user_so_far": int(user_calls),
             "user_excess": int(max(0, user_calls - threshold)),
-        },
-        "auto_quota_config": {
-            "percent": getattr(coordinator, "_auto_api_quota_percent", 0),
-            "threshold": threshold,
         },
     }
 
@@ -266,6 +278,32 @@ def _get_internal_state_diagnostics(
             "mapping": home_kit_map,
         },
     }
+
+
+def _get_all_diagnostic_sensors(hass: HomeAssistant, entry_id: str) -> dict[str, Any]:
+    """Automatically collect all diagnostic sensors for this integration.
+
+    Instead of manually adding each sensor, this function introspects
+    the entity registry and collects all entities marked as DIAGNOSTIC.
+    """
+    ent_reg = er.async_get(hass)
+    diagnostic_entities: dict[str, Any] = {}
+
+    for entity_entry in er.async_entries_for_config_entry(ent_reg, entry_id):
+        # Only collect diagnostic entities
+        if entity_entry.entity_category != er.EntityCategory.DIAGNOSTIC:
+            continue
+
+        if state := hass.states.get(entity_entry.entity_id):
+            # Store state and attributes
+            diagnostic_entities[entity_entry.entity_id] = {
+                "state": state.state,
+                "attributes": dict(state.attributes),
+                "device_class": entity_entry.device_class,
+                "unit_of_measurement": entity_entry.unit_of_measurement,
+            }
+
+    return diagnostic_entities
 
 
 def _get_entity_mappings(

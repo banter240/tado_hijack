@@ -10,7 +10,7 @@ from tadoasync.const import HttpMethod
 from tadoasync.tadoasync import API_URL
 
 from .logging_utils import get_redacted_logger
-from .patch import get_handler
+from ..lib.patches import get_handler
 
 _LOGGER = get_redacted_logger(__name__)
 
@@ -99,18 +99,20 @@ class TadoHijackClient(Tado):
     async def set_away_configuration(
         self,
         zone_id: int,
-        temp: float,
+        temp: float | None,
         preheating_level: str = "OFF",
         mode: str = "HEATING",
     ) -> None:
-        """Set the away configuration for a zone."""
+        """Set the away configuration for a zone.
+
+        Pass temp=None to disable away temperature (power OFF).
+        """
+        data: dict[str, Any] = {"type": mode, "preheatingLevel": preheating_level}
+        if temp is not None:
+            data["minimumAwayTemperature"] = {"celsius": temp}
         await self._request(
             f"homes/{self._home_id}/zones/{zone_id}/awayConfiguration",
-            data={
-                "type": mode,
-                "preheatingLevel": preheating_level,
-                "minimumAwayTemperature": {"celsius": temp},
-            },
+            data=data,
             method=HttpMethod.PUT,
         )
 

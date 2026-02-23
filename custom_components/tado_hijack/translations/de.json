@@ -7,6 +7,26 @@
       "api_remaining": {
         "name": "Verbleibende API-Aufrufe"
       },
+      "quota_reset_last": {
+        "name": "Letzter Quota-Reset"
+      },
+      "quota_reset_expected_window": {
+        "name": "Erwartetes Reset-Fenster"
+      },
+      "quota_reset_next": {
+        "name": "Nächster erwarteter Reset"
+      },
+      "quota_reset_pattern_confidence": {
+        "name": "Reset-Muster Konfidenz",
+        "state": {
+          "learned": "Gelernt",
+          "single_observation": "Einzelbeobachtung",
+          "default": "Standard"
+        }
+      },
+      "quota_reset_history_count": {
+        "name": "Anzahl Reset-Historie"
+      },
       "api_status": {
         "name": "API Status",
         "state": {
@@ -44,6 +64,12 @@
       },
       "offset_poll_interval": {
         "name": "Offset-Abfrageintervall"
+      },
+      "suppress_redundant_calls": {
+        "name": "Redundante Aufrufe unterdrücken"
+      },
+      "suppress_redundant_buttons": {
+        "name": "Redundante Button-Aktionen unterdrücken"
       },
       "heating_power": {
         "name": "Heizleistung"
@@ -83,6 +109,9 @@
       },
       "log_level": {
         "name": "Log-Level"
+      },
+      "tado_generation": {
+        "name": "Hardware-Generation"
       }
     },
     "binary_sensor": {
@@ -129,6 +158,12 @@
       },
       "reduced_polling_logic": {
         "name": "Reduzierte Polling-Logik"
+      },
+      "suppress_redundant_calls": {
+        "name": "Redundante Aufrufe unterdrücken"
+      },
+      "suppress_redundant_buttons": {
+        "name": "Redundante Button-Aktionen unterdrücken"
       },
       "schedule": {
         "name": "Zeitplan"
@@ -233,7 +268,7 @@
   },
   "config": {
     "progress": {
-      "wait_for_device": "Um die Bridge zu autorisieren, besuche diese URL: {url}\nUnd gib diesen Code ein: {code}\nSobald dies erledigt ist, aktualisiert sich dieses Fenster automatisch."
+      "wait_for_device": "Um dich zu authentifizieren, öffne die folgende URL und melde dich bei Tado an:\n\n{url}\n\nFalls der Code nicht automatisch übernommen wird, gib diesen Code ein, um die Integration zu autorisieren:\n\n### {code}\n\nDer Anmeldeversuch wird nach fünf Minuten abgebrochen."
     },
     "abort": {
       "already_configured": "Konto ist bereits konfiguriert.",
@@ -246,7 +281,10 @@
     },
     "step": {
       "user": {
-        "title": "Tado Hijack verknüpfen"
+        "title": "Tado Hijack verknüpfen",
+        "data": {
+          "generation": "Tado Hardware-Generation"
+        }
       },
       "reauth_confirm": {
         "title": "Tado Hijack neu authentifizieren",
@@ -280,14 +318,22 @@
             "data": {
               "auto_api_quota_percent": "Auto-API-Kontingent (%)",
               "throttle_threshold": "Drossel-Schwellenwert (Sicherheits-Puffer)",
+              "quota_safety_reserve": "Quota-Sicherheitsreserve",
+              "min_auto_quota_interval_s": "Minimales Auto-Kontingent Intervall",
               "disable_polling_when_throttled": "Polling deaktivieren wenn gedrosselt",
-              "refresh_after_resume": "Status nach Schedule-Resume aktualisieren"
+              "refresh_after_resume": "Status nach Schedule-Resume aktualisieren",
+              "suppress_redundant_calls": "Redundante Aufrufe unterdrücken",
+              "suppress_redundant_buttons": "Redundante Button-Aktionen unterdrücken"
             },
             "data_description": {
               "auto_api_quota_percent": "Nutze X% der FREIEN Tagesquota für Status-Polling (0 = deaktiviert). FREI = Limit - Hintergrund-Reserve (Syncs) - Externe-Aktivität (Automationen, App-Nutzung über dem Puffer). Hybrid-Strategie: Nutzt MAX(Tagesbudget - Verbraucht, Verbleibend * X%) → System pollt IMMER weiter, auch wenn Tagesbudget überschritten.",
               "throttle_threshold": "Reserviert N Aufrufe für ALLES außerhalb des Hijack-Hintergrund-Pollings (Automationen, Skripte, manuelle App-Nutzung). Das Polling stoppt bei Erreichen dieser Schwelle, um deren Funktion zu sichern. Empfohlen: 20. 0 = deaktiviert.",
+              "quota_safety_reserve": "API-Aufrufe, die für das selbstlernende Reset-Fenster reserviert werden. Das System lernt den Reset-Zeitpunkt automatisch und verteilt diese Reserve adaptiv während des Fensters, um Cloud-Schwankungen zu überbrücken. 0 = deaktiviert (nicht empfohlen). Standard: 2.",
+              "min_auto_quota_interval_s": "Minimales Polling-Intervall in Sekunden (20-43200 = 12h max). Standard-API: 20s Minimum. Proxy: 120s Minimum erzwungen. Niedriger = schnellere Updates aber höherer API-Verbrauch. Standard 20s.",
               "disable_polling_when_throttled": "Stoppt das periodische Polling vollständig, wenn das verbleibende Kontingent den Puffer erreicht.",
-              "refresh_after_resume": "Automatisch Zieltemperatur/State abrufen nach Resume Schedule (HVAC AUTO). Notwendig, da Zeitpläne Tado-Cloud-seitig verwaltet werden. Nutzt 1s Grace-Period um mehrere Resumes zu mergen. Kostet 1 API-Aufruf."
+              "refresh_after_resume": "Automatisch Zieltemperatur/State abrufen nach Resume Schedule (HVAC AUTO). Notwendig, da Zeitpläne Tado-Cloud-seitig verwaltet werden. Nutzt 1s Grace-Period um mehrere Resumes zu mergen. Kostet 1 API-Aufruf.",
+              "suppress_redundant_calls": "Überspringe API-Aufrufe wenn Zielzustand dem Cache entspricht (Temperatur, Modus, Anwesenheit, Power). Spart Quota bei versehentlichem Doppelklick oder UI-Interaktionen. Sendet nur bei tatsächlicher Änderung. Werte die nicht im Cache sind werden immer gesendet.",
+              "suppress_redundant_buttons": "Überspringe auch Button-Aktionen (resume_all, boost_all, turn_off_all, set_mode_all) wenn alle Zonen bereits im Zielzustand. Benötigt 'Redundante Aufrufe unterdrücken'. Einzelne explizite Aktionen und Sync-Buttons (manual_poll, refresh) werden immer gesendet."
             }
           },
           "reduced_polling": {
@@ -313,7 +359,6 @@
               "call_jitter_enabled": "Call-Jitter aktivieren (Proxy)",
               "jitter_percent": "Jitter-Stärke (+/- %)",
               "debounce_time": "Debounce-Zeit (Sekunden)",
-              "min_auto_quota_interval_s": "Minimales Auto-Kontingent Intervall",
               "log_level": "Log-Level"
             },
             "data_description": {
@@ -322,7 +367,6 @@
               "call_jitter_enabled": "Fügt zufällige Verzögerungen vor API-Aufrufen ein, um Automations-Muster zu verschleiern. Nur bei Proxy-Nutzung wirksam.",
               "jitter_percent": "Stärke der zufälligen Abweichung für Polls und Calls. Standard 10% (z.B. 60s -> 54-66s).",
               "debounce_time": "Zeitfenster um schnelle Änderungen zu sammeln bevor sie gesendet werden. Standard 5s.",
-              "min_auto_quota_interval_s": "Minimales Polling-Intervall in Sekunden (20-43200 = 12h max). Standard-API: 20s Minimum. Proxy: 120s Minimum erzwungen. Niedriger = schnellere Updates aber höherer API-Verbrauch. Standard 20s.",
               "log_level": "Steuert die Detailtiefe der Protokollierung. DEBUG zeigt alle API-Details (maskiert), INFO zeigt wichtige System-Events."
             }
           }
@@ -332,6 +376,8 @@
     "error": {
       "cannot_connect": "Verbindung zu Tado fehlgeschlagen.",
       "invalid_auth": "Ungültige Authentifizierung.",
+      "auth_pending": "Autorisierung noch ausstehend. Bitte auf der Tado-Website bestätigen und erneut versuchen.",
+      "auth_timeout": "Zeitüberschreitung bei der Autorisierung. Bitte versuche es erneut.",
       "activation_failed": "Authentifizierung fehlgeschlagen. Bitte versuche es erneut.",
       "unknown": "Ein unbekannter Fehler ist aufgetreten."
     }
@@ -362,14 +408,22 @@
             "data": {
               "auto_api_quota_percent": "Auto-API-Kontingent (%)",
               "throttle_threshold": "Drossel-Schwellenwert (Sicherheits-Puffer)",
+              "quota_safety_reserve": "Quota-Sicherheitsreserve",
+              "min_auto_quota_interval_s": "Minimales Auto-Kontingent Intervall",
               "disable_polling_when_throttled": "Polling deaktivieren wenn gedrosselt",
-              "refresh_after_resume": "Status nach Schedule-Resume aktualisieren"
+              "refresh_after_resume": "Status nach Schedule-Resume aktualisieren",
+              "suppress_redundant_calls": "Redundante Aufrufe unterdrücken",
+              "suppress_redundant_buttons": "Redundante Button-Aktionen unterdrücken"
             },
             "data_description": {
               "auto_api_quota_percent": "Nutze X% der FREIEN Tagesquota für Status-Polling (0 = deaktiviert). FREI = Limit - Hintergrund-Reserve (Syncs) - Externe-Aktivität (Automationen, App-Nutzung über dem Puffer). Hybrid-Strategie: Nutzt MAX(Tagesbudget - Verbraucht, Verbleibend * X%) → System pollt IMMER weiter, auch wenn Tagesbudget überschritten.",
               "throttle_threshold": "Reserviert N Aufrufe für ALLES außerhalb des Hijack-Hintergrund-Pollings (Automationen, Skripte, manuelle App-Nutzung). Das Polling stoppt bei Erreichen dieser Schwelle, um deren Funktion zu sichern. Empfohlen: 20. 0 = deaktiviert.",
+              "quota_safety_reserve": "API-Aufrufe, die für das selbstlernende Reset-Fenster reserviert werden. Das System lernt den Reset-Zeitpunkt automatisch und verteilt diese Reserve adaptiv während des Fensters, um Cloud-Schwankungen zu überbrücken. 0 = deaktiviert (nicht empfohlen). Standard: 2.",
+              "min_auto_quota_interval_s": "Minimales Polling-Intervall in Sekunden (20-43200 = 12h max). Standard-API: 20s Minimum. Proxy: 120s Minimum erzwungen. Niedriger = schnellere Updates aber höherer API-Verbrauch. Standard 20s.",
               "disable_polling_when_throttled": "Stoppt das periodische Polling vollständig, wenn das verbleibende Kontingent den Puffer erreicht.",
-              "refresh_after_resume": "Automatisch Zieltemperatur/State abrufen nach Resume Schedule (HVAC AUTO). Notwendig, da Zeitpläne Tado-Cloud-seitig verwaltet werden. Nutzt 1s Grace-Period um mehrere Resumes zu mergen. Kostet 1 API-Aufruf."
+              "refresh_after_resume": "Automatisch Zieltemperatur/State abrufen nach Resume Schedule (HVAC AUTO). Notwendig, da Zeitpläne Tado-Cloud-seitig verwaltet werden. Nutzt 1s Grace-Period um mehrere Resumes zu mergen. Kostet 1 API-Aufruf.",
+              "suppress_redundant_calls": "Überspringe API-Aufrufe wenn Zielzustand dem Cache entspricht (Temperatur, Modus, Anwesenheit, Power). Spart Quota bei versehentlichem Doppelklick oder UI-Interaktionen. Sendet nur bei tatsächlicher Änderung. Werte die nicht im Cache sind werden immer gesendet.",
+              "suppress_redundant_buttons": "Überspringe auch Button-Aktionen (resume_all, boost_all, turn_off_all, set_mode_all) wenn alle Zonen bereits im Zielzustand. Benötigt 'Redundante Aufrufe unterdrücken'. Einzelne explizite Aktionen und Sync-Buttons (manual_poll, refresh) werden immer gesendet."
             }
           },
           "reduced_polling": {
@@ -395,7 +449,6 @@
               "call_jitter_enabled": "Call-Jitter aktivieren (Proxy)",
               "jitter_percent": "Jitter-Stärke (+/- %)",
               "debounce_time": "Debounce-Zeit (Sekunden)",
-              "min_auto_quota_interval_s": "Minimales Auto-Kontingent Intervall",
               "log_level": "Log-Level"
             },
             "data_description": {
@@ -404,7 +457,6 @@
               "call_jitter_enabled": "Fügt zufällige Verzögerungen vor API-Aufrufen ein, um Automations-Muster zu verschleiern. Nur bei Proxy-Nutzung wirksam.",
               "jitter_percent": "Stärke der zufälligen Abweichung für Polls und Calls. Standard 10% (z.B. 60s -> 54-66s).",
               "debounce_time": "Zeitfenster um schnelle Änderungen zu sammeln bevor sie gesendet werden. Standard 5s.",
-              "min_auto_quota_interval_s": "Minimales Polling-Intervall in Sekunden (20-43200 = 12h max). Standard-API: 20s Minimum. Proxy: 120s Minimum erzwungen. Niedriger = schnellere Updates aber höherer API-Verbrauch. Standard 20s.",
               "log_level": "Steuert die Detailtiefe der Protokollierung. DEBUG zeigt alle API-Details (maskiert), INFO zeigt wichtige System-Events."
             }
           }
@@ -483,6 +535,14 @@
           "name": "Temperatur",
           "description": "Zieltemperatur (wird je nach Zonentyp automatisch begrenzt)."
         }
+      }
+    }
+  },
+  "selector": {
+    "generation": {
+      "options": {
+        "v3": "Tado Classic (v2/v3) - Internet Bridge & Gateway",
+        "x": "Tado X - Neue Generation (Bridge X / IB02)"
       }
     }
   }

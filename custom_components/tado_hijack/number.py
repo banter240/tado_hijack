@@ -59,12 +59,19 @@ class TadoOptimisticNumber(TadoOptimisticMixin, RestoreEntity, NumberEntity):
                     self._restored_value = float(last_state.state)
 
     @property
-    def native_value(self) -> float | None:
+    def native_value(self) -> float | int | None:
         """Return the current value (optimistic > actual > restored)."""
-        if (val := self._resolve_state()) is not None:
-            return float(val)
+        val = self._resolve_state()
+        if val is None:
+            val = self._restored_value
 
-        return self._restored_value
+        if (
+            val is not None
+            and getattr(self, "_attr_suggested_display_precision", None) == 0
+        ):
+            return int(round(float(val)))
+
+        return float(val) if val is not None else None
 
     def _get_actual_value(self) -> float | None:
         raise NotImplementedError
@@ -83,12 +90,14 @@ class TadoGenericNumberMixin(TadoDefinitionMixin):
         self._attr_optimistic_key = definition.get("optimistic_key")
         self._attr_optimistic_scope = definition.get("optimistic_scope")
 
-        if min_val := definition.get("min_value"):
+        if (min_val := definition.get("min_value")) is not None:
             self._attr_native_min_value = min_val
-        if max_val := definition.get("max_value"):
+        if (max_val := definition.get("max_value")) is not None:
             self._attr_native_max_value = max_val
         if step := definition.get("step"):
             self._attr_native_step = step
+        if (precision := definition.get("suggested_display_precision")) is not None:
+            self._attr_suggested_display_precision = precision
 
     def _update_dynamic_ranges(self) -> None:
         """Update min/max/step if dynamic functions are provided."""

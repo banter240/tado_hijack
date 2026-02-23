@@ -11,8 +11,12 @@
           'presence_poll_interval',
           'reduced_polling',
           'REDUCED_POLLING',
-          'REDACTED'
+          'REDACTED',
+          'heatingPower',
+          'action_provider',
+          '_learned_window'
       ]
       paths = [
-          'custom_components/tado_hijack/translations/.*'
+          'custom_components/tado_hijack/translations/.*',
+          'custom_components/tado_hijack/helpers/tadox/models.py'
       ]

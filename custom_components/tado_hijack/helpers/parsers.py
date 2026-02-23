@@ -11,28 +11,25 @@ if TYPE_CHECKING:
     from tadoasync.models import Capabilities
 
 
+_QUOTA_REGEX = re.compile(r"q=(\d+)")
+_REMAINING_REGEX = re.compile(r"r=(\d+)")
+
+
 def parse_ratelimit_headers(headers: dict[str, Any]) -> RateLimit | None:
     """Extract RateLimit information from Tado API headers."""
+
+    def extract(pattern: re.Pattern[str], value: str) -> int | None:
+        match = pattern.search(value)
+        return int(match[1]) if match else None
+
     policy = headers.get("RateLimit-Policy", "")
-    limit_info = headers.get("RateLimit", "")
+    rl = headers.get("RateLimit", "")
 
-    try:
-        limit = 0
-        remaining = 0
-        found = False
+    limit = extract(_QUOTA_REGEX, policy)
+    remaining = extract(_REMAINING_REGEX, rl)
 
-        if q_match := re.search(r"q=(\d+)", policy):
-            limit = int(q_match[1])
-            found = True
-
-        if r_match := re.search(r"r=(\d+)", limit_info):
-            remaining = int(r_match[1])
-            found = True
-
-        if found:
-            return RateLimit(limit=limit, remaining=remaining)
-    except (ValueError, TypeError, AttributeError):
-        pass
+    if limit is not None or remaining is not None:
+        return RateLimit(limit=limit or 0, remaining=remaining or 0)
 
     return None
 
@@ -45,50 +42,22 @@ def get_ac_capabilities(capabilities: Capabilities) -> dict[str, set[str]]:
 
     for mode_attr in ("auto", "cool", "dry", "fan", "heat"):
         if ac_mode := getattr(capabilities, mode_attr, None):
-            if ac_mode.fan_speeds:
-                fan_speeds.update(ac_mode.fan_speeds)
-            if ac_mode.fan_level:
-                fan_speeds.update(ac_mode.fan_level)
-            if ac_mode.vertical_swing:
-                v_swings.update(ac_mode.vertical_swing)
-            if ac_mode.swing:
-                v_swings.update(ac_mode.swing)
-            if ac_mode.horizontal_swing:
-                h_swings.update(ac_mode.horizontal_swing)
+            if fan_speeds_attr := getattr(ac_mode, "fan_speeds", None):
+                fan_speeds.update(fan_speeds_attr)
+            if fan_level_attr := getattr(ac_mode, "fan_level", None):
+                fan_speeds.update(fan_level_attr)
+            if vertical_swing_attr := getattr(ac_mode, "vertical_swing", None):
+                v_swings.update(vertical_swing_attr)
+            if swing_attr := getattr(ac_mode, "swing", None):
+                v_swings.update(swing_attr)
+            if horizontal_swing_attr := getattr(ac_mode, "horizontal_swing", None):
+                h_swings.update(horizontal_swing_attr)
 
     return {
         "fan_speeds": fan_speeds,
-        "vertical_swing": v_swings,
+        "vertical_swings": v_swings,
         "horizontal_swings": h_swings,
     }
-
-
-def parse_heating_power(state: Any, zone_type: str | None = None) -> float:
-    """Extract heating power percentage from zone state.
-
-    Hot Water Power: ON -> 100%, OFF -> 0% (Dev.2 Logic)
-    Regular Heating: Percentage from activityDataPoints
-    """
-    if not state:
-        return 0.0
-
-    # Handle Hot Water (Dev.2 Logic)
-    if zone_type == "HOT_WATER":
-        if setting := getattr(state, "setting", None):
-            return 100.0 if getattr(setting, "power", "OFF") == "ON" else 0.0
-        return 0.0
-
-    # Regular Heating Power (%)
-    if not getattr(state, "activity_data_points", None):
-        return 0.0
-
-    if (
-        hasattr(state.activity_data_points, "heating_power")
-        and state.activity_data_points.heating_power
-    ):
-        return float(state.activity_data_points.heating_power.percentage)
-
-    return 0.0
 
 
 def parse_schedule_temperature(state: Any) -> float | None:

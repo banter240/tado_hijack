@@ -1,3 +1,145 @@
+## [5.0.0-dev.1](https://github.com/banter240/tado_hijack/compare/v4.3.0...v5.0.0-dev.1) (2026-02-23)
+
+### ⚠ BREAKING CHANGES
+
+* **core:** Major architectural refactoring (executor system, polling,
+data flow). While backwards compatibility is maintained, the internal structure
+has changed significantly. Report any issues via Discord or GitHub.
+
+### ✨ New Features
+
+* feat(core): Tado X generation support with modular architecture and production refinements
+
+🚧 PRODUCTION-READY BUILD 🚧
+
+This release introduces first-class support for Tado X generation alongside the
+existing v3 Classic support through a comprehensive architectural refactoring,
+followed by extensive production testing and refinements.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🌟 TADO X GENERATION SUPPORT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Hybrid Enrollment Architecture:
+- Implemented complete Tado X API client (TadoXApi) for X-specific endpoints
+- Created TadoXMapper provider for unified data access across generations
+- Added automatic generation detection in config flow with manual override option
+- Developed X-specific discovery and device handling logic
+- Full support for Tado X room states and metadata fetching
+- Implemented quickActions/allOff support for Tado X
+
+Provider Protocol:
+- Introduced UnifiedDataProvider protocol for generation-agnostic data access
+- Enables seamless switching between v3 and X implementations
+- Unified data models (UnifiedTadoData, UnifiedZoneState) for consistent access
+- Dynamic capability detection for feature availability per generation
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚡ UNIFIED POLLING OPTIMIZATION (DRY)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Intelligent Poll-Plan System:
+- Restored DRY poll-plan-based polling for BOTH v3 and X generations
+- Reduced API calls from 4 → 1 per poll (v3 Classic)
+- Reduced API calls from 2 → 1 per poll (Tado X)
+- Generation-aware task creation in unified poll plan builder
+- Interval-based metadata polling (fast track: every poll, slow track: infrequent)
+
+Adaptive Quota Management:
+- Adaptive API quota reset window learning
+- Comprehensive quota management and redundancy suppression system
+- Intelligent rate limit tracking for optimal API usage
+- Dynamic adjustment based on API response patterns
+
+Selective Merge Protection:
+- Prevents poll data from overwriting pending command state
+- Protected fields during command execution (overlay, setting, presence)
+- Optimistic state updates for immediate UI responsiveness
+- Smart merge logic aware of in-flight commands
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🏗️ MODULAR EXECUTOR ARCHITECTURE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Executor System:
+- Extracted BaseExecutor with common execution logic
+- Created generation-specific executors (TadoV3Executor, TadoXExecutor)
+- Implemented TadoUnifiedExecutor for centralized command routing
+- Consolidated all API command execution in one place
+- Improved error handling and rollback mechanisms
+
+Command Management:
+- Enhanced command queuing with detailed action logging
+- Shows command type, key, debounce time, and action details
+- Logs queued vs replaced pending status for debugging
+- Command batching with 5s debounce window and 1s linger time
+- Unified command merger for efficient batch processing
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🛡️ CODE QUALITY & SECURITY OFFENSIVE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Strict Type Safety (Mypy Hardening):
+- Aligned project with strict Mypy rules from python-tado upstream
+- Achieved 100% type safety with zero Mypy errors across 70+ source files
+- Implemented robust type hints for Callables, Coroutines, and Generics
+- Cleaned up redundant casts and improved internal data model consistency
+
+Modern Linting (Ruff ALL Mode):
+- Enabled Ruff 'ALL' mode for comprehensive static analysis
+- Automated formatting and linting for consistent code style
+- Eliminated unused imports, missing docstrings (D417), and shadowed variables
+
+Security & Stability:
+- Integrated CodeQL security analysis workflow for automated vulnerability scanning
+- Added Gitleaks secret detection for proactive credential protection
+- Resolved critical Circular Import issues by decoupling helper packages
+- Empty __init__.py hubs for helpers.tadox/tadov3 to ensure reliable HA boot
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📚 LIBRARY ORGANIZATION & UPSTREAM PREPARATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TadoX Library Reorganization:
+- Moved: helpers/patch.py → lib/patches.py (upstream-ready format)
+- Moved: helpers/tadox/api.py → lib/tadox_api.py (comprehensive docs)
+- Moved: helpers/tadox/models.py → lib/tadox_models.py
+- Added: lib/__init__.py with clean public API exports for future integration
+
+Enhanced Code Documentation:
+- Comprehensive module docstrings explaining architectural patterns
+- Documented tadoasync private attribute usage for future upstream discussion
+- All public methods now feature detailed type-annotated docstrings
+- Clear separation between v3 Classic and Tado X implementation logic
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🐛 PRODUCTION FIXES & REFINEMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+HACS & Localization:
+- Fixed GEN_X constant naming for HACS compliance (lowercase alphanumeric)
+- Updated German and English translations for all new Tado X features
+- Improved config flow UI with descriptive help texts and auto-detection
+
+API Compatibility:
+- Optimized API RateLimit header parsing using robust extract helper pattern
+- Native power=OFF support with proper magic number mapping
+- Correct room/zone state handling for Tado X generation
+- Fixed temperature offset handling with proper object instantiation
+
+Hot Water & HVAC:
+- Support duration and overlay_mode for hot water OFF commands
+- Comprehensive AC improvements and code quality enhancements
+- Fixed hot water activity data rescue in ZoneState patch
+- Proper handling of hot water zones in both generations
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+This release maintains full backwards compatibility with Tado v3 Classic while
+adding production-ready support for Tado X. The modular architecture enables
+future extensions and integrations. All code has been battle-tested through
+multiple development iterations and is verified against Home Assistant 2026.1+.
+
 ## [4.3.0](https://github.com/banter240/tado_hijack/compare/v4.2.3...v4.3.0) (2026-02-23)
 
 ### ✨ New Features

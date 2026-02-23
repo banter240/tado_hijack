@@ -155,9 +155,9 @@ class OptimisticManager:
         """Set optimistic early start state."""
         self.set_optimistic("zone", zone_id, "early_start", enabled)
 
-    def set_open_window(self, zone_id: int, enabled: bool) -> None:
-        """Set optimistic open window detection state."""
-        self.set_optimistic("zone", zone_id, "open_window", enabled)
+    def set_open_window(self, zone_id: int, timeout: int) -> None:
+        """Set optimistic open window detection state (timeout in seconds)."""
+        self.set_optimistic("zone", zone_id, "open_window", timeout)
 
     def set_vertical_swing(self, zone_id: int, value: str) -> None:
         """Set optimistic vertical swing state."""
@@ -170,6 +170,23 @@ class OptimisticManager:
     def get_presence(self) -> str | None:
         """Return optimistic presence if not expired."""
         return cast(str, self.get_optimistic("home", "global", "presence"))
+
+    def get_zone(self, zone_id: int) -> dict[str, Any]:
+        """Get all cached zone state as dict for redundancy checks.
+
+        Returns dict with keys: overlay_active, power, temperature, operation_mode, ac_mode.
+        Values are None if not cached or expired.
+        """
+        overlay = self.get_zone_overlay(zone_id)
+        return {
+            "overlay_active": overlay
+            if overlay is not None
+            else True,  # Default: assume overlay
+            "power": self.get_zone_power(zone_id),
+            "temperature": self.get_zone_temperature(zone_id),
+            "operation_mode": self.get_zone_operation_mode(zone_id),
+            "ac_mode": self.get_zone_ac_mode(zone_id),
+        }
 
     def get_zone_overlay(self, zone_id: int) -> bool | None:
         """Return optimistic zone overlay if not expired."""
@@ -213,9 +230,9 @@ class OptimisticManager:
         """Return optimistic early start if not expired."""
         return cast("bool", self.get_optimistic("zone", zone_id, "early_start"))
 
-    def get_open_window(self, zone_id: int) -> bool | None:
-        """Return optimistic open window detection if not expired."""
-        return cast("bool", self.get_optimistic("zone", zone_id, "open_window"))
+    def get_open_window(self, zone_id: int) -> int | None:
+        """Return optimistic open window detection timeout if not expired."""
+        return cast("int | None", self.get_optimistic("zone", zone_id, "open_window"))
 
     def get_vertical_swing(self, zone_id: int) -> str | None:
         """Return optimistic vertical swing state if not expired."""
