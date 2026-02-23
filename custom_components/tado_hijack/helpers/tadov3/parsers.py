@@ -84,10 +84,13 @@ def resolve_ac_mode(opt_mode: str | None, state: Any) -> str:
 
     Returns a physical AC mode (COOL, HEAT, DRY, FAN) — never AUTO.
     """
-    current_mode = opt_mode or state.setting.mode
+    setting = getattr(state, "setting", None)
+    state_mode = getattr(setting, "mode", None) if setting else None
+
+    current_mode = opt_mode or state_mode
     if current_mode == "AUTO":
-        current_mode = state.setting.mode or "COOL"
-    return current_mode
+        current_mode = state_mode or "COOL"
+    return current_mode or "COOL"
 
 
 def parse_temperature_offset(offset: Any) -> float | None:

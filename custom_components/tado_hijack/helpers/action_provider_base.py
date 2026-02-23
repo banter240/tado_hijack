@@ -80,3 +80,14 @@ class TadoActionProvider(ABC):
             Temperature in Celsius or None if unknown/not applicable
 
         """
+
+    @abstractmethod
+    async def async_set_ac_setting(self, zone_id: int, key: str, value: str) -> None:
+        """Set an AC specific setting (fan speed, swing, temperature, etc.).
+
+        Args:
+            zone_id: The zone ID
+            key: Setting key (e.g. 'fan_speed', 'mode')
+            value: Setting value
+
+        """

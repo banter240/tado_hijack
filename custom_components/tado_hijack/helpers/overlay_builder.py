@@ -99,11 +99,13 @@ def build_overlay_data(
 
     # Add temperature if supported and provided
     # Hot Water without OpenTherm does NOT support temperature in overlays
+    # FAN mode in AC does NOT support temperature
     # Magic number: temperature=OFF_MAGIC_TEMP means OFF mode (will be mapped in executor)
     if (
         temperature is not None
         and power == POWER_ON
         and (overlay_type != ZONE_TYPE_HOT_WATER or supports_temp)
+        and ac_mode != "FAN"
     ):
         # Don't cap magic number (used for OFF mode signaling)
         if temperature == OFF_MAGIC_TEMP:

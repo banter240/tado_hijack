@@ -77,8 +77,6 @@ from .const import (
 )
 from .dummy.dummy_handler import TadoDummyHandler  # [DUMMY_HOOK]
 from .helpers.api_manager import TadoApiManager
-from .helpers.tadov3 import parsers as v3_parsers
-from .helpers.tadox import parsers as tadox_parsers
 from .helpers.auth_manager import AuthManager
 from .helpers.data_manager import TadoDataManager, UnifiedDataProvider
 from .helpers.device_linker import get_climate_entity_id
@@ -1161,112 +1159,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
 
     async def async_set_ac_setting(self, zone_id: int, key: str, value: str) -> None:
         """Set an AC specific setting (fan speed, swing, temperature, etc.)."""
-        state = self.data.zone_states.get(str(zone_id))
-        if not state or not state.setting:
-            _LOGGER.error("Cannot set AC setting: No state for zone %d", zone_id)
-            return
-
-        # Use resolved/optimistic values to build the payload to avoid stale data resets
-        opt_mode = self.optimistic.get_zone_ac_mode(zone_id)
-
-        # Resolve AC mode (generation-specific)
-        current_mode = (
-            tadox_parsers.resolve_ac_mode(opt_mode, state)
-            if self.generation == GEN_X
-            else v3_parsers.resolve_ac_mode(opt_mode, state)
-        )
-
-        # Force power ON when changing settings, as they only apply to active states
-        current_power = POWER_ON
-
-        # Build additional AC-specific fields from current state
-        # If in AUTO mode (no overlay), use optimistic/last known values for swing
-        state_v_swing = getattr(state.setting, "vertical_swing", None)
-        state_h_swing = getattr(state.setting, "horizontal_swing", None)
-
-        # Restore last known swing settings if current state has none (e.g., AUTO mode)
-        if not state_v_swing or state_v_swing == "OFF":
-            state_v_swing = self.optimistic.get_vertical_swing(zone_id) or "OFF"
-        if not state_h_swing or state_h_swing == "OFF":
-            state_h_swing = self.optimistic.get_horizontal_swing(zone_id) or "OFF"
-
-        additional_fields = {
-            "fanSpeed": getattr(state.setting, "fan_speed", None),
-            "fanLevel": getattr(state.setting, "fan_level", None),
-            "verticalSwing": state_v_swing,
-            "horizontalSwing": state_h_swing,
-            "swing": getattr(state.setting, "swing", None),
-        }
-
-        # Determine temperature (builder will cap it automatically)
-        temperature = None
-        if key == "temperature":
-            temperature = float(value)
-        elif state.setting.temperature:
-            temperature = state.setting.temperature.celsius
-
-        # Update the specific field being changed
-        if key != "temperature":
-            api_key_map = {
-                "fan_speed": "fanSpeed",
-                "vertical_swing": "verticalSwing",
-                "horizontal_swing": "horizontalSwing",
-                "swing": "swing",
-            }
-
-            api_key = api_key_map.get(key, key)
-            additional_fields[api_key] = value
-            if key == "fan_speed":
-                additional_fields["fanLevel"] = value
-            elif key == "vertical_swing":
-                additional_fields["swing"] = value
-
-        # Filter out None values
-        additional_fields = {
-            k: v for k, v in additional_fields.items() if v is not None
-        }
-
-        # Use centralized overlay builder (includes validation)
-        # Generation-specific overlay_type: Tado X has none; v3 reads from state.setting
-        overlay_type = (
-            None if self.generation == GEN_X else v3_parsers.get_overlay_type(state)
-        )
-        data = build_overlay_data(
-            zone_id,
-            self.zones_meta,
-            power=current_power,
-            temperature=temperature,
-            ac_mode=current_mode,
-            overlay_type=overlay_type,
-            supports_temp=self.supports_temperature(zone_id),
-            additional_setting_fields=additional_fields,
-        )
-
-        old_state = patch_zone_overlay(self.data.zone_states.get(str(zone_id)), data)
-
-        # Track optimistic settings for immediate feedback
-        v_swing = value if key == "vertical_swing" else None
-        h_swing = value if key == "horizontal_swing" else None
-
-        self.optimistic.apply_zone_state(
-            zone_id,
-            overlay=True,  # Manual setting always creates an overlay
-            power=current_power,
-            ac_mode=current_mode,
-            vertical_swing=v_swing,
-            horizontal_swing=h_swing,
-        )
-        self.async_update_listeners()
-
-        self.api_manager.queue_command(
-            f"zone_{zone_id}",
-            TadoCommand(
-                CommandType.SET_OVERLAY,
-                zone_id=zone_id,
-                data=data,
-                rollback_context=old_state,
-            ),
-        )
+        await self.action_provider.async_set_ac_setting(zone_id, key, value)
 
     def _handle_overlay_side_effects(
         self,

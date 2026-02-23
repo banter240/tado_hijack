@@ -75,3 +75,11 @@ class TadoXActionProvider(TadoActionProvider):
         """Get zone target temperature (Tado X)."""
         cache_state = self.coordinator.optimistic.get_zone(zone_id)
         return cache_state.get("temperature") if cache_state else None
+
+    async def async_set_ac_setting(self, zone_id: int, key: str, value: str) -> None:
+        """Set an AC specific setting (Tado X).
+
+        Tado X (Hops API) currently manages AC via Matter or different API structures.
+        This provides a basic compatibility stub.
+        """
+        pass
