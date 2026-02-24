@@ -1,3 +1,14 @@
+## [5.0.0-dev.3](https://github.com/banter240/tado_hijack/compare/v5.0.0-dev.2...v5.0.0-dev.3) (2026-02-24)
+
+### 🐛 Bug Fixes
+
+* fix: correct broken import paths in helpers/tadox after lib folder migration
+
+- helpers/tadox/discovery.py: from .models → from ...lib.tadox_models
+- helpers/tadox/parsers.py: from .models → from ...lib.tadox_models
+
+Fixes ModuleNotFoundError after folder restructure moved models to lib/
+
 ## [5.0.0-dev.2](https://github.com/banter240/tado_hijack/compare/v5.0.0-dev.1...v5.0.0-dev.2) (2026-02-23)
 
 ### 🐛 Bug Fixes
