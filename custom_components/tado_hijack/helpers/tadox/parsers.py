@@ -9,7 +9,7 @@ import homeassistant.util.dt as dt_util
 if TYPE_CHECKING:
     from datetime import datetime
 
-    from ...lib.tadox_models import TadoXDevice, TadoXZoneState
+    from .models import TadoXDevice, TadoXZoneState
 
 
 def parse_heating_power(state: TadoXZoneState | None) -> float:
