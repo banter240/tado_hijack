@@ -271,6 +271,11 @@ class TadoClimateEntity(
                 if current > self._min_temp_limit:
                     self._store_last_state("target_temperature", current)
 
+        # Special handling for FAN mode - requires fanLevel field
+        if isinstance(self, TadoAirConditioning) and hvac_mode == HVACMode.FAN_ONLY:
+            await self._async_set_fan_only_mode()
+            return
+
         # Use restored temp if turning ON, else None
         use_temp: float | None = None
         # Use explicit mode string for AC if not OFF/AUTO
@@ -289,9 +294,7 @@ class TadoClimateEntity(
             # For AIR_CONDITIONING zones, always set explicit mode
             # For HEATING zones, mode is optional (defaults to HEAT)
             if isinstance(self, TadoAirConditioning):
-                ac_mode = (
-                    "FAN" if hvac_mode == HVACMode.FAN_ONLY else str(hvac_mode).upper()
-                )
+                ac_mode = str(hvac_mode).upper()
         await self.tado_coordinator.async_set_zone_hvac_mode(
             zone_id=self._zone_id,
             hvac_mode=hvac_mode,
@@ -546,6 +549,56 @@ class TadoAirConditioning(TadoClimateEntity):
         """Set new fan mode."""
         await self.tado_coordinator.async_set_ac_setting(
             self._zone_id, "fan_speed", fan_mode
+        )
+
+    async def _async_set_fan_only_mode(self) -> None:
+        """Set FAN mode with required fan settings."""
+        state = self._current_state
+        capabilities = await self.tado_coordinator.async_get_capabilities(self._zone_id)
+
+        if not capabilities or not (
+            fan_mode_caps := getattr(capabilities, "fan", None)
+        ):
+            _LOGGER.error(
+                "Cannot set FAN mode for zone %d: No FAN capabilities", self._zone_id
+            )
+            return
+
+        additional_fields: dict[str, Any] = {}
+
+        # Build fan settings (fanSpeed or fanLevel) based on capabilities
+        if fan_speeds := getattr(fan_mode_caps, "fan_speeds", None):
+            current = getattr(state.setting, "fan_speed", None) if state else None
+            fan_value = current if current in fan_speeds else fan_speeds[0]
+            additional_fields["fanSpeed"] = str(fan_value).upper()
+
+        if fan_levels := getattr(fan_mode_caps, "fan_level", None):
+            current = getattr(state.setting, "fan_level", None) if state else None
+            fan_value = current if current in fan_levels else fan_levels[0]
+            additional_fields["fanLevel"] = str(fan_value).upper()
+
+        # Build swing settings (carry over from current state or use defaults)
+        for cap_attr, api_key, state_attr in [
+            ("vertical_swing", "verticalSwing", "vertical_swing"),
+            ("horizontal_swing", "horizontalSwing", "horizontal_swing"),
+            ("swing", "swing", "swing"),
+        ]:
+            if swing_caps := getattr(fan_mode_caps, cap_attr, None):
+                current = getattr(state.setting, state_attr, None) if state else None
+                swing_value = (
+                    current
+                    if current in swing_caps
+                    else ("OFF" if "OFF" in swing_caps else swing_caps[0])
+                )
+                additional_fields[api_key] = str(swing_value).upper()
+
+        await self.tado_coordinator.async_set_zone_overlay(
+            zone_id=self._zone_id,
+            power=POWER_ON,
+            temperature=None,
+            overlay_mode=OVERLAY_MANUAL,
+            ac_mode="FAN",
+            additional_setting_fields=additional_fields,
         )
 
     @property

@@ -45,6 +45,15 @@ def validate_overlay_payload(
                     False,
                     f"temperature (celsius) required for AIR_CONDITIONING in {mode} mode",
                 )
+            # FAN mode requires fanLevel or fanSpeed
+            if mode == "FAN":
+                has_fan_level = setting.get("fanLevel") is not None
+                has_fan_speed = setting.get("fanSpeed") is not None
+                if not (has_fan_level or has_fan_speed):
+                    return (
+                        False,
+                        f"fanLevel or fanSpeed required for AIR_CONDITIONING in FAN mode (Payload settings: {setting.keys()})",
+                    )
 
     elif zone_type == "HEATING":
         # HEATING with power=ON requires temperature

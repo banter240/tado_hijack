@@ -247,6 +247,8 @@ class TadoV3ActionProvider(TadoActionProvider):
                 if key == "fan_speed"
                 else getattr(state.setting, "fan_speed", None)
             )
+            if val:
+                val = val.upper()
             fields["fanSpeed"] = str(val if val in fan_caps else fan_caps[0])
 
         if lvl_caps := getattr(mode_caps, "fan_level", None):
@@ -255,6 +257,8 @@ class TadoV3ActionProvider(TadoActionProvider):
                 if key in {"fan_level", "fan_speed"}
                 else getattr(state.setting, "fan_level", None)
             )
+            if val:
+                val = val.upper()
             fields["fanLevel"] = str(val if val in lvl_caps else lvl_caps[0])
 
         return fields
@@ -279,6 +283,8 @@ class TadoV3ActionProvider(TadoActionProvider):
                 ) or getattr(state.setting, attr_name, None)
 
                 val = value if key == attr_name else opt_val
+                if val:
+                    val = val.upper()
                 fields[api_key] = str(
                     val
                     if val in cap_values

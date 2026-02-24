@@ -1239,6 +1239,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         ac_mode: str | None = None,
         optimistic_value: bool = True,
         refresh_after: bool = False,
+        additional_setting_fields: dict[str, Any] | None = None,
     ) -> None:
         """Set a manual overlay with timer/duration support."""
         final_temp = self._resolve_zone_temperature(zone_id, temperature, power)
@@ -1253,6 +1254,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             overlay_mode=overlay_mode,
             ac_mode=ac_mode,
             supports_temp=self.supports_temperature(zone_id),
+            additional_setting_fields=additional_setting_fields,
         )
 
         old_state = patch_zone_overlay(self.data.zone_states.get(str(zone_id)), data)
@@ -1288,6 +1290,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         overlay_type: str | None = None,
         ac_mode: str | None = None,
         refresh_after: bool = False,
+        additional_setting_fields: dict[str, Any] | None = None,
     ) -> None:
         """Set manual overlays for multiple zones in a single batched process."""
         if not zone_ids:
@@ -1322,6 +1325,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
                 overlay_type=overlay_type,
                 ac_mode=ac_mode,
                 supports_temp=self.supports_temperature(zone_id),
+                additional_setting_fields=additional_setting_fields,
             )
 
             old_state = patch_zone_overlay(
