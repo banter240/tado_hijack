@@ -1,3 +1,22 @@
+## [5.0.0-dev.5](https://github.com/banter240/tado_hijack/compare/v5.0.0-dev.4...v5.0.0-dev.5) (2026-02-24)
+
+### 🐛 Bug Fixes
+
+* fix: improve code clarity and fix quota reset tracking
+
+Remove redundant inline comments describing obvious operations,
+keeping only explanatory comments for business logic and edge cases.
+
+Changes:
+- Clean up unnecessary comments across core modules (climate_entity,
+  config_flow, coordinator, diagnostics, data_manager, etc.)
+- Fix quota reset sensors: show original reset time instead of normalized
+- Fix next reset prediction: use stable last_reset + 24h instead of now + 20h
+- Add missing docstrings in reset_window_tracker (ruff D105, D107, D102)
+- Preserve all class/method/function docstrings and [DUMMY_HOOK]/[TADO_X] markers
+
+All pre-commit checks pass.
+
 ## [5.0.0-dev.4](https://github.com/banter240/tado_hijack/compare/v5.0.0-dev.3...v5.0.0-dev.4) (2026-02-24)
 
 ### 🐛 Bug Fixes
