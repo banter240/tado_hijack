@@ -23,7 +23,7 @@ def yield_tadox_devices(
 
     """
     from ...const import DEVICE_PREFIX_BRIDGE, DEVICE_TYPE_GW01
-    from .models import HopsRoomSnapshot
+    from ...lib.tadox_models import HopsRoomSnapshot
 
     seen_devices: set[str] = set()
 
