@@ -1,3 +1,9 @@
+## [5.0.0-dev.4](https://github.com/banter240/tado_hijack/compare/v5.0.0-dev.3...v5.0.0-dev.4) (2026-02-24)
+
+### 🐛 Bug Fixes
+
+* fix(climate): add fanLevel requirement for FAN mode and ensure uppercase values
+
 ## [5.0.0-dev.3](https://github.com/banter240/tado_hijack/compare/v5.0.0-dev.2...v5.0.0-dev.3) (2026-02-24)
 
 ### 🐛 Bug Fixes
