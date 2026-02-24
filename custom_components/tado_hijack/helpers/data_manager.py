@@ -175,7 +175,6 @@ class TadoDataManager:
         sec_day = SLOW_POLL_CYCLE_S
         p_cost = 1
 
-        # Count special zones (generation-specific)
         special_zones = (
             self._count_special_zones_tadox()
             if self.coordinator.generation == GEN_X
@@ -214,12 +213,10 @@ class TadoDataManager:
         now = time.monotonic()
         plan = self._build_poll_plan(now)
 
-        # Local storage for results
         is_init = self.coordinator.data is None
         home_state = getattr(self.coordinator.data, "home_state", None)
         zone_states = getattr(self.coordinator.data, "zone_states", {})
 
-        # Execute all planned tasks
         for task in plan:
             if task.coroutine == self._fetch_zones:
                 zone_states = await task.coroutine(now)
@@ -238,7 +235,6 @@ class TadoDataManager:
                 self._last_offset_poll = now
 
         if self.coordinator.generation != GEN_X:
-            # v3 Classic: Return TadoData
             return TadoData(
                 home_state=home_state
                 if is_init
@@ -252,7 +248,6 @@ class TadoDataManager:
                 offsets=self.offsets_cache,
                 away_config=self.away_cache,
             )
-        # Tado X: Return UnifiedTadoData
         from .models_unified import UnifiedTadoData
 
         presence = (
@@ -285,7 +280,6 @@ class TadoDataManager:
         self._last_presence_poll = now
         self._presence_init = True
         if self.coordinator.data:
-            # Selective merge for presence
             from .api_manager import TadoApiManager
 
             pending_keys = self.coordinator.api_manager.pending_keys

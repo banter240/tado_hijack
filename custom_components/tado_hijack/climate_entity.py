@@ -74,7 +74,6 @@ class TadoClimateEntity(
         super().__init__(coordinator, translation_key, zone_id, zone_name)
         self._default_temp = default_temp
         self._min_temp_limit = min_temp
-        # Register memory keys
         self._store_last_state("target_temperature", None)
 
     async def async_added_to_hass(self) -> None:
@@ -276,9 +275,7 @@ class TadoClimateEntity(
             await self._async_set_fan_only_mode()
             return
 
-        # Use restored temp if turning ON, else None
         use_temp: float | None = None
-        # Use explicit mode string for AC if not OFF/AUTO
         ac_mode: str | None = None
 
         if hvac_mode not in (HVACMode.OFF, HVACMode.AUTO):
@@ -290,7 +287,6 @@ class TadoClimateEntity(
                     or self.target_temperature
                     or self._default_temp
                 )
-            # Map HA HVACMode to Tado Mode string (e.g. "cool" -> "COOL")
             # For AIR_CONDITIONING zones, always set explicit mode
             # For HEATING zones, mode is optional (defaults to HEAT)
             if isinstance(self, TadoAirConditioning):
@@ -363,7 +359,6 @@ class TadoAirConditioning(TadoClimateEntity):
             f"{coordinator.config_entry.entry_id}_climate_ac_{zone_id}"
         )
         self._attr_hvac_modes = [HVACMode.OFF, HVACMode.COOL, HVACMode.AUTO]
-        # Register memory keys
         self._store_last_state("vertical_swing", "OFF")
         self._store_last_state("horizontal_swing", "OFF")
 
@@ -423,7 +418,6 @@ class TadoAirConditioning(TadoClimateEntity):
             )
         ):
             return
-        # Update Temperature Limits
         if capabilities.temperatures:
             new_min = float(capabilities.temperatures.celsius.min)
             new_max = float(capabilities.temperatures.celsius.max)
@@ -434,7 +428,6 @@ class TadoAirConditioning(TadoClimateEntity):
                 self._attr_max_temp = new_max
                 self._attr_target_temperature_step = new_step
 
-        # Update Supported HVAC Modes dynamically
         modes = [HVACMode.OFF, HVACMode.AUTO]
         if getattr(capabilities, "cool", None):
             modes.append(HVACMode.COOL)
@@ -566,7 +559,6 @@ class TadoAirConditioning(TadoClimateEntity):
 
         additional_fields: dict[str, Any] = {}
 
-        # Build fan settings (fanSpeed or fanLevel) based on capabilities
         if fan_speeds := getattr(fan_mode_caps, "fan_speeds", None):
             current = getattr(state.setting, "fan_speed", None) if state else None
             fan_value = current if current in fan_speeds else fan_speeds[0]
@@ -654,7 +646,6 @@ class TadoAirConditioning(TadoClimateEntity):
         tasks = []
 
         if swing_mode == "OFF":
-            # Store current states before turning OFF
             state = self._current_state
             if state and state.setting:
                 self._store_last_state(
@@ -668,7 +659,6 @@ class TadoAirConditioning(TadoClimateEntity):
                     or getattr(state.setting, "horizontal_swing", "OFF"),
                 )
 
-            # Turn everything OFF
             if ac_caps["vertical_swings"]:
                 tasks.append(
                     self.tado_coordinator.async_set_ac_setting(

@@ -53,7 +53,6 @@ def _mask_string(text: str) -> str:
         if text.startswith(domains):
             parts = text.split(".")
             domain = parts[0]
-            # Create a unique short hash from the original name part
             name_hash = hashlib.shake_128(parts[1].encode()).hexdigest(2)
             text = f"{domain}.entity_{name_hash}"
 
@@ -125,7 +124,6 @@ async def async_get_config_entry_diagnostics(
     diag_data["quota_status"] = _get_quota_diagnostics(coordinator)
     diag_data["internal_state"] = _get_internal_state_diagnostics(coordinator)
 
-    # Analyze actual Hijack entity mappings for this entry
     diag_data["entity_mappings"] = _get_entity_mappings(
         hass, entry.entry_id, coordinator
     )
@@ -173,7 +171,6 @@ def _get_coordinator_diagnostics(
     }
 
     if data:
-        # Convert dataclass to dict safely
         try:
             coordinator_diag["data"] = dataclasses.asdict(data)
         except Exception as e:
@@ -200,7 +197,6 @@ def _get_quota_diagnostics(coordinator: TadoDataUpdateCoordinator) -> dict[str, 
     dm = coordinator.data_manager
     res_total, res_breakdown = dm.estimate_daily_reserved_cost()
 
-    # Get learned reset window for calculations
     expected_window = coordinator.reset_tracker.get_expected_window()
     expected_hour = (
         expected_window.hour if expected_window.confidence == "learned" else None
@@ -290,12 +286,10 @@ def _get_all_diagnostic_sensors(hass: HomeAssistant, entry_id: str) -> dict[str,
     diagnostic_entities: dict[str, Any] = {}
 
     for entity_entry in er.async_entries_for_config_entry(ent_reg, entry_id):
-        # Only collect diagnostic entities
         if entity_entry.entity_category != er.EntityCategory.DIAGNOSTIC:
             continue
 
         if state := hass.states.get(entity_entry.entity_id):
-            # Store state and attributes
             diagnostic_entities[entity_entry.entity_id] = {
                 "state": state.state,
                 "attributes": dict(state.attributes),

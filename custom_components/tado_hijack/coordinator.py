@@ -344,7 +344,6 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
                 self.rate_limit.remaining,
                 self.rate_limit.throttle_threshold,
             )
-            # Return existing data without making new API calls
             if self.data:
                 return cast(TadoData, self.data)
 
@@ -458,7 +457,6 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         """Calculate simple adaptive interval without reduced window logic."""
         predicted_cost = self.data_manager._measure_zones_poll_cost()
 
-        # Check if we have enough budget for min_floor
         max_possible_polls = seconds_until_reset / min_floor
         budget_needed = max_possible_polls * predicted_cost
 
@@ -491,7 +489,6 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             )
             return max(int(self._base_scan_interval), 300)
 
-        # Get learned reset window and calculate time remaining
         expected_hour, expected_minute = self._get_learned_reset_window()
         seconds_until_reset = get_seconds_until_reset(
             expected_hour, expected_minute, self._last_quota_reset
@@ -512,7 +509,6 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         if self._auto_api_quota_percent <= 0:
             return None
 
-        # Calculate remaining budget
         min_floor = self._get_min_auto_quota_interval()
         background_cost_24h, _ = self.data_manager.estimate_daily_reserved_cost()
         safety_reserve = self.config_entry.data.get(
@@ -626,10 +622,8 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             reset_time = dt_util.now()
             self._last_quota_reset = reset_time
 
-            # Record in tracker for pattern learning
             self.reset_tracker.record_reset(reset_time)
 
-            # Save persistently
             self.hass.async_create_task(
                 self.storage.async_update("reset_tracker", self.reset_tracker.to_dict())
             )
@@ -877,7 +871,6 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         self, zone_id: int, temperature: float | None = None
     ) -> None:
         """Set hot water zone to heat mode (manual overlay)."""
-        # Resolve temperature with fallback chain
         state = self.data.zone_states.get(str(zone_id))
         temp = temperature or TEMP_DEFAULT_HOT_WATER
 

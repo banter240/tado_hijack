@@ -11,7 +11,6 @@ from ..const import (
     API_RESET_HOUR_START,
     API_RESET_MIN_PERCENT,
     API_RESET_MIN_PLANNING_HOURS,
-    API_RESET_MAX_PLANNING_HOURS,
     API_RESET_MIDPOINT_MINUTE,
     MIN_AUTO_QUOTA_INTERVAL_S,
     SECONDS_PER_DAY,
@@ -85,18 +84,17 @@ def get_next_reset_time(
 ) -> datetime:
     """Get the next expected quota reset time.
 
-    Conservative strategy: Plan for MINIMUM 24h ahead. Finds the next expected
-    reset window, but if it's less than 24h away, uses the following window.
-    Better to poll too slowly and have quota remaining than to burn through
-    quota too quickly.
+    Strategy:
+    - If last_reset exists: Calculate based on last_reset + 24h with learned window
+    - If no last_reset (new installation): Use now + MIN_PLANNING_HOURS as initial value
 
     Args:
         expected_hour: Learned reset hour (None = use default 12)
         expected_minute: Learned reset minute (None = use default 30)
-        last_reset: Last detected quota reset time (unused, kept for compatibility)
+        last_reset: Last detected quota reset time (original, not normalized)
 
     Returns:
-        Next expected quota reset time (minimum 24h in the future)
+        Next expected quota reset time
 
     """
     berlin_tz = dt_util.get_time_zone("Europe/Berlin")
@@ -108,30 +106,30 @@ def get_next_reset_time(
         expected_minute if expected_minute is not None else API_RESET_MIDPOINT_MINUTE
     )
 
-    # Find next expected reset (today or tomorrow)
-    expected_reset_today = now_berlin.replace(
+    # No last reset (new installation): Use conservative initial estimate
+    if last_reset is None:
+        initial_estimate = now_berlin + timedelta(hours=API_RESET_MIN_PLANNING_HOURS)
+        return cast(
+            datetime,
+            initial_estimate.replace(minute=reset_minute, second=0, microsecond=0),
+        )
+
+    # Have last reset: Calculate next reset based on it
+    last_reset_berlin = last_reset.astimezone(berlin_tz)
+
+    # Next reset is last_reset + 24h, adjusted to learned window time
+    next_reset = (last_reset_berlin + timedelta(days=1)).replace(
         hour=reset_hour,
         minute=reset_minute,
         second=0,
         microsecond=0,
     )
 
-    if expected_reset_today <= now_berlin:
-        # Today's window already passed, use tomorrow
-        next_expected = expected_reset_today + timedelta(days=1)
-    else:
-        # Today's window still ahead
-        next_expected = expected_reset_today
+    # If next reset already passed, add another day
+    if next_reset <= now_berlin:
+        next_reset = next_reset + timedelta(days=1)
 
-    # Ensure MINIMUM planning horizon (conservative but not excessive)
-    min_future = now_berlin + timedelta(hours=API_RESET_MIN_PLANNING_HOURS)
-
-    if next_expected < min_future:
-        candidate = next_expected + timedelta(days=1)
-        max_future = now_berlin + timedelta(hours=API_RESET_MAX_PLANNING_HOURS)
-        return cast(datetime, min(candidate, max_future))
-
-    return cast(datetime, next_expected)
+    return next_reset
 
 
 def get_seconds_until_reset(

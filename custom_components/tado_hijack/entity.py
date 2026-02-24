@@ -26,7 +26,6 @@ class TadoDefinitionMixin:
         """Initialize the definition mixin."""
         self._definition = definition
 
-        # Apply standard properties from definition
         if icon := definition.get("icon"):
             self._attr_icon = icon
         if device_class := definition.get("ha_device_class"):

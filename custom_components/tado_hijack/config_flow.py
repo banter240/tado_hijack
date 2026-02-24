@@ -145,7 +145,6 @@ class TadoHijackCommonFlow:
         """
         processed_input = {}
 
-        # Flatten general_polling section
         if "general_polling" in user_input:
             polling = user_input["general_polling"]
             for key in [
@@ -157,7 +156,6 @@ class TadoHijackCommonFlow:
                 if key in polling:
                     processed_input[key] = polling[key]
 
-        # Flatten api_quota section
         if "api_quota" in user_input:
             quota = user_input["api_quota"]
             for key in [
@@ -171,7 +169,6 @@ class TadoHijackCommonFlow:
                 if key in quota:
                     processed_input[key] = quota[key]
 
-        # Flatten reduced_polling section
         if "reduced_polling" in user_input:
             schedule = user_input["reduced_polling"]
             for key in [
@@ -183,7 +180,6 @@ class TadoHijackCommonFlow:
                 if key in schedule:
                     processed_input[key] = schedule[key]
 
-        # Flatten advanced section
         if "advanced" in user_input:
             advanced = user_input["advanced"]
             for key in [
@@ -449,10 +445,8 @@ class TadoHijackCommonFlow:
                     }
                 ),
             )
-        # Flatten nested section data
         processed_input = self._flatten_section_data(user_input)
 
-        # Handle proxy URL cleanup
         proxy_url = processed_input.get(CONF_API_PROXY_URL, "")
         if not proxy_url or not str(proxy_url).strip():
             processed_input[CONF_API_PROXY_URL] = None
@@ -511,7 +505,6 @@ class TadoHijackConfigFlow(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Start the configuration (Auth-Last)."""
-        # Store generation early
         self._data[CONF_GENERATION] = self._generation
         return await super().async_step_init(user_input)
 
@@ -535,7 +528,6 @@ class TadoHijackConfigFlow(
                 data={CONF_REFRESH_TOKEN: self.refresh_token, **self._data},
             )
 
-        # Always use standard library auth
         return await self.async_step_tado_auth()
 
     async def async_step_tado_auth(

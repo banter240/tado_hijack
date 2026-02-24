@@ -88,7 +88,7 @@ def _get_next_reset_timestamp(c: Any) -> Any:
         expected_hour = window.hour if window.confidence == "learned" else None
         expected_minute = window.minute if window.confidence == "learned" else None
         return get_next_reset_time(
-            expected_hour, expected_minute, c.reset_tracker.get_last_reset()
+            expected_hour, expected_minute, c.reset_tracker.get_last_reset_original()
         )
     except Exception:
         return None
@@ -666,7 +666,7 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     ),
     create_diagnostic_sensor(
         key="quota_reset_last",
-        value_fn=lambda c: c.reset_tracker.get_last_reset(),
+        value_fn=lambda c: c.reset_tracker.get_last_reset_original(),
         icon="mdi:clock-check",
         device_class=SensorDeviceClass.TIMESTAMP,
     ),

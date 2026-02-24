@@ -12,7 +12,7 @@ TADO_USER_AGENT: Final = f"HomeAssistant/{TADO_VERSION_PATCH}"
 # Configuration Keys
 CONF_GENERATION: Final = "generation"
 CONF_REFRESH_TOKEN: Final = "refresh_token"
-CONF_SCAN_INTERVAL: Final = "scan_interval"  # Zone polling
+CONF_SCAN_INTERVAL: Final = "scan_interval"
 CONF_PRESENCE_POLL_INTERVAL: Final = "presence_poll_interval"
 CONF_SLOW_POLL_INTERVAL: Final = "slow_poll_interval"
 CONF_OFFSET_POLL_INTERVAL: Final = "offset_poll_interval"
@@ -73,13 +73,13 @@ DEFAULT_SUPPRESS_REDUNDANT_BUTTONS: Final = (
 
 # Quota Safety Reserve Limits
 MIN_QUOTA_SAFETY_RESERVE: Final = 0  # 0 = disabled (not recommended)
-MAX_QUOTA_SAFETY_RESERVE: Final = 50  # Maximum safety reserve calls
+MAX_QUOTA_SAFETY_RESERVE: Final = 50
 
 # Minimums (0 = no periodic poll / disabled)
 MIN_SCAN_INTERVAL: Final = 0
 MIN_SLOW_POLL_INTERVAL: Final = 0
 MIN_OFFSET_POLL_INTERVAL: Final = 0
-MIN_DEBOUNCE_TIME: Final = 1  # Second
+MIN_DEBOUNCE_TIME: Final = 1
 MIN_AUTO_QUOTA_INTERVAL_S: Final = 20  # Safety floor for dynamic polling (standard)
 MIN_PROXY_INTERVAL_S: Final = 120  # Minimum for proxy usage
 MAX_AUTO_QUOTA_INTERVAL_S: Final = 43200  # Maximum 12 hours (in seconds)

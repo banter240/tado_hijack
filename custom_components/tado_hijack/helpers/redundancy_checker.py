@@ -508,12 +508,10 @@ def _filter_zone_updates(
         for zone_id_str, zone_data in zones.items():
             zone_id = int(zone_id_str)
 
-            # Get target values from merged data
             setting = zone_data.get("setting", {})
             target_power = setting.get("power")
             target_temp = setting.get("temperature", {}).get("celsius")
 
-            # Get cache values
             cache_power = action_provider.get_zone_power(zone_id)
             cache_temp = action_provider.get_zone_temperature(zone_id)
 
