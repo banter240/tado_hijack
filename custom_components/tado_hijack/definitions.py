@@ -1336,6 +1336,7 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         select_option_fn=lambda c, zid, val: c.async_set_ac_setting(
             zid, "fan_speed", val
         ),
+        supported_generations={GEN_CLASSIC},
     ),
     create_zone_select(
         key="vertical_swing",
@@ -1359,6 +1360,7 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
             zid, "vertical_swing", val
         ),
         optimistic_key="vertical_swing",
+        supported_generations={GEN_CLASSIC},
     ),
     create_zone_select(
         key="horizontal_swing",
@@ -1382,5 +1384,6 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
             zid, "horizontal_swing", val
         ),
         optimistic_key="horizontal_swing",
+        supported_generations={GEN_CLASSIC},
     ),
 ]

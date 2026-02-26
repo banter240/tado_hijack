@@ -6,6 +6,7 @@
 
 [![Latest Release](https://img.shields.io/github/v/release/banter240/tado_hijack?style=for-the-badge&color=e10079&logo=github)](https://github.com/banter240/tado_hijack/releases/latest)
 [![Dev Release](https://img.shields.io/github/v/release/banter240/tado_hijack?include_prereleases&label=dev&style=for-the-badge&color=orange&logo=github)](https://github.com/banter240/tado_hijack/releases)
+[![Downloads](https://img.shields.io/github/downloads/banter240/tado_hijack/total?style=for-the-badge&color=green&logo=github)](https://github.com/banter240/tado_hijack/releases)
 [![HACS Default](https://img.shields.io/badge/HACS-Default-41BDF5?style=for-the-badge&logo=home-assistant)](https://github.com/hacs/integration)
 [![License](https://img.shields.io/github/license/banter240/tado_hijack?style=for-the-badge&color=blue)](LICENSE)
 
@@ -33,35 +34,12 @@ While other integrations **die** when Tado slashes API limits, Tado Hijack **jus
 
 <br>
 
-> [!CAUTION]
-> **🚧 DEVELOPMENT BUILD - TESTING REQUIRED 🚧**
->
-> **This is a pre-release development version with major architectural changes:**
->
-> - **Tado X generation support** (NEW - first implementation!)
-> - **Matter device linking** (NEW - untested in production!)
-> - **Unified polling system refactoring** (DRY architecture)
-> - **Modular executor system** (complete rewrite)
->
-> **Device Support:**
->
-> - **Tado V3 Classic (IB01):** Fully supported, stable, production-ready ✅
-> - **Tado X (Matter):** NEW implementation, requires testing ⚠️
->
-> **⚠️ Bugs are very likely!** This code has not been battle-tested in real-world environments yet. v2/v3 Classic users: The refactoring may cause issues with existing installations. If you encounter critical issues, you can always rollback to the previous stable version through HACS.
->
-> **🙏 Your help is needed:** Every tester who reports issues helps make this better for everyone!
->
-> **📢 Report bugs:** [Discord](https://discord.gg/kxUsjHyxfT) (fastest) | [GitHub Issues](https://github.com/banter240/tado_hijack/issues/new) | [Discussions](https://github.com/banter240/tado_hijack/discussions)
-
-<br>
-
 > [!NOTE]
 > **High API Usage is Expected (And Good!):**
-> **You might see 2,000-4,000 API calls per day.** This is **completely normal** and exactly how Auto Quota is designed to work!
+> **You might see 800-1,500 API calls per day.** This is **completely normal** and exactly how Auto Quota is designed to work!
 >
-> - Tado gives you **5,000 calls/day** — we use them efficiently for responsive updates (every 20-30s)
-> - **When Tado cuts you to 100 calls/day**, Auto Quota **automatically slows down** to ~15 minutes per update
+> - Tado currently gives you **1,000 calls/day** — we use them efficiently for responsive updates (every ~90s)
+> - **If Tado cuts you to 100 calls/day**, Auto Quota **automatically slows down** to maintain optimal performance
 >
 > **TL;DR:** High usage now = fast updates. Low quota later = automatic slowdown. This is the whole point of Auto Quota! 🚀
 
@@ -75,11 +53,29 @@ While other integrations **die** when Tado slashes API limits, Tado Hijack **jus
 
 <br>
 
-Tado is forcing you into a subscription by choking the "free" API from **5,000 → 100 calls/day**. Most integrations will simply stop working. **We engineered a different solution.**
+Tado is forcing you into a subscription by choking the "free" API — **already cut from 5,000 to 1,000 calls/day**. What if they cut to **100 next**? Most integrations will simply stop working. **We engineered a different solution.**
 
 <br>
 
 ### **The Tado Hijack Advantage:**
+
+> [!IMPORTANT]
+> **What Tado Hijack Does (and Doesn't Do):**
+>
+> **Temperature Control (Climate Entities):**
+> - Tado Hijack does **NOT** provide `climate` entities for heating zones
+> - You need **HomeKit Device** (v3) or **Matter** (Tado X) integration for temperature control
+> - These native integrations provide `climate.living_room`, current temperature, etc.
+>
+> **What Tado Hijack Adds:**
+> - Cloud-only features: Schedules, Hot Water, AC Pro, QuickActions
+> - Hardware settings: Child Lock, Temperature Offset, Battery status
+> - API quota management and intelligent polling
+> - **Device Unification:** Injects these features into your existing HomeKit/Matter devices
+>
+> **TL;DR:** HomeKit/Matter = Temperature Control | Tado Hijack = Cloud Features + Smarts
+
+<br>
 
 - **🧠 Fully Autonomous:** Set it once, forget forever. Auto Quota adapts to **any** API limit Tado throws at you (5k, 1k, 100 — doesn't matter).
 - **💎 Extreme Batching:** 10 commands across 10 rooms? **Still only 1 API call.** We fuse everything.
@@ -127,6 +123,7 @@ Tado is forcing you into a subscription by choking the "free" API from **5,000 �
   - [📝 set_mode Examples (YAML)](#set_mode-examples-yaml)
 - [📋 Known Constraints](#known-constraints)
 - [🐛 Troubleshooting](#troubleshooting)
+- [❓ Frequently Asked Questions (FAQ)](#frequently-asked-questions-faq)
 - [📚 Documentation](#documentation)
 
 <br>
@@ -145,7 +142,7 @@ Tado is forcing you into a subscription by choking the "free" API from **5,000 �
 | **Boiler Load / Modulation**       |      ✅       |      ❌      |       ✅ **Yes**        |
 | **Hot Water Power & Temp**         |      ✅       |      ❌      |       ✅ **Full**       |
 | **Smart Schedules Switch**         |      ✅       |      ❌      |       ✅ **Yes**        |
-| **AC Pro (Fan/Swing)**             |      ✅       |      ❌      |       ✅ **Full**       |
+| **AC Pro (Fan/Swing)**             |      ✅       |      ❌      |    ✅ **Full (v3)**     |
 | **Child Lock / OWD / Early**       |      ✅       |      ❌      |       ✅ **Yes**        |
 | **Local Control (v3)**             |      ❌       |      ✅      |    ✅ (via HK Link)     |
 | **Tado X Support**                 |      ❌       |      ❌      |  ✅ **Local + Cloud**   |
@@ -165,9 +162,30 @@ Tado is forcing you into a subscription by choking the "free" API from **5,000 �
 > Tado Hijack is the **first and only** integration that combines **Matter local control** with Tado X cloud features!
 >
 > - **Other integrations:** Support Tado X only via **full cloud** (no local control, 100% API dependent)
-> - **Tado Hijack:** Uses **Matter** for local temperature control + cloud API for advanced features (Hot Water, Schedules, etc.)
+> - **Tado Hijack:** Uses **Matter** for local temperature control + cloud API for advanced features (Schedules, QuickActions, etc.)
 >
-> We support **BOTH** Tado v3 Classic (HomeKit) **AND** Tado X (Matter) through a unified architecture. Upgrading from v3 to X? Your integration keeps working with the same features.
+> We support **BOTH** Tado v3 Classic (HomeKit) **AND** Tado X (Matter) through a unified architecture. Note: Some features are v3-specific (Hot Water, AC, Early Start) due to hardware limitations.
+
+<br>
+
+---
+
+<br>
+
+## Generation Support: v3 Classic & Tado X
+
+**Quick Reference:** This integration supports both Tado v3 Classic (HomeKit) and Tado X (Matter).
+
+| Feature Category          | v3 Classic | Tado X | Notes                        |
+| :------------------------ | :--------: | :----: | :--------------------------- |
+| **Temperature Control**   |     ✅     |   ✅   | Via HomeKit/Matter (not Hijack) |
+| **Hot Water**             |     ✅     |   ❌   | Cloud API + water_heater entity |
+| **AC Pro (Fan/Swing)**    |     ✅     |   ❌   | Cloud API + climate entity   |
+| **QuickActions (Bulk)**   |     ✅     |   ✅   | boost/off/resume = 1 call    |
+| **set_mode_all (Bulk)**   |     ✅     |   ❌   | v3=1 call, X=N calls         |
+| **Hardware Settings**     |     ✅     |   ✅   | Child Lock, Offset, etc.     |
+
+> See [FAQ](#frequently-asked-questions-faq) for detailed setup instructions and climate entity requirements.
 
 <br>
 
@@ -313,6 +331,8 @@ Tado's API limits are restrictive. That's why Tado Hijack uses a **Zero-Waste Po
 | **Zone Overlay**    | **1**  | On Demand     | **Fused:** All zone changes in 1 call.   | `POST /homes/{id}/overlay`                                                             |
 | **Home/Away**       | **1**  | On Demand     | Force presence lock.                     | `PUT /homes/{id}/presenceLock`                                                         |
 
+_Note: Endpoints shown are v3 API. Tado X uses different endpoints (Hops API) but similar polling logic. See [Generation Support](#generation-support-v3-classic--tado-x) for differences._
+
 <br>
 
 > [!TIP]
@@ -321,8 +341,6 @@ Tado's API limits are restrictive. That's why Tado Hijack uses a **Zero-Waste Po
 > - **Zero Waste Writes:** Commands don't trigger a poll. We use Local State Patching to update the UI instantly without confirmation calls.
 > - **Throttled Mode:** When quota runs low, periodic polling auto-disables to preserve quota for your automations.
 > - **Granular Refresh:** Hardware configs (Offsets, Away Temps) are never fetched automatically — only on-demand when you need them.
->
-> **Tado X Note:** Heating zones use Matter/HomeKit directly for temperature control. Hot Water & AC use the Tado API, but **Tado X lacks bulk overlay support** (v3 can batch 5 zones in 1 call, X needs 5 individual calls). For most users (1-2 AC/Hot Water zones) this is negligible, but multi-AC setups will consume more API quota.
 
 <br>
 
@@ -366,7 +384,7 @@ Other integrations require constant babysitting:
 
 | Scenario                                      | Other Integrations                                               | **Tado Hijack (Auto Quota)**                                             |
 | :-------------------------------------------- | :--------------------------------------------------------------- | :----------------------------------------------------------------------- |
-| **Tado cuts limit to 100 calls**              | 💀 Integration dies or polls every 15 minutes. Automations fail. | ✅ Auto-adjusts polling speed. Threshold ensures automations still work. |
+| **Tado cuts limit further to 100 calls**      | 💀 Integration dies or polls once per day. Automations fail.     | ✅ Auto-adjusts polling speed. Threshold ensures automations still work. |
 | **Heavy automation day** (50+ external calls) | 💀 Quota exhausted by noon. No updates for rest of day.          | ✅ Detects excess usage, slows background polling to compensate.         |
 | **Using API Proxy** (3000 calls/day)          | ⚠️ Hardcoded to slow intervals, wasting available quota.         | ✅ Maximizes proxy quota with optimized high-speed polling.              |
 | **Night time** (23:00 - 07:00)                | ⚠️ Keeps polling at same rate, wasting quota while you sleep.    | ✅ Slows to 1h (or pauses). Saves 8+ hours of calls for daytime.         |
@@ -456,14 +474,7 @@ Not all API calls are created equal. Tado Hijack optimizes everything, but physi
 <br>
 
 > [!NOTE]
-> **Batching Limitations:**
->
-> - **Device Configs:** Tado provides no bulk endpoints for Child Lock, Offset, or Window Detection — must send individually per device.
-> - **Tado X Heating Zones:** Temperature control happens via **Matter/HomeKit directly** (not API), so batching is irrelevant.
-> - **Tado X Hot Water & AC:** Individual API calls required (`POST /rooms/{id}/manualControl`). v3 can batch 5 zones in 1 call, X needs 5 individual calls. Impact depends on zone count: 1-2 zones = negligible, 5+ ACs = noticeable quota consumption.
-> - **QuickActions:** boost all, turn off all, resume all = **1 call each** ✅ (works identically on v3 and X)
->
-> Debouncing prevents rapid UI interactions from spamming the API.
+> **Exceptions:** Device configs (Child Lock, Offset) require individual API calls per device. See [Services](#services) table for complete API impact breakdown.
 
 <br>
 
@@ -520,6 +531,15 @@ Tado Hijack is now an **official HACS integration**! No custom repository needed
 2. Search for **"Tado Hijack"** and click **Download**.
 3. **Restart Home Assistant**.
 4. Go to **Settings** -> **Devices & Services** -> **Add Integration** -> Search for **"Tado Hijack"**.
+5. **Select your hardware generation** (determined by your physical Tado bridge):
+   - **Tado v3 Classic** - If you own an **IB01** or **GW01** bridge (black square box)
+   - **Tado X** - If you own a **Bridge X (IB02)** (newer Matter-based system)
+
+<br>
+
+> [!IMPORTANT]
+> **Hardware Generation:**
+> Select your generation during setup based on your physical bridge: IB01/GW01 = **v3 Classic**, IB02 = **Tado X**. If unsure, choose v3 Classic (most common). See [Generation Support](#generation-support-v3-classic--tado-x) for feature differences.
 
 <br>
 
@@ -535,7 +555,7 @@ Tado Hijack is now an **official HACS integration**! No custom repository needed
 | :--------------------------------- | :-------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Status Polling**                 | `30m`     | Base interval for room states. **Note:** Dynamically overridden by _Auto API Quota_ when enabled; serves as fallback during throttling or budget exhaustion.                                                                                               |
 | **Presence Polling**               | `12h`     | Interval for Home/Away state. High interval saves mass quota. (1 API call)                                                                                                                                                                                 |
-| **Auto API Quota**                 | `80%`     | Target X% of FREE quota. **Note:** While the official API is being choked to **100 calls/day**, using the **API Proxy** bypasses this trap, granting **3000 calls per account**. Uses a weighted profile to prioritize performance hours.                  |
+| **Auto API Quota**                 | `80%`     | Target X% of FREE quota. **Note:** The official API is currently limited to **1,000 calls/day**. Using the **API Proxy** bypasses this limitation, granting **3,000 calls per account**. Uses a weighted profile to prioritize performance hours.          |
 | **Reduced Polling Active**         | `Off`     | Enable the time-based weighted polling profile.                                                                                                                                                                                                            |
 | **Reduced Polling Start**          | `22:00`   | Start time for the economy window (e.g. when you sleep).                                                                                                                                                                                                   |
 | **Reduced Polling End**            | `07:00`   | End time for the economy window.                                                                                                                                                                                                                           |
@@ -579,21 +599,56 @@ Global controls and elite transparency for your home. _Linked to your Internet B
 | `switch.tado_{home}_away_mode`             | Switch | Toggle Home/Away presence lock.                                   |
 | `switch.tado_{home}_polling_active`        | Switch | **Master Switch:** Instantly stop/start all periodic API polls.   |
 | `switch.tado_{home}_reduced_polling_logic` | Switch | **Logic Switch:** Toggle the timed "Economy" profile.             |
-| `button.tado_{home}_resume_all_schedules`  | Button | **Bulk:** Restore Smart Schedules across all zones (1 call).      |
+| `button.tado_{home}_resume_all_schedules`  | Button | Restore Smart Schedule across all zones (1 bulk call).            |
+| `button.tado_{home}_turn_off_all_zones`    | Button | Turn off all zones instantly (1 bulk call).                       |
+| `button.tado_{home}_boost_all_zones`       | Button | Boost all zones to 25°C (1 bulk call).                            |
 | `button.tado_{home}_full_manual_poll`      | Button | **Expensive:** Forced synchronization of all metadata and states. |
+| `sensor.tado_{home}_api_limit`             | Sensor | Total daily API quota limit (1000 standard, 3000 with proxy).     |
 | `sensor.tado_{home}_api_remaining`         | Sensor | **API Gold:** Your remaining daily call budget.                   |
 | `sensor.tado_{home}_api_status`            | Sensor | Real-time health (`connected`, `throttled`, `rate_limited`).      |
 
 <br>
 
-> [!TIP]
-> **Power-User Diagnostics:**
-> Tado Hijack provides **over 20 additional diagnostic entities** within the standard Home Assistant **Diagnostics** section of the Internet Bridge device. These include:
-> - Live polling intervals, enforced safety floors, proxy authentication status
-> - **NEW:** Quota reset learning metrics (expected window, pattern confidence, reset history)
-> - Granular sync timers and quota budget calculations
->
-> Check the device page to unleash full transparency into the adaptive quota system.
+### Diagnostic Entities (Home)
+
+<br>
+
+Advanced monitoring sensors available under the Internet Bridge device diagnostics section:
+
+<br>
+
+**Quota Reset Learning (NEW in v5.0):**
+- `sensor.quota_reset_last` - Last observed reset timestamp
+- `sensor.quota_reset_next` - Predicted next reset (learned pattern)
+- `sensor.quota_reset_expected_window` - Learned reset window (e.g., "12:15-12:45")
+- `sensor.quota_reset_pattern_confidence` - Pattern confidence (low/medium/high/confirmed)
+- `sensor.quota_reset_history_count` - Number of observed resets
+
+**Polling Intervals:**
+- `sensor.current_zone_interval` - Current dynamic polling interval
+- `sensor.min_interval_configured` - User-configured minimum
+- `sensor.min_interval_enforced` - Actual enforced minimum (proxy-aware)
+- `sensor.reduced_polling_interval` - Economy window interval
+- `sensor.debounce_time` - Batching window duration
+- `sensor.presence_poll_interval`, `sensor.slow_poll_interval`, `sensor.offset_poll_interval`
+
+**Configuration Status:**
+- `sensor.auto_quota_percent`, `sensor.throttle_threshold`, `sensor.jitter_percent`
+- `sensor.reduced_polling_start`, `sensor.reduced_polling_end`
+- `sensor.suppress_redundant_calls`, `sensor.suppress_redundant_buttons`
+- `binary_sensor.reduced_polling_active`, `binary_sensor.call_jitter_enabled`
+- `binary_sensor.disable_polling_when_throttled`, `binary_sensor.refresh_after_resume`
+
+**System Info:**
+- `sensor.tado_generation` - Detected hardware ("Tado X" or "Tado Classic (v3)")
+- `sensor.proxy_url`, `sensor.proxy_token` - Proxy configuration status
+- `sensor.log_level` - Current logging level
+
+**Manual Refresh Buttons:**
+- `button.refresh_metadata` - Force hardware sync
+- `button.refresh_offsets` - Force offset sync
+- `button.refresh_away` - Force away config sync
+- `button.refresh_presence` - Force presence sync
 
 <br>
 
@@ -608,18 +663,21 @@ Cloud-only features that HomeKit does not support.
 | Entity                              | Type          | Description                                                                                     |
 | :---------------------------------- | :------------ | :---------------------------------------------------------------------------------------------- |
 | `switch.schedule`                   | Switch        | **ON** = Smart Schedule, **OFF** = Manual. Simple way to resume schedule.                       |
-| `climate.ac_{room}`                 | Climate       | **AC Only:** Full HVAC mode control (`cool`, `heat`, `dry`, `fan`, `auto`) with native slider.  |
-| `water_heater.hot_water`            | WaterHeater   | **Hot Water:** Modes: `auto` (schedule), `heat` (manual), `off`.                                |
-| `binary_sensor.hot_water_power`     | Binary Sensor | Status if boiler is currently heating water.                                                    |
-| `binary_sensor.hot_water_overlay`   | Binary Sensor | Status if a manual override is active.                                                          |
-| `switch.early_start`                | Switch        | **Cloud Only:** Toggle pre-heating before schedule.                                             |
-| `number.open_window_timeout`        | Number        | **Cloud Only:** Open window detection timeout (0=OFF, 5-1439min=ON).                            |
-| `number.target_temperature`         | Number        | **Cloud Only:** Set target temp for HW (manual mode).                                           |
-| `number.away_temperature`           | Number        | **Cloud Only:** Set away mode temperature.                                                      |
-| `select.fan_speed`                  | Select        | **AC Only:** Full fan speed control.                                                            |
-| `select.swing`                      | Select        | **AC Only:** Full swing control.                                                                |
+| `climate.ac_{room}`                 | Climate       | **v3 AC Only:** Full HVAC mode control (`cool`, `heat`, `dry`, `fan`, `auto`) with native slider. |
+| `water_heater.hot_water`            | WaterHeater   | **v3 Only:** Modes: `auto` (schedule), `heat` (manual), `off`.                                 |
+| `binary_sensor.hot_water_power`     | Binary Sensor | **v3 Only:** Boiler heating status.                                                             |
+| `binary_sensor.hot_water_overlay`   | Binary Sensor | **v3 Only:** Manual override active status.                                                     |
+| `binary_sensor.hot_water_connectivity` | Binary Sensor | **v3 Only:** Zone connectivity based on device connections.                                  |
+| `switch.early_start`                | Switch        | **v3 Only:** Toggle pre-heating before schedule block.                                          |
+| `number.open_window_timeout`        | Number        | **Config:** Open window timeout (0=OFF, 5-1439min=ON). Requires Tado subscription for detection. |
+| `number.target_temperature`         | Number        | **v3 HW Only:** Set hot water target temp (manual mode).                                        |
+| `number.away_temperature`           | Number        | **v3 Only:** Set away mode temperature.                                                         |
+| `select.fan_speed`                  | Select        | **v3 AC Only:** Full fan speed control.                                                         |
+| `select.vertical_swing`             | Select        | **v3 AC Only:** Vertical swing control (ON/OFF or position modes).                              |
+| `select.horizontal_swing`           | Select        | **v3 AC Only:** Horizontal swing control (ON/OFF or position modes).                            |
 | `sensor.heating_power`              | Sensor        | **Insight:** Valve opening % or Boiler Load %.                                                  |
 | `sensor.humidity`                   | Sensor        | Zone humidity (faster than HomeKit).                                                            |
+| `sensor.next_schedule_change`       | Sensor        | **Planning:** Timestamp of next schedule transition (diagnostic).                               |
 | `sensor.next_schedule_temp`         | Sensor        | **Planning:** Target temp of the upcoming schedule block.                                       |
 | `sensor.next_schedule_mode`         | Sensor        | **Planning:** Mode (HEAT/OFF) of the upcoming schedule block.                                   |
 | `sensor.next_time_block_start`      | Sensor        | **Planning:** Start time of the next schedule block.                                            |
@@ -639,7 +697,7 @@ Cloud-only features that HomeKit does not support.
 
 <br>
 
-Hardware-specific entities. _These entities are **injected** into your existing HomeKit devices._
+Hardware-specific entities. _These entities are **injected** into your existing HomeKit (v3) or Matter (Tado X) devices._
 
 <br>
 
@@ -648,7 +706,7 @@ Hardware-specific entities. _These entities are **injected** into your existing 
 | `binary_sensor.battery`     | Binary Sensor | Battery health (Normal/Low).                        |
 | `binary_sensor.connection`  | Binary Sensor | Device connectivity to Tado cloud.                  |
 | `switch.child_lock`         | Switch        | Toggle Child Lock on the device.                    |
-| `switch.dazzle_mode`        | Switch        | Control display behavior (V3+).                     |
+| `switch.dazzle_mode`        | Switch        | **v3 Only:** Control display brightness/behavior.   |
 | `number.temperature_offset` | Number        | Interactive temperature calibration (-10 to +10°C). |
 
 <br>
@@ -665,15 +723,15 @@ For advanced automation, use these services. All manual control services feature
 
 <br>
 
-| Service                             | Description                                                                                                                  | API Impact           |
-| :---------------------------------- | :--------------------------------------------------------------------------------------------------------------------------- | :------------------- |
-| `tado_hijack.turn_off_all_zones`    | Turn off all zones instantly.                                                                                                | **1 call** (bulk)    |
-| `tado_hijack.boost_all_zones`       | Boost every zone to 25°C.                                                                                                    | **1 call** (bulk)    |
-| `tado_hijack.resume_all_schedules`  | Restore Smart Schedule across all zones.                                                                                     | **1 call** (bulk)    |
-| `tado_hijack.set_mode`              | Set mode, temperature, and termination. Supports `hvac_mode` (auto, heat, off) and `overlay` (manual, next_block, presence). | **1 call** (batched) |
-| `tado_hijack.set_mode_all_zones`    | Targets all HEATING and/or AC zones at once using `hvac_mode`.                                                               | **1 call** (bulk)    |
-| `tado_hijack.set_water_heater_mode` | Set `operation_mode` and temperature for hot water.                                                                          | **1 call**           |
-| `tado_hijack.manual_poll`           | Force immediate data refresh. Use `refresh_type` to control scope.                                                           | **2-N** (depends)    |
+| Service                             | Description                                                                                                                  | API Impact (v3)      | API Impact (Tado X)  |
+| :---------------------------------- | :--------------------------------------------------------------------------------------------------------------------------- | :------------------- | :------------------- |
+| `tado_hijack.turn_off_all_zones`    | Turn off all zones instantly.                                                                                                | **1 call** (bulk)    | **1 call** (bulk)    |
+| `tado_hijack.boost_all_zones`       | Boost every zone to 25°C.                                                                                                    | **1 call** (bulk)    | **1 call** (bulk)    |
+| `tado_hijack.resume_all_schedules`  | Restore Smart Schedule across all zones.                                                                                     | **1 call** (bulk)    | **1 call** (bulk)    |
+| `tado_hijack.set_mode`              | Set mode, temperature, and termination. Supports `hvac_mode` (auto, heat, off) and `overlay` (manual, next_block, presence). | **1 call** (batched) | **1 call** (batched) |
+| `tado_hijack.set_mode_all_zones`    | Targets all HEATING and/or AC zones at once using `hvac_mode`.                                                               | **1 call** (bulk)    | **N calls** (per zone) |
+| `tado_hijack.set_water_heater_mode` | Set `operation_mode` and temperature for hot water (v3 only).                                                                | **1 call**           | N/A (no HW zones)    |
+| `tado_hijack.manual_poll`           | Force immediate data refresh. Use `refresh_type` to control scope.                                                           | **2-N** (depends)    | **2-N** (depends)    |
 
 <br>
 
@@ -846,6 +904,105 @@ logger:
   logs:
     custom_components.tado_hijack: debug
 ```
+
+<br>
+
+---
+
+<br>
+
+## Frequently Asked Questions (FAQ)
+
+<br>
+
+### Where are my climate entities? Where is the current temperature?
+
+**Short Answer:** Tado Hijack does **NOT** provide `climate` entities for heating zones. You need the **HomeKit Device** integration (v3 Classic) or **Matter** integration (Tado X) for temperature control.
+
+<br>
+
+**Why?**
+
+Tado heating zones work via **local protocols** (HomeKit for v3, Matter for Tado X) that provide:
+- `climate.living_room` - Temperature control
+- Current temperature readings
+- Target temperature sliders
+- Heat/Off modes
+
+These local integrations are **fast, reliable, and work offline**. Tado Hijack doesn't duplicate this — instead, it **enhances** your local devices with cloud-only features that HomeKit/Matter can't access:
+- Smart Schedule controls (`switch.schedule`)
+- Hot Water management (`water_heater.hot_water`) — v3 only
+- AC Pro controls (fan speed, swing) — v3 only
+- Hardware settings (Child Lock, Temperature Offset)
+- Device metadata (Battery %, Firmware, Connection status)
+
+<br>
+
+**Setup Steps:**
+
+1. **Install HomeKit Device (v3) or Matter (Tado X) integration first**
+   - This gives you `climate` entities for heating zones
+   - You'll see current temperature and can control heating
+
+2. **Then install Tado Hijack**
+   - Tado Hijack automatically detects your HomeKit/Matter devices
+   - Injects cloud features into the same device
+   - Result: One unified device with **both** local control **and** cloud features
+
+<br>
+
+**Without HomeKit/Matter:**
+- Regular heating zones will **NOT** have climate entities in Tado Hijack
+- Hot Water zones (v3 only) will have `water_heater` entity
+- AC zones (v3 only) will have `climate` entity via cloud API
+
+<br>
+
+### Why doesn't Tado Hijack provide temperature control via cloud API?
+
+**API Quota Reality:**
+
+If Tado cuts the API to **100 calls/day** (or even current 1,000), using cloud API for temperature control would be **impossible**:
+
+- **Polling for current temp:** To show accurate temperature, you'd need frequent polls (every 1-2 minutes = 720-1,440 calls/day) → **Quota exhausted instantly**
+- **Setting temperature:** Every temperature change = 1 API call → Eating into your limited quota
+- **Pure redundancy:** HomeKit/Matter already provide instant, local temperature control with **zero** API calls
+
+**HomeKit/Matter is Better:**
+- ⚡ **Instant response** (no cloud latency)
+- 🔒 **Works offline** (no internet needed)
+- 💎 **Zero API cost** (local protocol)
+- 📡 **Real-time updates** (no polling delays)
+
+**Tado Hijack's Strategy:**
+- Let HomeKit/Matter handle what they do best (temperature control)
+- Focus API quota on cloud-only features (Schedules, Hot Water, Hardware settings)
+- Result: Best of both worlds without wasting precious API calls
+
+<br>
+
+### Do I need both integrations running?
+
+**Yes, for the best experience:**
+
+| Integration     | Provides                                   | Required?        |
+| :-------------- | :----------------------------------------- | :--------------- |
+| **HomeKit/Matter** | Temperature control, current temp, offline resilience | ✅ Highly recommended |
+| **Tado Hijack**    | Schedules, Hot Water, AC Pro, Hardware settings, API optimization | ✅ For cloud features |
+
+**Together:** Local speed + Cloud power in one unified device.
+
+<br>
+
+### Can I use Tado Hijack without HomeKit/Matter?
+
+**Yes, but limited:**
+- You'll get Hot Water (v3) and AC (v3) climate entities
+- You'll get all hardware devices (valves, thermostats, bridge)
+- You'll get schedule controls and device settings
+- **Missing:** Climate entities for regular heating zones
+
+**Recommendation:** Always set up HomeKit/Matter first for the complete experience.
 
 <br>
 
