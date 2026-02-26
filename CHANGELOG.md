@@ -1,3 +1,182 @@
+## [5.0.0-dev.6](https://github.com/banter240/tado_hijack/compare/v5.0.0-dev.5...v5.0.0-dev.6) (2026-02-26)
+
+### 🐛 Bug Fixes
+
+* fix: mermaid syntax error and update documentation links
+
+**ARCHITECTURE.md:**
+- Fixed mermaid parse error in Generation Abstraction diagram
+- Changed pipe separator "|" to "or" in diamond node labels
+- Resolves GitHub mermaid rendering error: "Expecting 'DIAMOND_STOP', got 'PIPE'"
+
+**README.md:**
+- Added FEATURES.md to documentation section (user-facing features guide)
+- Removed DEVELOPMENT.md link (file does not exist)
+- Updated ARCHITECTURE.md and DESIGN.md descriptions for clarity
+- Reordered docs: Features Guide first (most useful for users), then Architecture, then Design
+
+All documentation links now point to existing files and render correctly on GitHub.
+
+
+### 📚 Documentation
+
+* docs: add comprehensive technical documentation with mermaid diagrams
+
+Added detailed architecture and design documentation:
+
+**ARCHITECTURE.md:**
+- Multi-generation architecture (v3 Classic vs Tado X)
+- Provider pattern with polymorphism (TadoV3Mapper/TadoXMapper)
+- Duck typing strategy for data model compatibility
+- Generation-specific executors (TadoV3Executor/TadoXExecutor)
+- API layer architecture (TadoHijackClient vs TadoXApi)
+- Feature matrix comparing v3 vs Tado X implementations
+- Mermaid diagrams showing architecture overview, executor flow, action provider pattern
+
+**DESIGN.md:**
+- Complete system pipeline documentation
+- All managers detailed (Coordinator, DataManager, ApiManager, CommandMerger, RateLimitManager, OptimisticManager, ResetWindowTracker)
+- Mermaid diagrams for polling pipeline, command execution pipeline, state diagrams
+- Auto quota calculation with weighted profiles
+- State integrity mechanisms (field locking, rollback context, optimistic updates)
+- Error handling and resilience patterns
+
+All content verified against actual codebase to ensure zero hallucination.
+
+* docs: add user-facing features guide
+
+Added comprehensive FEATURES.md explaining all major features in user-friendly language:
+
+**Smart Features:**
+- Smart Batching & Debouncing (5s delay, last-wins)
+- Auto Quota Management (weighted intervals, adaptive)
+- Optimistic Updates (instant UI, field protection)
+- Multi-Track Polling (fast/slow/medium/away/presence)
+
+**Bulk Operations:**
+- QuickActions (1 call for all zones)
+- Quota savings examples (90% reduction)
+
+**Intelligent Systems:**
+- Reset Window Detection (learns Tado's reset time)
+- Economy Mode Windows (night-time quota savings)
+- Throttle Protection (reserves calls for other apps)
+
+**Advanced Features:**
+- Proxy Support (3,000 calls/day)
+- Generation Support (v3 Classic & Tado X)
+- Command Rollback & Recovery
+- Command Merging & Deduplication
+- AC Control (v3 only)
+
+**Monitoring & Privacy:**
+- Diagnostic Sensors (quota, polling, throttle status)
+- Privacy & Security (automatic PII redaction)
+- State Synchronization (race condition prevention)
+
+Each feature includes:
+- What it is
+- Why it matters
+- Practical examples with numbers
+- Configuration snippets where applicable
+
+Complements ARCHITECTURE.md (technical) and DESIGN.md (system design) with user-focused explanations.
+
+* docs: clean up FAQ section (more concise, merged redundant questions)
+
+**Before:**
+- Question 1: 40+ lines with multiple subsections
+- Question 2: Repeated info from question 1
+- Questions 3+4: Redundant (both about needing both integrations)
+- Total: ~90 lines
+
+**After:**
+- Question 1: Merged climate entities + API quota reasoning into tables
+- Question 2: Combined "Do I need both?" + "Can I use alone?"
+- Total: ~30 lines (-60 lines)
+
+**Changes:**
+- Replaced verbose explanations with comparison tables
+- Removed repeated information between questions
+- Merged related questions
+- Kept all essential information but more scannable
+
+* docs: comprehensive v5.0.0 README update with FAQ and cleanup
+
+Complete documentation overhaul for v5.0.0 stable release with FAQ section,
+AC v3-only restriction, and redundancy reduction.
+
+## Code Changes
+
+**AC Control Restriction (v3 Only):**
+- Added `supported_generations={GEN_CLASSIC}` to AC entities
+- fan_speed, vertical_swing, horizontal_swing now v3-only
+- Tado X async_set_ac_setting is stub (does nothing)
+
+## README Updates
+
+**FAQ Section (NEW):**
+- "Where are my climate entities? Where is the current temperature?"
+- "Why doesn't Tado Hijack provide temperature control via cloud API?"
+  - API quota reality: 100-1k calls/day too limited for temp polling
+  - Polling would need 720-1,440 calls/day → quota exhausted
+  - HomeKit/Matter provide instant, local, zero-cost temperature control
+  - Strategy: Save API quota for cloud-only features
+- "Do I need both integrations running?"
+- "Can I use Tado Hijack without HomeKit/Matter?"
+- Clear explanation: HomeKit/Matter = Temperature Control, Hijack = Cloud Features
+- Setup steps: Install HomeKit/Matter first, then Tado Hijack
+
+**Features Section (Upfront Clarity):**
+- Added IMPORTANT box after "Tado Hijack Advantage"
+- Explicit: "Tado Hijack does NOT provide climate entities for heating zones"
+- TL;DR: HomeKit/Matter = Temperature Control | Tado Hijack = Cloud Features + Smarts
+
+**Generation Comparison (Simplified):**
+- Merged two large tables into one compact quick reference
+- Removed 48 lines of redundant v3 vs X explanations
+- One source of truth with links to FAQ for details
+- Removed date references (2016-2024, 2024+)
+
+**Installation (Clearer):**
+- User selects generation during setup (not auto-detected)
+- Shortened from 18 lines to 3 lines
+- Links to generation comparison
+
+**API Limits:**
+- Current: 1,000 calls/day
+- Future threat examples: 100 calls/day
+- Expected usage: 800-1,500 calls/day
+- Proxy: 3,000 calls/day
+
+**Bulk Operations:**
+- QuickActions: 1 call on BOTH generations (boost/off/resume)
+- set_mode_all_zones: v3=1 call, X=N calls
+- Removed "5 zones/call" limit (v3 bulk handles all zones)
+
+**AC Control:**
+- All AC entities marked "v3 AC Only"
+- Feature Matrix: AC Control ❌ for Tado X
+- Removed AC mentions from Tado X notes
+
+**Open Window Detection:**
+- Clarified: timeout config only (0=OFF, 5-1439min)
+- Detection requires Tado subscription
+
+**Redundancy Cleanup:**
+- Before: ~5 sections explaining v3 vs X
+- After: FAQ + quick reference + services table
+- Removed redundant IMPORTANT/NOTE boxes
+- API Consumption Table: added note about v3 endpoints
+
+## Result
+
+Clear documentation structure:
+- FAQ answers common questions directly (including API quota reasoning)
+- Quick reference for generation differences
+- Services table shows API impact
+- No duplicate explanations
+
 ## [5.0.0-dev.5](https://github.com/banter240/tado_hijack/compare/v5.0.0-dev.4...v5.0.0-dev.5) (2026-02-24)
 
 ### 🐛 Bug Fixes
