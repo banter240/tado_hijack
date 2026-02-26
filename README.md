@@ -967,16 +967,31 @@ Looking for more technical details or want to contribute?
 
 <br>
 
+### 🎯 Features Guide
+
+**[FEATURES.md](https://github.com/banter240/tado_hijack/blob/main/docs/FEATURES.md)** — User-friendly guide to all smart features:
+
+- Smart Batching & Debouncing (quota savings explained)
+- Auto Quota Management (weighted intervals, adaptive polling)
+- Optimistic Updates (instant UI response)
+- Multi-Track Polling (fast/slow/medium/away/presence)
+- Bulk Operations (1 API call for all zones)
+- Reset Window Detection (learns Tado's quota reset time)
+- Economy Mode, Throttle Protection, Proxy Support
+- Privacy & Security (automatic PII redaction)
+
+<br>
+
 ### 🏗️ Multi-Generation Architecture
 
 **[ARCHITECTURE.md](https://github.com/banter240/tado_hijack/blob/main/docs/ARCHITECTURE.md)** — Complete technical overview of multi-generation support:
 
 - Unified architecture supporting Tado v3 Classic (HomeKit) and Tado X (Matter)
-- Device linking strategies (serial matching for HomeKit, identifier format for Matter)
 - Provider pattern and generation abstraction (TadoV3 vs TadoX executors)
-- Unified polling system (DRY architecture, 1 API call per poll)
-- Data flow diagrams and selective merge protection
-- Modular executor system and command handling
+- Generation-specific API layers (my.tado.com vs hops.tado.com)
+- Duck typing strategy for data model compatibility
+- Feature matrix comparing v3 Classic and Tado X implementations
+- API layer architecture with mermaid diagrams
 
 <br>
 
@@ -985,23 +1000,11 @@ Looking for more technical details or want to contribute?
 **[DESIGN.md](https://github.com/banter240/tado_hijack/blob/main/docs/DESIGN.md)** — Deep dive into the integration's design:
 
 - Complete system pipeline and execution flow
-- Specialized managers (Data, API, RateLimitManager, OptimisticManager)
-- API Gold budget system and weighted quota distribution
+- Specialized managers (Coordinator, DataManager, ApiManager, CommandMerger, RateLimitManager, OptimisticManager)
+- Auto quota calculation with weighted profiles
 - State integrity mechanisms (Field Locking, Pending Commands, Rollback Context)
-- Rate limit bypass via API Proxy
+- Error handling and resilience patterns
 - Concurrency control and thread-safety
-
-<br>
-
-### 🛠️ Developer Guide
-
-**[DEVELOPMENT.md](https://github.com/banter240/tado_hijack/blob/main/docs/DEVELOPMENT.md)** — Everything you need for local development:
-
-- Dummy simulation environment (test without physical hardware)
-- Local development setup and workflow
-- Code structure and key concepts for contributors
-- Testing checklist and debugging tips
-- Contributing guidelines
 
 <br>
 

@@ -51,8 +51,8 @@ graph TB
     end
 
     subgraph "Generation Abstraction"
-        Provider{Provider<br/>TadoV3Mapper | TadoXMapper}
-        Executor{Executor<br/>TadoV3Executor | TadoXExecutor}
+        Provider{Provider<br/>TadoV3Mapper or TadoXMapper}
+        Executor{Executor<br/>TadoV3Executor or TadoXExecutor}
     end
 
     subgraph "API Layer - v3 Classic"
