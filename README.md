@@ -915,94 +915,43 @@ logger:
 
 <br>
 
-### Where are my climate entities? Where is the current temperature?
+### Where are my climate entities and current temperature?
 
-**Short Answer:** Tado Hijack does **NOT** provide `climate` entities for heating zones. You need the **HomeKit Device** integration (v3 Classic) or **Matter** integration (Tado X) for temperature control.
+Tado Hijack does **NOT** provide `climate` entities for heating zones. You need **HomeKit Device** (v3) or **Matter** (Tado X) for temperature control.
 
-<br>
+**Why use local protocols instead of cloud API?**
 
-**Why?**
+| Reason | Explanation |
+| :----- | :---------- |
+| **API Quota** | Accurate temp polling needs 720-1,440 calls/day → quota exhausted. Current limit is 1,000 calls/day. |
+| **Speed** | HomeKit/Matter = instant response. Cloud API = latency + polling delays. |
+| **Reliability** | Local protocols work offline. Cloud API requires internet. |
+| **Cost** | HomeKit/Matter = zero API calls. Cloud API = every action costs quota. |
 
-Tado heating zones work via **local protocols** (HomeKit for v3, Matter for Tado X) that provide:
-- `climate.living_room` - Temperature control
-- Current temperature readings
-- Target temperature sliders
-- Heat/Off modes
+**What each integration provides:**
 
-These local integrations are **fast, reliable, and work offline**. Tado Hijack doesn't duplicate this — instead, it **enhances** your local devices with cloud-only features that HomeKit/Matter can't access:
-- Smart Schedule controls (`switch.schedule`)
-- Hot Water management (`water_heater.hot_water`) — v3 only
-- AC Pro controls (fan speed, swing) — v3 only
-- Hardware settings (Child Lock, Temperature Offset)
-- Device metadata (Battery %, Firmware, Connection status)
+| Integration | Temperature Control | Cloud Features | API Calls |
+| :---------- | :-----------------: | :------------: | :-------: |
+| **HomeKit/Matter** | ✅ (`climate` entities, current temp) | ❌ | 0 |
+| **Tado Hijack** | ❌ | ✅ (Schedules, Hot Water, AC Pro, Hardware) | Optimized |
 
-<br>
-
-**Setup Steps:**
-
-1. **Install HomeKit Device (v3) or Matter (Tado X) integration first**
-   - This gives you `climate` entities for heating zones
-   - You'll see current temperature and can control heating
-
-2. **Then install Tado Hijack**
-   - Tado Hijack automatically detects your HomeKit/Matter devices
-   - Injects cloud features into the same device
-   - Result: One unified device with **both** local control **and** cloud features
+**Setup:** Install HomeKit/Matter first → then Tado Hijack → Features get injected into unified devices.
 
 <br>
 
-**Without HomeKit/Matter:**
-- Regular heating zones will **NOT** have climate entities in Tado Hijack
-- Hot Water zones (v3 only) will have `water_heater` entity
-- AC zones (v3 only) will have `climate` entity via cloud API
+### Do I need both integrations? Can I use Hijack alone?
 
-<br>
+**Recommended setup:** Both integrations for complete experience.
 
-### Why doesn't Tado Hijack provide temperature control via cloud API?
+**With both (Recommended):**
+- ✅ Temperature control (HomeKit/Matter)
+- ✅ Cloud features (Tado Hijack)
+- ✅ Unified devices (features injected into local entities)
 
-**API Quota Reality:**
-
-If Tado cuts the API to **100 calls/day** (or even current 1,000), using cloud API for temperature control would be **impossible**:
-
-- **Polling for current temp:** To show accurate temperature, you'd need frequent polls (every 1-2 minutes = 720-1,440 calls/day) → **Quota exhausted instantly**
-- **Setting temperature:** Every temperature change = 1 API call → Eating into your limited quota
-- **Pure redundancy:** HomeKit/Matter already provide instant, local temperature control with **zero** API calls
-
-**HomeKit/Matter is Better:**
-- ⚡ **Instant response** (no cloud latency)
-- 🔒 **Works offline** (no internet needed)
-- 💎 **Zero API cost** (local protocol)
-- 📡 **Real-time updates** (no polling delays)
-
-**Tado Hijack's Strategy:**
-- Let HomeKit/Matter handle what they do best (temperature control)
-- Focus API quota on cloud-only features (Schedules, Hot Water, Hardware settings)
-- Result: Best of both worlds without wasting precious API calls
-
-<br>
-
-### Do I need both integrations running?
-
-**Yes, for the best experience:**
-
-| Integration     | Provides                                   | Required?        |
-| :-------------- | :----------------------------------------- | :--------------- |
-| **HomeKit/Matter** | Temperature control, current temp, offline resilience | ✅ Highly recommended |
-| **Tado Hijack**    | Schedules, Hot Water, AC Pro, Hardware settings, API optimization | ✅ For cloud features |
-
-**Together:** Local speed + Cloud power in one unified device.
-
-<br>
-
-### Can I use Tado Hijack without HomeKit/Matter?
-
-**Yes, but limited:**
-- You'll get Hot Water (v3) and AC (v3) climate entities
-- You'll get all hardware devices (valves, thermostats, bridge)
-- You'll get schedule controls and device settings
-- **Missing:** Climate entities for regular heating zones
-
-**Recommendation:** Always set up HomeKit/Matter first for the complete experience.
+**Hijack only (Limited):**
+- ✅ Hot Water (v3) and AC (v3) climate entities via cloud API
+- ✅ Schedule controls, hardware devices, device settings
+- ❌ No climate entities for regular heating zones
 
 <br>
 
