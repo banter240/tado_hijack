@@ -21,7 +21,6 @@ if TYPE_CHECKING:
     from .lib.tadox_models import HopsRoomSnapshot
 
 from .const import (
-    API_RESET_RECOVERY_THRESHOLD,
     CONF_API_PROXY_URL,
     CONF_AUTO_API_QUOTA_PERCENT,
     CONF_DEBOUNCE_TIME,
@@ -239,7 +238,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         self._climate_to_zone: dict[str, int] = {}
         self._polling_calls_today = 0
         self._last_quota_reset: datetime | None = None
-        self._last_remaining_percent: float = 1.0
+        self._last_remaining: int | None = None
         self._force_next_update: bool = False
 
         # Adaptive quota reset window learning
@@ -260,6 +259,15 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
                 "Restored adaptive quota tracker state (history: %d)",
                 self.reset_tracker.history_count,
             )
+            # Without this, get_next_reset_time falls back to now+20h on restart.
+            if last_reset := self.reset_tracker.get_last_reset_original():
+                self._last_quota_reset = last_reset
+
+    def _save_reset_tracker(self) -> None:
+        """Persist reset tracker state to storage."""
+        self.hass.async_create_task(
+            self.storage.async_update("reset_tracker", self.reset_tracker.to_dict())
+        )
 
     def _update_climate_map(self) -> None:
         """Map HomeKit climate entities to Tado zones (v3 only).
@@ -606,40 +614,35 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         self.poll_scheduler.schedule_reset_poll(delay, self._on_reset_poll)
 
     def _detect_quota_reset(self) -> None:
-        """Detect quota reset by monitoring remaining percentage jump.
+        """Detect quota reset by monitoring any increase in remaining quota.
 
-        Uses adaptive learning to track actual reset times, independent of
-        time-of-day. Patterns are learned after 2+ consecutive observations.
+        Since quota only decreases through usage, any upward movement
+        unambiguously signals a reset. Uses adaptive learning to track actual
+        reset times, independent of time-of-day.
         """
-        is_detected, current_percent = check_quota_reset(
+        if check_quota_reset(
             limit=self.rate_limit.limit,
             remaining=self.rate_limit.remaining,
-            last_percent=self._last_remaining_percent,
-            threshold=API_RESET_RECOVERY_THRESHOLD,
-        )
-
-        if is_detected:
+            last_remaining=self._last_remaining,
+        ):
             reset_time = dt_util.now()
             self._last_quota_reset = reset_time
 
             self.reset_tracker.record_reset(reset_time)
-
-            self.hass.async_create_task(
-                self.storage.async_update("reset_tracker", self.reset_tracker.to_dict())
-            )
+            self._save_reset_tracker()
 
             expected = self.reset_tracker.get_expected_window()
             _LOGGER.info(
-                "Quota reset detected! remaining: %d/%d (%.1f%% -> %.1f%%), "
+                "Quota reset detected! remaining: %d/%d (%d -> %d), "
                 "expected window: %s",
                 self.rate_limit.remaining,
                 self.rate_limit.limit,
-                self._last_remaining_percent * 100,
-                current_percent * 100,
+                self._last_remaining,
+                self.rate_limit.remaining,
                 expected,
             )
 
-        self._last_remaining_percent = current_percent
+        self._last_remaining = self.rate_limit.remaining
 
     async def _on_reset_poll(self) -> None:
         """Execute automatic poll at quota reset time."""

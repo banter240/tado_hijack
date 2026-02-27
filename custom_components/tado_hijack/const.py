@@ -144,9 +144,8 @@ TERMINATION_NEXT_TIME_BLOCK: Final = "NEXT_TIME_BLOCK"
 # Reset happens somewhere in this window (Berlin time)
 API_RESET_HOUR_START: Final = 12
 API_RESET_HOUR_END: Final = 13
-API_RESET_RECOVERY_THRESHOLD: Final = 0.9
 API_RESET_MIN_PERCENT: Final = (
-    0.80  # Minimum % to consider valid reset (not fluctuation)
+    0.80  # Minimum % to consider valid reset (guards against throttled 0→1 edge case)
 )
 API_RESET_MIN_PLANNING_HOURS: Final = 20  # Minimum hours to plan ahead (conservative)
 API_RESET_MAX_PLANNING_HOURS: Final = (

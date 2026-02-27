@@ -42,39 +42,29 @@ def is_in_reset_safe_window(expected_hour: int | None = None) -> bool:
 def check_quota_reset(
     limit: int,
     remaining: int,
-    last_percent: float,
-    threshold: float,
+    last_remaining: int | None,
     min_reset_percent: float = API_RESET_MIN_PERCENT,
-) -> tuple[bool, float]:
-    """Check if a quota reset occurred based on percentage jump.
+) -> bool:
+    """Check if a quota reset occurred by detecting any increase in remaining quota.
 
-    Detects resets by observing a significant percentage jump, independent
-    of time of day. This allows the system to learn different reset schedules.
+    Since API quota can only decrease through usage, any upward movement
+    unambiguously signals a reset. The min_reset_percent guard prevents false
+    positives from throttled (0→1) edge cases.
 
     Args:
         limit: API quota limit
         remaining: Current remaining quota
-        last_percent: Previous remaining percentage
-        threshold: Recovery threshold to detect jump
-        min_reset_percent: Minimum % to consider valid reset (default 80%)
+        last_remaining: Previous remaining quota (None = first observation)
+        min_reset_percent: Minimum % the new remaining must reach to count as reset
 
     Returns:
-        (is_detected, current_percent)
+        True if a quota reset was detected
 
     """
-    if limit <= 0:
-        return False, 1.0
+    if limit <= 0 or last_remaining is None:
+        return False
 
-    current_percent = remaining / limit
-
-    # Detect reset: percentage jumped above threshold AND is high enough
-    # to be a real reset (prevents false positives from small fluctuations)
-    is_detected = (
-        last_percent < threshold
-        and current_percent >= threshold
-        and current_percent >= min_reset_percent
-    )
-    return is_detected, current_percent
+    return remaining > last_remaining and (remaining / limit) >= min_reset_percent
 
 
 def get_next_reset_time(
@@ -161,7 +151,7 @@ def calculate_remaining_polling_budget(
     seconds_until_reset: int,
     safety_reserve: int = 0,
 ) -> float:
-    """Calculate the remaining API budget for the rest of the day.
+    """Calculate remaining API budget for the rest of the day.
 
     Args:
         limit: Daily API quota limit
@@ -176,19 +166,42 @@ def calculate_remaining_polling_budget(
         Remaining budget for adaptive polling (excludes safety reserve)
 
     """
-    if remaining <= 0:
+    if remaining <= 0 or limit <= 0:
         return 0.0
 
     progress_remaining = seconds_until_reset / SECONDS_PER_DAY
 
-    reserved_background = background_cost_24h * progress_remaining
-    potentially_free = remaining - reserved_background - throttle_threshold
-
-    if potentially_free <= 0:
+    base_daily_budget = (limit - background_cost_24h - throttle_threshold) * (
+        auto_quota_percent / 100.0
+    )
+    if base_daily_budget <= 0:
         return 0.0
 
-    # Calculate budget from quota percentage, then subtract safety reserve
-    budget = potentially_free * (auto_quota_percent / 100.0)
+    calls_consumed = max(0, limit - remaining)
+    background_consumed = background_cost_24h * (1.0 - progress_remaining)
+
+    # Raise the floor when external usage has consumed more than the reserved threshold.
+    expected_polling_consumed = base_daily_budget * (1.0 - progress_remaining)
+    inferred_external = max(
+        0.0, float(calls_consumed) - background_consumed - expected_polling_consumed
+    )
+    effective_threshold = max(float(throttle_threshold), inferred_external)
+
+    max_daily_poll_budget = max(
+        0.0,
+        (limit - background_cost_24h - effective_threshold)
+        * (auto_quota_percent / 100.0),
+    )
+    if max_daily_poll_budget <= 0:
+        return 0.0
+
+    polling_consumed = max(0.0, float(calls_consumed) - background_consumed)
+    planned_budget = max(0.0, max_daily_poll_budget - polling_consumed)
+
+    future_bg = background_cost_24h * progress_remaining
+    available_now = max(0.0, remaining - throttle_threshold - future_bg)
+
+    budget = min(planned_budget, available_now)
     return max(0.0, budget - safety_reserve)
 
 

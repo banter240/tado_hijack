@@ -397,20 +397,25 @@ Other integrations require constant babysitting:
 
 **The Math behind the Intelligence:**
 
-The system calculates your remaining budget by subtracting the **pro-rated background reserve** and your **protection buffer** from the currently reported remaining quota:
+The system distributes your daily quota budget across the full day, and continuously recalculates how much is left for polling:
 
 ```
-# 1. Background Reserve: Pro-rated cost for 24h maintenance syncs (Offsets, etc.)
-RESERVED_BACKGROUND = Background_Sync_Cost_24h * (Seconds_Until_Reset / 86400)
+# 1. Daily polling budget based on your total limit
+DAILY_CEILING = (Limit - Background_24h - Throttle_Threshold) × Auto_API_Quota_%
 
-# 2. Potentially Free: Your spendable quota minus the background reserve and your buffer
-POTENTIALLY_FREE = Remaining_Quota - RESERVED_BACKGROUND - Throttle_Threshold
+# 2. Effective threshold rises with actual external usage above the configured floor
+INFERRED_EXTERNAL   = max(0, Consumed - Background_Consumed - Expected_Polling)
+EFFECTIVE_THRESHOLD = max(Throttle_Threshold, INFERRED_EXTERNAL)
+DAILY_CEILING       = (Limit - Background_24h - EFFECTIVE_THRESHOLD) × Auto_API_Quota_%
 
-# 3. Remaining Budget: Target percentage of the potentially free quota
-REMAINING_BUDGET = Max(0, POTENTIALLY_FREE * Auto_API_Quota_%)
+# 3. How much of that budget is still available
+PLANNED_BUDGET = DAILY_CEILING - (Consumed - Background_Consumed)
 
-# 4. Safety Reserve: Calls reserved for reset window uncertainty
-FINAL_BUDGET = Max(0, REMAINING_BUDGET - Safety_Reserve)
+# 4. Capped against what is actually remaining in your account
+AVAILABLE_NOW = Remaining - Throttle_Threshold - Future_Background
+
+# 5. Final budget for the rest of the day
+FINAL_BUDGET = max(0, min(PLANNED_BUDGET, AVAILABLE_NOW) - Safety_Reserve)
 ```
 
 > **💡 Adaptive Reset Window Learning:**
