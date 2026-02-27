@@ -1,3 +1,34 @@
+## [5.0.0-dev.7](https://github.com/banter240/tado_hijack/compare/v5.0.0-dev.6...v5.0.0-dev.7) (2026-02-27)
+
+### 🐛 Bug Fixes
+
+* fix(quota): improve reset detection and budget calculation
+
+Replace unreliable threshold-based reset detection with monotonic increase
+check. The previous implementation missed resets in two scenarios:
+- When last remaining percentage was already above threshold (e.g., 95% → 100%)
+- When external API consumers depleted >10% between reset and next poll
+
+Changes:
+- Detect quota resets by checking if remaining > last_remaining (any upward
+  movement unambiguously signals reset since quota only decreases via usage)
+- Track absolute remaining count instead of percentage to avoid float precision
+  issues and simplify logic
+- Remove API_RESET_RECOVERY_THRESHOLD constant (no longer needed)
+- Fix quota budget drift by anchoring daily ceiling to rate limit instead of
+  current remaining, preventing monotonic interval decrease
+- Add available_now hard cap (remaining - threshold - future_background) so
+  budget adapts to actual quota depletion
+- Raise effective floor when external calls exceed throttle_threshold by using
+  inferred external usage in ceiling calculation
+- Restore _last_quota_reset from persistent storage on Home Assistant restart
+  to prevent fallback to default 20h window
+- Extract _save_reset_tracker() helper method to centralize storage logic
+- Remove unused walrus operator variable flagged by ruff linter
+
+The new detection logic uses a simple guard: remaining > last_remaining AND
+current_percent >= 0.80, with None as sentinel for first observation.
+
 ## [5.0.0-dev.6](https://github.com/banter240/tado_hijack/compare/v5.0.0-dev.5...v5.0.0-dev.6) (2026-02-26)
 
 ### 🐛 Bug Fixes
