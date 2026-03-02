@@ -3,7 +3,7 @@ set_mode:
   description: "Set a manual mode (overlay) with optional timer for Heating and AC zones."
   fields:
     entity_id:
-      description: "Any Tado Hijack zone entity (e.g. climate.living_room or water_heater.hot_water)."
+      description: "Any Tado zone entity (e.g. climate.living_room, switch.living_room_schedule). Device entities (e.g. TRV battery) will automatically resolve to their zone."
       required: true
       selector:
         entity:

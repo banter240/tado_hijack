@@ -41,6 +41,11 @@ class EntityResolver:
                 self._cache[entity_id] = zone_id
                 return zone_id
 
+            # Try to resolve via device serial_no (for TRV/device entities)
+            if (zone_id := self._resolve_device_to_zone(entry.unique_id)) is not None:
+                self._cache[entity_id] = zone_id
+                return zone_id
+
         # Deep scan
         _LOGGER.debug("Starting deep entity registry scan for %s", entity_id)
         target_name = entity_id.split(".", 1)[-1]
@@ -84,6 +89,31 @@ class EntityResolver:
             for i, part in enumerate(parts):
                 if part == "zone" and i + 1 < len(parts) and parts[i + 1].isdigit():
                     return int(parts[i + 1])
+        except (ValueError, IndexError, AttributeError):
+            pass
+        return None
+
+    def _resolve_device_to_zone(self, unique_id: str) -> int | None:
+        """Find zone owning device by extracting serial_no from unique_id.
+
+        Format: {entry_id}_{type}_{serial_no}
+        Examples: battery_RU1234567, child_lock_VA9876543
+        """
+        try:
+            parts = unique_id.split("_")
+            if len(parts) >= 3:
+                serial_no = parts[-1]
+
+                for zone in self.coordinator.zones_meta.values():
+                    for device in zone.devices:
+                        if device.serial_no == serial_no:
+                            _LOGGER.debug(
+                                "Resolved device %s to zone %d via serial %s",
+                                unique_id,
+                                zone.id,
+                                serial_no,
+                            )
+                            return zone.id
         except (ValueError, IndexError, AttributeError):
             pass
         return None
