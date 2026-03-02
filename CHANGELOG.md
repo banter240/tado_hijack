@@ -1,3 +1,23 @@
+## [5.0.0-dev.11](https://github.com/banter240/tado_hijack/compare/v5.0.0-dev.10...v5.0.0-dev.11) (2026-03-02)
+
+### 🐛 Bug Fixes
+
+* fix: resolve device entities to their zone in set_mode service
+
+Device entities (battery, child_lock, connection) can now be used in
+set_mode service and will automatically resolve to their parent zone.
+
+EntityResolver extracts serial_no from device unique_id and looks up
+which zone owns that device in zones_meta.
+
+This improves UX by accepting any tado_hijack entity selection while
+maintaining correct zone resolution.
+
+
+### 📚 Documentation
+
+* docs(readme): reformat table of contents and add support section
+
 ## [5.0.0-dev.10](https://github.com/banter240/tado_hijack/compare/v5.0.0-dev.9...v5.0.0-dev.10) (2026-03-02)
 
 ### 🐛 Bug Fixes
