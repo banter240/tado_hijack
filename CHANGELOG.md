@@ -1,3 +1,52 @@
+## [5.0.0-dev.8](https://github.com/banter240/tado_hijack/compare/v5.0.0-dev.7...v5.0.0-dev.8) (2026-03-02)
+
+### 🐛 Bug Fixes
+
+* fix: correct all hallucinations in FEATURES.md with verified code references
+
+**FEATURES.md - Corrected hallucinations:**
+
+1. **Bulk Operations (lines 127-145)**
+   - ❌ Was: Services (tado_hijack.resume_all_schedules)
+   - ✅ Now: Button entities (button.tado_resume_all_schedules)
+   - Added automation example showing button.press service
+
+2. **Economy Mode (lines 226-239)**
+   - ❌ Was: configuration.yaml with YAML config
+   - ✅ Now: Config Flow UI (Settings → Configure → Reduced Polling Schedule)
+   - Verified: CONF_REDUCED_POLLING_ACTIVE, _START, _END, _INTERVAL
+
+3. **Throttle Protection (lines 250-282)**
+   - ❌ Was: "for other apps (Tado official app)"
+   - ✅ Now: "for external use" - Tado official app has separate OAuth quota
+   - ❌ Was: configuration.yaml config
+   - ✅ Now: Config Flow UI (API Quota & Rate Limiting section)
+   - Verified: CONF_THROTTLE_THRESHOLD, CONF_DISABLE_POLLING_WHEN_THROTTLED
+
+4. **Proxy Support (lines 284-315)**
+   - ❌ Was: "3,000 calls/day" (hallucinated number)
+   - ✅ Now: "Quota limit depends on proxy provider"
+   - ❌ Was: configuration.yaml config
+   - ✅ Now: Config Flow UI (Advanced & Debug section)
+   - Verified: CONF_API_PROXY_URL, CONF_PROXY_TOKEN
+
+5. **Diagnostic Sensors (lines 496-522)**
+   - ❌ Was: Hallucinated sensors (api_calls_remaining, api_calls_limit, api_calls_used, api_calls_percent, poll_interval, poll_interval_next, throttle_status)
+   - ✅ Now: ALL real sensors from definitions.py:
+     * API Quota: api_limit, api_remaining
+     * Reset Detection: quota_reset_next, quota_reset_last, quota_reset_expected_window, quota_reset_pattern_confidence, quota_reset_history_count
+     * Polling Intervals: current_zone_interval, min_interval_configured, min_interval_enforced, reduced_polling_interval, presence_poll_interval, slow_poll_interval, offset_poll_interval
+     * Other: debounce_time
+
+**Code references verified:**
+- config_flow.py (lines 31-443) - Config Flow UI options
+- const.py (line 61) - DEFAULT_THROTTLE_THRESHOLD = 20
+- definitions.py (lines 658-749) - All diagnostic sensors
+- definitions.py (lines 1220-1232) - Bulk operation buttons
+- reset_window_tracker.py (lines 85-104) - Reset detection logic
+
+All claims now backed by actual code implementation.
+
 ## [5.0.0-dev.7](https://github.com/banter240/tado_hijack/compare/v5.0.0-dev.6...v5.0.0-dev.7) (2026-02-27)
 
 ### 🐛 Bug Fixes
