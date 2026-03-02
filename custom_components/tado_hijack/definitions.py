@@ -1234,7 +1234,7 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     create_zone_button(
         key="resume_schedule",
         press_fn=lambda c, zid: c.async_set_zone_auto(zid),
-        supported_zone_types={ZONE_TYPE_HEATING},
+        supported_zone_types={ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING},
         unique_id_suffix="resume",
     ),
     create_home_switch(
@@ -1285,7 +1285,7 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         turn_off_fn=lambda c, zid: c.async_set_zone_off(zid),
         optimistic_key="overlay",
         is_inverted=True,
-        supported_zone_types={ZONE_TYPE_HEATING},
+        supported_zone_types={ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING},
         translation_key="schedule",
         unique_id_suffix="sch",
     ),

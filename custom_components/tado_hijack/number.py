@@ -176,7 +176,7 @@ class TadoGenericZoneNumber(
             zone_name,
         )
         TadoGenericNumberMixin.__init__(self, definition)
-        self._attr_unique_id = f"zone_{zone_id}_{self._get_unique_id_suffix()}"
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_zone_{zone_id}_{self._get_unique_id_suffix()}"
         self._update_dynamic_ranges()
 
     async def async_added_to_hass(self) -> None:

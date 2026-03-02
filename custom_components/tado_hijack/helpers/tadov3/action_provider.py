@@ -260,6 +260,12 @@ class TadoV3ActionProvider(TadoActionProvider):
             if val:
                 val = val.upper()
             fields["fanLevel"] = str(val if val in lvl_caps else lvl_caps[0])
+        else:
+            # Preserve current fanLevel when changing modes (API requires consistency)
+            val = getattr(state.setting, "fan_level", None)
+            if val:
+                val = val.upper()
+                fields["fanLevel"] = str(val)
 
         return fields
 
@@ -290,5 +296,16 @@ class TadoV3ActionProvider(TadoActionProvider):
                     if val in cap_values
                     else ("OFF" if "OFF" in cap_values else cap_values[0])
                 )
+            else:
+                # Preserve current swing setting when changing modes (API requires consistency)
+                opt_val = (
+                    self.coordinator.optimistic._store.get("zone", {})
+                    .get(zone_id, {})
+                    .get(attr_name, (None, 0))[0]
+                ) or getattr(state.setting, attr_name, None)
+
+                if opt_val:
+                    val = opt_val.upper()
+                    fields[api_key] = str(val)
 
         return fields
