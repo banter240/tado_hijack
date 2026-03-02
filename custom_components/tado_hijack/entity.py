@@ -387,7 +387,12 @@ class TadoZoneEntity(TadoEntity):
             )
 
         return DeviceInfo(
-            identifiers={(DOMAIN, f"{self.coordinator.config_entry.entry_id}_zone_{self._zone_id}")},
+            identifiers={
+                (
+                    DOMAIN,
+                    f"{self.coordinator.config_entry.entry_id}_zone_{self._zone_id}",
+                )
+            },
             name=self._zone_name,
             manufacturer="Tado",
             model=model,
@@ -421,7 +426,12 @@ class TadoHotWaterZoneEntity(TadoEntity):
             raise RuntimeError("Config entry not available")
         # Use zone name directly - Tado typically names it "Hot Water" already
         return DeviceInfo(
-            identifiers={(DOMAIN, f"{self.coordinator.config_entry.entry_id}_zone_{self._zone_id}")},
+            identifiers={
+                (
+                    DOMAIN,
+                    f"{self.coordinator.config_entry.entry_id}_zone_{self._zone_id}",
+                )
+            },
             name=self._zone_name,
             manufacturer="Tado",
             model="Hot Water Zone",
@@ -468,7 +478,10 @@ class TadoDeviceEntity(TadoEntity):
             name=f"tado {model_name} {self._short_serial}",
             manufacturer="Tado",
             model=model_name,
-            via_device=(DOMAIN, f"{self.coordinator.config_entry.entry_id}_zone_{self._zone_id}"),
+            via_device=(
+                DOMAIN,
+                f"{self.coordinator.config_entry.entry_id}_zone_{self._zone_id}",
+            ),
             sw_version=self._fw_version,
             serial_number=self._serial_no,
         )

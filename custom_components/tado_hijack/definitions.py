@@ -1324,6 +1324,7 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         key="fan_speed",
         value_fn=lambda c, zid: (
             getattr(c.data.zone_states.get(str(zid)).setting, "fan_speed", None)
+            or getattr(c.data.zone_states.get(str(zid)).setting, "fan_level", None)
             if c.data.zone_states.get(str(zid))
             and c.data.zone_states.get(str(zid)).setting
             else None
