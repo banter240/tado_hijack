@@ -6,7 +6,7 @@ User-friendly guide to Tado Hijack's smart features and how they benefit you.
 
 ## 🚀 Smart Batching & Debouncing
 
-**What it is:** When you rapidly adjust your thermostat slider, Tado Hijack waits 5 seconds before sending the final value to Tado's API.
+**What it is:** When you make rapid changes (multiple service calls, button clicks, or automation adjustments), Tado Hijack waits 5 seconds before sending the final value to Tado's API.
 
 **Why it matters:**
 - Saves API quota (1 call instead of 10+ calls)
@@ -15,16 +15,31 @@ User-friendly guide to Tado Hijack's smart features and how they benefit you.
 
 **Example:**
 ```
-You drag temperature slider: 20°C → 21°C → 22°C → 23°C → 24°C
-Traditional integration: 5 API calls
-Tado Hijack: 1 API call (with final value 24°C)
+Scenario 1: Hot Water Climate Entity (v3)
+→ User clicks "Turn On" button
+→ User clicks "Boost" button 2 seconds later
+Traditional integration: 2 API calls
+Tado Hijack: 1 API call (merged)
+
+Scenario 2: Automation Adjusts Multiple Zones
+→ Automation sets zone 5 to 21°C
+→ Automation sets zone 6 to 22°C (0.5s later)
+→ Automation sets zone 7 to 20°C (1s later)
+Traditional integration: 3 API calls
+Tado Hijack: 1 API call (all merged into batch)
+
+Scenario 3: Temperature Offset Number Entity
+→ User clicks + button twice
+→ Offset changes: 0.0 → +0.5 → +1.0
+Traditional integration: 2 API calls
+Tado Hijack: 1 API call (final value +1.0)
 ```
 
 **How it works:**
 - First change starts 5-second timer
 - Subsequent changes reset the timer
 - Timer expires → sends final value
-- Multiple zones changed → merged into single batch
+- Multiple zones/devices changed → merged into single batch
 
 ---
 
@@ -70,7 +85,7 @@ Economy window (night): 0.5× weight → less frequent polls
 
 **Example:**
 ```
-You set temperature to 22°C
+You adjust AC climate entity temperature to 22°C (v3)
 → UI shows 22°C immediately
 → API call happens in background
 → Polling paused for this field
@@ -111,9 +126,23 @@ Savings: 90% fewer API calls
 
 **Access via Home Assistant:**
 ```yaml
-service: tado_hijack.resume_all_schedules
-service: tado_hijack.boost_all_zones
-service: tado_hijack.turn_off_all_zones
+# Button entities (press in UI or via automation)
+button.tado_resume_all_schedules
+button.tado_boost_all_zones
+button.tado_turn_off_all_zones
+```
+
+**Example automation:**
+```yaml
+automation:
+  - alias: "Resume all zones at 10 PM"
+    trigger:
+      - platform: time
+        at: "22:00:00"
+    action:
+      - service: button.press
+        target:
+          entity_id: button.tado_resume_all_schedules
 ```
 
 ---
@@ -168,11 +197,14 @@ With auto-quota enabled: Dynamically adjusted to stay within limit
 
 12:30 PM: Quota jumps from 50 → 980
 → Reset detected and recorded
+→ Timestamp normalized to 12:30 (groups resets in same hour)
 → Predicts next reset: tomorrow at 12:30 PM
 → Resumes normal polling with fresh quota
 
-Confidence increases with each observed reset
-After 7 days: Highly accurate predictions
+Pattern learning:
+- First reset: Confidence = "single_observation" (recorded, not trusted yet)
+- Second reset in same hour (12:XX): Confidence = "learned" (pattern confirmed)
+- Default window: 12:00-13:00 Berlin time (used before pattern learned)
 ```
 
 **Diagnostic sensors:**
@@ -192,18 +224,17 @@ After 7 days: Highly accurate predictions
 - Works with weighted quota calculation
 
 **Configuration:**
-```yaml
-# configuration.yaml
-tado_hijack:
-  economy_windows:
-    - start: "22:00"
-      end: "07:00"
-      behavior: "reduced"  # or "disabled"
-```
+Via Home Assistant UI: **Settings → Integrations → Tado Hijack → Configure → Reduced Polling Schedule**
+
+Options:
+- **Active:** Enable reduced polling window (boolean)
+- **Start Time:** When to begin reduced polling (e.g., 22:00)
+- **End Time:** When to resume normal polling (e.g., 07:00)
+- **Interval:** Polling interval during window in seconds (0 = disabled, >0 = reduced)
 
 **Behaviors:**
-- **Reduced (50%):** Polls half as often during window
-- **Disabled:** No polling at all during window
+- **Interval = 0:** No polling during window
+- **Interval > 0:** Custom interval (e.g., 300s = every 5 minutes)
 
 **Example:**
 ```
@@ -218,13 +249,15 @@ Daily quota usage optimized to your actual usage pattern
 
 ## 🛡️ Throttle Protection
 
-**What it is:** Reserves last 20 API calls for other apps (Tado official app, automations).
+**What it is:** Reserves last N API calls for external use (manual commands via HA, emergency changes).
 
 **Why it matters:**
-- Official app always works
-- Emergency manual control possible
-- Prevents integration from consuming 100% quota
+- Integration doesn't consume 100% of quota
+- Reserves calls for manual interventions
+- Emergency control always available
 - Configurable threshold
+
+**Important:** Tado official app uses its own OAuth credentials and has separate quota. This reserves calls for YOUR Home Assistant commands and scripts.
 
 **Behavior:**
 ```
@@ -234,51 +267,51 @@ Remaining calls: 500
 Remaining calls: 50
 → Status: Approaching limit, slowing down
 
-Remaining calls: 20
+Remaining calls: 20 (default threshold)
 → Status: Throttled
 → Option A: Stop polling entirely (reserve for manual use)
 → Option B: 15-minute intervals (minimal polling)
 ```
 
 **Configuration:**
-```yaml
-# configuration.yaml
-tado_hijack:
-  throttle_threshold: 20  # Calls to reserve
-  disable_polling_when_throttled: true  # Stop vs slow down
-```
+Via Home Assistant UI: **Settings → Integrations → Tado Hijack → Configure → API Quota & Rate Limiting**
+
+Options:
+- **Throttle Threshold:** Number of calls to reserve (default: 20)
+- **Disable Polling When Throttled:** Stop polling entirely vs slow to 15-min intervals
 
 ---
 
-## 🌐 Proxy Support (Unlimited Quota)
+## 🌐 Proxy Support
 
-**What it is:** Route API calls through community proxy for 3,000 calls/day instead of 1,000.
+**What it is:** Route API calls through an intermediary proxy server instead of directly to Tado API.
 
 **Why it matters:**
-- 3× more API quota
-- Enables aggressive polling (every 30 seconds)
+- Bypass personal quota limits (proxy uses its own credentials)
+- Quota limit depends on proxy provider
 - Same response format (transparent routing)
 - No changes to entity behavior
 
 **Setup:**
-```yaml
-# configuration.yaml
-tado_hijack:
-  proxy_url: "https://tado-proxy.example.com"
-  proxy_token: "your_token_here"
-```
+Via Home Assistant UI: **Settings → Integrations → Tado Hijack → Configure → Advanced & Debug**
+
+Options:
+- **API Proxy URL:** Proxy server base URL (e.g., `https://tado-proxy.example.com`)
+- **Proxy Token:** Authentication token for proxy access
 
 **How it works:**
 - Integration routes requests through proxy
-- Proxy forwards to Tado API with its own credentials
-- Proxy has higher quota limit
+- Proxy forwards to Tado API with its own OAuth credentials
+- Quota limits from proxy's rate limit headers
 - Response returned to integration unchanged
 
 **When to use:**
+- Exceeded Tado's API quota (1,000 calls/day)
 - Multiple automations requiring frequent updates
-- Large homes (10+ zones)
-- Fast polling for critical zones
-- Development/testing
+- Large homes (10+ zones) needing aggressive polling
+- Development/testing with high API usage
+
+**Note:** Proxy quota varies by provider. Check with your proxy service for specific limits.
 
 ---
 
@@ -370,7 +403,7 @@ homeId: "REDACTED"
 
 **How it works:**
 ```
-1. User sets temperature to 22°C
+1. User turns on AC climate entity and sets to 22°C (v3)
 2. Optimistic update: UI shows 22°C
 3. API call fails (network error)
 4. Rollback: UI reverts to previous value (20°C)
@@ -405,11 +438,11 @@ Command succeeds → discard rollback context
 **Example scenario:**
 ```
 Automation runs at 08:00:
-- Set zone 5 to 21°C
-- Set zone 6 to 22°C
-- Set zone 7 to 20°C
-- Enable child lock on device RU12345678
-- Set temperature offset +2.0 on device VA87654321
+- Call service: climate.set_temperature (zone 5 to 21°C)
+- Call service: climate.set_temperature (zone 6 to 22°C)
+- Call service: climate.set_temperature (zone 7 to 20°C)
+- Call service: switch.turn_on (child lock RU12345678)
+- Call service: number.set_value (temp offset +2.0 VA87654321)
 
 Traditional: 5 API calls
 Tado Hijack: 1 API call (all merged into batch)
@@ -464,15 +497,25 @@ Tado X uses Matter protocol for local control. AC capabilities are handled throu
 
 | Sensor | Description |
 |--------|-------------|
-| `sensor.tado_api_calls_remaining` | Calls left today |
-| `sensor.tado_api_calls_limit` | Daily limit (1,000 or 3,000) |
-| `sensor.tado_api_calls_used` | Calls used today |
-| `sensor.tado_api_calls_percent` | Percentage used |
-| `sensor.tado_quota_reset_next` | Predicted next reset time |
-| `sensor.tado_quota_reset_confidence` | Prediction confidence (%) |
-| `sensor.tado_poll_interval` | Current polling interval |
-| `sensor.tado_poll_interval_next` | Next calculated interval |
-| `sensor.tado_throttle_status` | normal / approaching / throttled |
+| **API Quota Sensors** | |
+| `sensor.tado_api_limit` | Daily API call limit (from rate limit headers) |
+| `sensor.tado_api_remaining` | API calls remaining today |
+| **Reset Detection Sensors** | |
+| `sensor.tado_quota_reset_next` | Predicted next reset time (timestamp) |
+| `sensor.tado_quota_reset_last` | Last observed reset time (timestamp) |
+| `sensor.tado_quota_reset_expected_window` | Expected reset window (e.g., "12:30 (learned)") |
+| `sensor.tado_quota_reset_pattern_confidence` | Confidence: "learned", "single_observation", or "default" |
+| `sensor.tado_quota_reset_history_count` | Number of recorded resets |
+| **Polling Interval Sensors** | |
+| `sensor.tado_current_zone_interval` | Current polling interval in seconds |
+| `sensor.tado_min_interval_configured` | User-configured minimum interval |
+| `sensor.tado_min_interval_enforced` | Actual enforced minimum (may differ due to throttling) |
+| `sensor.tado_reduced_polling_interval` | Interval during economy window |
+| `sensor.tado_presence_poll_interval` | Presence tracking interval (v3) |
+| `sensor.tado_slow_poll_interval` | Slow track interval (metadata) |
+| `sensor.tado_offset_poll_interval` | Offset track interval (v3) |
+| **Other Sensors** | |
+| `sensor.tado_debounce_time` | Command debounce time in seconds |
 
 **Example automation:**
 ```yaml
@@ -480,12 +523,12 @@ automation:
   - alias: "Notify when API quota low"
     trigger:
       - platform: numeric_state
-        entity_id: sensor.tado_api_calls_remaining
+        entity_id: sensor.tado_api_remaining
         below: 50
     action:
       - service: notify.mobile_app
         data:
-          message: "Tado API quota low: {{ states('sensor.tado_api_calls_remaining') }} calls remaining"
+          message: "Tado API quota low: {{ states('sensor.tado_api_remaining') }} calls remaining"
 ```
 
 ---
@@ -505,13 +548,13 @@ automation:
 Scenario: Polling and command happen at same time
 
 Without protection:
-1. User sets temp to 22°C
+1. User calls service to set AC temp to 22°C (v3)
 2. Polling fetches old state (20°C)
 3. Poll overwrites UI → shows 20°C (wrong!)
 4. User confused
 
 With protection:
-1. User sets temp to 22°C
+1. User calls service to set AC temp to 22°C (v3)
 2. Field "temperature" marked as protected
 3. Polling fetches old state (20°C)
 4. Poll skips merging "temperature" field

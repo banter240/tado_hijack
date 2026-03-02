@@ -172,7 +172,7 @@ sequenceDiagram
     ApiManager->>ApiManager: _action_queue["zone_5"] = cmd
     ApiManager->>Debounce: Start/Reset 5s timer
 
-    Note over Debounce: User drags slider<br/>from 22 to 24°C
+    Note over Debounce: Automation calls<br/>service twice
 
     User->>ActionProvider: climate.set_temperature(24°C)
     ActionProvider->>ApiManager: queue_command("zone_5", SET_OVERLAY)
@@ -187,8 +187,8 @@ sequenceDiagram
 
 **Key Features:**
 - **Debouncing:** Same key replaces previous command, timer resets
-- **Last-wins:** Rapid slider drags → only final value sent
-- **Batching:** Multiple zones changed → merged into single batch
+- **Last-wins:** Rapid service calls → only final value sent
+- **Batching:** Multiple zones/devices changed → merged into single batch
 - **Rollback context:** Stores old values for undo on API error
 
 **Protected Fields Management:**
