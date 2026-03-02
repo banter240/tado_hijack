@@ -1,3 +1,13 @@
+## [5.0.0-dev.10](https://github.com/banter240/tado_hijack/compare/v5.0.0-dev.9...v5.0.0-dev.10) (2026-03-02)
+
+### 🐛 Bug Fixes
+
+* fix(ac): support fan_level as fallback for fan_speed to improve heat pump compatibility
+
+- Add `fan_level` as a fallback for `fan_speed` in zone state definitions to properly support AC and Heat Pump devices that use this attribute.
+- Refactor `fanLevel` and `swing` preservation logic in `TadoV3ActionProvider` using walrus operators for cleaner state evaluation.
+- Apply code formatting to `DeviceInfo` tuples in `entity.py`.
+
 ## [5.0.0-dev.9](https://github.com/banter240/tado_hijack/compare/v5.0.0-dev.8...v5.0.0-dev.9) (2026-03-02)
 
 ### ⚠ BREAKING CHANGES
