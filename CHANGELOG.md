@@ -1,3 +1,28 @@
+## [5.0.0-dev.9](https://github.com/banter240/tado_hijack/compare/v5.0.0-dev.8...v5.0.0-dev.9) (2026-03-02)
+
+### ⚠ BREAKING CHANGES
+
+* Entity unique_ids now include config entry_id prefix.
+Existing installations will see entities recreated on upgrade.
+This is necessary for multi-account support.
+
+## Multi-Account Support
+- Add entry_id prefix to entity unique_ids (number.py)
+- Add entry_id prefix to device identifiers (entity.py)
+- Prevents zone/device collisions when multiple Tado accounts configured
+- Ensures proper device grouping per config entry
+
+## AC/Heat Pump Improvements
+- Add schedule switch for AIR_CONDITIONING zones
+- Add resume schedule button for AIR_CONDITIONING zones
+- Preserve fan and swing settings when changing AC modes
+- Heat pumps now have same schedule controls as heating zones
+- Prevents 422 errors when switching AC modes
+
+### ✨ New Features
+
+* feat: multi-account support, AC improvements
+
 ## [5.0.0-dev.8](https://github.com/banter240/tado_hijack/compare/v5.0.0-dev.7...v5.0.0-dev.8) (2026-03-02)
 
 ### 🐛 Bug Fixes
