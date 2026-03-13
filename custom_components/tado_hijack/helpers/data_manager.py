@@ -403,7 +403,7 @@ class TadoDataManager:
         self._last_slow_poll = now
 
     def _sync_optimistic_owd(self, zid: int, new_zone: Any) -> None:
-        """Sync OWD state from optimistic manager or cache."""
+        """Sync OWD state from optimistic manager."""
         opt_timeout = self.coordinator.optimistic.get_open_window(zid)
         if (
             opt_timeout is not None
@@ -412,11 +412,6 @@ class TadoDataManager:
         ):
             new_zone.open_window_detection.enabled = opt_timeout > 0
             new_zone.open_window_detection.timeout_in_seconds = opt_timeout
-        elif existing := self.zones_meta.get(zid):
-            if hasattr(existing, "open_window_detection") and hasattr(
-                new_zone, "open_window_detection"
-            ):
-                new_zone.open_window_detection = existing.open_window_detection
 
     async def _fetch_capabilities(self, zone_id: int) -> None:
         """Fetch and cache capabilities for a zone."""
@@ -548,10 +543,15 @@ class TadoDataManager:
         if not self.provider or self.coordinator.generation == GEN_X:
             return
 
+        # Don't overwrite cache while a SET_AWAY_TEMP command is pending —
+        # the API GET may race with the pending POST and return a stale value.
+
+        if f"set_away_temp_{zone_id}" in self.coordinator.api_manager.pending_keys:
+            return
+
         opt_val = self.coordinator.optimistic.get_away_temp(zone_id)
         if opt_val is not None:
             self.away_cache[zone_id] = float(opt_val)
-            _LOGGER.debug("Synced away config from optimistic for zone %d", zone_id)
             return
 
         try:
@@ -602,6 +602,7 @@ class TadoDataManager:
                 "Targeted capabilities fetch: could not resolve zone for %s, falling back",
                 entity_id,
             )
+            self.capabilities_cache.clear()
             return False
 
         # Bulk-only types (zone, metadata, presence, all): invalidate and signal full refresh

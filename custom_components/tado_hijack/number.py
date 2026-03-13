@@ -73,9 +73,6 @@ class TadoOptimisticNumber(TadoOptimisticMixin, RestoreEntity, NumberEntity):
 
         return float(val) if val is not None else None
 
-    def _get_actual_value(self) -> float | None:
-        raise NotImplementedError
-
 
 class TadoGenericNumberMixin(TadoDefinitionMixin):
     """Mixin for generic number logic."""
@@ -129,7 +126,7 @@ class TadoGenericNumberMixin(TadoDefinitionMixin):
 
 
 class TadoGenericDeviceNumber(
-    TadoDeviceEntity, TadoGenericNumberMixin, TadoOptimisticNumber
+    TadoGenericNumberMixin, TadoOptimisticNumber, TadoDeviceEntity
 ):
     """Generic number for Device scope."""
 
@@ -141,6 +138,7 @@ class TadoGenericDeviceNumber(
         zone_id: int,
     ) -> None:
         """Initialize the generic device number."""
+        TadoOptimisticNumber.__init__(self)
         TadoDeviceEntity.__init__(
             self,
             coordinator,
@@ -156,7 +154,7 @@ class TadoGenericDeviceNumber(
 
 
 class TadoGenericZoneNumber(
-    TadoZoneEntity, TadoGenericNumberMixin, TadoOptimisticNumber
+    TadoGenericNumberMixin, TadoOptimisticNumber, TadoZoneEntity
 ):
     """Generic number for Zone scope."""
 
@@ -168,6 +166,7 @@ class TadoGenericZoneNumber(
         zone_name: str,
     ) -> None:
         """Initialize the generic zone number."""
+        TadoOptimisticNumber.__init__(self)
         TadoZoneEntity.__init__(
             self,
             coordinator,

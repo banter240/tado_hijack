@@ -33,12 +33,15 @@ class TadoV3Executor(TadoExecutorBase):
         """Process the entire merged batch using Classic v3 logic."""
 
         # 1. Presence
-        if merged["presence"]:
+        if presence := merged["presence"]:
             await self._safe_execute(
                 "presence",
-                self.client.set_presence(merged["presence"]),
+                self.client.set_presence(presence),
                 rollback_fn=self._create_presence_rollback(merged.get("old_presence")),
-                context={"presence": merged["presence"]},
+                success_fn=lambda: self.coordinator.optimistic.set_presence(
+                    presence, grace_period=2.0
+                ),
+                context={"presence": presence},
             )
 
         # 2. Device Properties (Child Lock, Offset)
@@ -50,6 +53,10 @@ class TadoV3Executor(TadoExecutorBase):
                 rollback_fn=self._create_child_lock_rollback(
                     serial, rollback_child_locks.get(serial)
                 ),
+                success_fn=lambda s=serial,
+                e=enabled: self.coordinator.optimistic.set_child_lock(
+                    s, e, grace_period=2.0
+                ),
                 context={"serial": serial, "enabled": enabled},
             )
 
@@ -60,6 +67,10 @@ class TadoV3Executor(TadoExecutorBase):
                 self.client.set_temperature_offset(serial, offset),
                 rollback_fn=self._create_offset_rollback(
                     serial, rollback_offsets.get(serial)
+                ),
+                success_fn=lambda s=serial,
+                o=offset: self.coordinator.optimistic.set_offset(
+                    s, o, grace_period=2.0
                 ),
                 context={"serial": serial, "offset": offset},
             )
@@ -91,6 +102,10 @@ class TadoV3Executor(TadoExecutorBase):
                 rollback_fn=self._create_away_temp_rollback(
                     zid, rollback_away_temps.get(zid)
                 ),
+                success_fn=lambda zid=zid,
+                t=temp: self.coordinator.optimistic.set_away_temp(
+                    zid, t, grace_period=2.0
+                ),
                 context={"zone_id": zid, "temp": temp},
             )
 
@@ -104,6 +119,10 @@ class TadoV3Executor(TadoExecutorBase):
                 self.client.set_dazzle_mode(zid, enabled),
                 rollback_fn=self._create_dazzle_rollback(
                     zid, rollback_dazzle_modes.get(zid)
+                ),
+                success_fn=lambda zid=zid,
+                e=enabled: self.coordinator.optimistic.set_dazzle(
+                    zid, e, grace_period=2.0
                 ),
                 context={"zone_id": zid, "enabled": enabled},
             )
@@ -119,6 +138,10 @@ class TadoV3Executor(TadoExecutorBase):
                 rollback_fn=self._create_early_start_rollback(
                     zid, rollback_early_starts.get(zid)
                 ),
+                success_fn=lambda zid=zid,
+                e=enabled: self.coordinator.optimistic.set_early_start(
+                    zid, e, grace_period=2.0
+                ),
                 context={"zone_id": zid, "enabled": enabled},
             )
 
@@ -127,18 +150,25 @@ class TadoV3Executor(TadoExecutorBase):
             if self._should_skip_zone(zid):  # [DUMMY_HOOK]
                 continue
 
+            # Capture timeout for the lambda closure
+            timeout = data.get("timeout_seconds") or 0
+            enabled = data["enabled"]
+
             await self._safe_execute(
                 f"open_window_{zid}",
-                self.client.set_open_window_detection(
-                    zid, data["enabled"], data.get("timeout_seconds")
-                ),
+                self.client.set_open_window_detection(zid, enabled, timeout),
                 rollback_fn=self._create_open_window_rollback(
                     zid, rollback_open_windows.get(zid)
                 ),
+                success_fn=lambda zid=zid,
+                t=timeout,
+                e=enabled: self.coordinator.optimistic.set_open_window(
+                    zid, t if e else 0, grace_period=2.0
+                ),
                 context={
                     "zone_id": zid,
-                    "enabled": data["enabled"],
-                    "timeout_seconds": data.get("timeout_seconds"),
+                    "enabled": enabled,
+                    "timeout_seconds": timeout,
                 },
             )
 
@@ -155,12 +185,18 @@ class TadoV3Executor(TadoExecutorBase):
 
         if heating_resumes:
             if real_resumes := self._filter_real_zones(heating_resumes):
+
+                def _on_success_bulk(zid_list: list[int] = real_resumes) -> None:
+                    for zid in zid_list:
+                        self.coordinator.optimistic.clear_zone(zid)
+
                 await self._safe_execute(
                     "bulk_resume",
                     self.client.reset_all_zones_overlay(real_resumes),
                     rollback_fn=self._create_zones_rollback(
                         real_resumes, rollback_zones
                     ),
+                    success_fn=_on_success_bulk,
                     context={"zones": real_resumes},
                 )
 
@@ -173,6 +209,8 @@ class TadoV3Executor(TadoExecutorBase):
                     rollback_fn=self._create_zones_rollback(
                         overlay_zone_ids, rollback_zones
                     ),
+                    # Bulk overlays don't easily map back to optimistic per-field states here,
+                    # but CommandMerger already handled optimistic SET during queueing.
                     context={"overlays": real_overlays},
                 )
 
@@ -182,12 +220,7 @@ class TadoV3Executor(TadoExecutorBase):
     def _group_zone_actions(
         self, zones: dict[int, dict[str, Any] | None]
     ) -> tuple[list[int], list[dict[str, Any]], dict[int, dict[str, Any] | None]]:
-        """Separate actions by zone type and operation.
-
-        Returns:
-            (heating_resumes, heating_overlays, hot_water_actions)
-
-        """
+        """Separate actions by zone type and operation."""
         resumes, overlays, hw = [], [], {}
         for zid, data in zones.items():
             z = self.coordinator.zones_meta.get(zid)
@@ -223,23 +256,25 @@ class TadoV3Executor(TadoExecutorBase):
             if self._intercept_zone_command(zid, data):
                 continue
 
-            await self._apply_jitter()
-            try:
-                if data is None:
-                    await self.client.reset_hot_water_zone_overlay(zid)
+            def _on_success(zone_id: int = zid, payload: Any = data) -> None:
+                if payload is None:
+                    self.coordinator.optimistic.clear_zone(zone_id)
                 else:
-                    await self.client.set_hot_water_zone_overlay(zid, data)
-                _LOGGER.debug("Hot water command succeeded [zone_%d]", zid)
-            except Exception as e:
-                _LOGGER.error(
-                    "Failed hot water overlay for zone %d: %s (type: %s). Payload: %s",
-                    zid,
-                    e,
-                    type(e).__name__,
-                    data,
-                    exc_info=True,
-                )
-                # Rollback
-                rollback_fn = self._create_zones_rollback([zid], rollback_zones)
-                await rollback_fn()
-                _LOGGER.info("Rolled back [hot_water_zone_%d]", zid)
+                    setting = payload.get("setting", {})
+                    self.coordinator.optimistic.apply_zone_state(
+                        zone_id,
+                        overlay=True,
+                        power=setting.get("power"),
+                        temperature=setting.get("temperature", {}).get("celsius"),
+                        grace_period=2.0,
+                    )
+
+            await self._safe_execute(
+                f"hot_water_{zid}",
+                self.client.reset_hot_water_zone_overlay(zid)
+                if data is None
+                else self.client.set_hot_water_zone_overlay(zid, data),
+                rollback_fn=self._create_zones_rollback([zid], rollback_zones),
+                success_fn=_on_success,
+                context={"zone_id": zid, "payload": data},
+            )

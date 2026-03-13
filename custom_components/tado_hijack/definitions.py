@@ -75,10 +75,20 @@ def _get_owd_timeout(c: Any, zid: int) -> int:
     return 0
 
 
-def _get_away_temp(c: Any, zid: int) -> float:
-    """Resolve away temperature (optimistic > cache)."""
+def _get_away_temp(c: Any, zid: int) -> float | None:
+    """Resolve away temperature (optimistic > cache).
+
+    Returns None when not yet fetched, 0.0 when disabled, or the actual value.
+    """
     opt = c.optimistic.get_away_temp(zid)
-    return float(c.data.away_config.get(zid) or 0.0) if opt is None else float(opt)
+    if opt is not None:
+        return float(opt)
+
+    if zid not in c.data.away_config:
+        return None  # not yet fetched from API
+
+    raw = c.data.away_config[zid]
+    return float(raw) if raw is not None else 0.0
 
 
 def _get_next_reset_timestamp(c: Any) -> Any:
@@ -1121,7 +1131,9 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     create_zone_number(
         key="away_temperature",
         value_fn=lambda c, zid: (
-            0.0 if (val := _get_away_temp(c, zid)) <= 5.0 else val
+            None
+            if (val := _get_away_temp(c, zid)) is None
+            else (0.0 if val <= 5.0 else val)
         ),
         set_fn=lambda c, zid, val: c.async_set_away_temperature(
             zid, None if val < 5.0 else val

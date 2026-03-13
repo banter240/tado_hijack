@@ -147,10 +147,5 @@ class EntityResolver:
         if entity_id := ent_reg.async_get_entity_id("switch", DOMAIN, unique_id):
             entry = ent_reg.async_get(entity_id)
             if entry and entry.disabled:
-                _LOGGER.debug(
-                    "Zone %d excluded from bulk action: schedule switch %s is disabled",
-                    zone_id,
-                    entity_id,
-                )
                 return True
         return False

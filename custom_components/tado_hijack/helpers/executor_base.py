@@ -56,15 +56,17 @@ class TadoExecutorBase(ABC):
         label: str,
         coro: Any,
         rollback_fn: Any = None,
+        success_fn: Any = None,
         context: dict[str, Any] | None = None,
     ) -> bool:
-        """Execute command with error handling and optional rollback.
+        """Execute command with error handling and optional rollback/success handlers.
 
         Args:
             label: Human-readable label for logging
             coro: Coroutine to execute
-            rollback_fn: Optional async function to call on failure
-            context: Optional dict with context data for logging (e.g., zone_id, value, serial, temp)
+            rollback_fn: Optional async or sync function to call on failure
+            success_fn: Optional async or sync function to call on success
+            context: Optional dict with context data for logging
 
         Returns:
             True if successful, False otherwise
@@ -79,6 +81,12 @@ class TadoExecutorBase(ABC):
         try:
             await coro
             _LOGGER.debug("Executor succeeded [%s]", label)
+
+            # Handle Success Callback (Adaptive Shield Reset etc.)
+            if success_fn:
+                if asyncio.iscoroutine(res := success_fn()):
+                    await res
+
             return True
         except Exception as e:
             if context:
@@ -96,9 +104,13 @@ class TadoExecutorBase(ABC):
                     e,
                     type(e).__name__,
                 )
+
+            # Handle Rollback Callback
             if rollback_fn:
-                await rollback_fn()
+                if asyncio.iscoroutine(res := rollback_fn()):
+                    await res
                 _LOGGER.info("Rolled back [%s]", label)
+
             return False
 
     async def _apply_jitter(self) -> None:
@@ -146,116 +158,121 @@ class TadoExecutorBase(ABC):
             return True
         return False
 
-    # Centralized Rollback Factory Methods (DRY for v3 and X executors)
+    # Centralized Rollback Helpers (DRY)
+
+    def _rollback_optimistic(
+        self,
+        scope: str,
+        entity_id: str | int,
+        key: str,
+        restore_fn: Callable[[], Any] | None = None,
+    ) -> Callable[[], Coroutine[Any, Any, None]]:
+        """Create a standard rollback that clears optimistic state and restores data."""
+
+        async def rollback() -> None:
+            self.coordinator.optimistic.clear_optimistic(scope, entity_id, key)
+            if restore_fn:
+                if asyncio.iscoroutine(res := restore_fn()):
+                    await res
+                else:
+                    restore_fn()
+            self.coordinator.async_update_listeners()
+
+        return rollback
 
     def _create_presence_rollback(
         self, old_presence: str | None
     ) -> Callable[[], Coroutine[Any, Any, None]]:
-        """Create rollback function for presence with logging and data restoration."""
+        """Create rollback function for presence."""
 
-        async def rollback() -> None:
-            self.coordinator.optimistic.clear_presence()
+        async def restore() -> None:
             if old_presence and self.coordinator.data.home_state:
                 _LOGGER.info("Rolling back local presence state to %s", old_presence)
                 self.coordinator.data.home_state.presence = old_presence
-                self.coordinator.async_update_listeners()
             else:
-                # Fallback: Refresh presence from server if we can't restore from local state
-                _LOGGER.info(
-                    "No old presence value, triggering manual poll to recover state"
-                )
+                _LOGGER.info("Triggering manual poll to recover presence state")
                 await self.coordinator.async_manual_poll("presence")
 
-        return rollback
+        return self._rollback_optimistic("home", "global", "presence", restore)
 
     def _create_child_lock_rollback(
         self, serial: str, old_val: bool | None
     ) -> Callable[[], Coroutine[Any, Any, None]]:
-        """Create rollback function for child lock with logging and data restoration."""
+        """Create rollback function for child lock."""
 
-        async def rollback() -> None:
-            self.coordinator.optimistic.clear_child_lock(serial)
-            if old_val is not None and self.coordinator.devices_meta.get(serial):
-                self.coordinator.devices_meta[serial].child_lock_enabled = old_val
+        def restore() -> None:
+            if old_val is not None and (
+                dev := self.coordinator.devices_meta.get(serial)
+            ):
+                dev.child_lock_enabled = old_val
                 _LOGGER.info("Rolled back child_lock for %s", serial)
-                self.coordinator.async_update_listeners()
 
-        return rollback
+        return self._rollback_optimistic("device", serial, "child_lock", restore)
 
     def _create_offset_rollback(
         self, serial: str, old_val: float | None
     ) -> Callable[[], Coroutine[Any, Any, None]]:
-        """Create rollback function for temperature offset with logging and data restoration."""
+        """Create rollback function for temperature offset."""
 
-        async def rollback() -> None:
-            self.coordinator.optimistic.clear_offset(serial)
+        def restore() -> None:
             if old_val is not None:
                 self.coordinator.data_manager.offsets_cache[serial] = TemperatureOffset(
                     celsius=old_val, fahrenheit=old_val * 1.8 + 32
                 )
                 _LOGGER.info("Rolled back offset for %s", serial)
-                self.coordinator.async_update_listeners()
 
-        return rollback
+        return self._rollback_optimistic("device", serial, "offset", restore)
 
     def _create_away_temp_rollback(
         self, zone_id: int, old_val: float | None
     ) -> Callable[[], Coroutine[Any, Any, None]]:
-        """Create rollback function for away temperature with logging and data restoration."""
+        """Create rollback function for away temperature."""
 
-        async def rollback() -> None:
-            self.coordinator.optimistic.clear_away_temp(zone_id)
+        def restore() -> None:
             if old_val is not None:
                 self.coordinator.data_manager.away_cache[zone_id] = old_val
             else:
                 # Was OFF before: restore by removing the key
                 self.coordinator.data_manager.away_cache.pop(zone_id, None)
             _LOGGER.info("Rolled back away temp for zone %d", zone_id)
-            self.coordinator.async_update_listeners()
 
-        return rollback
+        return self._rollback_optimistic("zone", zone_id, "away_temp", restore)
 
     def _create_dazzle_rollback(
         self, zone_id: int, old_val: bool | None
     ) -> Callable[[], Coroutine[Any, Any, None]]:
-        """Create rollback function for dazzle mode with logging and data restoration."""
+        """Create rollback function for dazzle mode."""
 
-        async def rollback() -> None:
-            self.coordinator.optimistic.clear_dazzle(zone_id)
+        def restore() -> None:
             if old_val is not None and (
                 zone := self.coordinator.zones_meta.get(zone_id)
             ):
                 zone.dazzle_enabled = old_val
                 _LOGGER.info("Rolled back dazzle for zone %d", zone_id)
-                self.coordinator.async_update_listeners()
 
-        return rollback
+        return self._rollback_optimistic("zone", zone_id, "dazzle", restore)
 
     def _create_early_start_rollback(
         self, zone_id: int, old_val: bool | None
     ) -> Callable[[], Coroutine[Any, Any, None]]:
-        """Create rollback function for early start with logging and data restoration."""
+        """Create rollback function for early start."""
 
-        async def rollback() -> None:
-            self.coordinator.optimistic.clear_early_start(zone_id)
+        def restore() -> None:
             if old_val is not None and (
                 zone := self.coordinator.zones_meta.get(zone_id)
             ):
-                # We need to ensure we're dealing with a Zone object that has this attribute
                 if hasattr(zone, "early_start_enabled"):
                     setattr(zone, "early_start_enabled", old_val)
                 _LOGGER.info("Rolled back early start for zone %d", zone_id)
-                self.coordinator.async_update_listeners()
 
-        return rollback
+        return self._rollback_optimistic("zone", zone_id, "early_start", restore)
 
     def _create_open_window_rollback(
         self, zone_id: int, old_val: Any
     ) -> Callable[[], Coroutine[Any, Any, None]]:
-        """Create rollback function for open window detection with logging and data restoration."""
+        """Create rollback function for open window detection."""
 
-        async def rollback() -> None:
-            self.coordinator.optimistic.clear_open_window(zone_id)
+        def restore() -> None:
             if old_val is not None and (
                 zone := self.coordinator.zones_meta.get(zone_id)
             ):
@@ -266,9 +283,8 @@ class TadoExecutorBase(ABC):
                     else:
                         zone.open_window_detection.enabled = old_val
                     _LOGGER.info("Rolled back open window for zone %d", zone_id)
-                    self.coordinator.async_update_listeners()
 
-        return rollback
+        return self._rollback_optimistic("zone", zone_id, "open_window", restore)
 
     def _create_zones_rollback(
         self, zone_ids: list[int], rollback_data: dict[int, Any]
