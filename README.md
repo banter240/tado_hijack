@@ -88,6 +88,7 @@ Tado is forcing you into a subscription by choking the "free" API — **already 
 > - Cloud-only features: Schedules, Hot Water, AC Pro, QuickActions
 > - Hardware settings: Child Lock, Temperature Offset, Battery status
 > - API quota management and intelligent polling
+> - **Indoor Climate Intelligence:** Dew point, mold risk (level + binary), absolute humidity, and ventilation recommendation sensors per zone — for both v3 Classic and Tado X
 > - **Device Unification:** Injects these features into your existing HomeKit devices (V3 only - Matter lacks serial numbers for linking)
 > - **V2 Support:** First integration supporting legacy GW bridges via Full Cloud Mode
 >
@@ -127,6 +128,7 @@ Tado is forcing you into a subscription by choking the "free" API — **already 
 | **Smart Schedules Switch**         |      ✅       |      ❌      |       ✅ **Yes**        |
 | **AC Pro (Fan/Swing)**             |      ✅       |      ❌      |    ✅ **Full (v3)**     |
 | **Child Lock / OWD / Early**       |      ✅       |      ❌      |       ✅ **Yes**        |
+| **Indoor Climate Sensors**         |      ❌       |      ❌      |  ✅ **Both Gens**       |
 | **Local Control (v3)**             |      ❌       |      ✅      |    ✅ (via HK Link)     |
 | **Tado X Support**                 |      ❌       |      ❌      |  ✅ **Local + Cloud**   |
 | **Multi-Generation Support**       |      ❌       |   v3 only    |   ✅ **v3 / X / v2**    |
@@ -159,16 +161,17 @@ Tado is forcing you into a subscription by choking the "free" API — **already 
 
 **Quick Reference:** This integration supports V2 (GW bridges), V3 Classic (HomeKit), and Tado X (Matter).
 
-| Feature Category          | V2 (GW) | v3 Classic | Tado X | Notes                        |
-| :------------------------ | :-----: | :--------: | :----: | :--------------------------- |
-| **Temperature Control**   | ☁️ |     ✅     |   ✅   | All: Cloud mode available / V3: HomeKit / X: Matter |
-| **Hot Water**             |     ✅     |   ❌   | Cloud API + water_heater entity |
-| **AC Pro (Fan/Swing)**    |     ✅     |   ❌   | Cloud API + climate entity   |
-| **QuickActions (Bulk)**   |     ✅     |   ✅   | boost/off/resume = 1 call    |
-| **set_mode_all (Bulk)**   |     ✅     |   ❌   | v3=1 call, X=N calls         |
-| **Hardware Settings**     |     ✅     |   ✅   | Child Lock, Offset, etc.     |
+| Feature Category              | V2 (GW) | v3 Classic | Tado X | Notes                        |
+| :---------------------------- | :-----: | :--------: | :----: | :--------------------------- |
+| **Temperature Control**       | ☁️ |     ✅     |   ✅   | All: Cloud mode available / V3: HomeKit / X: Matter |
+| **Hot Water**                 | ✅ |     ❌     |        | Cloud API + water_heater entity |
+| **AC Pro (Fan/Swing)**        | ✅ |     ❌     |        | Cloud API + climate entity   |
+| **QuickActions (Bulk)**       | ✅ |     ✅     |        | boost/off/resume = 1 call    |
+| **set_mode_all (Bulk)**       | ✅ |     ❌     |        | v3=1 call, X=N calls         |
+| **Hardware Settings**         | ✅ |     ✅     |        | Child Lock, Offset, etc.     |
+| **Indoor Climate Sensors**    | ❌ |     ✅     |   ✅   | Dew point, mold risk, AH, ventilation. v3: built-in fallback. Tado X: link temperature source on zone device. |
 
-> See [FAQ](#frequently-asked-questions-faq) for detailed setup instructions and climate entity requirements.
+> See [FAQ](#frequently-asked-questions-faq) for detailed setup instructions and temperature source configuration.
 
 <br>
 
@@ -260,6 +263,7 @@ We bring back the controls Tado "forgot" to give you:
 - **✨ Dazzle Mode:** Control the display behavior of your V3+ hardware.
 - **🏠 Presence Lock:** Force Home/Away modes regardless of what Tado thinks.
 - **🔥 Dynamic Presence-Aware Overlay:** Set temperatures specifically for the current presence state — an exclusive feature that automatically resets once your home presence changes.
+- **🌡️ Indoor Climate Intelligence:** Per-zone sensors for **dew point**, **mold risk** (level + binary), **indoor absolute humidity**, and **ventilation recommendation** — calculated from room temperature and humidity using the Magnus formula and EU building-physics thresholds. Available for both v3 Classic and Tado X. Each zone device exposes optional **Temperature Source** and **Humidity Source** selectors to link any sensor or climate entity as the data source.
 - **🔓 Rate Limit Bypass:** Support for local [tado-api-proxy](https://github.com/s1adem4n/tado-api-proxy).
 
 <br>
@@ -568,6 +572,41 @@ Tado Hijack is now an **official HACS integration**! No custom repository needed
 | **Log Level**                      | `INFO`    | Control integration verbosity (DEBUG, INFO, WARNING, ERROR).                                                                                                                                                                                               |
 | **Suppress Redundant Calls**      | `Off`     | **API Optimization:** Skip API calls when target state matches cached state (temperature, mode, presence, power). Saves quota on accidental double-clicks or UI interactions. Only sends when actual change detected. Values not in cache always send. |
 | **Suppress Redundant Buttons**     | `Off`     | **Aggressive Optimization:** Also skip button actions (resume_all, boost_all, turn_off_all, set_mode_all) when ALL zones already match target state. Requires 'Suppress Redundant Calls' to be enabled. Individual explicit actions always send. |
+| **Dew Point Sensor**               | `On`      | Create a dew point temperature sensor per zone (Magnus formula, T + RH). v3: falls back to cloud zone state. Tado X: requires a linked temperature source on the zone device. |
+| **Mold Risk Sensors**              | `On`      | Create a mold risk level sensor (`none`/`low`/`medium`/`high`) and a binary moisture sensor per zone. Uses dew point spread — correctly distinguishes cold-but-dry from cold-and-humid rooms. |
+| **Outdoor Weather Entity**         | `None`    | Select a weather entity providing outdoor temperature + humidity. When set, creates an indoor absolute humidity sensor (g/m³) and a ventilation recommendation binary sensor per zone. |
+| **Ventilation Threshold**          | `1.0 g/m³`| Minimum indoor-outdoor AH difference required before _Ventilation Recommended_ turns ON. Prevents automation chatter from negligible differences. |
+| **Temperature Source** _(per zone)_| `(none)`  | Optional: link a temperature `sensor` or `climate` entity as the data source for indoor climate sensors. Set via `select.zone_temp_source` on each zone device. Required for Tado X (cloud has no temp in Full-Matter mode). |
+| **Humidity Source** _(per zone)_   | `(none)`  | Optional: link a `climate` entity (reads `current_humidity`) or a humidity `sensor` as the data source for indoor climate sensors. Set via `select.zone_humidity_source` on each zone device. Fallback: cloud zone state humidity. |
+
+<br>
+
+### Zone Temperature & Humidity Sources (All Generations)
+
+<br>
+
+Each zone device exposes two optional source selectors that override the data used for indoor climate calculations (dew point, mold risk, absolute humidity, ventilation recommendation):
+
+| Select Entity              | Purpose                               | Accepted types               |
+| :------------------------- | :------------------------------------ | :--------------------------- |
+| `select.zone_temp_source`  | Temperature override for the zone     | Any `climate` or temperature `sensor` |
+| `select.zone_humidity_source` | Humidity override for the zone     | Any `climate` (reads `current_humidity`) or humidity `sensor` |
+
+**Fallback chain when no source is selected:**
+
+| Priority | Temperature fallback | Humidity fallback |
+| :------- | :------------------- | :---------------- |
+| **1. Select Entity** | Entity chosen in `select.zone_temp_source` | Entity chosen in `select.zone_humidity_source` |
+| **2. Connected Climate** | Associated Climate Entity (Full-Cloud or mapped HomeKit) | Tado Hijack Humidity Sensor (`sensor.X_humidity`) |
+| **3. Cloud API** | `sensor_data_points.inside_temperature` (v3 only) | `sensor_data_points.humidity` (All Gens) |
+
+> [!TIP]
+> For **Tado X**, Matter devices cannot be auto-linked because they do not expose serial numbers to Home Assistant. Therefore, the cloud API lacks room temperature. Link your Matter `climate` entity (e.g. `climate.schlafzimmer`) or a local temperature sensor via the `select.zone_temp_source` to activate dew point and mold risk sensors.
+
+> [!NOTE]
+> For **v3 Classic**, linking sources is **optional**. The built-in HomeKit linkage and zone state provides both temperature and humidity automatically. Link an external sensor only if you want higher precision or a different measurement point.
+
+Changes take effect on the next coordinator update — no integration reload required.
 
 <br>
 
@@ -695,11 +734,18 @@ Cloud-only features that HomeKit does not support.
 | `number.open_window_timeout`        | Number        | **Config:** Open window timeout (0=OFF, 5-1439min=ON). Requires Tado subscription for detection. |
 | `number.target_temperature`         | Number        | **v3 HW Only:** Set hot water target temp (manual mode).                                        |
 | `number.away_temperature`           | Number        | **v3 Only:** Set away mode temperature.                                                         |
+| `select.zone_temp_source`           | Select        | **Config:** Optional temperature source for indoor climate sensors. Link any `climate` or temperature `sensor`. Required for Tado X (no cloud temp in Full-Matter mode). |
+| `select.zone_humidity_source`       | Select        | **Config:** Optional humidity source for indoor climate sensors. Link a `climate` entity (reads `current_humidity`) or a humidity `sensor`. Fallback: cloud zone state. |
 | `select.fan_speed`                  | Select        | **v3 AC Only:** Full fan speed control.                                                         |
 | `select.vertical_swing`             | Select        | **v3 AC Only:** Vertical swing control (ON/OFF or position modes).                              |
 | `select.horizontal_swing`           | Select        | **v3 AC Only:** Horizontal swing control (ON/OFF or position modes).                            |
 | `sensor.heating_power`              | Sensor        | **Insight:** Valve opening % or Boiler Load %.                                                  |
 | `sensor.humidity`                   | Sensor        | Zone humidity (faster than HomeKit).                                                            |
+| `sensor.dew_point`                  | Sensor        | **Climate:** Dew point temperature (°C) via Magnus formula. Sources: linked `zone_temp_source` → zone state (v3) → unavailable (Tado X). Enabled via _Dew Point Sensor_ feature flag. |
+| `sensor.mold_risk_level`            | Sensor        | **Climate:** Mold risk level: `none` / `low` / `medium` / `high`. Uses dew point spread — cold-but-dry rooms correctly show `none`. Enabled via _Mold Risk Sensors_ feature flag. |
+| `binary_sensor.mold_risk`           | Binary Sensor | **Climate:** `ON` when mold risk is `medium` or `high`. Ideal for automations and alerts.      |
+| `sensor.indoor_absolute_humidity`   | Sensor        | **Climate:** Indoor absolute humidity (g/m³). Shown when _Outdoor Weather Entity_ is configured. |
+| `binary_sensor.ventilation_recommended` | Binary Sensor | **Climate:** `ON` when indoor AH exceeds outdoor AH by ≥ threshold — opening windows reduces moisture. Shown when _Outdoor Weather Entity_ is configured. |
 | `sensor.next_schedule_change`       | Sensor        | **Planning:** Timestamp of next schedule transition (diagnostic).                               |
 | `sensor.next_schedule_temp`         | Sensor        | **Planning:** Target temp of the upcoming schedule block.                                       |
 | `sensor.next_schedule_mode`         | Sensor        | **Planning:** Mode (HEAT/OFF) of the upcoming schedule block.                                   |
@@ -942,9 +988,11 @@ logger:
 
 ### Where are my climate entities and current temperature?
 
-Tado Hijack does **NOT** provide `climate` entities for heating zones. You need **HomeKit Device** (v3) or **Matter** (Tado X) for temperature control.
+In the **default mode**, Tado Hijack does **not** create `climate` entities for heating zones — HomeKit (v3) or Matter (Tado X) already handle local temperature control efficiently at zero API cost.
 
-**Why use local protocols instead of cloud API?**
+**Full Cloud Mode** (enabled during setup) creates cloud-polled climate entities. This is required for V2 bridges (GW) that have no HomeKit/Matter support, and optional for V3/X.
+
+**Why prefer local protocols over cloud API?**
 
 | Reason | Explanation |
 | :----- | :---------- |
@@ -961,6 +1009,20 @@ Tado Hijack does **NOT** provide `climate` entities for heating zones. You need 
 | **Tado Hijack** | ❌ | ✅ (Schedules, Hot Water, AC Pro, Hardware) | Optimized |
 
 **Setup:** Install HomeKit/Matter first → then Tado Hijack → **V3:** Features get injected into HomeKit devices | **Tado X:** Features appear as separate entities (Matter limitation).
+
+<br>
+
+### Why are my Tado X dew point / mold risk sensors unavailable?
+
+For Tado X (without Full Cloud Mode), the cloud API does not deliver room temperature because the TRV measures it locally and reports it directly via Matter. Since Matter devices do not expose serial numbers in Home Assistant, Tado Hijack cannot auto-link them.
+
+You **must** use the **Temperature Source** selector (`select.zone_temp_source`) on your Tado X zone device and select the corresponding Matter `climate` entity or a temperature sensor (e.g. `climate.schlafzimmer_tado`). Once set, the dew point, mold risk, and absolute humidity sensors activate for that zone immediately.
+
+See [Zone Temperature & Humidity Sources](#zone-temperature--humidity-sources-all-generations) for details.
+
+<br>
+
+---
 
 <br>
 

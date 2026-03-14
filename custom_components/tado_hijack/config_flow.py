@@ -17,6 +17,8 @@ from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    EntitySelector,
+    EntitySelectorConfig,
     BooleanSelector,
     NumberSelector,
     NumberSelectorConfig,
@@ -33,6 +35,11 @@ from .const import (
     CONF_CALL_JITTER_ENABLED,
     CONF_DEBOUNCE_TIME,
     CONF_DISABLE_POLLING_WHEN_THROTTLED,
+    CONF_FEATURE_DEW_POINT,
+    CONF_FEATURE_MOLD_DETECTION,
+    CONF_OUTDOOR_WEATHER_ENTITY,
+    CONF_VENTILATION_AH_THRESHOLD,
+    DEFAULT_VENTILATION_AH_THRESHOLD,
     CONF_FETCH_EXTENDED_DATA,
     CONF_FULL_CLOUD_MODE,
     CONF_GENERATION,
@@ -55,6 +62,8 @@ from .const import (
     CONF_THROTTLE_THRESHOLD,
     DEFAULT_AUTO_API_QUOTA_PERCENT,
     DEFAULT_DEBOUNCE_TIME,
+    DEFAULT_FEATURE_DEW_POINT,
+    DEFAULT_FEATURE_MOLD_DETECTION,
     DEFAULT_JITTER_PERCENT,
     DEFAULT_LOG_LEVEL,
     DEFAULT_MIN_AUTO_QUOTA_INTERVAL_S,
@@ -140,27 +149,17 @@ class TadoHijackCommonFlow:
         return default
 
     def _flatten_section_data(self, user_input: dict[str, Any]) -> dict[str, Any]:
-        """Flatten nested section data into flat configuration.
-
-        Sections like 'general_polling', 'api_quota', etc. are unpacked
-        into top-level config keys.
-        """
+        """Flatten nested section data into flat configuration."""
         processed_input = {}
 
-        if "general_polling" in user_input:
-            polling = user_input["general_polling"]
-            for key in [
+        sections = {
+            "general_polling": [
                 CONF_SCAN_INTERVAL,
                 CONF_PRESENCE_POLL_INTERVAL,
                 CONF_SLOW_POLL_INTERVAL,
                 CONF_OFFSET_POLL_INTERVAL,
-            ]:
-                if key in polling:
-                    processed_input[key] = polling[key]
-
-        if "api_quota" in user_input:
-            quota = user_input["api_quota"]
-            for key in [
+            ],
+            "api_quota": [
                 CONF_AUTO_API_QUOTA_PERCENT,
                 CONF_THROTTLE_THRESHOLD,
                 CONF_DISABLE_POLLING_WHEN_THROTTLED,
@@ -169,33 +168,39 @@ class TadoHijackCommonFlow:
                 CONF_SUPPRESS_REDUNDANT_BUTTONS,
                 CONF_MIN_AUTO_QUOTA_INTERVAL_S,
                 CONF_QUOTA_SAFETY_RESERVE,
-            ]:
-                if key in quota:
-                    processed_input[key] = quota[key]
-
-        if "reduced_polling" in user_input:
-            schedule = user_input["reduced_polling"]
-            for key in [
+            ],
+            "reduced_polling": [
                 CONF_REDUCED_POLLING_ACTIVE,
                 CONF_REDUCED_POLLING_START,
                 CONF_REDUCED_POLLING_END,
                 CONF_REDUCED_POLLING_INTERVAL,
-            ]:
-                if key in schedule:
-                    processed_input[key] = schedule[key]
-
-        if "advanced" in user_input:
-            advanced = user_input["advanced"]
-            for key in [
+            ],
+            "advanced": [
                 CONF_API_PROXY_URL,
                 CONF_PROXY_TOKEN,
                 CONF_CALL_JITTER_ENABLED,
                 CONF_JITTER_PERCENT,
                 CONF_DEBOUNCE_TIME,
                 CONF_LOG_LEVEL,
-            ]:
-                if key in advanced:
-                    processed_input[key] = advanced[key]
+            ],
+            "features": [
+                CONF_FEATURE_DEW_POINT,
+                CONF_FEATURE_MOLD_DETECTION,
+                CONF_OUTDOOR_WEATHER_ENTITY,
+                CONF_VENTILATION_AH_THRESHOLD,
+            ],
+        }
+
+        for section_name, keys in sections.items():
+            if section_name in user_input:
+                section_data = user_input[section_name]
+                for key in keys:
+                    if key in section_data:
+                        val = section_data[key]
+                        # Handle empty string to None conversion for optional fields
+                        if key == CONF_OUTDOOR_WEATHER_ENTITY:
+                            val = val or None
+                        processed_input[key] = val
 
         return processed_input
 
@@ -204,248 +209,287 @@ class TadoHijackCommonFlow:
     ) -> ConfigFlowResult:
         """Handle single-page configuration with collapsible sections."""
         if user_input is None:
+            _schema: dict[Any, Any] = {
+                vol.Required("general_polling"): data_entry_flow.section(
+                    vol.Schema(
+                        {
+                            vol.Required(
+                                CONF_SCAN_INTERVAL,
+                                default=self._get_current_data(
+                                    CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
+                                ),
+                            ): vol.All(
+                                vol.Coerce(int),
+                                vol.Range(min=MIN_SCAN_INTERVAL),
+                            ),
+                            vol.Required(
+                                CONF_PRESENCE_POLL_INTERVAL,
+                                default=self._get_current_data(
+                                    CONF_PRESENCE_POLL_INTERVAL,
+                                    DEFAULT_PRESENCE_POLL_INTERVAL,
+                                ),
+                            ): vol.All(
+                                vol.Coerce(int),
+                                vol.Range(min=MIN_SCAN_INTERVAL),
+                            ),
+                            vol.Required(
+                                CONF_SLOW_POLL_INTERVAL,
+                                default=self._get_current_data(
+                                    CONF_SLOW_POLL_INTERVAL,
+                                    DEFAULT_SLOW_POLL_INTERVAL,
+                                ),
+                            ): vol.All(
+                                vol.Coerce(int),
+                                vol.Range(min=MIN_SLOW_POLL_INTERVAL),
+                            ),
+                            vol.Optional(
+                                CONF_OFFSET_POLL_INTERVAL,
+                                default=self._get_current_data(
+                                    CONF_OFFSET_POLL_INTERVAL,
+                                    DEFAULT_OFFSET_POLL_INTERVAL,
+                                ),
+                            ): vol.All(
+                                vol.Coerce(int),
+                                vol.Range(min=MIN_OFFSET_POLL_INTERVAL),
+                            ),
+                        }
+                    ),
+                    {"collapsed": True},
+                ),
+                vol.Required("api_quota"): data_entry_flow.section(
+                    vol.Schema(
+                        {
+                            vol.Optional(
+                                CONF_AUTO_API_QUOTA_PERCENT,
+                                default=self._get_current_data(
+                                    CONF_AUTO_API_QUOTA_PERCENT,
+                                    DEFAULT_AUTO_API_QUOTA_PERCENT,
+                                ),
+                            ): NumberSelector(
+                                NumberSelectorConfig(
+                                    min=0,
+                                    max=100,
+                                    step=1,
+                                    mode=NumberSelectorMode.BOX,
+                                )
+                            ),
+                            vol.Optional(
+                                CONF_THROTTLE_THRESHOLD,
+                                default=self._get_current_data(
+                                    CONF_THROTTLE_THRESHOLD,
+                                    DEFAULT_THROTTLE_THRESHOLD,
+                                ),
+                            ): NumberSelector(
+                                NumberSelectorConfig(
+                                    min=0,
+                                    max=MAX_API_QUOTA,
+                                    step=1,
+                                    mode=NumberSelectorMode.BOX,
+                                )
+                            ),
+                            vol.Optional(
+                                CONF_DISABLE_POLLING_WHEN_THROTTLED,
+                                default=self._get_current_data(
+                                    CONF_DISABLE_POLLING_WHEN_THROTTLED, False
+                                ),
+                            ): BooleanSelector(),
+                            vol.Optional(
+                                CONF_REFRESH_AFTER_RESUME,
+                                default=self._get_current_data(
+                                    CONF_REFRESH_AFTER_RESUME,
+                                    DEFAULT_REFRESH_AFTER_RESUME,
+                                ),
+                            ): BooleanSelector(),
+                            vol.Optional(
+                                CONF_SUPPRESS_REDUNDANT_CALLS,
+                                default=self._get_current_data(
+                                    CONF_SUPPRESS_REDUNDANT_CALLS,
+                                    DEFAULT_SUPPRESS_REDUNDANT_CALLS,
+                                ),
+                            ): BooleanSelector(),
+                            vol.Optional(
+                                CONF_SUPPRESS_REDUNDANT_BUTTONS,
+                                default=self._get_current_data(
+                                    CONF_SUPPRESS_REDUNDANT_BUTTONS,
+                                    DEFAULT_SUPPRESS_REDUNDANT_BUTTONS,
+                                ),
+                            ): BooleanSelector(),
+                            vol.Optional(
+                                CONF_MIN_AUTO_QUOTA_INTERVAL_S,
+                                default=self._get_current_data(
+                                    CONF_MIN_AUTO_QUOTA_INTERVAL_S,
+                                    DEFAULT_MIN_AUTO_QUOTA_INTERVAL_S,
+                                ),
+                            ): NumberSelector(
+                                NumberSelectorConfig(
+                                    min=MIN_AUTO_QUOTA_INTERVAL_S,
+                                    max=MAX_AUTO_QUOTA_INTERVAL_S,
+                                    step=1,
+                                    mode=NumberSelectorMode.BOX,
+                                )
+                            ),
+                            vol.Optional(
+                                CONF_QUOTA_SAFETY_RESERVE,
+                                default=self._get_current_data(
+                                    CONF_QUOTA_SAFETY_RESERVE,
+                                    DEFAULT_QUOTA_SAFETY_RESERVE,
+                                ),
+                            ): NumberSelector(
+                                NumberSelectorConfig(
+                                    min=MIN_QUOTA_SAFETY_RESERVE,
+                                    max=MAX_QUOTA_SAFETY_RESERVE,
+                                    step=1,
+                                    mode=NumberSelectorMode.BOX,
+                                )
+                            ),
+                        }
+                    ),
+                    {"collapsed": True},
+                ),
+                vol.Required("reduced_polling"): data_entry_flow.section(
+                    vol.Schema(
+                        {
+                            vol.Optional(
+                                CONF_REDUCED_POLLING_ACTIVE,
+                                default=self._get_current_data(
+                                    CONF_REDUCED_POLLING_ACTIVE, False
+                                ),
+                            ): BooleanSelector(),
+                            vol.Optional(
+                                CONF_REDUCED_POLLING_START,
+                                default=self._get_current_data(
+                                    CONF_REDUCED_POLLING_START,
+                                    DEFAULT_REDUCED_POLLING_START,
+                                ),
+                            ): TimeSelector(),
+                            vol.Optional(
+                                CONF_REDUCED_POLLING_END,
+                                default=self._get_current_data(
+                                    CONF_REDUCED_POLLING_END,
+                                    DEFAULT_REDUCED_POLLING_END,
+                                ),
+                            ): TimeSelector(),
+                            vol.Optional(
+                                CONF_REDUCED_POLLING_INTERVAL,
+                                default=self._get_current_data(
+                                    CONF_REDUCED_POLLING_INTERVAL,
+                                    DEFAULT_REDUCED_POLLING_INTERVAL,
+                                ),
+                            ): vol.All(vol.Coerce(int), vol.Range(min=0)),
+                        }
+                    ),
+                    {"collapsed": True},
+                ),
+                vol.Required("features"): data_entry_flow.section(
+                    vol.Schema(
+                        {
+                            vol.Optional(
+                                CONF_FEATURE_DEW_POINT,
+                                default=self._get_current_data(
+                                    CONF_FEATURE_DEW_POINT,
+                                    DEFAULT_FEATURE_DEW_POINT,
+                                ),
+                            ): BooleanSelector(),
+                            vol.Optional(
+                                CONF_FEATURE_MOLD_DETECTION,
+                                default=self._get_current_data(
+                                    CONF_FEATURE_MOLD_DETECTION,
+                                    DEFAULT_FEATURE_MOLD_DETECTION,
+                                ),
+                            ): BooleanSelector(),
+                            vol.Optional(
+                                CONF_OUTDOOR_WEATHER_ENTITY,
+                                description={
+                                    "suggested_value": self._get_current_data(
+                                        CONF_OUTDOOR_WEATHER_ENTITY, None
+                                    )
+                                },
+                            ): EntitySelector(EntitySelectorConfig(domain="weather")),
+                            vol.Optional(
+                                CONF_VENTILATION_AH_THRESHOLD,
+                                default=self._get_current_data(
+                                    CONF_VENTILATION_AH_THRESHOLD,
+                                    DEFAULT_VENTILATION_AH_THRESHOLD,
+                                ),
+                            ): NumberSelector(
+                                NumberSelectorConfig(
+                                    min=0.1,
+                                    max=5.0,
+                                    step=0.1,
+                                    unit_of_measurement="g/m³",
+                                    mode=NumberSelectorMode.BOX,
+                                )
+                            ),
+                        }
+                    ),
+                    {"collapsed": True},
+                ),
+                vol.Required("advanced"): data_entry_flow.section(
+                    vol.Schema(
+                        {
+                            vol.Optional(
+                                CONF_API_PROXY_URL,
+                                description={
+                                    "suggested_value": self._get_current_data(
+                                        CONF_API_PROXY_URL, ""
+                                    )
+                                },
+                            ): vol.Any(None, str),
+                            vol.Optional(
+                                CONF_PROXY_TOKEN,
+                                description={
+                                    "suggested_value": self._get_current_data(
+                                        CONF_PROXY_TOKEN, ""
+                                    )
+                                },
+                            ): vol.Any(None, str),
+                            vol.Optional(
+                                CONF_CALL_JITTER_ENABLED,
+                                default=self._get_current_data(
+                                    CONF_CALL_JITTER_ENABLED, False
+                                ),
+                            ): BooleanSelector(),
+                            vol.Optional(
+                                CONF_JITTER_PERCENT,
+                                default=self._get_current_data(
+                                    CONF_JITTER_PERCENT, DEFAULT_JITTER_PERCENT
+                                ),
+                            ): NumberSelector(
+                                NumberSelectorConfig(
+                                    min=0,
+                                    max=50,
+                                    step=0.1,
+                                    mode=NumberSelectorMode.BOX,
+                                )
+                            ),
+                            vol.Optional(
+                                CONF_DEBOUNCE_TIME,
+                                default=self._get_current_data(
+                                    CONF_DEBOUNCE_TIME, DEFAULT_DEBOUNCE_TIME
+                                ),
+                            ): vol.All(
+                                vol.Coerce(int),
+                                vol.Range(min=MIN_DEBOUNCE_TIME),
+                            ),
+                            vol.Required(
+                                CONF_LOG_LEVEL,
+                                default=self._get_current_data(
+                                    CONF_LOG_LEVEL, DEFAULT_LOG_LEVEL
+                                ),
+                            ): SelectSelector(
+                                SelectSelectorConfig(
+                                    options=LOG_LEVELS,
+                                    mode=SelectSelectorMode.DROPDOWN,
+                                )
+                            ),
+                        }
+                    ),
+                    {"collapsed": True},
+                ),
+            }
             return self.async_show_form(
                 step_id="init",
-                data_schema=vol.Schema(
-                    {
-                        # === General Polling Intervals ===
-                        vol.Required("general_polling"): data_entry_flow.section(
-                            vol.Schema(
-                                {
-                                    vol.Required(
-                                        CONF_SCAN_INTERVAL,
-                                        default=self._get_current_data(
-                                            CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
-                                        ),
-                                    ): vol.All(
-                                        vol.Coerce(int),
-                                        vol.Range(min=MIN_SCAN_INTERVAL),
-                                    ),
-                                    vol.Required(
-                                        CONF_PRESENCE_POLL_INTERVAL,
-                                        default=self._get_current_data(
-                                            CONF_PRESENCE_POLL_INTERVAL,
-                                            DEFAULT_PRESENCE_POLL_INTERVAL,
-                                        ),
-                                    ): vol.All(
-                                        vol.Coerce(int),
-                                        vol.Range(min=MIN_SCAN_INTERVAL),
-                                    ),
-                                    vol.Required(
-                                        CONF_SLOW_POLL_INTERVAL,
-                                        default=self._get_current_data(
-                                            CONF_SLOW_POLL_INTERVAL,
-                                            DEFAULT_SLOW_POLL_INTERVAL,
-                                        ),
-                                    ): vol.All(
-                                        vol.Coerce(int),
-                                        vol.Range(min=MIN_SLOW_POLL_INTERVAL),
-                                    ),
-                                    vol.Optional(
-                                        CONF_OFFSET_POLL_INTERVAL,
-                                        default=self._get_current_data(
-                                            CONF_OFFSET_POLL_INTERVAL,
-                                            DEFAULT_OFFSET_POLL_INTERVAL,
-                                        ),
-                                    ): vol.All(
-                                        vol.Coerce(int),
-                                        vol.Range(min=MIN_OFFSET_POLL_INTERVAL),
-                                    ),
-                                }
-                            ),
-                            {"collapsed": True},
-                        ),
-                        # === API Quota & Safety ===
-                        vol.Required("api_quota"): data_entry_flow.section(
-                            vol.Schema(
-                                {
-                                    vol.Optional(
-                                        CONF_AUTO_API_QUOTA_PERCENT,
-                                        default=self._get_current_data(
-                                            CONF_AUTO_API_QUOTA_PERCENT,
-                                            DEFAULT_AUTO_API_QUOTA_PERCENT,
-                                        ),
-                                    ): NumberSelector(
-                                        NumberSelectorConfig(
-                                            min=0,
-                                            max=100,
-                                            step=1,
-                                            mode=NumberSelectorMode.BOX,
-                                        )
-                                    ),
-                                    vol.Optional(
-                                        CONF_THROTTLE_THRESHOLD,
-                                        default=self._get_current_data(
-                                            CONF_THROTTLE_THRESHOLD,
-                                            DEFAULT_THROTTLE_THRESHOLD,
-                                        ),
-                                    ): NumberSelector(
-                                        NumberSelectorConfig(
-                                            min=0,
-                                            max=MAX_API_QUOTA,
-                                            step=1,
-                                            mode=NumberSelectorMode.BOX,
-                                        )
-                                    ),
-                                    vol.Optional(
-                                        CONF_DISABLE_POLLING_WHEN_THROTTLED,
-                                        default=self._get_current_data(
-                                            CONF_DISABLE_POLLING_WHEN_THROTTLED, False
-                                        ),
-                                    ): BooleanSelector(),
-                                    vol.Optional(
-                                        CONF_REFRESH_AFTER_RESUME,
-                                        default=self._get_current_data(
-                                            CONF_REFRESH_AFTER_RESUME,
-                                            DEFAULT_REFRESH_AFTER_RESUME,
-                                        ),
-                                    ): BooleanSelector(),
-                                    vol.Optional(
-                                        CONF_SUPPRESS_REDUNDANT_CALLS,
-                                        default=self._get_current_data(
-                                            CONF_SUPPRESS_REDUNDANT_CALLS,
-                                            DEFAULT_SUPPRESS_REDUNDANT_CALLS,
-                                        ),
-                                    ): BooleanSelector(),
-                                    vol.Optional(
-                                        CONF_SUPPRESS_REDUNDANT_BUTTONS,
-                                        default=self._get_current_data(
-                                            CONF_SUPPRESS_REDUNDANT_BUTTONS,
-                                            DEFAULT_SUPPRESS_REDUNDANT_BUTTONS,
-                                        ),
-                                    ): BooleanSelector(),
-                                    vol.Optional(
-                                        CONF_MIN_AUTO_QUOTA_INTERVAL_S,
-                                        default=self._get_current_data(
-                                            CONF_MIN_AUTO_QUOTA_INTERVAL_S,
-                                            DEFAULT_MIN_AUTO_QUOTA_INTERVAL_S,
-                                        ),
-                                    ): NumberSelector(
-                                        NumberSelectorConfig(
-                                            min=MIN_AUTO_QUOTA_INTERVAL_S,
-                                            max=MAX_AUTO_QUOTA_INTERVAL_S,
-                                            step=1,
-                                            mode=NumberSelectorMode.BOX,
-                                        )
-                                    ),
-                                    vol.Optional(
-                                        CONF_QUOTA_SAFETY_RESERVE,
-                                        default=self._get_current_data(
-                                            CONF_QUOTA_SAFETY_RESERVE,
-                                            DEFAULT_QUOTA_SAFETY_RESERVE,
-                                        ),
-                                    ): NumberSelector(
-                                        NumberSelectorConfig(
-                                            min=MIN_QUOTA_SAFETY_RESERVE,
-                                            max=MAX_QUOTA_SAFETY_RESERVE,
-                                            step=1,
-                                            mode=NumberSelectorMode.BOX,
-                                        )
-                                    ),
-                                }
-                            ),
-                            {"collapsed": True},
-                        ),
-                        # === Reduced Polling Schedule ===
-                        vol.Required("reduced_polling"): data_entry_flow.section(
-                            vol.Schema(
-                                {
-                                    vol.Optional(
-                                        CONF_REDUCED_POLLING_ACTIVE,
-                                        default=self._get_current_data(
-                                            CONF_REDUCED_POLLING_ACTIVE, False
-                                        ),
-                                    ): BooleanSelector(),
-                                    vol.Optional(
-                                        CONF_REDUCED_POLLING_START,
-                                        default=self._get_current_data(
-                                            CONF_REDUCED_POLLING_START,
-                                            DEFAULT_REDUCED_POLLING_START,
-                                        ),
-                                    ): TimeSelector(),
-                                    vol.Optional(
-                                        CONF_REDUCED_POLLING_END,
-                                        default=self._get_current_data(
-                                            CONF_REDUCED_POLLING_END,
-                                            DEFAULT_REDUCED_POLLING_END,
-                                        ),
-                                    ): TimeSelector(),
-                                    vol.Optional(
-                                        CONF_REDUCED_POLLING_INTERVAL,
-                                        default=self._get_current_data(
-                                            CONF_REDUCED_POLLING_INTERVAL,
-                                            DEFAULT_REDUCED_POLLING_INTERVAL,
-                                        ),
-                                    ): vol.All(vol.Coerce(int), vol.Range(min=0)),
-                                }
-                            ),
-                            {"collapsed": True},
-                        ),
-                        # === Advanced & Debug ===
-                        vol.Required("advanced"): data_entry_flow.section(
-                            vol.Schema(
-                                {
-                                    vol.Optional(
-                                        CONF_API_PROXY_URL,
-                                        description={
-                                            "suggested_value": self._get_current_data(
-                                                CONF_API_PROXY_URL, ""
-                                            )
-                                        },
-                                    ): vol.Any(None, str),
-                                    vol.Optional(
-                                        CONF_PROXY_TOKEN,
-                                        description={
-                                            "suggested_value": self._get_current_data(
-                                                CONF_PROXY_TOKEN, ""
-                                            )
-                                        },
-                                    ): vol.Any(None, str),
-                                    vol.Optional(
-                                        CONF_CALL_JITTER_ENABLED,
-                                        default=self._get_current_data(
-                                            CONF_CALL_JITTER_ENABLED, False
-                                        ),
-                                    ): BooleanSelector(),
-                                    vol.Optional(
-                                        CONF_JITTER_PERCENT,
-                                        default=self._get_current_data(
-                                            CONF_JITTER_PERCENT, DEFAULT_JITTER_PERCENT
-                                        ),
-                                    ): NumberSelector(
-                                        NumberSelectorConfig(
-                                            min=0,
-                                            max=50,
-                                            step=0.1,
-                                            mode=NumberSelectorMode.BOX,
-                                        )
-                                    ),
-                                    vol.Optional(
-                                        CONF_DEBOUNCE_TIME,
-                                        default=self._get_current_data(
-                                            CONF_DEBOUNCE_TIME, DEFAULT_DEBOUNCE_TIME
-                                        ),
-                                    ): vol.All(
-                                        vol.Coerce(int),
-                                        vol.Range(min=MIN_DEBOUNCE_TIME),
-                                    ),
-                                    vol.Required(
-                                        CONF_LOG_LEVEL,
-                                        default=self._get_current_data(
-                                            CONF_LOG_LEVEL, DEFAULT_LOG_LEVEL
-                                        ),
-                                    ): SelectSelector(
-                                        SelectSelectorConfig(
-                                            options=LOG_LEVELS,
-                                            mode=SelectSelectorMode.DROPDOWN,
-                                        )
-                                    ),
-                                }
-                            ),
-                            {"collapsed": True},
-                        ),
-                    }
-                ),
+                data_schema=vol.Schema(_schema),
             )
         processed_input = self._flatten_section_data(user_input)
 

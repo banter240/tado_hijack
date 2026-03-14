@@ -57,7 +57,6 @@ class TadoDataManager:
         self._offset_poll_seconds = offset_poll_seconds
         self._presence_poll_seconds = presence_poll_seconds
 
-        # Caches
         self.zones_meta: dict[int, Any] = {}
         self.devices_meta: dict[str, Any] = {}
         self.capabilities_cache: dict[int, Any] = {}
@@ -74,7 +73,6 @@ class TadoDataManager:
         self._presence_invalidated_at: float = 0
         self._zones_invalidated_at: float = 0
 
-        # Initialization flags for independent bootstrapping
         self._metadata_init = False
         self._zones_init = False
         self._presence_init = False
@@ -95,7 +93,7 @@ class TadoDataManager:
         return plan
 
     def _add_fast_track_to_plan(self, plan: list[PollTask], now: float) -> None:
-        """Add zone states polling (fast track - every poll)."""
+        """Add zone states polling (fast track)."""
         interval = (
             self.coordinator.update_interval.total_seconds()
             if self.coordinator.update_interval
@@ -105,12 +103,10 @@ class TadoDataManager:
             self._zones_invalidated_at > self._last_zones_poll
             or (interval > 0 and (now - self._last_zones_poll) >= (interval - 1))
         ):
-            # Unified method for both generations
             plan.append(PollTask(1, self._fetch_zones))
 
     def _add_presence_track_to_plan(self, plan: list[PollTask], now: float) -> None:
-        """Add presence/home state polling (separate interval)."""
-        # Tado X updates presence via metadata poll, so no separate task
+        """Add presence/home state polling."""
         if self.coordinator.generation == GEN_X:
             return
 
@@ -125,16 +121,14 @@ class TadoDataManager:
             plan.append(PollTask(1, self._fetch_presence))
 
     def _add_slow_track_to_plan(self, plan: list[PollTask], now: float) -> None:
-        """Add metadata polling (slow track - infrequent)."""
+        """Add metadata polling (slow track)."""
         if (
             not self._metadata_init
             or (now - self._last_slow_poll) > self._slow_poll_seconds
         ):
-            # Unified method for both generations
             plan.append(PollTask(1, self._fetch_metadata))
 
     def _add_medium_track_to_plan(self, plan: list[PollTask], now: float) -> None:
-        # Tado X: offsets come from roomsAndDevices metadata (no separate poll needed)
         if self.coordinator.generation == GEN_X:
             return
 

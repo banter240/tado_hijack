@@ -12,7 +12,6 @@ from homeassistant.core import (
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 from tadoasync import Tado, TadoError
-from tadoasync.models import TemperatureOffset
 
 if TYPE_CHECKING:
     from tadoasync.models import Device, Zone
@@ -1053,38 +1052,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
 
     async def async_set_temperature_offset(self, serial_no: str, offset: float) -> None:
         """Set temperature offset for a device."""
-        if self.generation == GEN_X:
-            # Tado X: Update devices_meta directly (value_fn reads from there)
-            if dev := self.data_manager.devices_meta.get(serial_no):
-                dev.temperature_offset = offset
-            self.async_update_listeners()
-            if self.provider:
-                await self.provider.async_set_temperature_offset(serial_no, offset)
-        else:
-            # v3 Classic: Use legacy property manager
-            old_val = self.data_manager.offsets_cache.get(serial_no)
-
-            self.data_manager.offsets_cache[serial_no] = TemperatureOffset(
-                celsius=offset,
-                fahrenheit=0.0,
-            )
-
-            if old_val:
-                import copy
-
-                try:
-                    old_val = copy.deepcopy(old_val)
-                except Exception:
-                    old_val = None
-
-            await self.property_manager.async_set_device_property(
-                serial_no,
-                CommandType.SET_OFFSET,
-                {"serial": serial_no, "offset": offset},
-                self.optimistic.set_offset,
-                offset,
-                rollback_context=old_val,
-            )
+        await self.action_provider.async_set_temperature_offset(serial_no, offset)
 
     async def async_set_away_temperature(self, zone_id: int, temp: float) -> None:
         """Set away temperature for a zone."""

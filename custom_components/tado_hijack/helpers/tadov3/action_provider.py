@@ -292,3 +292,33 @@ class TadoV3ActionProvider(TadoActionProvider):
                 fields[api_key] = str(val)
 
         return fields
+
+    async def async_set_temperature_offset(self, serial_no: str, offset: float) -> None:
+        """Set temperature offset for a v3 device."""
+        old_val = self.coordinator.data_manager.offsets_cache.get(serial_no)
+
+        from tadoasync.models import TemperatureOffset
+
+        self.coordinator.data_manager.offsets_cache[serial_no] = TemperatureOffset(
+            celsius=offset,
+            fahrenheit=0.0,
+        )
+
+        if old_val:
+            import copy
+
+            try:
+                old_val = copy.deepcopy(old_val)
+            except Exception:
+                old_val = None
+
+        from ...models import CommandType
+
+        await self.coordinator.property_manager.async_set_device_property(
+            serial_no,
+            CommandType.SET_OFFSET,
+            {"serial": serial_no, "offset": offset},
+            self.coordinator.optimistic.set_offset,
+            offset,
+            rollback_context=old_val,
+        )

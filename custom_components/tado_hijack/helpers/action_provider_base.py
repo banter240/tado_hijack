@@ -91,3 +91,13 @@ class TadoActionProvider(ABC):
             value: Setting value
 
         """
+
+    @abstractmethod
+    async def async_set_temperature_offset(self, serial_no: str, offset: float) -> None:
+        """Set temperature offset for a device.
+
+        Args:
+            serial_no: The device serial number
+            offset: The offset value in Celsius
+
+        """

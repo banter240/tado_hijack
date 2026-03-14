@@ -80,6 +80,21 @@
       "humidity": {
         "name": "Humidity"
       },
+      "dew_point": {
+        "name": "Dew Point"
+      },
+      "mold_risk_level": {
+        "name": "Mold Risk Level",
+        "state": {
+          "none": "None",
+          "low": "Low",
+          "medium": "Medium",
+          "high": "High"
+        }
+      },
+      "indoor_absolute_humidity": {
+        "name": "Indoor Absolute Humidity"
+      },
       "next_schedule_change": {
         "name": "Next Schedule Change"
       },
@@ -135,6 +150,16 @@
       },
       "connectivity": {
         "name": "Connectivity"
+      },
+      "mold_risk": {
+        "name": "Mold Risk",
+        "state": {
+          "on": "Yes",
+          "off": "No"
+        }
+      },
+      "ventilation_recommended": {
+        "name": "Ventilation Recommended"
       },
       "reduced_polling_active": {
         "name": "Reduced Polling Active"
@@ -228,6 +253,12 @@
       }
     },
     "select": {
+      "zone_temp_source": {
+        "name": "Temperature Source"
+      },
+      "zone_humidity_source": {
+        "name": "Humidity Source"
+      },
       "fan_speed": {
         "name": "Fan Speed",
         "state": {
@@ -360,6 +391,21 @@
               "reduced_polling_interval": "Polling interval during the economy window (e.g. 3600s = 1h). Set to 0 to pause updates."
             }
           },
+          "features": {
+            "name": "Features",
+            "data": {
+              "feature_dew_point": "Dew Point Sensor",
+              "feature_mold_detection": "Mold Risk Sensors",
+              "outdoor_weather_entity": "Ventilation Recommendation Sensor (Requires Weather Entity)",
+              "ventilation_ah_threshold": "Ventilation Threshold (g/m³)"
+            },
+            "data_description": {
+              "feature_dew_point": "Create a dew point temperature sensor per zone. Calculated from room temperature and humidity. MANDATORY for Tado X: Requires a linked temperature source on the zone device as the cloud API provides no temperature for Tado X.",
+              "feature_mold_detection": "Create mold risk sensors per zone. Includes a risk level (none/low/medium/high) and a binary sensor for acute mold risk. MANDATORY for Tado X: Requires a linked temperature source on the zone device.",
+              "outdoor_weather_entity": "Select a weather entity (e.g., weather.home) that provides outdoor temperature and humidity. This is required to calculate indoor absolute humidity and to activate 'Ventilation Recommended' sensors. The sensor reports 'Yes' when opening windows effectively reduces indoor moisture.",
+              "ventilation_ah_threshold": "Minimum absolute humidity difference between indoor and outdoor required before 'Ventilation Recommended' turns to 'Yes'. A value of 1.0 g/m³ (grams of water per cubic meter of air) ensures that outdoor air is significantly dryer than indoor air before recommending ventilation. Prevents sensor chatter. Default: 1.0."
+            }
+          },
           "advanced": {
             "name": "API Proxy & Advanced",
             "data": {
@@ -448,6 +494,21 @@
               "reduced_polling_start": "Time when the economy window starts (e.g. 22:00).",
               "reduced_polling_end": "Time when the economy window ends (e.g. 07:00).",
               "reduced_polling_interval": "Polling interval during the economy window (e.g. 3600s = 1h). Set to 0 to pause updates."
+            }
+          },
+          "features": {
+            "name": "Features",
+            "data": {
+              "feature_dew_point": "Dew Point Sensor",
+              "feature_mold_detection": "Mold Risk Sensors",
+              "outdoor_weather_entity": "Ventilation Recommendation Sensor (Requires Weather Entity)",
+              "ventilation_ah_threshold": "Ventilation Threshold (g/m³)"
+            },
+            "data_description": {
+              "feature_dew_point": "Create a dew point temperature sensor per zone. Calculated from room temperature and humidity. MANDATORY for Tado X: Requires a linked temperature source on the zone device as the cloud API provides no temperature for Tado X.",
+              "feature_mold_detection": "Create mold risk sensors per zone. Includes a risk level (none/low/medium/high) and a binary sensor for acute mold risk. MANDATORY for Tado X: Requires a linked temperature source on the zone device.",
+              "outdoor_weather_entity": "Select a weather entity (e.g., weather.home) that provides outdoor temperature and humidity. This is required to calculate indoor absolute humidity and to activate 'Ventilation Recommended' sensors. The sensor reports 'Yes' when opening windows effectively reduces indoor moisture.",
+              "ventilation_ah_threshold": "Minimum absolute humidity difference between indoor and outdoor required before 'Ventilation Recommended' turns to 'Yes'. A value of 1.0 g/m³ (grams of water per cubic meter of air) ensures that outdoor air is significantly dryer than indoor air before recommending ventilation. Prevents sensor chatter. Default: 1.0."
             }
           },
           "advanced": {

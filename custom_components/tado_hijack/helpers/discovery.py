@@ -5,31 +5,29 @@ from __future__ import annotations
 from collections.abc import Generator
 from typing import TYPE_CHECKING, Any
 
+from .zone_utils import unify_zone
+
 if TYPE_CHECKING:
     from ..coordinator import TadoDataUpdateCoordinator
+    from .zone_utils import TadoUnifiedZone
 
 
 def _yield_zones_v3(
     coordinator: TadoDataUpdateCoordinator,
     include_types: set[str] | None = None,
-) -> Generator[Any, None, None]:
-    """Yield v3 Classic zones matching specified types.
-
-    v3 zones have a .type attribute (HEATING, AIR_CONDITIONING, HOT_WATER).
-    """
+) -> Generator[TadoUnifiedZone, None, None]:
+    """Yield v3 Classic zones matching specified types."""
     for zone in coordinator.zones_meta.values():
         if include_types is None or getattr(zone, "type", None) in include_types:
-            yield zone
+            yield unify_zone(zone)
 
 
 def _yield_zones_tadox(
     coordinator: TadoDataUpdateCoordinator,
-) -> Generator[Any, None, None]:
-    """Yield all Tado X rooms without type filtering.
-
-    Tado X HopsRoomSnapshot has no .type attribute - all rooms are yielded.
-    """
-    yield from coordinator.zones_meta.values()
+) -> Generator[TadoUnifiedZone, None, None]:
+    """Yield all Tado X rooms."""
+    for zone in coordinator.zones_meta.values():
+        yield unify_zone(zone)
 
 
 def yield_zones(
@@ -38,20 +36,8 @@ def yield_zones(
     include_heating: bool = False,
     include_hot_water: bool = False,
     include_ac: bool = False,
-) -> Generator[Any, None, None]:
-    """Yield zones - generation-aware dispatcher.
-
-    For Tado X: yields all rooms (no type filtering).
-    For v3 Classic: yields zones matching include_types or boolean flags.
-
-    Args:
-        coordinator: Coordinator instance
-        include_types: Explicit set of zone types (overrides boolean flags)
-        include_heating: Include HEATING zones
-        include_hot_water: Include HOT_WATER zones
-        include_ac: Include AIR_CONDITIONING zones
-
-    """
+) -> Generator[TadoUnifiedZone, None, None]:
+    """Yield zones - generation-aware dispatcher."""
     from ..const import (
         GEN_X,
         ZONE_TYPE_AIR_CONDITIONING,

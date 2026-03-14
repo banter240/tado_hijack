@@ -49,16 +49,16 @@ class TadoXActionProvider(TadoActionProvider):
         include_hot_water: bool = False,
         include_ac: bool = False,
     ) -> list[int]:
-        """Get active zone IDs (Tado X uses zone.room_id)."""
+        """Get active zone IDs."""
         return [
-            zone.room_id
+            zone.id
             for zone in yield_zones(
                 self.coordinator,
                 include_heating=include_heating,
                 include_hot_water=include_hot_water,
                 include_ac=include_ac,
             )
-            if not self.coordinator.entity_resolver.is_zone_disabled(zone.room_id)
+            if not self.coordinator.entity_resolver.is_zone_disabled(zone.id)
         ]
 
     def is_zone_in_schedule(self, zone_id: int) -> bool | None:
@@ -83,3 +83,13 @@ class TadoXActionProvider(TadoActionProvider):
         This provides a basic compatibility stub.
         """
         pass
+
+    async def async_set_temperature_offset(self, serial_no: str, offset: float) -> None:
+        """Set temperature offset for a Tado X device."""
+        if dev := self.coordinator.data_manager.devices_meta.get(serial_no):
+            dev.temperature_offset = offset
+        self.coordinator.async_update_listeners()
+        if self.coordinator.provider:
+            await self.coordinator.provider.async_set_temperature_offset(
+                serial_no, offset
+            )

@@ -82,44 +82,69 @@ class TadoClimateEntity(
         await self._async_update_capabilities()
 
     async def _async_update_capabilities(self) -> None:
-        """Fetch and refresh capabilities (Dispatcher)."""
-        if self.tado_coordinator.generation == GEN_X:
-            await self._async_update_capabilities_tadox()
-        else:
-            await self._async_update_capabilities_v3()
+        """Fetch and refresh capabilities."""
+        if self.tado_coordinator.generation == "x":
+            # Tado X (Static Defaults)
+            self._attr_min_temp = 5.0
+            self._attr_max_temp = 30.0
+            self._attr_target_temperature_step = 0.5
+            if isinstance(self, TadoAirConditioning):
+                self._attr_hvac_modes = [
+                    HVACMode.OFF,
+                    HVACMode.COOL,
+                    HVACMode.HEAT,
+                    HVACMode.DRY,
+                    HVACMode.FAN_ONLY,
+                    HVACMode.AUTO,
+                ]
+            self.async_write_ha_state()
+            return
 
-    async def _async_update_capabilities_tadox(self) -> None:
-        """Update capabilities for Tado X (Static Defaults)."""
-        # [TADO_X] Use static defaults for Tado X (Matter)
-        self._attr_min_temp = 5.0
-        self._attr_max_temp = 30.0
-        self._attr_target_temperature_step = 0.5
+        # v3 Classic (API Fetch)
+        if not (
+            capabilities := await self.tado_coordinator.async_get_capabilities(
+                self._zone_id
+            )
+        ):
+            return
+
+        if capabilities.temperatures:
+            new_min = float(capabilities.temperatures.celsius.min)
+            new_max = float(capabilities.temperatures.celsius.max)
+            new_step = float(capabilities.temperatures.celsius.step)
+
+            if new_min < new_max and new_step > 0:
+                self._attr_min_temp = new_min
+                self._attr_max_temp = new_max
+                self._attr_target_temperature_step = new_step
+
+        if isinstance(self, TadoAirConditioning):
+            modes = [HVACMode.OFF, HVACMode.AUTO]
+            if getattr(capabilities, "cool", None):
+                modes.append(HVACMode.COOL)
+            if getattr(capabilities, "heat", None):
+                modes.append(HVACMode.HEAT)
+            if getattr(capabilities, "dry", None):
+                modes.append(HVACMode.DRY)
+            if getattr(capabilities, "fan", None):
+                modes.append(HVACMode.FAN_ONLY)
+            self._attr_hvac_modes = modes
+
         self.async_write_ha_state()
 
-    async def _async_update_capabilities_v3(self) -> None:
-        """Update capabilities for v3 Classic (API Fetch)."""
-        if capabilities := await self.tado_coordinator.async_get_capabilities(
-            self._zone_id
+    @property
+    def current_humidity(self) -> int | None:
+        """Return current humidity."""
+        state = self._current_state
+        if (
+            state
+            and hasattr(state, "sensor_data_points")
+            and state.sensor_data_points
+            and hasattr(state.sensor_data_points, "humidity")
+            and state.sensor_data_points.humidity
         ):
-            if capabilities.temperatures:
-                new_min = float(capabilities.temperatures.celsius.min)
-                new_max = float(capabilities.temperatures.celsius.max)
-                new_step = float(capabilities.temperatures.celsius.step)
-
-                # Only update if values are sane (prevent min == max)
-                if new_min < new_max and new_step > 0:
-                    self._attr_min_temp = new_min
-                    self._attr_max_temp = new_max
-                    self._attr_target_temperature_step = new_step
-                else:
-                    _LOGGER.warning(
-                        "Invalid capabilities for zone %d (min=%s, max=%s, step=%s), keeping defaults",
-                        self._zone_id,
-                        new_min,
-                        new_max,
-                        new_step,
-                    )
-            self.async_write_ha_state()
+            return int(state.sensor_data_points.humidity.percentage)
+        return None
 
     @property
     def hvac_mode(self) -> HVACMode:
@@ -384,62 +409,6 @@ class TadoAirConditioning(TadoClimateEntity):
             attrs["auto_target_temperature"] = float(temp) if temp is not None else None
 
         return attrs
-
-    async def _async_update_capabilities(self) -> None:
-        """Fetch and refresh capabilities (Dispatcher)."""
-        if self.tado_coordinator.generation == GEN_X:
-            await self._async_update_capabilities_tadox()
-        else:
-            await self._async_update_capabilities_v3()
-
-    async def _async_update_capabilities_tadox(self) -> None:
-        """Update capabilities for Tado X (Static Defaults)."""
-        # [TADO_X] Use static defaults for Tado X (Matter)
-        # Override class defaults (which are AC specific) with heating-compatible values
-        self._attr_min_temp = 5.0
-        self._attr_max_temp = 30.0
-        self._attr_target_temperature_step = 0.5
-        # Ensure modes include HEAT for Tado X
-        self._attr_hvac_modes = [
-            HVACMode.OFF,
-            HVACMode.COOL,
-            HVACMode.HEAT,
-            HVACMode.DRY,
-            HVACMode.FAN_ONLY,
-            HVACMode.AUTO,
-        ]
-        self.async_write_ha_state()
-
-    async def _async_update_capabilities_v3(self) -> None:
-        """Update capabilities for v3 Classic (API Fetch)."""
-        if not (
-            capabilities := await self.tado_coordinator.async_get_capabilities(
-                self._zone_id
-            )
-        ):
-            return
-        if capabilities.temperatures:
-            new_min = float(capabilities.temperatures.celsius.min)
-            new_max = float(capabilities.temperatures.celsius.max)
-            new_step = float(capabilities.temperatures.celsius.step)
-
-            if new_min < new_max and new_step > 0:
-                self._attr_min_temp = new_min
-                self._attr_max_temp = new_max
-                self._attr_target_temperature_step = new_step
-
-        modes = [HVACMode.OFF, HVACMode.AUTO]
-        if getattr(capabilities, "cool", None):
-            modes.append(HVACMode.COOL)
-        if getattr(capabilities, "heat", None):
-            modes.append(HVACMode.HEAT)
-        if getattr(capabilities, "dry", None):
-            modes.append(HVACMode.DRY)
-        if getattr(capabilities, "fan", None):
-            modes.append(HVACMode.FAN_ONLY)
-
-        self._attr_hvac_modes = modes
-        self.async_write_ha_state()
 
     def _get_active_hvac_mode(self) -> HVACMode:
         """Return hvac mode when power is ON based on current state."""
@@ -769,17 +738,3 @@ class TadoHeating(TadoClimateEntity):
     def _get_active_hvac_action(self) -> HVACAction:
         """Return current action."""
         return HVACAction.HEATING
-
-    @property
-    def current_humidity(self) -> int | None:
-        """Return current humidity."""
-        state = self._current_state
-        if (
-            state
-            and hasattr(state, "sensor_data_points")
-            and state.sensor_data_points
-            and hasattr(state.sensor_data_points, "humidity")
-            and state.sensor_data_points.humidity
-        ):
-            return int(state.sensor_data_points.humidity.percentage)
-        return None
