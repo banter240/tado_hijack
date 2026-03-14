@@ -7,6 +7,9 @@
       "api_remaining": {
         "name": "API Calls Remaining"
       },
+      "outdoor_absolute_humidity": {
+        "name": "Outdoor Absolute Humidity"
+      },
       "quota_reset_last": {
         "name": "Last Quota Reset"
       },

@@ -576,8 +576,8 @@ Tado Hijack is now an **official HACS integration**! No custom repository needed
 | **Mold Risk Sensors**              | `On`      | Create a mold risk level sensor (`none`/`low`/`medium`/`high`) and a binary moisture sensor per zone. Uses dew point spread — correctly distinguishes cold-but-dry from cold-and-humid rooms. |
 | **Outdoor Weather Entity**         | `None`    | Select a weather entity providing outdoor temperature + humidity. When set, creates an indoor absolute humidity sensor (g/m³) and a ventilation recommendation binary sensor per zone. |
 | **Ventilation Threshold**          | `1.0 g/m³`| Minimum indoor-outdoor AH difference required before _Ventilation Recommended_ turns ON. Prevents automation chatter from negligible differences. |
-| **Temperature Source** _(per zone)_| `(none)`  | Optional: link a temperature `sensor` or `climate` entity as the data source for indoor climate sensors. Set via `select.zone_temp_source` on each zone device. Required for Tado X (cloud has no temp in Full-Matter mode). |
-| **Humidity Source** _(per zone)_   | `(none)`  | Optional: link a `climate` entity (reads `current_humidity`) or a humidity `sensor` as the data source for indoor climate sensors. Set via `select.zone_humidity_source` on each zone device. Fallback: cloud zone state humidity. |
+| **Temperature Source** _(per zone)_| `Automatic`  | Optional: link a temperature `sensor` or `climate` entity as the data source for indoor climate sensors. Set via `select.zone_temp_source` on each zone device. Required for Tado X (cloud has no temp in Full-Matter mode). |
+| **Humidity Source** _(per zone)_   | `Automatic`  | Optional: link a `climate` entity (reads `current_humidity`) or a humidity `sensor` as the data source for indoor climate sensors. Set via `select.zone_humidity_source` on each zone device. Fallback: cloud zone state humidity. |
 
 <br>
 

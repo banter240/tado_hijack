@@ -229,6 +229,21 @@ def _physics_abs_humidity(c: Any, zid: int) -> float | None:
     return round(compute_absolute_humidity(temp, rh), 1)
 
 
+def _physics_outdoor_abs_humidity(c: Any) -> float | None:
+    """Compute outdoor absolute humidity (g/m³) from weather entity."""
+    entity_id = c.config_entry.data.get(CONF_OUTDOOR_WEATHER_ENTITY)
+    if not entity_id:
+        return None
+    weather = c.hass.states.get(entity_id)
+    if weather is None:
+        return None
+    outdoor_temp = weather.attributes.get("temperature")
+    outdoor_rh = weather.attributes.get("humidity")
+    if outdoor_temp is None or outdoor_rh is None:
+        return None
+    return round(compute_absolute_humidity(float(outdoor_temp), float(outdoor_rh)), 1)
+
+
 def _physics_mold_risk(c: Any, zid: int) -> str | None:
     """Compute mold risk level string. Returns None if data missing."""
     temp = _get_room_temp_celsius(c, zid)
@@ -907,6 +922,12 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     create_diagnostic_sensor(
         key="api_remaining",
         value_fn=lambda c: int(c.rate_limit.remaining),
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    create_diagnostic_sensor(
+        key="outdoor_absolute_humidity",
+        value_fn=lambda c: _physics_outdoor_abs_humidity(c),
+        unit="g/m³",
         state_class=SensorStateClass.MEASUREMENT,
     ),
     create_diagnostic_sensor(

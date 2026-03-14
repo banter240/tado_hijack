@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 _LOGGER = get_redacted_logger(__name__)
 
 # Sentinel value displayed when no source entity is linked.
-_SOURCE_NONE: Final = "(none)"
+_SOURCE_NONE: Final = "Automatic"
 
 
 async def async_setup_entry(

@@ -7,6 +7,9 @@
       "api_remaining": {
         "name": "Verbleibende API-Aufrufe"
       },
+      "outdoor_absolute_humidity": {
+        "name": "Absolute Außenfeuchtigkeit"
+      },
       "quota_reset_last": {
         "name": "Letzter Quota-Reset"
       },
