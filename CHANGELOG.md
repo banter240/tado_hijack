@@ -1,3 +1,16 @@
+## [5.2.0-dev.1](https://github.com/banter240/tado_hijack/compare/v5.1.1-dev.1...v5.2.0-dev.1) (2026-03-14)
+
+### ✨ New Features
+
+* feat(sensors): comprehensive indoor climate intelligence and architectural refactor
+
+- **Dynamic Source Selection:** Implemented per-zone Select entities to choose custom Temperature & Humidity sources with a robust 3-layer fallback (User Select -> Climate Entity -> Cloud API).
+- **Universal Generation Support:** Unified zone property access across Classic (v3) and Tado X via a standardized `TadoUnifiedZone` interface.
+- **Indoor Climate Metrics:** Added sensors for dew point, absolute humidity, and acute mold risk levels across all hardware generations.
+- **Architectural Cleanup:** Centralized atmospheric physics into a shared module and refactored `config_flow` using section-based flattening to significantly reduce boilerplate.
+- **Enhanced UX:** Standardized climate entity capabilities, improved German translations with technical ID references, and updated binary sensor states to user-friendly Ja/Nein (Yes/No) labels.
+- **Technical Debt:** Removed non-essential meta-comments and standardized data fetching via a new zone sensor helper.
+
 ## [5.1.1-dev.1](https://github.com/banter240/tado_hijack/compare/v5.1.0...v5.1.1-dev.1) (2026-03-14)
 
 ### 🐛 Bug Fixes
