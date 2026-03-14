@@ -1,3 +1,36 @@
+## [5.1.1-dev.1](https://github.com/banter240/tado_hijack/compare/v5.1.0...v5.1.1-dev.1) (2026-03-14)
+
+### 🐛 Bug Fixes
+
+* fix(optimistic): consolidate manager API, fix away temp and executor bugs
+
+fix: away temperature never displayed or persisted correctly
+_add_away_track_to_plan used `_away_invalidated_at > _last_away_poll` as
+the sole trigger, but both start at 0 so 0 > 0 is always False. Away
+config was therefore never fetched on startup. Fix: also trigger when
+_last_away_poll == 0 (never fetched).
+
+_get_away_temp used `or 0.0` as a fallback, returning 0.0 instead of None
+for an empty cache. RestoreEntity never showed the last known state on
+startup. Fix: use `zid not in c.data.away_config` to distinguish "not yet
+fetched" from "fetched but disabled".
+
+fix: callback double-execution in executor
+The walrus operator `res := fn()` always calls the function. The added
+`else: fn()` branch caused every sync success_fn and rollback_fn to
+execute twice. Removed the redundant else branches.
+
+fix: capabilities_cache not cleared on targeted fetch fallback
+When async_targeted_fetch cannot resolve the entity_id to a zone for
+refresh_type="capabilities" it returns False so the coordinator falls
+back to async_refresh(). Without clearing the cache first the full
+refresh reused stale capabilities entries.
+
+refactor: consolidate OptimisticManager API and executor rollback logic
+Normalize entity IDs to str, add typed get/clear/set methods per property,
+support per-entry grace_period overrides, introduce _rollback_optimistic()
+factory to DRY up rollback closures, add success_fn to _execute_command.
+
 ## [5.1.0](https://github.com/banter240/tado_hijack/compare/v5.0.2...v5.1.0) (2026-03-13)
 
 ### ✨ New Features
