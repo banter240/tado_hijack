@@ -1,3 +1,13 @@
+## [5.2.0-dev.2](https://github.com/banter240/tado_hijack/compare/v5.2.0-dev.1...v5.2.0-dev.2) (2026-03-14)
+
+### ✨ New Features
+
+* feat(sensors): add outdoor absolute humidity and update source selection
+
+- Implement `outdoor_absolute_humidity` diagnostic sensor (g/m³) in Bridge scope
+- Calculate absolute humidity from weather entity temperature and humidity
+- Rename source selection sentinel from (none) to Automatic to reflect fallback logic
+
 ## [5.2.0-dev.1](https://github.com/banter240/tado_hijack/compare/v5.1.1-dev.1...v5.2.0-dev.1) (2026-03-14)
 
 ### ✨ New Features
