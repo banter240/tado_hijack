@@ -27,6 +27,10 @@ from .logging_utils import get_redacted_logger
 
 _LOGGER = get_redacted_logger(__name__)
 
+# Tolerance for polling intervals to handle scheduler jitter (5% of interval, max 10s)
+_JITTER_TOLERANCE_FACTOR = 0.05
+_MAX_JITTER_TOLERANCE_S = 10.0
+
 
 class PollTask:
     """Represents a single unit of work in a polling cycle."""
@@ -82,6 +86,18 @@ class TadoDataManager:
         """Return the client cast to TadoHijackClient."""
         return cast("TadoHijackClient", self._tado)
 
+    def _should_run_task(self, elapsed: float, interval: float) -> bool:
+        """Determine if a task should run, considering timing jitter.
+
+        Long intervals (e.g. 1800s) are given more absolute tolerance than
+        short ones, but we cap it to prevent overlapping high-frequency polls.
+        """
+        if interval <= 0:
+            return False
+
+        tolerance = min(interval * _JITTER_TOLERANCE_FACTOR, _MAX_JITTER_TOLERANCE_S)
+        return elapsed >= (interval - tolerance)
+
     def _build_poll_plan(self, current_time: float) -> list[PollTask]:
         """Construct the execution plan for the current poll cycle."""
         plan: list[PollTask] = []
@@ -99,33 +115,45 @@ class TadoDataManager:
             if self.coordinator.update_interval
             else 0
         )
+
+        elapsed = now - self._last_zones_poll
         if not self._zones_init or (
             self._zones_invalidated_at > self._last_zones_poll
-            or (interval > 0 and (now - self._last_zones_poll) >= (interval - 1))
+            or self._should_run_task(elapsed, interval)
         ):
             plan.append(PollTask(1, self._fetch_zones))
+        else:
+            _LOGGER.debug(
+                "DataManager: Skipping fast track (elapsed: %.1fs, interval: %.1fs)",
+                elapsed,
+                interval,
+            )
 
     def _add_presence_track_to_plan(self, plan: list[PollTask], now: float) -> None:
         """Add presence/home state polling."""
         if self.coordinator.generation == GEN_X:
             return
 
+        elapsed = now - self._last_presence_poll
+        interval = float(self._presence_poll_seconds)
         if not self._presence_init or (
             self._presence_invalidated_at > self._last_presence_poll
-            or (
-                self._presence_poll_seconds > 0
-                and (now - self._last_presence_poll)
-                >= (self._presence_poll_seconds - 1)
-            )
+            or self._should_run_task(elapsed, interval)
         ):
             plan.append(PollTask(1, self._fetch_presence))
+        else:
+            _LOGGER.debug(
+                "DataManager: Skipping presence track (elapsed: %.1fs, interval: %.1fs)",
+                elapsed,
+                interval,
+            )
 
     def _add_slow_track_to_plan(self, plan: list[PollTask], now: float) -> None:
         """Add metadata polling (slow track)."""
-        if (
-            not self._metadata_init
-            or (now - self._last_slow_poll) > self._slow_poll_seconds
-        ):
+        elapsed = now - self._last_slow_poll
+        interval = float(self._slow_poll_seconds)
+
+        if not self._metadata_init or self._should_run_task(elapsed, interval):
             plan.append(PollTask(1, self._fetch_metadata))
 
     def _add_medium_track_to_plan(self, plan: list[PollTask], now: float) -> None:
@@ -141,9 +169,11 @@ class TadoDataManager:
         if is_initial_poll and not self.coordinator.fetch_extended_data:
             return
 
+        elapsed = now - self._last_offset_poll
+        interval = float(self._offset_poll_seconds)
+
         if (self._offset_invalidated_at > self._last_offset_poll) or (
-            self._offset_poll_seconds > 0
-            and (now - self._last_offset_poll) > self._offset_poll_seconds
+            self._should_run_task(elapsed, interval)
         ):
             plan.append(PollTask(1, self._fetch_offsets))
 
@@ -382,7 +412,7 @@ class TadoDataManager:
             from .tadox.mapper import TadoXMapper
 
             presence = cast(TadoXMapper, self.provider).get_last_presence()
-            if self.coordinator.data:
+            if self.coordinator.data and self.coordinator.data.home_state:
                 self.coordinator.data.home_state.presence = presence
             self._presence_init = True
             self._last_presence_poll = now

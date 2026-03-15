@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, cast
 
+import aiohttp
+
 from homeassistant.core import (
     HomeAssistant,
 )
@@ -408,9 +410,20 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             self._force_next_update = False
 
             return cast(TadoData, data)
-        except TadoError as err:
+        except (TimeoutError, TadoError, aiohttp.ClientError) as err:
             self._force_next_update = False
+
+            if self.data:
+                _LOGGER.warning("Tado API transient error, using cached data: %s", err)
+                return cast(TadoData, self.data)
+
             raise UpdateFailed(f"Tado API error: {err}") from err
+        except Exception as err:
+            self._force_next_update = False
+            _LOGGER.error("Unexpected error fetching Tado data: %s", err, exc_info=True)
+            if self.data:
+                return cast(TadoData, self.data)
+            raise UpdateFailed(f"Unexpected error: {err}") from err
 
     def _handle_throttled_interval(self, seconds_until_reset: int) -> int:
         """Handle polling interval when throttled."""
