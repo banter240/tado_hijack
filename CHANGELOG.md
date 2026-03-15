@@ -1,3 +1,13 @@
+## [5.2.0-dev.3](https://github.com/banter240/tado_hijack/compare/v5.2.0-dev.2...v5.2.0-dev.3) (2026-03-15)
+
+### 🐛 Bug Fixes
+
+* fix(coordinator): prevent entities from becoming unavailable on transient API errors
+
+- Implement jitter-aware task scheduling in `DataManager` to prevent skipped polls due to execution time drift (resolves timing issues with long intervals).
+- Improve `Coordinator` error handling to catch `aiohttp.ClientError` and `TimeoutError`.
+- Fall back to last known good data on transient API errors instead of raising `UpdateFailed`, keeping entities available in the UI.
+
 ## [5.2.0-dev.2](https://github.com/banter240/tado_hijack/compare/v5.2.0-dev.1...v5.2.0-dev.2) (2026-03-14)
 
 ### ✨ New Features
