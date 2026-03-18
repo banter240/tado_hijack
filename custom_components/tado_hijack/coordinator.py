@@ -1162,12 +1162,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             # or it requires EIQ API. We will just pass for now or throw error if user tries.
         else:
             try:
-                if hasattr(self.client, "set_meter_readings"):
-                    await self.client.set_meter_readings(reading=reading)
-                else:
-                    _LOGGER.warning(
-                        "tadoasync library is too old, update required for meter readings"
-                    )
+                await self.client.set_meter_readings(reading=reading)
             except Exception as e:
                 _LOGGER.error("Failed to add meter reading: %s", e)
 
