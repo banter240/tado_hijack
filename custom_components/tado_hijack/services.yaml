@@ -142,3 +142,21 @@ set_water_heater_mode:
           step: 1
           unit_of_measurement: "°C"
     refresh_after: *field_refresh_after
+
+add_meter_reading:
+  description: "Upload a meter reading to Tado Energy IQ."
+  fields:
+    config_entry:
+      description: "Tado Hijack configuration entry."
+      required: true
+      selector:
+        config_entry:
+          integration: tado_hijack
+    reading:
+      description: "Meter reading value (integer)."
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 9999999
+          mode: box

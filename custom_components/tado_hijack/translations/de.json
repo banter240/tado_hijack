@@ -310,6 +310,7 @@
     "abort": {
       "already_configured": "Konto ist bereits konfiguriert.",
       "could_not_authenticate": "Authentifizierung bei Tado fehlgeschlagen.",
+      "no_homes_returned": "Authentifizierung fehlgeschlagen: Die Tado API hat keine 'Häuser' (homes) für dein Konto zurückgegeben. Bitte öffne die offizielle Tado-App und prüfe, ob du neue Nutzungsbedingungen akzeptieren musst oder dein Zuhause noch nicht fertig eingerichtet ist. Falls das Problem bestehen bleibt, melde dich bitte auf GitHub.",
       "no_homes": "Mit diesem Tado-Konto sind keine Häuser verknüpft.",
       "cannot_connect": "Verbindung fehlgeschlagen.",
       "reauth_successful": "Die Re-Authentifizierung war erfolgreich.",
@@ -617,6 +618,20 @@
         "temperature": {
           "name": "Temperatur",
           "description": "Zieltemperatur (wird je nach Zonentyp automatisch begrenzt)."
+        }
+      }
+    },
+    "add_meter_reading": {
+      "name": "Zählerstand hinzufügen",
+      "description": "Lädt einen Zählerstand zu Tado Energy IQ hoch.",
+      "fields": {
+        "config_entry": {
+          "name": "Konfigurations-Eintrag",
+          "description": "Tado Hijack Konfigurations-Eintrag, für den der Zählerstand hinzugefügt werden soll."
+        },
+        "reading": {
+          "name": "Zählerstand",
+          "description": "Zählerstand (ganze Zahl)."
         }
       }
     }

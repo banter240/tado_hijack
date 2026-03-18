@@ -614,6 +614,10 @@ class TadoHijackConfigFlow(
                 raise CannotConnect
             try:
                 await self.tado.device_activation()
+            except KeyError as ex:
+                if "homes" in str(ex):
+                    raise NoHomesReturnedError from ex
+                raise CannotConnect from ex
             except Exception as ex:
                 raise CannotConnect from ex
             if self.tado.device_activation_status != "COMPLETED":
@@ -623,7 +627,12 @@ class TadoHijackConfigFlow(
             self.login_task = self.hass.async_create_task(_wait_for_login())
 
         if self.login_task.done():
-            if self.login_task.exception():
+            exc = self.login_task.exception()
+            if exc:
+                if isinstance(exc, NoHomesReturnedError):
+                    return self.async_show_progress_done(
+                        next_step_id="no_homes_returned"
+                    )
                 return self.async_show_progress_done(next_step_id="timeout")
             self.refresh_token = self.tado.refresh_token
             return self.async_show_progress_done(next_step_id="finish_login")
@@ -637,6 +646,12 @@ class TadoHijackConfigFlow(
             },
             progress_task=self.login_task,
         )
+
+    async def async_step_no_homes_returned(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Show error that the API returned no homes."""
+        return self.async_abort(reason="no_homes_returned")
 
     async def async_step_finish_login(
         self, user_input: dict[str, Any] | None = None
@@ -742,3 +757,7 @@ class TadoHijackOptionsFlowHandler(TadoHijackCommonFlow, config_entries.OptionsF
 
 class CannotConnect(HomeAssistantError):
     """Error to indicate we cannot connect."""
+
+
+class NoHomesReturnedError(HomeAssistantError):
+    """Error to indicate the API did not return a 'homes' array."""

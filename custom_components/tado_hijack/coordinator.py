@@ -1152,6 +1152,25 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             ),
         )
 
+    async def async_add_meter_reading(self, reading: int) -> None:
+        """Add a meter reading to Tado Energy IQ."""
+        if self.generation == GEN_X:
+            _LOGGER.warning(
+                "Meter readings are not currently supported via Hops API in this integration"
+            )
+            # Tado X does not support set_meter_readings via the current Hops Api wrapper we have,
+            # or it requires EIQ API. We will just pass for now or throw error if user tries.
+        else:
+            try:
+                if hasattr(self.client, "set_meter_readings"):
+                    await self.client.set_meter_readings(reading=reading)
+                else:
+                    _LOGGER.warning(
+                        "tadoasync library is too old, update required for meter readings"
+                    )
+            except Exception as e:
+                _LOGGER.error("Failed to add meter reading: %s", e)
+
     async def async_set_ac_setting(self, zone_id: int, key: str, value: str) -> None:
         """Set an AC specific setting (fan speed, swing, temperature, etc.)."""
         await self.action_provider.async_set_ac_setting(zone_id, key, value)

@@ -178,6 +178,7 @@ SERVICE_BOOST_ALL_ZONES = "boost_all_zones"
 SERVICE_SET_MODE = "set_mode"
 SERVICE_SET_MODE_ALL = "set_mode_all_zones"
 SERVICE_SET_WATER_HEATER_MODE = "set_water_heater_mode"
+SERVICE_ADD_METER_READING = "add_meter_reading"
 
 
 # Device Capabilities

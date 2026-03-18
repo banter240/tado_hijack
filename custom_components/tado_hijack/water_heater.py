@@ -170,12 +170,12 @@ class TadoHotWater(
 
     @property
     def target_temperature(self) -> float | None:
-        """Return the target water temperature (only in manual mode)."""
+        """Return the target water temperature."""
         # Non-OpenTherm systems don't support temperature control
         if not self.tado_coordinator.supports_temperature(self._zone_id):
             return None
 
-        if self.current_operation in (OPERATION_MODE_OFF, OPERATION_MODE_AUTO):
+        if self.current_operation == OPERATION_MODE_OFF:
             return None
 
         # Check Optimistic Temperature
@@ -196,18 +196,7 @@ class TadoHotWater(
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return entity specific state attributes."""
-        attrs = super().extra_state_attributes
-
-        # Show schedule temperature for OpenTherm systems in AUTO mode
-        if (
-            self.tado_coordinator.supports_temperature(self._zone_id)
-            and self.current_operation == OPERATION_MODE_AUTO
-        ):
-            state = self.coordinator.data.zone_states.get(str(self._zone_id))
-            temp = parse_schedule_temperature(state)
-            attrs["auto_target_temperature"] = int(temp) if temp is not None else None
-
-        return attrs
+        return super().extra_state_attributes
 
     @property
     def is_on(self) -> bool:

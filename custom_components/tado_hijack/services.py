@@ -16,6 +16,7 @@ from .const import (
     OVERLAY_TIMER,
     POWER_OFF,
     POWER_ON,
+    SERVICE_ADD_METER_READING,
     SERVICE_BOOST_ALL_ZONES,
     SERVICE_MANUAL_POLL,
     SERVICE_RESUME_ALL_SCHEDULES,
@@ -235,6 +236,14 @@ async def async_setup_services(
             entity_id,
         )
 
+    async def handle_add_meter_reading(call: ServiceCall) -> None:
+        """Service to add a meter reading."""
+        reading = call.data.get("reading")
+        if reading is None:
+            return
+        _LOGGER.debug("Service call: add_meter_reading (%s)", reading)
+        await coordinator.async_add_meter_reading(reading)
+
     hass.services.async_register(DOMAIN, SERVICE_MANUAL_POLL, handle_manual_poll)
     hass.services.async_register(
         DOMAIN, SERVICE_RESUME_ALL_SCHEDULES, handle_resume_schedules
@@ -247,6 +256,9 @@ async def async_setup_services(
     hass.services.async_register(DOMAIN, SERVICE_SET_MODE_ALL, handle_set_mode_all)
     hass.services.async_register(
         DOMAIN, SERVICE_SET_WATER_HEATER_MODE, handle_set_water_heater_mode
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_ADD_METER_READING, handle_add_meter_reading
     )
 
 

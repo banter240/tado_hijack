@@ -702,6 +702,7 @@ Advanced monitoring sensors available under the Internet Bridge device diagnosti
 - `binary_sensor.disable_polling_when_throttled`, `binary_sensor.refresh_after_resume`
 
 **System Info:**
+- `sensor.outdoor_absolute_humidity` - Calculated absolute humidity (g/m³) from external weather entity
 - `sensor.tado_generation` - Detected hardware ("Tado X" or "Tado Classic (v3)")
 - `sensor.proxy_url`, `sensor.proxy_token` - Proxy configuration status
 - `sensor.log_level` - Current logging level
@@ -800,6 +801,7 @@ For advanced automation, use these services. All manual control services feature
 | `tado_hijack.set_mode`              | Set mode, temperature, and termination. Supports `hvac_mode` (auto, heat, off) and `overlay` (manual, next_block, presence). | **1 call** (batched) | **1 call** (batched) |
 | `tado_hijack.set_mode_all_zones`    | Targets all HEATING and/or AC zones at once using `hvac_mode`.                                                               | **1 call** (bulk)    | **N calls** (per zone) |
 | `tado_hijack.set_water_heater_mode` | Set `operation_mode` and temperature for hot water (v3 only).                                                                | **1 call**           | N/A (no HW zones)    |
+| `tado_hijack.add_meter_reading`     | Upload a meter reading (integer) to Tado Energy IQ (v3 only).                                                                | **1 call**           | N/A (unsupported)    |
 | `tado_hijack.manual_poll`           | Force immediate data refresh. Use `refresh_type` to control scope. Add `entity_id` for a targeted single-entity fetch (saves quota). | **1-N** (depends)    | **1-N** (depends)    |
 
 <br>
