@@ -1,3 +1,13 @@
+## [5.2.0-dev.5](https://github.com/banter240/tado_hijack/compare/v5.2.0-dev.4...v5.2.0-dev.5) (2026-03-19)
+
+### 🐛 Bug Fixes
+
+* fix(api): patch upstream tadoasync meter readings endpoint and timezone
+
+- Implement runtime patch in `lib/patches.py` for `tadoasync.Tado.set_meter_readings` to fix a missing URI bug that caused `403 Forbidden` errors.
+- Fix timezone handling to use the local Home Assistant time instead of UTC to prevent incorrect day assignments in Tado Energy IQ.
+- Simplify `coordinator.py` to rely on the patched upstream method.
+
 ## [5.2.0-dev.4](https://github.com/banter240/tado_hijack/compare/v5.2.0-dev.3...v5.2.0-dev.4) (2026-03-18)
 
 ### ✨ New Features
