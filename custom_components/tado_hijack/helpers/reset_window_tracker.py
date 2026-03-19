@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.util import dt as dt_util
@@ -18,6 +18,7 @@ from ..const import (
     API_RESET_HISTORY_SIZE,
     API_RESET_HOUR_START,
     API_RESET_MIDPOINT_MINUTE,
+    API_RESET_MIN_PLANNING_HOURS,
     API_RESET_PATTERN_THRESHOLD,
 )
 
@@ -63,6 +64,30 @@ class ResetWindowTracker:
         self._history_original: deque[datetime] = deque(maxlen=history_size)
 
         self._learned_window: ResetWindow | None = None
+        self._initial_target: datetime | None = None
+
+    def get_initial_target(self) -> datetime:
+        """Get or create a static initial target for new setups."""
+        if self._initial_target is None:
+            berlin_tz = dt_util.get_time_zone("Europe/Berlin")
+            now_berlin = dt_util.now().astimezone(berlin_tz)
+
+            target = now_berlin.replace(
+                hour=self._default_hour,
+                minute=self._default_minute,
+                second=0,
+                microsecond=0,
+            )
+
+            if target <= now_berlin:
+                target += timedelta(days=1)
+
+            if (target - now_berlin).total_seconds() < (API_RESET_MIN_PLANNING_HOURS * 3600):
+                target += timedelta(days=1)
+
+            self._initial_target = target
+
+        return self._initial_target
 
     def record_reset(self, reset_time: datetime) -> None:
         """Record a detected quota reset.
@@ -134,6 +159,30 @@ class ResetWindowTracker:
         """Get most recent reset time (original)."""
         return self._history_original[0] if self._history_original else None
 
+    def get_next_reset_time(self) -> datetime:
+        """Get the absolute next expected reset time."""
+        berlin_tz = dt_util.get_time_zone("Europe/Berlin")
+        now_berlin = dt_util.now().astimezone(berlin_tz)
+
+        window = self.get_expected_window()
+        last_reset = self.get_last_reset_original()
+
+        if last_reset is None:
+            return self.get_initial_target()
+
+        last_reset_berlin = last_reset.astimezone(berlin_tz)
+        next_reset = (last_reset_berlin + timedelta(days=1)).replace(
+            hour=window.hour,
+            minute=window.minute,
+            second=0,
+            microsecond=0,
+        )
+
+        if next_reset <= now_berlin:
+            next_reset += timedelta(days=1)
+
+        return next_reset
+
     @property
     def history_count(self) -> int:
         """Return number of recorded resets."""
@@ -161,6 +210,9 @@ class ResetWindowTracker:
                 if self._learned_window
                 else None
             ),
+            "initial_target": self._initial_target.isoformat()
+            if self._initial_target
+            else None,
         }
 
     def _load_history_from_list(
@@ -192,3 +244,6 @@ class ResetWindowTracker:
                 minute=lw_data.get("minute", self._default_minute),
                 confidence=lw_data.get("confidence", "default"),
             )
+
+        if initial_target_str := data.get("initial_target"):
+            self._initial_target = dt_util.parse_datetime(initial_target_str)

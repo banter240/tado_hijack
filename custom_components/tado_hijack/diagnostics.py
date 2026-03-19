@@ -22,7 +22,6 @@ from .const import (
 )
 from .coordinator import TadoDataUpdateCoordinator
 from .helpers.logging_utils import redact
-from .helpers.quota_math import get_next_reset_time
 
 __all__ = ["async_get_config_entry_diagnostics"]
 
@@ -197,19 +196,9 @@ def _get_quota_diagnostics(coordinator: TadoDataUpdateCoordinator) -> dict[str, 
     dm = coordinator.data_manager
     res_total, res_breakdown = dm.estimate_daily_reserved_cost()
 
-    expected_window = coordinator.reset_tracker.get_expected_window()
-    expected_hour = (
-        expected_window.hour if expected_window.confidence == "learned" else None
-    )
-    expected_minute = (
-        expected_window.minute if expected_window.confidence == "learned" else None
-    )
-
     # Timing calculations
     now_dt = dt_util.now()
-    next_reset = get_next_reset_time(
-        expected_hour, expected_minute, coordinator._last_quota_reset
-    )
+    next_reset = coordinator.reset_tracker.get_next_reset_time()
     seconds_until_reset = int((next_reset - now_dt).total_seconds())
     seconds_since_reset = SECONDS_PER_DAY - seconds_until_reset
     progress_done = max(0.0, min(1.0, seconds_since_reset / SECONDS_PER_DAY))

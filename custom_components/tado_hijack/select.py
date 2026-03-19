@@ -135,7 +135,6 @@ class TadoZoneSourceSelectBase(TadoZoneEntity, SelectEntity):
         self._attr_unique_id = (
             f"{coordinator.config_entry.entry_id}_zone_{zone_id}_{unique_id_suffix}"
         )
-        self._set_entity_id("select", unique_id_suffix)
 
     @property
     def options(self) -> list[str]:

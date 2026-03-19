@@ -110,7 +110,6 @@ class TadoGenericDeviceButton(TadoDeviceEntity, TadoGenericEntityMixin, ButtonEn
             device.current_fw_version,
         )
         TadoGenericEntityMixin.__init__(self, definition)
-        self._set_entity_id("button", definition["key"])
 
     async def async_press(self) -> None:
         """Handle the button press."""

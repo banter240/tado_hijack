@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Any, cast
+from typing import Any
 
 from homeassistant.util import dt as dt_util
 
 from ..const import (
     API_RESET_HOUR_START,
     API_RESET_MIN_PERCENT,
-    API_RESET_MIN_PLANNING_HOURS,
-    API_RESET_MIDPOINT_MINUTE,
     MIN_AUTO_QUOTA_INTERVAL_S,
     SECONDS_PER_DAY,
     SECONDS_PER_HOUR,
@@ -67,79 +65,17 @@ def check_quota_reset(
     return remaining > last_remaining and (remaining / limit) >= min_reset_percent
 
 
-def get_next_reset_time(
-    expected_hour: int | None = None,
-    expected_minute: int | None = None,
-    last_reset: datetime | None = None,
-) -> datetime:
-    """Get the next expected quota reset time.
-
-    Strategy:
-    - If last_reset exists: Calculate based on last_reset + 24h with learned window
-    - If no last_reset (new installation): Use now + MIN_PLANNING_HOURS as initial value
-
-    Args:
-        expected_hour: Learned reset hour (None = use default 12)
-        expected_minute: Learned reset minute (None = use default 30)
-        last_reset: Last detected quota reset time (original, not normalized)
-
-    Returns:
-        Next expected quota reset time
-
-    """
-    berlin_tz = dt_util.get_time_zone("Europe/Berlin")
-    now_berlin = dt_util.now().astimezone(berlin_tz)
-
-    # Use learned window or fallback to default
-    reset_hour = expected_hour if expected_hour is not None else API_RESET_HOUR_START
-    reset_minute = (
-        expected_minute if expected_minute is not None else API_RESET_MIDPOINT_MINUTE
-    )
-
-    # No last reset (new installation): Use conservative initial estimate
-    if last_reset is None:
-        initial_estimate = now_berlin + timedelta(hours=API_RESET_MIN_PLANNING_HOURS)
-        return cast(
-            datetime,
-            initial_estimate.replace(minute=reset_minute, second=0, microsecond=0),
-        )
-
-    # Have last reset: Calculate next reset based on it
-    last_reset_berlin = last_reset.astimezone(berlin_tz)
-
-    # Next reset is last_reset + 24h, adjusted to learned window time
-    next_reset = (last_reset_berlin + timedelta(days=1)).replace(
-        hour=reset_hour,
-        minute=reset_minute,
-        second=0,
-        microsecond=0,
-    )
-
-    # If next reset already passed, add another day
-    if next_reset <= now_berlin:
-        next_reset = next_reset + timedelta(days=1)
-
-    return next_reset
-
-
-def get_seconds_until_reset(
-    expected_hour: int | None = None,
-    expected_minute: int | None = None,
-    last_reset: datetime | None = None,
-) -> int:
+def get_seconds_until_reset(next_reset: datetime) -> int:
     """Get seconds until next API quota reset.
 
     Args:
-        expected_hour: Learned reset hour (None = use default)
-        expected_minute: Learned reset minute (None = use default)
-        last_reset: Last detected quota reset time (if any)
+        next_reset: Next expected quota reset time
 
     Returns:
         Seconds until next reset
 
     """
-    reset_time = get_next_reset_time(expected_hour, expected_minute, last_reset)
-    return int((reset_time - dt_util.now()).total_seconds())
+    return int((next_reset - dt_util.now()).total_seconds())
 
 
 def calculate_remaining_polling_budget(
@@ -230,9 +166,7 @@ def calculate_weighted_interval(
     is_in_reduced_window_func: Any,
     reduced_window_conf: dict[str, Any],
     min_floor: int,
-    expected_hour: int | None = None,
-    expected_minute: int | None = None,
-    last_reset: datetime | None = None,
+    next_reset: datetime,
 ) -> int:
     """Calculate weighted interval for performance hours (reinvesting savings).
 
@@ -242,9 +176,7 @@ def calculate_weighted_interval(
         is_in_reduced_window_func: Function to check reduced window
         reduced_window_conf: Reduced polling configuration
         min_floor: Minimum allowed interval
-        expected_hour: Learned reset hour (None = use default)
-        expected_minute: Learned reset minute (None = use default)
-        last_reset: Last detected quota reset time (if any)
+        next_reset: Next expected quota reset time
 
     Returns:
         Calculated polling interval in seconds
@@ -252,7 +184,6 @@ def calculate_weighted_interval(
     """
     try:
         now = dt_util.now()
-        next_reset = get_next_reset_time(expected_hour, expected_minute, last_reset)
 
         # Calculate total normal and reduced seconds until next reset
         normal_seconds = 0

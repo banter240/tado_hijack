@@ -72,7 +72,6 @@ from .helpers.climate_physics import (
     compute_ventilation_beneficial,
 )
 from .helpers.parsers import get_ac_capabilities
-from .helpers.quota_math import get_next_reset_time
 from .helpers.tadov3 import parsers as v3_parsers
 from .helpers.tadox import parsers as tadox_parsers
 from .models import TadoEntityDefinition
@@ -314,12 +313,7 @@ def _get_away_temp(c: Any, zid: int) -> float | None:
 def _get_next_reset_timestamp(c: Any) -> Any:
     """Get next expected quota reset as datetime object."""
     try:
-        window = c.reset_tracker.get_expected_window()
-        expected_hour = window.hour if window.confidence == "learned" else None
-        expected_minute = window.minute if window.confidence == "learned" else None
-        return get_next_reset_time(
-            expected_hour, expected_minute, c.reset_tracker.get_last_reset_original()
-        )
+        return c.reset_tracker.get_next_reset_time()
     except Exception:
         return None
 

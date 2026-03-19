@@ -94,7 +94,6 @@ from .helpers.quota_math import (
     calculate_safety_reserve_interval,
     calculate_weighted_interval,
     check_quota_reset,
-    get_next_reset_time,
     get_seconds_until_reset,
     is_in_reset_safe_window,
 )
@@ -447,9 +446,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         reduced_interval = conf["interval"]
         if reduced_interval == 0:
             test_dt = now + timedelta(minutes=1)
-            next_reset = get_next_reset_time(
-                expected_hour, expected_minute, self._last_quota_reset
-            )
+            next_reset = self.reset_tracker.get_next_reset_time()
             while self._is_in_reduced_window(test_dt, conf) and test_dt < next_reset:
                 test_dt += timedelta(minutes=15)
             diff = int((test_dt - now).total_seconds())
@@ -517,7 +514,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
 
         expected_hour, expected_minute = self._get_learned_reset_window()
         seconds_until_reset = get_seconds_until_reset(
-            expected_hour, expected_minute, self._last_quota_reset
+            self.reset_tracker.get_next_reset_time()
         )
 
         # 1. Throttling (Highest Priority)
@@ -570,9 +567,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
                 is_in_reduced_window_func=self._is_in_reduced_window,
                 reduced_window_conf=conf,
                 min_floor=min_floor,
-                expected_hour=expected_hour,
-                expected_minute=expected_minute,
-                last_reset=self._last_quota_reset,
+                next_reset=self.reset_tracker.get_next_reset_time(),
             )
 
         return SECONDS_PER_HOUR
@@ -618,10 +613,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         if self._auto_api_quota_percent <= 0:
             return
 
-        expected_hour, expected_minute = self._get_learned_reset_window()
-        next_reset = get_next_reset_time(
-            expected_hour, expected_minute, self._last_quota_reset
-        )
+        next_reset = self.reset_tracker.get_next_reset_time()
         now = dt_util.now()
         delay = (next_reset - now).total_seconds()
 

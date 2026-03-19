@@ -130,7 +130,6 @@ class TadoGenericZoneSwitch(
             zone_name,
         )
         TadoGenericSwitchMixin.__init__(self, definition)
-        self._set_entity_id("switch", definition["key"])
         self._attr_unique_id = f"{coordinator.config_entry.entry_id}_zone_{zone_id}_{self._get_unique_id_suffix()}"
 
     @property
@@ -163,7 +162,6 @@ class TadoGenericDeviceSwitch(
             device.current_fw_version,
         )
         TadoGenericSwitchMixin.__init__(self, definition)
-        self._set_entity_id("switch", definition["key"])
         self._attr_unique_id = (
             f"{coordinator.config_entry.entry_id}_{self._get_unique_id_suffix()}"
         )
