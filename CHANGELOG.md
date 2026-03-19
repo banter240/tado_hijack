@@ -1,3 +1,13 @@
+## [5.2.0-dev.6](https://github.com/banter240/tado_hijack/compare/v5.2.0-dev.5...v5.2.0-dev.6) (2026-03-19)
+
+### 🐛 Bug Fixes
+
+* fix(quota): eliminate runaway next reset target on fresh installations
+
+- Encapsulated `get_next_reset_time` within `ResetWindowTracker`.
+- Introduced a static `initial_target` that persists across updates and reboots if no reset history exists, preventing the target from drifting exactly one hour forward every hour.
+- Removed legacy `_set_entity_id` overrides in zone switches/buttons/selects to allow native Home Assistant naming, fixing a bug where switches used the global home name instead of the device zone name.
+
 ## [5.2.0-dev.5](https://github.com/banter240/tado_hijack/compare/v5.2.0-dev.4...v5.2.0-dev.5) (2026-03-19)
 
 ### 🐛 Bug Fixes
