@@ -823,6 +823,16 @@ For advanced automation, use these services. All manual control services feature
 
 <br>
 
+> [!TIP]
+> **Multi-Home Service Routing:**
+> Have multiple Tado Homes configured? Our service routing is fully multi-account aware!
+>
+> - **Global Execution (Default):** Call `tado_hijack.resume_all_schedules` with empty data `{}` -> The command is sent to **all** configured Tado homes automatically.
+> - **Targeted Execution:** Use the new `config_entry` parameter in your service call (available in the UI) to select a specific home. -> The command is routed **exclusively** to the selected home.
+> - **Batched Entity Routing:** When sending multiple `entity_ids` to `set_mode` that belong to different homes, Tado Hijack automatically sorts the entities and batches the API requests to their respective homes in parallel.
+
+<br>
+
 ### `set_mode` Examples (YAML)
 
 <br>

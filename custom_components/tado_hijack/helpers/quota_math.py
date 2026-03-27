@@ -105,7 +105,7 @@ def calculate_remaining_polling_budget(
     if remaining <= 0 or limit <= 0:
         return 0.0
 
-    progress_remaining = seconds_until_reset / SECONDS_PER_DAY
+    progress_remaining = min(1.0, max(0.0, seconds_until_reset / SECONDS_PER_DAY))
 
     base_daily_budget = (limit - background_cost_24h - throttle_threshold) * (
         auto_quota_percent / 100.0
@@ -117,9 +117,15 @@ def calculate_remaining_polling_budget(
     background_consumed = background_cost_24h * (1.0 - progress_remaining)
 
     # Raise the floor when external usage has consumed more than the reserved threshold.
+    max_external = max(
+        0.0, float(limit) - base_daily_budget - float(background_cost_24h)
+    )
     expected_polling_consumed = base_daily_budget * (1.0 - progress_remaining)
-    inferred_external = max(
-        0.0, float(calls_consumed) - background_consumed - expected_polling_consumed
+    inferred_external = min(
+        max_external,
+        max(
+            0.0, float(calls_consumed) - background_consumed - expected_polling_consumed
+        ),
     )
     effective_threshold = max(float(throttle_threshold), inferred_external)
 

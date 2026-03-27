@@ -82,7 +82,9 @@ class ResetWindowTracker:
             if target <= now_berlin:
                 target += timedelta(days=1)
 
-            if (target - now_berlin).total_seconds() < (API_RESET_MIN_PLANNING_HOURS * 3600):
+            if (target - now_berlin).total_seconds() < (
+                API_RESET_MIN_PLANNING_HOURS * 3600
+            ):
                 target += timedelta(days=1)
 
             self._initial_target = target
