@@ -1,3 +1,26 @@
+## [5.2.0-dev.7](https://github.com/banter240/tado_hijack/compare/v5.2.0-dev.6...v5.2.0-dev.7) (2026-03-27)
+
+### 🐛 Bug Fixes
+
+* fix(services): resolve multi-account service registry bug and update yaml definitions
+
+fix(quota): prevent budget collapse at day boundary
+
+Two bugs in calculate_remaining_polling_budget caused polling to
+effectively stop when quota remained:
+
+1. progress_remaining could exceed 1.0 when seconds_until_reset > 24h
+   (initial target pushed to next day on first run). Clamped to [0, 1].
+
+2. At the day boundary (progress_remaining ≈ 1.0), expected_polling_consumed
+   approaches 0, causing all consumed calls to be misattributed as external
+   usage. inferred_external is now capped at the quota share not allocated
+   to polling/background, preventing effective_threshold from inflating and
+   collapsing the polling budget before the actual reset.
+
+fix(optimistic): skip state patching for dummy zones
+docs: document new multi-home service routing capabilities
+
 ## [5.2.0-dev.6](https://github.com/banter240/tado_hijack/compare/v5.2.0-dev.5...v5.2.0-dev.6) (2026-03-19)
 
 ### 🐛 Bug Fixes
