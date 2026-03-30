@@ -1,3 +1,19 @@
+## [5.2.0-dev.8](https://github.com/banter240/tado_hijack/compare/v5.2.0-dev.7...v5.2.0-dev.8) (2026-03-30)
+
+### 🐛 Bug Fixes
+
+* fix(tadox): infer INSIDE_TEMPERATURE_MEASUREMENT capability from device data
+
+Tado X devices (VA04 valves) do not expose a characteristics.capabilities
+array in the Hops roomsAndDevices response, so the CAPABILITY_INSIDE_TEMP
+gate in yield_tadox_devices always filtered them out — leaving the
+temperature offset number entity uncreated for GEN_X.
+
+Add a model_validator on TadoXDevice that infers the capability from the
+presence of temperature_offset in the API response, mirroring how ha-tado-x
+handles this (skip only when temperature_offset is None). All other
+capability gates and entity definitions remain unchanged.
+
 ## [5.2.0-dev.7](https://github.com/banter240/tado_hijack/compare/v5.2.0-dev.6...v5.2.0-dev.7) (2026-03-27)
 
 ### 🐛 Bug Fixes
