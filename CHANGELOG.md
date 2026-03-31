@@ -1,3 +1,65 @@
+## [5.2.0-rc.1](https://github.com/banter240/tado_hijack/compare/v5.1.0...v5.2.0-rc.1) (2026-03-31)
+
+### ✨ New Features
+
+* feat(core): comprehensive indoor climate intelligence, meter reading service, and bug fixes
+
+Introduces indoor climate intelligence with dynamic source selection,
+a meter reading service for Tado Energy IQ, and a series of targeted
+bug fixes across quota management, services, Tado X capability inference,
+and entity ID generation.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🌟 INDOOR CLIMATE INTELLIGENCE & SENSORS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Advanced Climate Metrics:
+- Added sensors for dew point, absolute humidity, and acute mold risk levels across all hardware generations.
+- Implemented outdoor absolute humidity diagnostic sensor (g/m3).
+- Centralized atmospheric physics into a shared module.
+
+Dynamic Source Selection:
+- Implemented per-zone Select entities to choose custom Temperature & Humidity sources.
+- Robust 3-layer fallback system: User Select -> Climate Entity -> Cloud API.
+
+Universal Support:
+- Unified zone property access across Classic (v3) and Tado X via TadoUnifiedZone interface.
+- Standardized climate entity capabilities.
+- Updated binary sensor states to user-friendly Yes/No labels.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🛠️ METER READINGS & SERVICES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Energy IQ Integration:
+- Implemented `tado_hijack.add_meter_reading` service to upload meter readings to the Tado cloud (v3 Classic only).
+- Patched upstream `tadoasync` meter readings endpoint to fix 403 Forbidden errors.
+- Fixed timezone handling to use local HA time instead of UTC for correct day assignments.
+
+Multi-Account Services:
+- Fixed service registry bug where services from multiple config entries would
+  overwrite each other, causing actions to only work for the last registered account.
+- Updated services.yaml with corrected field definitions.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🐛 BUG FIXES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Quota Management:
+- Fixed progress_remaining exceeding 1.0 on fresh installs (initial target pushed to next day).
+- Fixed budget collapse at day boundary where all consumed calls were misattributed
+  as external usage, collapsing the polling budget before the actual quota reset.
+- Introduced static initial_target to prevent runaway next reset target drift.
+
+Coordinator & API:
+- Improved error handling for transient API errors, falling back to last known
+  good data to keep entities available.
+- Fixed water heater target temperature hidden in AUTO mode for OpenTherm systems.
+- Fixed away temperature never displaying or persisting correctly on startup.
+
+Tado X:
+- Infer INSIDE_TEMPERATURE_MEASUREMENT capability from device data when not
+
 ## [5.1.0](https://github.com/banter240/tado_hijack/compare/v5.0.2...v5.1.0) (2026-03-13)
 
 ### ✨ New Features
