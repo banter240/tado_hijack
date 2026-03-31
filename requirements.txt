@@ -2,7 +2,7 @@
 tadoasync==0.2.2
 
 # CI/CD & Dev Tools
-ruff
-pre-commit
-black
-mypy
+ruff==0.15.8
+pre-commit==4.5.1
+mypy==1.19.1
+yamllint==1.38.0

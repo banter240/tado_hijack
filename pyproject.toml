@@ -1,8 +1,9 @@
 [tool.mypy]
 platform = "linux"
-python_version = "3.13"
+python_version = "3.14"
 follow_imports = "normal"
 ignore_missing_imports = true
+explicit_package_bases = true
 check_untyped_defs = true
 disallow_any_generics = true
 disallow_incomplete_defs = true
@@ -21,31 +22,29 @@ warn_unused_ignores = true
 exclude = ["testing_config/"]
 
 [tool.ruff]
-target-version = "py313"
+target-version = "py314"
 line-length = 88
 
 [tool.ruff.lint]
-select = ["ALL"]
+select = ["B", "C", "E", "F", "W", "I", "UP", "PL", "RUF", "TID"]
+
 ignore = [
-  "ANN101",  # Self... explanatory
-  "ANN102",  # cls... just as useless
-  "ANN401",  # Opinioated warning on disallowing dynamically typed expressions
-  "D203",    # Conflicts with other rules
-  "ARG002",  # Conflicts with other rules
-  "D213",    # Conflicts with other rules
-  "D417",    # False positives in some occasions
-  "PLR2004", # Just annoying, not really useful
-  "SLOT000", # Has a bug with enums
-  "TRY003",  # Avoid specifying long messages outside the exception class
-  "EM101",   # Exception must not use a string literal
-  "EM102",   # Exception must not use an f-string literal
-  "PLR0913", # Too many arguments
-  "N815",    # Scope should not be mixedCase
-  "PLR0912", # Too many branches
-  "PLR0915", # Too many statements
-  "C901",    # Too complex
-  "COM812",  # Conflicts with formatter
-  "ISC001",  # Conflicts with formatter
+    "D202",    # No blank lines allowed after function docstring
+    "D203",    # 1 blank line required before class docstring
+    "D213",    # Multi-line docstring summary should start at the second line
+    "D406",    # Section name should end with a newline
+    "D407",    # Section name underlining
+    "D417",    # Missing argument descriptions in the docstring
+    "E501",    # Line too long (handled by formatter)
+    "PLR0911", # Too many return statements
+    "PLR0912", # Too many branches
+    "PLR0913", # Too many arguments
+    "PLR0915", # Too many statements
+    "PLR2004", # Magic value used in comparison
+    "PLW0603", # Using the global statement
+    "RUF012",  # Mutable class attributes should be annotated with ClassVar
+    "B010",    # Do not transform setattr to dot notation
+    "PLC0415", # Allow local imports (common in HA integrations)
 ]
 
 [tool.ruff.lint.mccabe]
@@ -53,6 +52,12 @@ max-complexity = 25
 
 [tool.ruff.lint.isort]
 known-first-party = ["custom_components.tado_hijack"]
+
+[tool.ruff.lint.flake8-pytest-style]
+fixture-parentheses = false
+
+[tool.ruff.lint.pyupgrade]
+keep-runtime-typing = true
 
 # --- Poetry Configuration ---
 [tool.poetry]
@@ -64,18 +69,19 @@ license = "GPL-3.0"
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.13"
-homeassistant = ">=2024.6.0"
+python = "^3.14"
+homeassistant = ">=2026.3.4"
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^7.0"
-pytest-cov = "^4.0"
-pytest-homeassistant-custom-component = "^0.13"
+pytest = "9.0.0"
+pytest-cov = "7.0.0"
+pytest-homeassistant-custom-component = "0.13.320"
 
 # Recommended development tools:
-ruff = "^0.4.0"
-mypy = "^1.9.0"
-pre-commit = "^3.7.0"
+ruff = "0.15.8"
+mypy = "1.19.1"
+pre-commit = "4.5.1"
+yamllint = "1.38.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

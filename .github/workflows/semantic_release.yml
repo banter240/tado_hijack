@@ -7,7 +7,7 @@ on:
   push:
     branches:
       - 'main'
-      - 'release-test'
+      - 'rc'
       - 'dev'
 
 jobs:
@@ -25,7 +25,7 @@ jobs:
   # This job runs only after linting and validation succeed.
   semantic_release:
     name: "Create Semantic Release"
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/rc' || github.ref == 'refs/heads/dev'
     needs: [linting, validation]
     runs-on: ubuntu-latest
     permissions:
@@ -46,7 +46,14 @@ jobs:
           node-version: "20"
 
       - name: "Install semantic-release and required plugins"
-        run: npm install --save-dev semantic-release @semantic-release/changelog @semantic-release/exec @semantic-release/git @semantic-release/github conventional-changelog-conventionalcommits
+        run: |
+            npm install --save-dev \
+              semantic-release \
+              @semantic-release/changelog \
+              @semantic-release/exec \
+              @semantic-release/git \
+              @semantic-release/github \
+              conventional-changelog-conventionalcommits
 
       - name: "Execute Semantic Release"
         id: semantic

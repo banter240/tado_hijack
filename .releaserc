@@ -98,7 +98,11 @@
   ],
   "branches": [
     "main",
-    "release-test",
+    {
+      "name": "rc",
+      "channel": "rc",
+      "prerelease": "rc"
+    },
     {
       "name": "dev",
       "channel": "dev",

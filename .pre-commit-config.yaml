@@ -1,7 +1,7 @@
 repos:
   # Standard hooks for file integrity and basic checks.
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: check-yaml
       - id: check-json
@@ -10,9 +10,15 @@ repos:
       - id: end-of-file-fixer
       - id: trailing-whitespace
 
+  # yamllint for YAML file validation.
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.38.0
+    hooks:
+      - id: yamllint
+
   # Ruff hook for fast linting and formatting.
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.12.2
+    rev: v0.15.8
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
@@ -36,7 +42,7 @@ repos:
 
   # Sourcery hook for AI-powered refactoring.
   - repo: https://github.com/sourcery-ai/sourcery
-    rev: "v1.37.0"
+    rev: "v1.43.0"
     hooks:
       - id: sourcery
         # Automatically apply fixes suggested by Sourcery
@@ -44,7 +50,7 @@ repos:
 
   # Gitleaks hook for detecting secrets and sensitive information.
   - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.27.2 # Use the latest stable version
+    rev: v8.30.0 # Use the latest stable version
     hooks:
       - id: gitleaks
 
