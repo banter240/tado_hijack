@@ -3,6 +3,7 @@ platform = "linux"
 python_version = "3.13"
 follow_imports = "normal"
 ignore_missing_imports = true
+explicit_package_bases = true
 check_untyped_defs = true
 disallow_any_generics = true
 disallow_incomplete_defs = true

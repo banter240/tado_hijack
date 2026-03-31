@@ -6,3 +6,4 @@ ruff
 pre-commit
 black
 mypy
+yamllint

@@ -10,6 +10,12 @@ repos:
       - id: end-of-file-fixer
       - id: trailing-whitespace
 
+  # yamllint for YAML file validation.
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.37.1
+    hooks:
+      - id: yamllint
+
   # Ruff hook for fast linting and formatting.
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.12.2
