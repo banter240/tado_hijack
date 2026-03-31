@@ -232,7 +232,8 @@ class TadoEntity(CoordinatorEntity):
             elif hasattr(self, "_serial_no"):
                 suffix = f"_{self._serial_no}_{key}"
 
-        self.entity_id = f"{domain}.{prefix}_{home_slug}{suffix}"
+        home_part = f"_{home_slug}" if home_slug else ""
+        self.entity_id = f"{domain}.{prefix}{home_part}{suffix}"
 
     @property
     def tado_coordinator(self) -> TadoDataUpdateCoordinator:
