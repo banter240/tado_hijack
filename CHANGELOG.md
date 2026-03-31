@@ -1,3 +1,20 @@
+## [5.2.0-rc.2](https://github.com/banter240/tado_hijack/compare/v5.2.0-rc.1...v5.2.0-rc.2) (2026-03-31)
+
+### 🐛 Bug Fixes
+
+* fix(quota): correct budget calculation, diagnostics attribution, and Python 3.13 compatibility
+
+- Fix calculate_remaining_polling_budget: use actual_polls_today as baseline for
+  inferred_external detection, eliminating double-penalty on external calls
+- Fix calculate_safety_reserve_interval: distribute over 3-hour safe window
+  (was 1 hour, causing 3x too-frequent polling during reset window)
+- Fix available_now to use effective_threshold instead of throttle_threshold
+- Fix diagnostics user_so_far/user_excess: zone polls were incorrectly attributed
+  as external user calls; now uses tracked poll counter
+- Fix _update_learned_window dead code: single_observation branch was unreachable
+- Track actual polling calls in _polling_calls_today per fetch, reset on quota reset
+- Align tooling with Python 3.13: CI, ruff target-version, pyproject.toml
+
 ## [5.2.0-rc.1](https://github.com/banter240/tado_hijack/compare/v5.1.0...v5.2.0-rc.1) (2026-03-31)
 
 ### ✨ New Features
