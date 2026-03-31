@@ -113,6 +113,12 @@ RESUME_REFRESH_DELAY_S: Final = (
     1.0  # Grace period to collect multiple resumes before refresh
 )
 INITIAL_RATE_LIMIT_GUESS: Final = 100  # Pessimistic initial guess
+MIN_OWD_TIMEOUT_MIN: Final = 5  # Minimum open window detection timeout in minutes
+MIN_OWD_TIMEOUT_S: Final = MIN_OWD_TIMEOUT_MIN * 60  # 300 seconds
+TEMP_TOLERANCE: Final = 0.1  # Tolerance for temperature float comparisons (degrees)
+TEMP_STRICT_TOLERANCE: Final = 0.01  # Strict tolerance for offset/away-temp checks
+HOME_ID_MIN_DIGITS: Final = 6  # Home IDs are 6+ digit integers
+SERIAL_SHORT_LENGTH: Final = 6  # Short serial number uses last 6 characters
 SLOW_POLL_CYCLE_S: Final = 86400  # 24 Hours in seconds
 
 # Zone Types

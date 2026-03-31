@@ -6,6 +6,8 @@ import logging
 import re
 from typing import Any
 
+from ..const import HOME_ID_MIN_DIGITS
+
 # Common sensitive URL parameter patterns for Tado
 _URL_PARAM_PATTERNS = [
     re.compile(r"user_code=[^& ]+", re.IGNORECASE),
@@ -88,7 +90,7 @@ class TadoRedactionFilter(logging.Filter):
                 redacted_args = []
                 for arg in record.args:
                     # home_id is typically an integer - redact it
-                    if isinstance(arg, int) and len(str(arg)) >= 6:
+                    if isinstance(arg, int) and len(str(arg)) >= HOME_ID_MIN_DIGITS:
                         redacted_args.append("REDACTED")
                     else:
                         redacted_args.append(redact(arg))

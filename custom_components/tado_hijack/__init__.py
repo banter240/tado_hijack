@@ -66,15 +66,15 @@ async def async_migrate_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bo
     if entry.version == 1:
         entry.version = 2
 
-    if entry.version == 2:
+    if entry.version == 2:  # noqa: PLR2004
         # scan_interval fix
         new_data = {**entry.data}
-        if new_data.get(CONF_SCAN_INTERVAL) == 1800:
+        if new_data.get(CONF_SCAN_INTERVAL) == DEFAULT_SCAN_INTERVAL:
             _LOGGER.info("Migrating scan_interval to 3600s (v3)")
             new_data[CONF_SCAN_INTERVAL] = 3600
         hass.config_entries.async_update_entry(entry, data=new_data, version=3)
 
-    if entry.version == 3:
+    if entry.version == 3:  # noqa: PLR2004
         # Introduction of Presence Polling
         new_data = {**entry.data}
         if CONF_PRESENCE_POLL_INTERVAL not in new_data:
@@ -84,7 +84,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bo
             )
         hass.config_entries.async_update_entry(entry, data=new_data, version=4)
 
-    if entry.version == 4:
+    if entry.version == 4:  # noqa: PLR2004
         # Cleanup of legacy hot water entities
         _LOGGER.info("Migrating to version 5: Cleaning up legacy hot water entities")
         from homeassistant.helpers import entity_registry as er
@@ -102,7 +102,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bo
 
         hass.config_entries.async_update_entry(entry, version=5)
 
-    if entry.version < 6:
+    if entry.version < 6:  # noqa: PLR2004
         # Reset intervals to defaults to fix unit confusion
         _LOGGER.info("Migrating to version 6: Resetting intervals to defaults")
         new_data = {
@@ -115,7 +115,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bo
         new_data[CONF_SLOW_POLL_INTERVAL] = DEFAULT_SLOW_POLL_INTERVAL  # gitleaks:allow
         hass.config_entries.async_update_entry(entry, data=new_data, version=6)
 
-    if entry.version < 7:
+    if entry.version < 7:  # noqa: PLR2004
         # Cleanup open window detection switch entities (replaced by number)
         _LOGGER.info(
             "Migrating to version 7: Cleaning up legacy open window detection switch entities"
@@ -212,7 +212,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bool
 
     if (
         not entry.data.get(CONF_INITIAL_POLL_DONE)
-        and coordinator.rate_limit.limit >= 1000
+        and coordinator.rate_limit.limit >= 1000  # noqa: PLR2004
     ):
         _LOGGER.info(
             "Performing initial full poll (Limit: %d)", coordinator.rate_limit.limit

@@ -14,7 +14,6 @@ from homeassistant.const import (
 )
 from homeassistant.core import CALLBACK_TYPE, Event, callback
 
-
 from .logging_utils import get_redacted_logger
 
 if TYPE_CHECKING:

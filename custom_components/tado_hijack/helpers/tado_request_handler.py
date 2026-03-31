@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import http
 from typing import Any, cast
 
 from aiohttp import ClientResponseError
@@ -127,12 +128,12 @@ class TadoRequestHandler:
                 async with session.request(**cast(Any, request_kwargs)) as response:
                     self._log_response(response, url)
 
-                    if response.status >= 400:
+                    if response.status >= http.HTTPStatus.BAD_REQUEST:
                         await self._handle_error_response(response, url)
 
                     return (
                         ""
-                        if response.status == 204
+                        if response.status == http.HTTPStatus.NO_CONTENT
                         else cast(str, await response.text())
                     )
         except TimeoutError as err:

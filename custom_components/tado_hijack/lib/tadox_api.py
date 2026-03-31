@@ -14,6 +14,7 @@ See dev/workspace/context/tadoasync_coupling.md for details.
 
 from __future__ import annotations
 
+import http
 from typing import TYPE_CHECKING, Any, cast
 
 from aiohttp import ClientTimeout
@@ -107,9 +108,9 @@ class TadoXApi:
                 params=hops_params,
                 timeout=ClientTimeout(total=10),
             ) as response:
-                if response.status == 204:
+                if response.status == http.HTTPStatus.NO_CONTENT:
                     return {"success": True}
-                if response.status == 404:
+                if response.status == http.HTTPStatus.NOT_FOUND:
                     _LOGGER.info(
                         "Hops API returned 404 for %s (no Tado X hardware associated with this account)",
                         endpoint,
@@ -228,6 +229,9 @@ class TadoXApi:
         ) as response:
             response.raise_for_status()
             # 204 No Content or 200 with empty body
-            if response.status == 204 or response.content_length == 0:
+            if (
+                response.status == http.HTTPStatus.NO_CONTENT
+                or response.content_length == 0
+            ):
                 return None
             return await response.json(content_type=None)

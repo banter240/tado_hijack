@@ -396,15 +396,17 @@ The system distributes your daily quota budget across the full day, and continuo
 DAILY_CEILING = (Limit - Background_24h - Throttle_Threshold) × Auto_API_Quota_%
 
 # 2. Effective threshold rises with actual external usage above the configured floor
-INFERRED_EXTERNAL   = max(0, Consumed - Background_Consumed - Expected_Polling)
+BASELINE_POLLING    = max(Actual_Polls_Today, DAILY_CEILING × Day_Progress)
+INFERRED_EXTERNAL   = max(0, Consumed - Background_Consumed - BASELINE_POLLING)
 EFFECTIVE_THRESHOLD = max(Throttle_Threshold, INFERRED_EXTERNAL)
 DAILY_CEILING       = (Limit - Background_24h - EFFECTIVE_THRESHOLD) × Auto_API_Quota_%
 
-# 3. How much of that budget is still available
-PLANNED_BUDGET = DAILY_CEILING - (Consumed - Background_Consumed)
+# 3. How much of that budget is still available for remaining polls
+POLLS_DONE     = Consumed - Background_Consumed - INFERRED_EXTERNAL
+PLANNED_BUDGET = DAILY_CEILING - POLLS_DONE
 
 # 4. Capped against what is actually remaining in your account
-AVAILABLE_NOW = Remaining - Throttle_Threshold - Future_Background
+AVAILABLE_NOW = Remaining - EFFECTIVE_THRESHOLD - Future_Background
 
 # 5. Final budget for the rest of the day
 FINAL_BUDGET = max(0, min(PLANNED_BUDGET, AVAILABLE_NOW) - Safety_Reserve)
@@ -417,7 +419,7 @@ FINAL_BUDGET = max(0, min(PLANNED_BUDGET, AVAILABLE_NOW) - Safety_Reserve)
 > - **Planning horizon:** Always plans minimum **20 hours ahead** to prevent quota burning
 > - **Normalization:** All resets in the same hour (e.g., 7:03, 7:35, 7:58) are normalized to X:30 for pattern grouping
 >
-> The safety reserve (default: 2 calls) bridges uncertainty during the reset window to keep polling active even when budget runs out.
+> The safety reserve (default: 2 calls) is distributed evenly across a **3-hour window** (±1h around the expected reset hour) to keep polling active even when the main budget runs out.
 
 <br>
 

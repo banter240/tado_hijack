@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
 from collections.abc import Callable, Coroutine
+from typing import TYPE_CHECKING, Any
 
 from ...lib.tadox_api import TadoXApi
 from ..executor_base import TadoExecutorBase, map_magic_temp_to_power

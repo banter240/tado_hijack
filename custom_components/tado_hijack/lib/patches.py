@@ -62,9 +62,9 @@ def apply_patches() -> None:
 def patch_set_meter_readings() -> None:
     """Patch tadoasync set_meter_readings to include the required URI."""
     try:
+        import orjson
         import tadoasync.tadoasync
         from tadoasync.const import HttpMethod
-        import orjson
 
         original_method = getattr(tadoasync.tadoasync.Tado, "set_meter_readings", None)
         if not original_method:
@@ -96,9 +96,7 @@ def patch_set_meter_readings() -> None:
                     f"Error setting meter reading: {data['message']}"
                 )
 
-        setattr(
-            tadoasync.tadoasync.Tado, "set_meter_readings", patched_set_meter_readings
-        )
+        tadoasync.tadoasync.Tado.set_meter_readings = patched_set_meter_readings  # type: ignore[method-assign]
         _LOGGER.debug("Successfully patched tadoasync Tado.set_meter_readings")
     except Exception as e:
         _LOGGER.error("Failed to patch set_meter_readings: %s", e)
@@ -175,10 +173,8 @@ def patch_zone_state_deserialization() -> None:
 
             return d
 
-        setattr(
-            tadoasync.models.ZoneState,
-            "__pre_deserialize__",
-            classmethod(patched_pre_deserialize),
+        tadoasync.models.ZoneState.__pre_deserialize__ = classmethod(  # type: ignore[method-assign, assignment]
+            patched_pre_deserialize
         )
         _LOGGER.debug("Successfully patched ZoneState.__pre_deserialize__")
 
@@ -216,7 +212,7 @@ def patch_version_string() -> None:
 
         # Update sys.modules cache if already imported
         if "tadoasync" in sys.modules:
-            setattr(sys.modules["tadoasync"], "VERSION", TADO_VERSION_PATCH)
+            sys.modules["tadoasync"].VERSION = TADO_VERSION_PATCH  # type: ignore[attr-defined]
 
     except ImportError as e:
         _LOGGER.warning("Failed to import tadoasync for version patch: %s", e)

@@ -7,8 +7,8 @@ from typing import Any
 
 from tadoasync.models import Overlay, Temperature, Termination
 
-from .logging_utils import get_redacted_logger
 from ..lib.tadox_models import HopsTemperature, ManualControlTermination
+from .logging_utils import get_redacted_logger
 
 _LOGGER = get_redacted_logger(__name__)
 

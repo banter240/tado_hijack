@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
 from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
-from ..const import POWER_OFF, POWER_ON
+from ..const import POWER_OFF, POWER_ON, TEMP_STRICT_TOLERANCE, TEMP_TOLERANCE
 from ..models import CommandType, TadoCommand
 from .logging_utils import get_redacted_logger
 
@@ -71,7 +71,7 @@ def _check_overlay_redundancy(
         if cache_temp is None:
             return False
 
-        if abs(cache_temp - target_temp) < 0.1:
+        if abs(cache_temp - target_temp) < TEMP_TOLERANCE:
             _LOGGER.debug(
                 "Skipping redundant SET_OVERLAY zone_%s: power=%s, temp=%s",
                 zone_id,
@@ -147,7 +147,7 @@ def _check_offset_redundancy(command: TadoCommand, optimistic: OptimisticState) 
     if cache_offset is None:
         return False
 
-    if abs(cache_offset - target_offset) < 0.01:  # Float comparison
+    if abs(cache_offset - target_offset) < TEMP_STRICT_TOLERANCE:
         _LOGGER.debug(
             "Skipping redundant SET_OFFSET %s: already %s",
             serial_no,
@@ -175,7 +175,7 @@ def _check_away_temp_redundancy(
     if cache_temp is None:
         return False
 
-    if abs(cache_temp - target_temp) < 0.01:  # Float comparison
+    if abs(cache_temp - target_temp) < TEMP_STRICT_TOLERANCE:
         _LOGGER.debug(
             "Skipping redundant SET_AWAY_TEMP zone_%s: already %s",
             zone_id,
@@ -380,7 +380,7 @@ def should_skip_all_action(
                 if (
                     cache_power != POWER_ON
                     or cache_temp is None
-                    or abs(cache_temp - BOOST_TEMP) > 0.1
+                    or abs(cache_temp - BOOST_TEMP) > TEMP_TOLERANCE
                     or not overlay_active
                 ):
                     return False  # At least one needs boost → send
@@ -456,7 +456,7 @@ def should_skip_all_action_provider(
                 if (
                     power != POWER_ON
                     or temp is None
-                    or abs(temp - BOOST_TEMP) > 0.1
+                    or abs(temp - BOOST_TEMP) > TEMP_TOLERANCE
                     or in_schedule  # in_schedule=True means no overlay
                 ):
                     return False  # At least one needs boost → send
@@ -532,7 +532,10 @@ def _filter_zone_updates(
                 _LOGGER.debug("Skipping redundant zone_%s overlay: both OFF", zone_id)
             # If ON, check temperature
             elif target_power == POWER_ON and target_temp is not None:
-                if cache_temp is not None and abs(cache_temp - target_temp) < 0.1:
+                if (
+                    cache_temp is not None
+                    and abs(cache_temp - target_temp) < TEMP_TOLERANCE
+                ):
                     is_redundant = True
                     _LOGGER.debug(
                         "Skipping redundant zone_%s overlay: power=%s, temp=%s",

@@ -107,7 +107,7 @@ class EntityResolver:
         """
         try:
             parts = unique_id.split("_")
-            if len(parts) >= 3:
+            if len(parts) >= 3:  # noqa: PLR2004
                 serial_no = parts[-1]
 
                 for zone in self.coordinator.zones_meta.values():

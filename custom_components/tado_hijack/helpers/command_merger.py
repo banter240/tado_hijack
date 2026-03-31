@@ -147,8 +147,8 @@ class CommandMerger:
                 self.rollback_zones[cmd.zone_id] = cmd.rollback_context
         else:
             # Bulk operation for all heating zones
-            from .zone_utils import get_zone_type
             from ..const import ZONE_TYPE_HEATING
+            from .zone_utils import get_zone_type
 
             for zid, zone in self.zones_meta.items():
                 if get_zone_type(zone) == ZONE_TYPE_HEATING:

@@ -13,7 +13,7 @@ def yield_tadox_devices(
     coordinator: TadoDataUpdateCoordinator,
     include_zone_types: set[str] | list[str] | None = None,
     capability: str | None = None,
-) -> Generator[tuple[Any, int], None, None]:
+) -> Generator[tuple[Any, int]]:
     """Yield Tado X devices matching capabilities.
 
     Tado X specific implementation - uses room_id instead of zone.id.

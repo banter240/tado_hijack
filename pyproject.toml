@@ -1,6 +1,6 @@
 [tool.mypy]
 platform = "linux"
-python_version = "3.14"
+python_version = "3.13"
 follow_imports = "normal"
 ignore_missing_imports = true
 explicit_package_bases = true
@@ -22,30 +22,27 @@ warn_unused_ignores = true
 exclude = ["testing_config/"]
 
 [tool.ruff]
-target-version = "py314"
+target-version = "py313"
 line-length = 88
 
 [tool.ruff.lint]
 select = ["B", "C", "E", "F", "W", "I", "UP", "PL", "RUF", "TID"]
 
 ignore = [
-    "D202",    # No blank lines allowed after function docstring
-    "D203",    # 1 blank line required before class docstring
-    "D213",    # Multi-line docstring summary should start at the second line
-    "D406",    # Section name should end with a newline
-    "D407",    # Section name underlining
-    "D417",    # Missing argument descriptions in the docstring
     "E501",    # Line too long (handled by formatter)
-    "PLR0911", # Too many return statements
-    "PLR0912", # Too many branches
-    "PLR0913", # Too many arguments
-    "PLR0915", # Too many statements
-    "PLR2004", # Magic value used in comparison
-    "PLW0603", # Using the global statement
-    "RUF012",  # Mutable class attributes should be annotated with ClassVar
-    "B010",    # Do not transform setattr to dot notation
-    "PLC0415", # Allow local imports (common in HA integrations)
+    "PLR0911", # Too many return statements (common in HA entity handlers and checkers)
+    "PLR0912", # Too many branches (branchy coordinator/checker functions)
+    "PLR0915", # Too many statements (complex setup/service functions)
+    "PLW0603", # Using the global statement (module-level flags for patches and log level)
+    "TID252",  # Relative imports are HA integration convention (..const, ..models etc.)
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"custom_components/tado_hijack/**/*.py" = ["PLC0415"]  # Conditional/lazy imports by design in HA
+"custom_components/tado_hijack/definitions.py" = ["PLR0913"]  # Entity factory functions have many kwargs by design
+
+[tool.ruff.lint.pylint]
+max-args = 10
 
 [tool.ruff.lint.mccabe]
 max-complexity = 25
@@ -69,7 +66,7 @@ license = "GPL-3.0"
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.14"
+python = "^3.13"
 homeassistant = ">=2026.3.4"
 
 [tool.poetry.group.dev.dependencies]

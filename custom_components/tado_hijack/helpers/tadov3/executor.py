@@ -8,8 +8,8 @@ from ..executor_base import TadoExecutorBase, map_magic_temp_to_power
 from ..logging_utils import get_redacted_logger
 
 if TYPE_CHECKING:
-    from ..client import TadoHijackClient
     from ...coordinator import TadoDataUpdateCoordinator
+    from ..client import TadoHijackClient
 
 _LOGGER = get_redacted_logger(__name__)
 
@@ -232,16 +232,17 @@ class TadoV3Executor(TadoExecutorBase):
                 temp = temp_dict.get("celsius")
 
                 # Magic number mapping: temp=-1 → power=OFF (last call wins)
-                final_temp, power = map_magic_temp_to_power(temp)
+                _final_temp, power = map_magic_temp_to_power(temp)
 
+                overlay_data = data
                 if power == "OFF":
                     # Rebuild setting for OFF mode
                     setting = {**setting, "power": "OFF"}
                     if "temperature" in setting:
                         del setting["temperature"]
-                    data = {**data, "setting": setting}
+                    overlay_data = {**data, "setting": setting}
 
-                overlays.append({"room": zid, "overlay": data})
+                overlays.append({"room": zid, "overlay": overlay_data})
         return resumes, overlays, hw
 
     async def _execute_hw_actions(

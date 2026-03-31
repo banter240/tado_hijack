@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from homeassistant.components.climate import (
     ClimateEntity,
@@ -677,7 +677,11 @@ class TadoHeating(TadoClimateEntity):
     _attr_min_temp = 5.0
     _attr_max_temp = 25.0
     _attr_target_temperature_step = 0.5
-    _attr_hvac_modes = [HVACMode.OFF, HVACMode.HEAT, HVACMode.AUTO]
+    _attr_hvac_modes: ClassVar[list[HVACMode]] = [  # type: ignore[misc]
+        HVACMode.OFF,
+        HVACMode.HEAT,
+        HVACMode.AUTO,
+    ]
 
     def __init__(
         self, coordinator: TadoDataUpdateCoordinator, zone_id: int, zone_name: str

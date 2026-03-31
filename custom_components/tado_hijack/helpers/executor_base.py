@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import asyncio
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any
 from collections.abc import Callable, Coroutine
+from typing import TYPE_CHECKING, Any
 
 from tadoasync.models import TemperatureOffset
 
@@ -262,7 +262,7 @@ class TadoExecutorBase(ABC):
                 zone := self.coordinator.zones_meta.get(zone_id)
             ):
                 if hasattr(zone, "early_start_enabled"):
-                    setattr(zone, "early_start_enabled", old_val)
+                    zone.early_start_enabled = old_val
                 _LOGGER.info("Rolled back early start for zone %d", zone_id)
 
         return self._rollback_optimistic("zone", zone_id, "early_start", restore)

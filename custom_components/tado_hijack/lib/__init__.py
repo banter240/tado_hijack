@@ -11,10 +11,10 @@ from .tadox_models import (
 )
 
 __all__ = [
-    "TadoXApi",
-    "TadoXZoneState",
-    "TadoXDevice",
     "HopsRoomsAndDevicesResponse",
+    "TadoXApi",
+    "TadoXDevice",
+    "TadoXZoneState",
     "apply_patches",
     "get_handler",
 ]

@@ -16,6 +16,7 @@ from .models import TadoEntityDefinition
 
 if TYPE_CHECKING:
     from typing import Any
+
     from .coordinator import TadoDataUpdateCoordinator
 
 

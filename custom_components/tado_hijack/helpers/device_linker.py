@@ -5,7 +5,8 @@ from __future__ import annotations
 from typing import cast
 
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 
 from .logging_utils import get_redacted_logger
 
@@ -18,7 +19,7 @@ _cache_built = False
 
 def invalidate_cache() -> None:
     """Invalidate the device cache, forcing rebuild on next access."""
-    global _cache_built, _device_cache
+    global _cache_built
     _cache_built = False
     _device_cache.clear()
     _LOGGER.debug("Device linker cache invalidated")

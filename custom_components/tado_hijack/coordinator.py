@@ -6,17 +6,16 @@ from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, cast
 
 import aiohttp
-
 from homeassistant.core import (
     HomeAssistant,
 )
-
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 from tadoasync import Tado, TadoError
 
 if TYPE_CHECKING:
     from tadoasync.models import Device, Zone
+
     from . import TadoConfigEntry
     from .helpers.client import TadoHijackClient
     from .lib.tadox_models import HopsRoomSnapshot
@@ -32,9 +31,9 @@ from .const import (
     CONF_GENERATION,
     CONF_JITTER_PERCENT,
     CONF_MIN_AUTO_QUOTA_INTERVAL_S,
-    CONF_QUOTA_SAFETY_RESERVE,
     CONF_OFFSET_POLL_INTERVAL,
     CONF_PRESENCE_POLL_INTERVAL,
+    CONF_QUOTA_SAFETY_RESERVE,
     CONF_REDUCED_POLLING_ACTIVE,
     CONF_REDUCED_POLLING_END,
     CONF_REDUCED_POLLING_INTERVAL,
@@ -48,12 +47,12 @@ from .const import (
     DEFAULT_DEBOUNCE_TIME,
     DEFAULT_JITTER_PERCENT,
     DEFAULT_MIN_AUTO_QUOTA_INTERVAL_S,
-    DEFAULT_QUOTA_SAFETY_RESERVE,
     DEFAULT_OFFSET_POLL_INTERVAL,
+    DEFAULT_PRESENCE_POLL_INTERVAL,
+    DEFAULT_QUOTA_SAFETY_RESERVE,
     DEFAULT_REDUCED_POLLING_END,
     DEFAULT_REDUCED_POLLING_INTERVAL,
     DEFAULT_REDUCED_POLLING_START,
-    DEFAULT_PRESENCE_POLL_INTERVAL,
     DEFAULT_REFRESH_AFTER_RESUME,
     DEFAULT_SLOW_POLL_INTERVAL,
     DEFAULT_SUPPRESS_REDUNDANT_BUTTONS,
@@ -62,20 +61,20 @@ from .const import (
     DOMAIN,
     GEN_CLASSIC,
     GEN_X,
-    RESUME_REFRESH_DELAY_S,
     MIN_AUTO_QUOTA_INTERVAL_S,
     MIN_PROXY_INTERVAL_S,
     OVERLAY_NEXT_BLOCK,
     POWER_OFF,
     POWER_ON,
+    RESUME_REFRESH_DELAY_S,
     SECONDS_PER_HOUR,
     TEMP_DEFAULT_AC,
     TEMP_DEFAULT_HEATING,
     TEMP_DEFAULT_HOT_WATER,
+    THROTTLE_RECOVERY_INTERVAL_S,
     ZONE_TYPE_AIR_CONDITIONING,
     ZONE_TYPE_HEATING,
     ZONE_TYPE_HOT_WATER,
-    THROTTLE_RECOVERY_INTERVAL_S,
 )
 from .dummy.dummy_handler import TadoDummyHandler  # [DUMMY_HOOK]
 from .helpers.api_manager import TadoApiManager
@@ -87,7 +86,7 @@ from .helpers.event_handlers import TadoEventHandler
 from .helpers.logging_utils import get_redacted_logger
 from .helpers.optimistic_manager import OptimisticManager
 from .helpers.overlay_builder import build_overlay_data
-from .lib.patches import get_handler
+from .helpers.poll_scheduler import PollScheduler
 from .helpers.property_manager import PropertyManager
 from .helpers.quota_math import (
     calculate_remaining_polling_budget,
@@ -97,12 +96,12 @@ from .helpers.quota_math import (
     get_seconds_until_reset,
     is_in_reset_safe_window,
 )
-from .helpers.poll_scheduler import PollScheduler
 from .helpers.rate_limit_manager import RateLimitManager
 from .helpers.reset_window_tracker import ResetWindowTracker
 from .helpers.state_patcher import patch_zone_overlay, patch_zone_resume
 from .helpers.storage import TadoStorage
 from .helpers.utils import apply_jitter
+from .lib.patches import get_handler
 from .models import CommandType, RateLimit, TadoCommand, TadoData
 
 _LOGGER = get_redacted_logger(__name__)
@@ -390,18 +389,14 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             actual_cost = quota_start - self.rate_limit.remaining
             if actual_cost > 0:
                 self.rate_limit.last_poll_cost = float(actual_cost)
+                self._polling_calls_today += actual_cost
 
             self._detect_quota_reset()
 
-            setattr(
-                data,
-                "rate_limit",
-                RateLimit(
-                    limit=self.rate_limit.limit,
-                    remaining=self.rate_limit.remaining,
-                ),
+            data.rate_limit = RateLimit(
+                limit=self.rate_limit.limit, remaining=self.rate_limit.remaining
             )
-            setattr(data, "api_status", self.rate_limit.api_status)
+            data.api_status = self.rate_limit.api_status
 
             self._adjust_interval_for_auto_quota()
 
@@ -547,6 +542,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             auto_quota_percent=self._auto_api_quota_percent,
             seconds_until_reset=seconds_until_reset,
             safety_reserve=safety_reserve,
+            actual_polls_today=self._polling_calls_today,
         )
 
         # 4. Budget exhausted
@@ -639,6 +635,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         ):
             reset_time = dt_util.now()
             self._last_quota_reset = reset_time
+            self._polling_calls_today = 0
 
             self.reset_tracker.record_reset(reset_time)
             self._save_reset_tracker()
@@ -1095,7 +1092,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         if zone := self.zones_meta.get(zone_id):
             old_val = getattr(zone, "early_start_enabled", None)
             # tadoasync Zone model misses this field, so we set it dynamically
-            setattr(zone, "early_start_enabled", enabled)
+            zone.early_start_enabled = enabled  # type: ignore[union-attr]
 
         await self.property_manager.async_set_zone_property(
             zone_id,

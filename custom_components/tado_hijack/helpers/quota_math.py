@@ -86,6 +86,7 @@ def calculate_remaining_polling_budget(
     auto_quota_percent: int,
     seconds_until_reset: int,
     safety_reserve: int = 0,
+    actual_polls_today: int = 0,
 ) -> float:
     """Calculate remaining API budget for the rest of the day.
 
@@ -97,6 +98,7 @@ def calculate_remaining_polling_budget(
         auto_quota_percent: Percentage of quota to use for polling
         seconds_until_reset: Seconds until next quota reset
         safety_reserve: API calls reserved for reset window (12-13h)
+        actual_polls_today: Actual integration poll calls since last reset
 
     Returns:
         Remaining budget for adaptive polling (excludes safety reserve)
@@ -120,12 +122,13 @@ def calculate_remaining_polling_budget(
     max_external = max(
         0.0, float(limit) - base_daily_budget - float(background_cost_24h)
     )
-    expected_polling_consumed = base_daily_budget * (1.0 - progress_remaining)
+    baseline_polling = max(
+        float(actual_polls_today),
+        base_daily_budget * (1.0 - progress_remaining),
+    )
     inferred_external = min(
         max_external,
-        max(
-            0.0, float(calls_consumed) - background_consumed - expected_polling_consumed
-        ),
+        max(0.0, float(calls_consumed) - background_consumed - baseline_polling),
     )
     effective_threshold = max(float(throttle_threshold), inferred_external)
 
@@ -137,11 +140,13 @@ def calculate_remaining_polling_budget(
     if max_daily_poll_budget <= 0:
         return 0.0
 
-    polling_consumed = max(0.0, float(calls_consumed) - background_consumed)
-    planned_budget = max(0.0, max_daily_poll_budget - polling_consumed)
+    polls_done = max(
+        0.0, float(calls_consumed) - background_consumed - inferred_external
+    )
+    planned_budget = max(0.0, max_daily_poll_budget - polls_done)
 
     future_bg = background_cost_24h * progress_remaining
-    available_now = max(0.0, remaining - throttle_threshold - future_bg)
+    available_now = max(0.0, remaining - effective_threshold - future_bg)
 
     budget = min(planned_budget, available_now)
     return max(0.0, budget - safety_reserve)
@@ -150,7 +155,9 @@ def calculate_remaining_polling_budget(
 def calculate_safety_reserve_interval(safety_reserve: int) -> int:
     """Calculate polling interval during reset window using safety reserve.
 
-    Safety reserve is distributed evenly during the reset window (12:00-13:00).
+    Safety reserve is distributed evenly across the active safe window.
+    is_in_reset_safe_window() activates ±1h around the expected hour,
+    giving a 3-hour window total (e.g. 12:xx-14:xx for expected hour 13).
 
     Args:
         safety_reserve: Number of API calls reserved for reset window
@@ -162,8 +169,8 @@ def calculate_safety_reserve_interval(safety_reserve: int) -> int:
     if safety_reserve <= 0:
         return SECONDS_PER_HOUR  # No safety reserve, use max interval
 
-    # Distribute safety reserve over 1 hour (reset window duration)
-    return SECONDS_PER_HOUR // safety_reserve
+    safe_window_seconds = 3 * SECONDS_PER_HOUR
+    return safe_window_seconds // safety_reserve
 
 
 def calculate_weighted_interval(

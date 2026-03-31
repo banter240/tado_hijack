@@ -328,14 +328,13 @@ class TadoDataManager:
             pending_keys = self.coordinator.api_manager.pending_keys
             if "presence" not in pending_keys:
                 self.coordinator.data.home_state = state
+            elif existing_state := self.coordinator.data.home_state:
+                protected = TadoApiManager.get_protected_fields_for_key("presence")
+                for field in vars(state):
+                    if field not in protected and not field.startswith("_"):
+                        setattr(existing_state, field, getattr(state, field))
             else:
-                if existing_state := self.coordinator.data.home_state:
-                    protected = TadoApiManager.get_protected_fields_for_key("presence")
-                    for field in vars(state):
-                        if field not in protected and not field.startswith("_"):
-                            setattr(existing_state, field, getattr(state, field))
-                else:
-                    self.coordinator.data.home_state = state
+                self.coordinator.data.home_state = state
         return state
 
     def _merge_zone_states(self, states: dict[str, Any]) -> None:
@@ -545,8 +544,8 @@ class TadoDataManager:
         if not self.provider or self.coordinator.generation == GEN_X:
             return
 
-        from .zone_utils import get_zone_type
         from ..const import ZONE_TYPE_HEATING
+        from .zone_utils import get_zone_type
 
         active = [
             z

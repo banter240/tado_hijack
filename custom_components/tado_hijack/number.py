@@ -24,6 +24,7 @@ from .models import TadoEntityDefinition
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
+
     from .coordinator import TadoDataUpdateCoordinator
 
 
@@ -69,7 +70,7 @@ class TadoOptimisticNumber(TadoOptimisticMixin, RestoreEntity, NumberEntity):
             val is not None
             and getattr(self, "_attr_suggested_display_precision", None) == 0
         ):
-            return int(round(float(val)))
+            return round(float(val))
 
         return float(val) if val is not None else None
 

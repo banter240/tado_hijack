@@ -72,7 +72,7 @@ def _redact_pii(data: Any, coordinator: TadoDataUpdateCoordinator | None = None)
             # 2. Redact technical values based on key name
             if any(
                 x in k_lower
-                for x in {
+                for x in (
                     "homeid",
                     "userid",
                     "token",
@@ -84,13 +84,13 @@ def _redact_pii(data: Any, coordinator: TadoDataUpdateCoordinator | None = None)
                     "username",
                     "latitude",
                     "longitude",
-                }
+                )
             ):
                 # Hard redaction for these specific fields
                 new_data[new_key] = "**REDACTED**"
             elif any(
                 x in k_lower
-                for x in {"name", "title", "assigned_to", "firstname", "lastname"}
+                for x in ("name", "title", "assigned_to", "firstname", "lastname")
             ) and isinstance(v, str):
                 # If it's already a technical ID (like "Zone 30"), keep it
                 new_data[new_key] = v if v.startswith("Zone ") else "Anonymized Name"
@@ -206,9 +206,10 @@ def _get_quota_diagnostics(coordinator: TadoDataUpdateCoordinator) -> dict[str, 
     # Usage calculations (not available as sensors)
     limit = getattr(coordinator.rate_limit, "limit", 0)
     remaining = getattr(coordinator.rate_limit, "remaining", 0)
-    expected_poll_usage = res_total * progress_done
+    polling_calls_today = coordinator._polling_calls_today
     actual_used = max(0, limit - remaining)
-    user_calls = max(0, actual_used - expected_poll_usage)
+    expected_bg = res_total * progress_done
+    user_calls = max(0, actual_used - polling_calls_today - expected_bg)
     threshold = getattr(coordinator.rate_limit, "throttle_threshold", 0)
 
     return {
@@ -218,7 +219,7 @@ def _get_quota_diagnostics(coordinator: TadoDataUpdateCoordinator) -> dict[str, 
         "reserved_24h": res_total,
         "reserved_breakdown": res_breakdown,
         "estimated_usage": {
-            "polling_so_far": int(expected_poll_usage),
+            "polling_so_far": polling_calls_today,
             "user_so_far": int(user_calls),
             "user_excess": int(max(0, user_calls - threshold)),
         },

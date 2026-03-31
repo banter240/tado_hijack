@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
-from .const import DUMMY_ZONE_ID_AC, DUMMY_ZONE_ID_HOT_WATER
 from ..const import (
     DEVICE_TYPE_RU01,
     DEVICE_TYPE_VA01,
@@ -14,6 +13,7 @@ from ..const import (
     ZONE_TYPE_HOT_WATER,
 )
 from ..helpers.logging_utils import get_redacted_logger
+from .const import DUMMY_ZONE_ID_AC, DUMMY_ZONE_ID_HOT_WATER
 
 if TYPE_CHECKING:
     from ..coordinator import TadoDataUpdateCoordinator
@@ -211,7 +211,7 @@ class TadoDummyHandler:
             state.setting.power = new_setting["power"]
         if "mode" in new_setting:
             state.setting.mode = new_setting["mode"]
-        if "temperature" in new_setting and new_setting["temperature"]:
+        if new_setting.get("temperature"):
             state.setting.temperature = RobustNamespace(
                 celsius=new_setting["temperature"].get("celsius"),
                 fahrenheit=new_setting["temperature"].get("fahrenheit"),
@@ -276,8 +276,8 @@ class TadoDummyHandler:
             id = DUMMY_ZONE_ID_HOT_WATER
             name = "DUMMY Hot Water"
             type = ZONE_TYPE_HOT_WATER
-            device_types = [DEVICE_TYPE_RU01]
-            devices: list[Any] = []
+            device_types: ClassVar[list[str]] = [DEVICE_TYPE_RU01]
+            devices: ClassVar[list[Any]] = []
 
         return DummyZone()
 
@@ -286,8 +286,8 @@ class TadoDummyHandler:
             id = DUMMY_ZONE_ID_AC
             name = "DUMMY Air Conditioning"
             type = ZONE_TYPE_AIR_CONDITIONING
-            device_types = [DEVICE_TYPE_VA01]
-            devices: list[Any] = []
+            device_types: ClassVar[list[str]] = [DEVICE_TYPE_VA01]
+            devices: ClassVar[list[Any]] = []
 
         return DummyZone()
 

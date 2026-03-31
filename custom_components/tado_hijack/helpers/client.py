@@ -9,8 +9,8 @@ from tadoasync import Tado
 from tadoasync.const import HttpMethod
 from tadoasync.tadoasync import API_URL
 
-from .logging_utils import get_redacted_logger
 from ..lib.patches import get_handler
+from .logging_utils import get_redacted_logger
 
 _LOGGER = get_redacted_logger(__name__)
 

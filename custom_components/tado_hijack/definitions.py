@@ -13,37 +13,34 @@ from homeassistant.util import dt as dt_util
 from .const import (
     CAPABILITY_INSIDE_TEMP,
     CONF_API_PROXY_URL,
-    CONF_PROXY_TOKEN,
     CONF_AUTO_API_QUOTA_PERCENT,
     CONF_DEBOUNCE_TIME,
     CONF_DISABLE_POLLING_WHEN_THROTTLED,
     CONF_FEATURE_DEW_POINT,
     CONF_FEATURE_MOLD_DETECTION,
-    CONF_OUTDOOR_WEATHER_ENTITY,
-    CONF_VENTILATION_AH_THRESHOLD,
-    CONF_ZONE_HUMIDITY_ENTITIES,
-    CONF_ZONE_TEMP_ENTITIES,
-    DEFAULT_VENTILATION_AH_THRESHOLD,
-    CONF_LOG_LEVEL,
     CONF_JITTER_PERCENT,
+    CONF_LOG_LEVEL,
     CONF_MIN_AUTO_QUOTA_INTERVAL_S,
     CONF_OFFSET_POLL_INTERVAL,
+    CONF_OUTDOOR_WEATHER_ENTITY,
     CONF_PRESENCE_POLL_INTERVAL,
+    CONF_PROXY_TOKEN,
     CONF_REDUCED_POLLING_ACTIVE,
     CONF_REDUCED_POLLING_END,
     CONF_REDUCED_POLLING_INTERVAL,
     CONF_REDUCED_POLLING_START,
     CONF_REFRESH_AFTER_RESUME,
     CONF_SLOW_POLL_INTERVAL,
-    CONF_THROTTLE_THRESHOLD,
-    CONF_SUPPRESS_REDUNDANT_CALLS,
     CONF_SUPPRESS_REDUNDANT_BUTTONS,
-    DEFAULT_FEATURE_DEW_POINT,
-    DEFAULT_FEATURE_MOLD_DETECTION,
-    DEFAULT_SUPPRESS_REDUNDANT_CALLS,
-    DEFAULT_SUPPRESS_REDUNDANT_BUTTONS,
+    CONF_SUPPRESS_REDUNDANT_CALLS,
+    CONF_THROTTLE_THRESHOLD,
+    CONF_VENTILATION_AH_THRESHOLD,
+    CONF_ZONE_HUMIDITY_ENTITIES,
+    CONF_ZONE_TEMP_ENTITIES,
     DEFAULT_AUTO_API_QUOTA_PERCENT,
     DEFAULT_DEBOUNCE_TIME,
+    DEFAULT_FEATURE_DEW_POINT,
+    DEFAULT_FEATURE_MOLD_DETECTION,
     DEFAULT_JITTER_PERCENT,
     DEFAULT_LOG_LEVEL,
     DEFAULT_MIN_AUTO_QUOTA_INTERVAL_S,
@@ -54,9 +51,15 @@ from .const import (
     DEFAULT_REDUCED_POLLING_START,
     DEFAULT_REFRESH_AFTER_RESUME,
     DEFAULT_SLOW_POLL_INTERVAL,
+    DEFAULT_SUPPRESS_REDUNDANT_BUTTONS,
+    DEFAULT_SUPPRESS_REDUNDANT_CALLS,
     DEFAULT_THROTTLE_THRESHOLD,
+    DEFAULT_VENTILATION_AH_THRESHOLD,
     GEN_CLASSIC,
     GEN_X,
+    MIN_OWD_TIMEOUT_MIN,
+    MIN_OWD_TIMEOUT_S,
+    PROTECTION_MODE_TEMP,
     TEMP_MAX_AC,
     TEMP_MAX_HOT_WATER_OVERRIDE,
     TEMP_MIN_AC,
@@ -920,7 +923,7 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     ),
     create_diagnostic_sensor(
         key="outdoor_absolute_humidity",
-        value_fn=lambda c: _physics_outdoor_abs_humidity(c),
+        value_fn=_physics_outdoor_abs_humidity,
         unit="g/m³",
         state_class=SensorStateClass.MEASUREMENT,
     ),
@@ -937,7 +940,7 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     ),
     create_diagnostic_sensor(
         key="quota_reset_next",
-        value_fn=lambda c: _get_next_reset_timestamp(c),
+        value_fn=_get_next_reset_timestamp,
         icon="mdi:clock-alert",
         device_class=SensorDeviceClass.TIMESTAMP,
     ),
@@ -1199,7 +1202,7 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     create_zone_binary_sensor(
         key="ventilation_recommended",
         supported_generations={GEN_CLASSIC, GEN_X},
-        value_fn=lambda c, zid: _ventilation_recommended(c, zid),
+        value_fn=_ventilation_recommended,
         device_class=None,
         supported_zone_types={ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING},
         unique_id_suffix="vent_rec",
@@ -1429,10 +1432,10 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         value_fn=lambda c, zid: (
             None
             if (val := _get_away_temp(c, zid)) is None
-            else (0.0 if val <= 5.0 else val)
+            else (0.0 if val <= PROTECTION_MODE_TEMP else val)
         ),
         set_fn=lambda c, zid, val: c.async_set_away_temperature(
-            zid, None if val < 5.0 else val
+            zid, None if val < PROTECTION_MODE_TEMP else val
         ),
         min_value=0,
         max_value=25.0,
@@ -1502,13 +1505,13 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         key="open_window_timeout",
         value_fn=lambda c, zid: (
             round(_get_owd_timeout(c, zid) / 60)
-            if _get_owd_timeout(c, zid) >= 300
+            if _get_owd_timeout(c, zid) >= MIN_OWD_TIMEOUT_S
             else 0
         ),
         set_fn=lambda c, zid, val: c.async_set_open_window_detection(
             zid,
-            enabled=val >= 5,
-            timeout_seconds=int(val * 60) if val >= 5 else None,
+            enabled=val >= MIN_OWD_TIMEOUT_MIN,
+            timeout_seconds=int(val * 60) if val >= MIN_OWD_TIMEOUT_MIN else None,
         ),
         min_value=0,
         max_value=1439,

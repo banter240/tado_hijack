@@ -6,8 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
-from ..const import CAPABILITY_INSIDE_TEMP
-
+from ..const import CAPABILITY_INSIDE_TEMP, SERIAL_SHORT_LENGTH
 
 # --- Helper for nested activityDataPoints (v3 compatibility) ---
 
@@ -196,7 +195,11 @@ class TadoXDevice(BaseModel):
     @property
     def short_serial_no(self) -> str:
         """Return short serial number (last 6 characters) for device identification."""
-        return self.serial_no[-6:] if len(self.serial_no) >= 6 else self.serial_no
+        return (
+            self.serial_no[-SERIAL_SHORT_LENGTH:]
+            if len(self.serial_no) >= SERIAL_SHORT_LENGTH
+            else self.serial_no
+        )
 
     @property
     def connection_state(self) -> Any:

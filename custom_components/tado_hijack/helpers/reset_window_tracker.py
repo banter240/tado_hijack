@@ -111,7 +111,16 @@ class ResetWindowTracker:
 
     def _update_learned_window(self) -> None:
         """Analyze history and update learned window if pattern detected."""
+        if len(self._history) == 0:
+            return
+
         if len(self._history) < self._pattern_threshold:
+            first = self._history[0]
+            self._learned_window = ResetWindow(
+                hour=first.hour,
+                minute=first.minute,
+                confidence="single_observation",
+            )
             return
 
         recent_resets = list(self._history)[: self._pattern_threshold]
@@ -128,14 +137,6 @@ class ResetWindowTracker:
                 hour=pattern_hour,
                 minute=avg_minute,
                 confidence="learned",
-            )
-        elif len(self._history) == 1:
-            # Single observation - note but don't adopt
-            first = self._history[0]
-            self._learned_window = ResetWindow(
-                hour=first.hour,
-                minute=first.minute,
-                confidence="single_observation",
             )
 
     def get_expected_window(self) -> ResetWindow:

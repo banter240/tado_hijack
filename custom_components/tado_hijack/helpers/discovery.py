@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 def _yield_zones_v3(
     coordinator: TadoDataUpdateCoordinator,
     include_types: set[str] | None = None,
-) -> Generator[TadoUnifiedZone, None, None]:
+) -> Generator[TadoUnifiedZone]:
     """Yield v3 Classic zones matching specified types."""
     for zone in coordinator.zones_meta.values():
         if include_types is None or getattr(zone, "type", None) in include_types:
@@ -24,7 +24,7 @@ def _yield_zones_v3(
 
 def _yield_zones_tadox(
     coordinator: TadoDataUpdateCoordinator,
-) -> Generator[TadoUnifiedZone, None, None]:
+) -> Generator[TadoUnifiedZone]:
     """Yield all Tado X rooms."""
     for zone in coordinator.zones_meta.values():
         yield unify_zone(zone)
@@ -36,7 +36,7 @@ def yield_zones(
     include_heating: bool = False,
     include_hot_water: bool = False,
     include_ac: bool = False,
-) -> Generator[TadoUnifiedZone, None, None]:
+) -> Generator[TadoUnifiedZone]:
     """Yield zones - generation-aware dispatcher."""
     from ..const import (
         GEN_X,
@@ -93,7 +93,7 @@ def _yield_devices_v3(
     coordinator: TadoDataUpdateCoordinator,
     include_zone_types: set[str] | None = None,
     capability: str | None = None,
-) -> Generator[tuple[Any, int], None, None]:
+) -> Generator[tuple[Any, int]]:
     """Yield v3 Classic devices matching zone types and capabilities.
 
     v3 specific implementation - uses zone.id and zone.type.
@@ -135,7 +135,7 @@ def yield_devices(
     coordinator: TadoDataUpdateCoordinator,
     include_zone_types: set[str] | None = None,
     capability: str | None = None,
-) -> Generator[tuple[Any, int], None, None]:
+) -> Generator[tuple[Any, int]]:
     """Yield devices matching zone types and capabilities.
 
     Generation-aware dispatcher - delegates to v3 or Tado X implementation.
