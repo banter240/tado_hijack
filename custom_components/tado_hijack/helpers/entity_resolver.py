@@ -37,14 +37,20 @@ class EntityResolver:
 
         ent_reg = er.async_get(self.hass)
         if entry := ent_reg.async_get(entity_id):
-            if (zone_id := self.parse_unique_id(entry.unique_id)) is not None:
-                self._cache[entity_id] = zone_id
-                return zone_id
+            if (
+                entry.platform == DOMAIN
+                and entry.config_entry_id == self.coordinator.config_entry.entry_id
+            ):
+                if (zone_id := self.parse_unique_id(entry.unique_id)) is not None:
+                    self._cache[entity_id] = zone_id
+                    return zone_id
 
-            # Try to resolve via device serial_no (for TRV/device entities)
-            if (zone_id := self._resolve_device_to_zone(entry.unique_id)) is not None:
-                self._cache[entity_id] = zone_id
-                return zone_id
+                # Try to resolve via device serial_no (for TRV/device entities)
+                if (
+                    zone_id := self._resolve_device_to_zone(entry.unique_id)
+                ) is not None:
+                    self._cache[entity_id] = zone_id
+                    return zone_id
 
         # Deep scan
         _LOGGER.debug("Starting deep entity registry scan for %s", entity_id)
@@ -147,10 +153,5 @@ class EntityResolver:
         if entity_id := ent_reg.async_get_entity_id("switch", DOMAIN, unique_id):
             entry = ent_reg.async_get(entity_id)
             if entry and entry.disabled:
-                _LOGGER.debug(
-                    "Zone %d excluded from bulk action: schedule switch %s is disabled",
-                    zone_id,
-                    entity_id,
-                )
                 return True
         return False

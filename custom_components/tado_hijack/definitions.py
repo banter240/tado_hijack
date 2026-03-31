@@ -17,6 +17,13 @@ from .const import (
     CONF_AUTO_API_QUOTA_PERCENT,
     CONF_DEBOUNCE_TIME,
     CONF_DISABLE_POLLING_WHEN_THROTTLED,
+    CONF_FEATURE_DEW_POINT,
+    CONF_FEATURE_MOLD_DETECTION,
+    CONF_OUTDOOR_WEATHER_ENTITY,
+    CONF_VENTILATION_AH_THRESHOLD,
+    CONF_ZONE_HUMIDITY_ENTITIES,
+    CONF_ZONE_TEMP_ENTITIES,
+    DEFAULT_VENTILATION_AH_THRESHOLD,
     CONF_LOG_LEVEL,
     CONF_JITTER_PERCENT,
     CONF_MIN_AUTO_QUOTA_INTERVAL_S,
@@ -31,6 +38,8 @@ from .const import (
     CONF_THROTTLE_THRESHOLD,
     CONF_SUPPRESS_REDUNDANT_CALLS,
     CONF_SUPPRESS_REDUNDANT_BUTTONS,
+    DEFAULT_FEATURE_DEW_POINT,
+    DEFAULT_FEATURE_MOLD_DETECTION,
     DEFAULT_SUPPRESS_REDUNDANT_CALLS,
     DEFAULT_SUPPRESS_REDUNDANT_BUTTONS,
     DEFAULT_AUTO_API_QUOTA_PERCENT,
@@ -56,11 +65,221 @@ from .const import (
     ZONE_TYPE_HEATING,
     ZONE_TYPE_HOT_WATER,
 )
+from .helpers.climate_physics import (
+    compute_absolute_humidity,
+    compute_dew_point,
+    compute_mold_risk_level,
+    compute_ventilation_beneficial,
+)
 from .helpers.parsers import get_ac_capabilities
-from .helpers.quota_math import get_next_reset_time
 from .helpers.tadov3 import parsers as v3_parsers
 from .helpers.tadox import parsers as tadox_parsers
 from .models import TadoEntityDefinition
+
+
+def _get_zone_sensor_data(
+    c: Any, zid: int, attr: str, sub_attr: str = "percentage"
+) -> float | None:
+    """Read a specific sensor data point from the zone state."""
+    state = c.data.zone_states.get(str(zid))
+    if not state or not (sdp := getattr(state, "sensor_data_points", None)):
+        return None
+
+    if (data := getattr(sdp, attr, None)) is not None:
+        if (val := getattr(data, sub_attr, None)) is not None:
+            return float(val)
+    return None
+
+
+def _get_fallback_climate_entity_id(c: Any, zid: int) -> str | None:
+    """Find the fallback climate entity ID associated with this zone."""
+    if getattr(c, "full_cloud_mode", False):
+        from homeassistant.helpers import entity_registry as er
+
+        ent_reg = er.async_get(c.hass)
+        entry_id = c.config_entry.entry_id
+
+        unique_id = f"{entry_id}_climate_heating_{zid}"
+        if entity_id := ent_reg.async_get_entity_id(
+            "climate", "tado_hijack", unique_id
+        ):
+            return str(entity_id)
+
+        unique_id = f"{entry_id}_climate_ac_{zid}"
+        if entity_id := ent_reg.async_get_entity_id(
+            "climate", "tado_hijack", unique_id
+        ):
+            return str(entity_id)
+
+    if hasattr(c, "_climate_to_zone"):
+        for climate_id, mapped_zid in c._climate_to_zone.items():
+            if mapped_zid == zid:
+                return str(climate_id)
+
+    return None
+
+
+def _read_climate_or_sensor_value(
+    c: Any, entity_id: str | None, attr_name: str
+) -> float | None:
+    """Read an attribute or state from a fallback entity."""
+    if not entity_id:
+        return None
+    state = c.hass.states.get(entity_id)
+    if state and state.state not in ("unavailable", "unknown"):
+        val = state.attributes.get(attr_name)
+        if val is not None:
+            try:
+                return float(val)
+            except (ValueError, TypeError):
+                pass
+        try:
+            return float(state.state)
+        except (ValueError, TypeError):
+            pass
+    return None
+
+
+def _get_room_temp_celsius(c: Any, zid: int) -> float | None:
+    """Return current room temperature (°C) for indoor climate calculations.
+
+    Priority:
+    1. Linked temperature source entity (sensor or climate) from CONF_ZONE_TEMP_ENTITIES
+    2. Fallback: Climate entity (Full-Cloud Hijack or HomeKit)
+    3. GEN_CLASSIC fallback: zone state sensor_data_points.inside_temperature
+    """
+    entity_id = c.config_entry.data.get(CONF_ZONE_TEMP_ENTITIES, {}).get(
+        str(zid)
+    ) or _get_fallback_climate_entity_id(c, zid)
+
+    if (
+        val := _read_climate_or_sensor_value(c, entity_id, "current_temperature")
+    ) is not None:
+        return val
+
+    # GEN_CLASSIC fallback: read from zone state
+    if c.generation == GEN_CLASSIC:
+        if zone_state := c.data.zone_states.get(str(zid)):
+            if sdp := getattr(zone_state, "sensor_data_points", None):
+                inside_temp = getattr(sdp, "inside_temperature", None)
+                if inside_temp is not None:
+                    celsius = getattr(inside_temp, "celsius", None)
+                    if celsius is not None:
+                        return float(celsius)
+    return None
+
+
+def _get_fallback_humidity_entity_id(c: Any, zid: int) -> str | None:
+    """Find the fallback humidity sensor entity ID created by this integration."""
+    from homeassistant.helpers import entity_registry as er
+
+    ent_reg = er.async_get(c.hass)
+    entry_id = c.config_entry.entry_id
+
+    unique_id = f"{entry_id}_zone_{zid}_humidity"
+    if entity_id := ent_reg.async_get_entity_id("sensor", "tado_hijack", unique_id):
+        return str(entity_id)
+
+    return None
+
+
+def _get_room_rh(c: Any, zid: int) -> float | None:
+    """Return current relative humidity (%) for indoor climate calculations.
+
+    Priority:
+    1. Linked humidity source entity (sensor or climate) from CONF_ZONE_HUMIDITY_ENTITIES
+    2. Fallback: The integration's own humidity sensor entity
+    3. Zone state sensor_data_points.humidity (both GEN_CLASSIC and GEN_X)
+    """
+    entity_id = c.config_entry.data.get(CONF_ZONE_HUMIDITY_ENTITIES, {}).get(
+        str(zid)
+    ) or _get_fallback_humidity_entity_id(c, zid)
+
+    if (
+        val := _read_climate_or_sensor_value(c, entity_id, "current_humidity")
+    ) is not None:
+        return val
+
+    if zone_state := c.data.zone_states.get(str(zid)):
+        if sdp := getattr(zone_state, "sensor_data_points", None):
+            humidity = getattr(sdp, "humidity", None)
+            if humidity is not None:
+                pct = getattr(humidity, "percentage", None)
+                if pct is not None:
+                    return float(pct)
+    return None
+
+
+def _physics_dew_point(c: Any, zid: int) -> float | None:
+    """Compute dew point (°C) from room temp and humidity. Returns None if data missing."""
+    temp = _get_room_temp_celsius(c, zid)
+    rh = _get_room_rh(c, zid)
+    if temp is None or rh is None or rh <= 0:
+        return None
+    return round(compute_dew_point(temp, rh), 1)
+
+
+def _physics_abs_humidity(c: Any, zid: int) -> float | None:
+    """Compute absolute humidity (g/m³). Returns None if data missing."""
+    temp = _get_room_temp_celsius(c, zid)
+    rh = _get_room_rh(c, zid)
+    if temp is None or rh is None or rh <= 0:
+        return None
+    return round(compute_absolute_humidity(temp, rh), 1)
+
+
+def _physics_outdoor_abs_humidity(c: Any) -> float | None:
+    """Compute outdoor absolute humidity (g/m³) from weather entity."""
+    entity_id = c.config_entry.data.get(CONF_OUTDOOR_WEATHER_ENTITY)
+    if not entity_id:
+        return None
+    weather = c.hass.states.get(entity_id)
+    if weather is None:
+        return None
+    outdoor_temp = weather.attributes.get("temperature")
+    outdoor_rh = weather.attributes.get("humidity")
+    if outdoor_temp is None or outdoor_rh is None:
+        return None
+    return round(compute_absolute_humidity(float(outdoor_temp), float(outdoor_rh)), 1)
+
+
+def _physics_mold_risk(c: Any, zid: int) -> str | None:
+    """Compute mold risk level string. Returns None if data missing."""
+    temp = _get_room_temp_celsius(c, zid)
+    rh = _get_room_rh(c, zid)
+    if temp is None or rh is None:
+        return None
+    return compute_mold_risk_level(temp, rh)
+
+
+def _ventilation_recommended(c: Any, zid: int) -> bool | None:
+    """Return True if ventilating meaningfully reduces indoor moisture load.
+
+    Reads outdoor T + RH from the configured weather entity.
+    Generation-agnostic: uses _get_room_temp_celsius / _get_room_rh for indoor data.
+    """
+    entity_id = c.config_entry.data.get(CONF_OUTDOOR_WEATHER_ENTITY)
+    if not entity_id:
+        return None
+    weather = c.hass.states.get(entity_id)
+    if weather is None:
+        return None
+    outdoor_temp = weather.attributes.get("temperature")
+    outdoor_rh = weather.attributes.get("humidity")
+    if outdoor_temp is None or outdoor_rh is None:
+        return None
+    threshold = float(
+        c.config_entry.data.get(
+            CONF_VENTILATION_AH_THRESHOLD, DEFAULT_VENTILATION_AH_THRESHOLD
+        )
+    )
+    indoor_temp = _get_room_temp_celsius(c, zid)
+    indoor_rh = _get_room_rh(c, zid)
+    if indoor_temp is None or indoor_rh is None or indoor_rh <= 0:
+        return None
+    indoor_ah = compute_absolute_humidity(indoor_temp, indoor_rh)
+    outdoor_ah = compute_absolute_humidity(float(outdoor_temp), float(outdoor_rh))
+    return compute_ventilation_beneficial(indoor_ah, outdoor_ah, threshold)
 
 
 def _get_owd_timeout(c: Any, zid: int) -> int:
@@ -75,21 +294,26 @@ def _get_owd_timeout(c: Any, zid: int) -> int:
     return 0
 
 
-def _get_away_temp(c: Any, zid: int) -> float:
-    """Resolve away temperature (optimistic > cache)."""
+def _get_away_temp(c: Any, zid: int) -> float | None:
+    """Resolve away temperature (optimistic > cache).
+
+    Returns None when not yet fetched, 0.0 when disabled, or the actual value.
+    """
     opt = c.optimistic.get_away_temp(zid)
-    return float(c.data.away_config.get(zid) or 0.0) if opt is None else float(opt)
+    if opt is not None:
+        return float(opt)
+
+    if zid not in c.data.away_config:
+        return None  # not yet fetched from API
+
+    raw = c.data.away_config[zid]
+    return float(raw) if raw is not None else 0.0
 
 
 def _get_next_reset_timestamp(c: Any) -> Any:
     """Get next expected quota reset as datetime object."""
     try:
-        window = c.reset_tracker.get_expected_window()
-        expected_hour = window.hour if window.confidence == "learned" else None
-        expected_minute = window.minute if window.confidence == "learned" else None
-        return get_next_reset_time(
-            expected_hour, expected_minute, c.reset_tracker.get_last_reset_original()
-        )
+        return c.reset_tracker.get_next_reset_time()
     except Exception:
         return None
 
@@ -274,6 +498,7 @@ def create_zone_binary_sensor(
     supported_generations: set[str] | None = None,
     translation_key: str | None = None,
     unique_id_suffix: str | None = None,
+    is_supported_fn: Any | None = None,
 ) -> TadoEntityDefinition:
     """Create a binary sensor for a Tado Zone."""
     return _create_definition(
@@ -288,6 +513,7 @@ def create_zone_binary_sensor(
         supported_generations=supported_generations,
         translation_key=translation_key,
         unique_id_suffix=unique_id_suffix,
+        is_supported_fn=is_supported_fn,
     )
 
 
@@ -630,6 +856,7 @@ def create_zone_sensor(
     supported_zone_types: set[str] | None = None,
     supported_generations: set[str] | None = None,
     unique_id_suffix: str | None = None,
+    is_supported_fn: Any | None = None,
 ) -> TadoEntityDefinition:
     """Create a sensor for a Tado Zone."""
     return _create_definition(
@@ -645,6 +872,7 @@ def create_zone_sensor(
         supported_zone_types=supported_zone_types,
         supported_generations=supported_generations,
         unique_id_suffix=unique_id_suffix,
+        is_supported_fn=is_supported_fn,
     )
 
 
@@ -656,7 +884,7 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     ),
     create_diagnostic_sensor(
         key="tado_generation",
-        value_fn=lambda c: ("Tado X" if c.generation == GEN_X else "Classic"),
+        value_fn=lambda c: "Tado X" if c.generation == GEN_X else "Classic",
         icon="mdi:chip",
     ),
     create_diagnostic_sensor(
@@ -688,6 +916,12 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     create_diagnostic_sensor(
         key="api_remaining",
         value_fn=lambda c: int(c.rate_limit.remaining),
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    create_diagnostic_sensor(
+        key="outdoor_absolute_humidity",
+        value_fn=lambda c: _physics_outdoor_abs_humidity(c),
+        unit="g/m³",
         state_class=SensorStateClass.MEASUREMENT,
     ),
     create_diagnostic_sensor(
@@ -879,39 +1113,111 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     create_zone_sensor(
         key="heating_power",
         supported_generations={GEN_X},
-        value_fn=lambda c, zid: tadox_parsers.parse_heating_power(
-            c.data.zone_states.get(str(zid))
-        ),
+        value_fn=lambda c, zid: _get_zone_sensor_data(c, zid, "heating_power"),
         unit="%",
         state_class=SensorStateClass.MEASUREMENT,
         unique_id_suffix="pwr",
     ),
     create_zone_sensor(
         key="humidity",
-        value_fn=lambda c, zid: (
-            float(state.sensor_data_points.humidity.percentage)
-            if (state := c.data.zone_states.get(str(zid)))
-            and hasattr(state, "sensor_data_points")
-            and state.sensor_data_points
-            and hasattr(state.sensor_data_points, "humidity")
-            and state.sensor_data_points.humidity is not None
-            else None
-        ),
+        value_fn=lambda c, zid: _get_zone_sensor_data(c, zid, "humidity"),
         unit="%",
         state_class=SensorStateClass.MEASUREMENT,
         device_class=SensorDeviceClass.HUMIDITY,
         supported_zone_types={ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING},
         unique_id_suffix="hum",
     ),
+    create_zone_sensor(
+        key="dew_point",
+        supported_generations={GEN_CLASSIC, GEN_X},
+        value_fn=lambda c, zid: (
+            _physics_dew_point(c, zid)
+            if c.config_entry.data.get(
+                CONF_FEATURE_DEW_POINT, DEFAULT_FEATURE_DEW_POINT
+            )
+            else None
+        ),
+        unit=UnitOfTemperature.CELSIUS,
+        state_class=SensorStateClass.MEASUREMENT,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        supported_zone_types={ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING},
+        unique_id_suffix="dew",
+        is_supported_fn=lambda c, zid: c.config_entry.data.get(
+            CONF_FEATURE_DEW_POINT, DEFAULT_FEATURE_DEW_POINT
+        ),
+    ),
+    create_zone_sensor(
+        key="mold_risk_level",
+        supported_generations={GEN_CLASSIC, GEN_X},
+        value_fn=lambda c, zid: (
+            _physics_mold_risk(c, zid)
+            if c.config_entry.data.get(
+                CONF_FEATURE_MOLD_DETECTION, DEFAULT_FEATURE_MOLD_DETECTION
+            )
+            else None
+        ),
+        device_class=SensorDeviceClass.ENUM,
+        supported_zone_types={ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING},
+        unique_id_suffix="mold_lvl",
+        is_supported_fn=lambda c, zid: c.config_entry.data.get(
+            CONF_FEATURE_MOLD_DETECTION, DEFAULT_FEATURE_MOLD_DETECTION
+        ),
+    ),
+    create_zone_binary_sensor(
+        key="mold_risk",
+        supported_generations={GEN_CLASSIC, GEN_X},
+        value_fn=lambda c, zid: (
+            _physics_mold_risk(c, zid) in ("medium", "high")
+            if c.config_entry.data.get(
+                CONF_FEATURE_MOLD_DETECTION, DEFAULT_FEATURE_MOLD_DETECTION
+            )
+            else False
+        ),
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        supported_zone_types={ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING},
+        unique_id_suffix="mold",
+        is_supported_fn=lambda c, zid: c.config_entry.data.get(
+            CONF_FEATURE_MOLD_DETECTION, DEFAULT_FEATURE_MOLD_DETECTION
+        ),
+    ),
+    create_zone_sensor(
+        key="indoor_absolute_humidity",
+        supported_generations={GEN_CLASSIC, GEN_X},
+        value_fn=lambda c, zid: (
+            _physics_abs_humidity(c, zid)
+            if c.config_entry.data.get(CONF_OUTDOOR_WEATHER_ENTITY)
+            else None
+        ),
+        unit="g/m³",
+        state_class=SensorStateClass.MEASUREMENT,
+        supported_zone_types={ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING},
+        unique_id_suffix="indoor_ah",
+        is_supported_fn=lambda c, zid: bool(
+            c.config_entry.data.get(CONF_OUTDOOR_WEATHER_ENTITY)
+        ),
+    ),
+    create_zone_binary_sensor(
+        key="ventilation_recommended",
+        supported_generations={GEN_CLASSIC, GEN_X},
+        value_fn=lambda c, zid: _ventilation_recommended(c, zid),
+        device_class=None,
+        supported_zone_types={ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING},
+        unique_id_suffix="vent_rec",
+        is_supported_fn=lambda c, zid: bool(
+            c.config_entry.data.get(CONF_OUTDOOR_WEATHER_ENTITY)
+        ),
+    ),
     create_diagnostic_zone_sensor(
         key="next_schedule_change",
         value_fn=lambda c, zid: (
-            (state := c.data.zone_states.get(str(zid)))
-            and (nsc := getattr(state, "next_schedule_change", None))
-            and (start := getattr(nsc, "start", None))
-            and dt_util.parse_datetime(start)
-        )
-        or None,
+            (
+                (state := c.data.zone_states.get(str(zid)))
+                and (nsc := getattr(state, "next_schedule_change", None))
+                and (start := getattr(nsc, "start", None))
+                and dt_util.parse_datetime(start)
+            )
+            or None
+        ),
         device_class=SensorDeviceClass.TIMESTAMP,
         unique_id_suffix="next_sch",
     ),
@@ -1121,7 +1427,9 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     create_zone_number(
         key="away_temperature",
         value_fn=lambda c, zid: (
-            0.0 if (val := _get_away_temp(c, zid)) <= 5.0 else val
+            None
+            if (val := _get_away_temp(c, zid)) is None
+            else (0.0 if val <= 5.0 else val)
         ),
         set_fn=lambda c, zid, val: c.async_set_away_temperature(
             zid, None if val < 5.0 else val
@@ -1211,9 +1519,9 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         unique_id_suffix="open_window_timeout",
         use_legacy_unique_id_format=True,
         is_supported_fn=lambda c, zid: (
-            owd := getattr(c.zones_meta.get(zid), "open_window_detection", None)
-        )
-        and owd.supported,
+            (owd := getattr(c.zones_meta.get(zid), "open_window_detection", None))
+            and owd.supported
+        ),
         suggested_display_precision=0,
     ),
     create_home_button(
@@ -1296,10 +1604,9 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         optimistic_key="child_lock",
         entity_category=EntityCategory.CONFIG,
         unique_id_suffix="childlock",
-        is_supported_fn=lambda c, serial: getattr(
-            c.devices_meta.get(serial), "child_lock_enabled", None
-        )
-        is not None,
+        is_supported_fn=lambda c, serial: (
+            getattr(c.devices_meta.get(serial), "child_lock_enabled", None) is not None
+        ),
     ),
     create_device_button(
         key="identify",
@@ -1312,8 +1619,8 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     ),
     create_zone_switch(
         key="schedule",
-        value_fn=lambda c, zid: not bool(
-            getattr(c.data.zone_states.get(str(zid)), "overlay_active", False)
+        value_fn=lambda c, zid: (
+            not bool(getattr(c.data.zone_states.get(str(zid)), "overlay_active", False))
         ),
         turn_on_fn=lambda c, zid: c.async_set_zone_auto(zid),
         turn_off_fn=lambda c, zid: c.async_set_zone_off(zid),
@@ -1374,16 +1681,18 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     ),
     create_zone_select(
         key="vertical_swing",
-        value_fn=lambda c, zid: c.optimistic.get_vertical_swing(zid)
-        or (
-            getattr(
-                c.data.zone_states.get(str(zid)).setting,
-                "vertical_swing",
-                None,
+        value_fn=lambda c, zid: (
+            c.optimistic.get_vertical_swing(zid)
+            or (
+                getattr(
+                    c.data.zone_states.get(str(zid)).setting,
+                    "vertical_swing",
+                    None,
+                )
+                if c.data.zone_states.get(str(zid))
+                and c.data.zone_states.get(str(zid)).setting
+                else None
             )
-            if c.data.zone_states.get(str(zid))
-            and c.data.zone_states.get(str(zid)).setting
-            else None
         ),
         options_fn=lambda c, zid: (
             get_ac_capabilities(c.data.capabilities.get(zid)).get("vertical_swings")
@@ -1398,16 +1707,18 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     ),
     create_zone_select(
         key="horizontal_swing",
-        value_fn=lambda c, zid: c.optimistic.get_horizontal_swing(zid)
-        or (
-            getattr(
-                c.data.zone_states.get(str(zid)).setting,
-                "horizontal_swing",
-                None,
+        value_fn=lambda c, zid: (
+            c.optimistic.get_horizontal_swing(zid)
+            or (
+                getattr(
+                    c.data.zone_states.get(str(zid)).setting,
+                    "horizontal_swing",
+                    None,
+                )
+                if c.data.zone_states.get(str(zid))
+                and c.data.zone_states.get(str(zid)).setting
+                else None
             )
-            if c.data.zone_states.get(str(zid))
-            and c.data.zone_states.get(str(zid)).setting
-            else None
         ),
         options_fn=lambda c, zid: (
             get_ac_capabilities(c.data.capabilities.get(zid)).get("horizontal_swings")

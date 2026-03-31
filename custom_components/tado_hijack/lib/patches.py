@@ -54,8 +54,54 @@ def apply_patches() -> None:
 
     patch_zone_state_deserialization()
     patch_version_string()
+    patch_set_meter_readings()
     _PATCHES_APPLIED = True
     _LOGGER.info("tadoasync patches applied successfully")
+
+
+def patch_set_meter_readings() -> None:
+    """Patch tadoasync set_meter_readings to include the required URI."""
+    try:
+        import tadoasync.tadoasync
+        from tadoasync.const import HttpMethod
+        import orjson
+
+        original_method = getattr(tadoasync.tadoasync.Tado, "set_meter_readings", None)
+        if not original_method:
+            _LOGGER.warning("Tado.set_meter_readings not found, cannot patch")
+            return
+
+        async def patched_set_meter_readings(
+            self: tadoasync.tadoasync.Tado, reading: int, date: datetime | None = None
+        ) -> None:
+            """Patched set_meter_readings that includes the URI."""
+
+            if date is None:
+                import homeassistant.util.dt as dt_util
+
+                date = dt_util.now()
+
+            payload = {"date": date.strftime("%Y-%m-%d"), "reading": reading}
+            response = await self._request(
+                uri=f"homes/{self._home_id}/meterReadings",
+                endpoint=tadoasync.tadoasync.EIQ_HOST_URL,
+                data=payload,
+                method=HttpMethod.POST,
+            )
+            data = orjson.loads(response)
+            if "message" in data:
+                from tadoasync.exceptions import TadoReadingError
+
+                raise TadoReadingError(
+                    f"Error setting meter reading: {data['message']}"
+                )
+
+        setattr(
+            tadoasync.tadoasync.Tado, "set_meter_readings", patched_set_meter_readings
+        )
+        _LOGGER.debug("Successfully patched tadoasync Tado.set_meter_readings")
+    except Exception as e:
+        _LOGGER.error("Failed to patch set_meter_readings: %s", e)
 
 
 def patch_zone_state_deserialization() -> None:

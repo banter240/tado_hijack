@@ -22,18 +22,17 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Tado climate entities."""
-    from .const import GEN_X
-
     coordinator: TadoDataUpdateCoordinator = entry.runtime_data
     entities: list[TadoHeating | TadoAirConditioning] = []
 
-    if coordinator.generation == GEN_X:
+    if coordinator.generation == "x":
         if coordinator.full_cloud_mode:
             entities.extend(
                 TadoAirConditioning(coordinator, zone.id, zone.name)
                 for zone in yield_zones(coordinator)
             )
     else:
+        # v3 Classic
         entities.extend(
             TadoAirConditioning(coordinator, zone.id, zone.name)
             for zone in yield_zones(coordinator, {ZONE_TYPE_AIR_CONDITIONING})

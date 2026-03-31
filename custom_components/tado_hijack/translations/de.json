@@ -7,6 +7,9 @@
       "api_remaining": {
         "name": "Verbleibende API-Aufrufe"
       },
+      "outdoor_absolute_humidity": {
+        "name": "Absolute Außenfeuchtigkeit"
+      },
       "quota_reset_last": {
         "name": "Letzter Quota-Reset"
       },
@@ -80,6 +83,21 @@
       "humidity": {
         "name": "Luftfeuchtigkeit"
       },
+      "dew_point": {
+        "name": "Taupunkt"
+      },
+      "mold_risk_level": {
+        "name": "Schimmelrisiko Level",
+        "state": {
+          "none": "Keins",
+          "low": "Niedrig",
+          "medium": "Mittel",
+          "high": "Hoch"
+        }
+      },
+      "indoor_absolute_humidity": {
+        "name": "Absolute Luftfeuchtigkeit (Innen)"
+      },
       "next_schedule_change": {
         "name": "Nächster Zeitplan-Wechsel"
       },
@@ -116,25 +134,35 @@
     },
     "binary_sensor": {
       "battery_state": {
-        "name": "Batterie"
+        "name": "Batteriezustand"
       },
       "link_state": {
-        "name": "Verbindung"
+        "name": "Verbindungsstatus"
       },
       "connection_state": {
-        "name": "Cloud-Verbindung"
+        "name": "Cloud-Verbindungsstatus"
       },
       "bridge_connection": {
         "name": "Bridge Cloud-Verbindung"
       },
       "overlay": {
-        "name": "Overlay"
+        "name": "Aktives Overlay"
       },
       "power": {
-        "name": "Power"
+        "name": "Betriebszustand"
       },
       "connectivity": {
-        "name": "Verbindung"
+        "name": "Konnektivität"
+      },
+      "mold_risk": {
+        "name": "Schimmelrisiko",
+        "state": {
+          "on": "Ja",
+          "off": "Nein"
+        }
+      },
+      "ventilation_recommended": {
+        "name": "Lüften empfohlen"
       },
       "reduced_polling_active": {
         "name": "Sparfenster Aktiv"
@@ -146,12 +174,12 @@
         "name": "Abfrage bei Drosselung stoppen"
       },
       "refresh_after_resume": {
-        "name": "Status-Update nach Resume"
+        "name": "Status-Update nach Fortsetzen"
       }
     },
     "switch": {
       "away_mode": {
-        "name": "Away Modus"
+        "name": "Abwesend-Modus"
       },
       "polling_active": {
         "name": "Globales Polling"
@@ -175,7 +203,7 @@
         "name": "Warmwasser"
       },
       "dazzle_mode": {
-        "name": "Dazzle Modus"
+        "name": "Dazzle-Modus"
       },
       "early_start": {
         "name": "Vorzeitiges Aufheizen"
@@ -228,6 +256,12 @@
       }
     },
     "select": {
+      "zone_temp_source": {
+        "name": "Temperaturquelle"
+      },
+      "zone_humidity_source": {
+        "name": "Luftfeuchtigkeitsquelle"
+      },
       "fan_speed": {
         "name": "Lüftergeschwindigkeit",
         "state": {
@@ -276,6 +310,7 @@
     "abort": {
       "already_configured": "Konto ist bereits konfiguriert.",
       "could_not_authenticate": "Authentifizierung bei Tado fehlgeschlagen.",
+      "no_homes_returned": "Authentifizierung fehlgeschlagen: Die Tado API hat keine 'Häuser' (homes) für dein Konto zurückgegeben. Bitte öffne die offizielle Tado-App und prüfe, ob du neue Nutzungsbedingungen akzeptieren musst oder dein Zuhause noch nicht fertig eingerichtet ist. Falls das Problem bestehen bleibt, melde dich bitte auf GitHub.",
       "no_homes": "Mit diesem Tado-Konto sind keine Häuser verknüpft.",
       "cannot_connect": "Verbindung fehlgeschlagen.",
       "reauth_successful": "Die Re-Authentifizierung war erfolgreich.",
@@ -287,12 +322,12 @@
         "title": "Tado Hijack verknüpfen",
         "data": {
           "generation": "Tado Hardware-Generation",
-          "full_cloud_mode": "Full Cloud Mode",
+          "full_cloud_mode": "Vollständiger Cloud-Modus",
           "fetch_extended_data": "Erweiterte Daten laden"
         },
         "data_description": {
-          "full_cloud_mode": "Climate Entities via Cloud Polling aktivieren.\n\n**Erforderlich für V2 Bridges (GW)**, da diese kein HomeKit haben. Für V3 (IB01/GW01) und Tado X deaktiviert lassen, um HomeKit/Matter zu nutzen.",
-          "fetch_extended_data": "Lädt erweiterte Daten während des **initialen Setups**. Kosten: **1 API Call pro Gerät** (Temperatur-Offset) + **1 API Call pro Heiz-Zone** (Away-Temperatur). Nach dem ersten Poll werden Daten gemäß konfigurierten Intervallen geladen. Deaktivieren um Quota zu sparen."
+          "full_cloud_mode": "Klima-Entitäten via Cloud-Polling aktivieren.\n\n**Erforderlich für V2 Bridges (GW)**, da diese kein HomeKit unterstützen. Für V3 (IB01/GW01) und Tado X deaktiviert lassen, um HomeKit/Matter zu nutzen.",
+          "fetch_extended_data": "Lädt zusätzliche Daten während der **initialen Einrichtung**. Kosten: **1 API-Aufruf pro Gerät** (Temperatur-Offset) + **1 API-Aufruf pro Heiz-Zone** (Abwesenheits-Temperatur). Nach der ersten Abfrage werden die Daten gemäß den konfigurierten Intervallen geladen. Deaktivieren, um Kontingent zu sparen."
         }
       },
       "reauth_confirm": {
@@ -323,26 +358,26 @@
             }
           },
           "api_quota": {
-            "name": "Auto API Quota & Sicherheit",
+            "name": "Auto-API-Kontingent & Sicherheit",
             "data": {
-              "auto_api_quota_percent": "Auto-API-Kontingent (%)",
-              "throttle_threshold": "Drossel-Schwellenwert (Sicherheits-Puffer)",
-              "quota_safety_reserve": "Quota-Sicherheitsreserve",
-              "min_auto_quota_interval_s": "Minimales Auto-Kontingent Intervall",
-              "disable_polling_when_throttled": "Polling deaktivieren wenn gedrosselt",
-              "refresh_after_resume": "Status nach Schedule-Resume aktualisieren",
-              "suppress_redundant_calls": "Redundante Aufrufe unterdrücken",
-              "suppress_redundant_buttons": "Redundante Button-Aktionen unterdrücken"
+              "auto_api_quota_percent": "auto_api_quota_percent (%)",
+              "throttle_threshold": "throttle_threshold (Sicherheits-Puffer)",
+              "quota_safety_reserve": "quota_safety_reserve",
+              "min_auto_quota_interval_s": "min_auto_quota_interval_s",
+              "disable_polling_when_throttled": "disable_polling_when_throttled",
+              "refresh_after_resume": "refresh_after_resume",
+              "suppress_redundant_calls": "suppress_redundant_calls",
+              "suppress_redundant_buttons": "suppress_redundant_buttons"
             },
             "data_description": {
-              "auto_api_quota_percent": "Nutze X% der FREIEN Tagesquota für Status-Polling (0 = deaktiviert). FREI = Limit - Hintergrund-Reserve (Syncs) - Externe-Aktivität (Automationen, App-Nutzung über dem Puffer). Hybrid-Strategie: Nutzt MAX(Tagesbudget - Verbraucht, Verbleibend * X%) → System pollt IMMER weiter, auch wenn Tagesbudget überschritten.",
-              "throttle_threshold": "Reserviert N Aufrufe für ALLES außerhalb des Hijack-Hintergrund-Pollings (Automationen, Skripte, manuelle App-Nutzung). Das Polling stoppt bei Erreichen dieser Schwelle, um deren Funktion zu sichern. Empfohlen: 20. 0 = deaktiviert.",
+              "auto_api_quota_percent": "Nutze X% des FREIEN Tageskontingents für Status-Abfragen (0 = deaktiviert). FREI = Limit - Hintergrund-Reserve (Syncs) - Externe-Aktivität (Automationen, App-Nutzung über dem Puffer). Hybrid-Strategie: Nutzt MAX(Tagesbudget - Verbraucht, Verbleibend * X%) → System fragt IMMER weiter ab, auch wenn Tagesbudget überschritten.",
+              "throttle_threshold": "Reserviert N Aufrufe für ALLES außerhalb des Hijack-Hintergrund-Pollings (Automationen, Skripte, manuelle App-Nutzung). Die Abfrage stoppt bei Erreichen dieser Schwelle (throttle_threshold), um deren Funktion zu sichern. Empfohlen: 20. 0 = deaktiviert.",
               "quota_safety_reserve": "API-Aufrufe, die für das selbstlernende Reset-Fenster reserviert werden. Das System lernt den Reset-Zeitpunkt automatisch und verteilt diese Reserve adaptiv während des Fensters, um Cloud-Schwankungen zu überbrücken. 0 = deaktiviert (nicht empfohlen). Standard: 2.",
-              "min_auto_quota_interval_s": "Minimales Polling-Intervall in Sekunden (5-43200 = 12h max). Standard-API: 5s Minimum. Proxy: 120s Minimum erzwungen. Niedriger = schnellere Updates aber höherer API-Verbrauch. Standard 20s.",
-              "disable_polling_when_throttled": "Stoppt das periodische Polling vollständig, wenn das verbleibende Kontingent den Puffer erreicht.",
-              "refresh_after_resume": "Automatisch Zieltemperatur/State abrufen nach Resume Schedule (HVAC AUTO). Notwendig, da Zeitpläne Tado-Cloud-seitig verwaltet werden. Nutzt 1s Grace-Period um mehrere Resumes zu mergen. Kostet 1 API-Aufruf.",
-              "suppress_redundant_calls": "Überspringe API-Aufrufe wenn Zielzustand dem Cache entspricht (Temperatur, Modus, Anwesenheit, Power). Spart Quota bei versehentlichem Doppelklick oder UI-Interaktionen. Sendet nur bei tatsächlicher Änderung. Werte die nicht im Cache sind werden immer gesendet.",
-              "suppress_redundant_buttons": "Überspringe auch Button-Aktionen (resume_all, boost_all, turn_off_all, set_mode_all) wenn alle Zonen bereits im Zielzustand. Benötigt 'Redundante Aufrufe unterdrücken'. Einzelne explizite Aktionen und Sync-Buttons (manual_poll, refresh) werden immer gesendet."
+              "min_auto_quota_interval_s": "Minimales Abfrage-Intervall in Sekunden (5-43200 = 12h max). Standard-API: 5s Minimum. Proxy: 120s Minimum erzwungen. Niedriger = schnellere Updates aber höherer API-Verbrauch. Standard 20s.",
+              "disable_polling_when_throttled": "Stoppt die periodische Abfrage vollständig, wenn das verbleibende Kontingent den Puffer (throttle_threshold) erreicht.",
+              "refresh_after_resume": "Automatisch Zieltemperatur/Status abrufen nach 'resume_schedule' (HVAC AUTO). Notwendig, da Zeitpläne Tado-Cloud-seitig verwaltet werden. Nutzt 1s Karenzzeit (Grace-Period), um mehrere Fortsetzungen zusammenzufassen. Kostet 1 API-Aufruf.",
+              "suppress_redundant_calls": "Überspringe API-Aufrufe wenn Zielzustand dem Cache entspricht (Temperatur, Modus, Anwesenheit, Power). Spart Kontingent bei versehentlichem Doppelklick oder UI-Interaktionen. Sendet nur bei tatsächlicher Änderung. Werte die nicht im Cache sind werden immer gesendet.",
+              "suppress_redundant_buttons": "Überspringe auch Button-Aktionen (resume_all, boost_all, turn_off_all, set_mode_all) wenn alle Zonen bereits im Zielzustand. Benötigt 'suppress_redundant_calls'. Einzelne explizite Aktionen und Synchronisierungs-Buttons werden immer gesendet."
             }
           },
           "reduced_polling": {
@@ -358,6 +393,21 @@
               "reduced_polling_start": "Zeitpunkt, an dem das Sparfenster beginnt (z. B. 22:00).",
               "reduced_polling_end": "Zeitpunkt, an dem das Sparfenster endet (z. B. 07:00).",
               "reduced_polling_interval": "Polling-Intervall während des Sparfensters (z.B. 3600s = 1h). Auf 0 setzen für Pause."
+            }
+          },
+          "features": {
+            "name": "Features",
+            "data": {
+              "feature_dew_point": "Taupunkt-Sensor",
+              "feature_mold_detection": "Schimmelrisiko-Sensoren",
+              "outdoor_weather_entity": "Lüftungsempfehlung-Sensor (Benötigt Wetter-Entität)",
+              "ventilation_ah_threshold": "Lüftungs-Schwellenwert (g/m³)"
+            },
+            "data_description": {
+              "feature_dew_point": "Erstellt einen Taupunkt-Sensor pro Zone. Berechnet aus Raumtemperatur und Luftfeuchtigkeit. WICHTIG für Tado X: Erfordert zwingend eine verknüpfte Temperaturquelle am Zonen-Gerät, da die Cloud-API für Tado X keine Temperatur liefert.",
+              "feature_mold_detection": "Erstellt Schimmelrisiko-Sensoren pro Zone. Enthält ein Risikolevel (keins/niedrig/mittel/hoch) und einen binären Sensor für akutes Schimmelrisiko. WICHTIG für Tado X: Erfordert zwingend eine verknüpfte Temperaturquelle am Zonen-Gerät.",
+              "outdoor_weather_entity": "Wähle eine Wetter-Entität (z. B. weather.home) aus, die Außentemperatur und Luftfeuchtigkeit bereitstellt. Dies wird benötigt, um die absolute Luftfeuchtigkeit innen zu berechnen und 'Lüften empfohlen'-Sensoren zu aktivieren. Der Sensor meldet 'Ja', wenn Lüften die Feuchtigkeit im Raum effektiv senkt.",
+              "ventilation_ah_threshold": "Mindest-Differenz der absoluten Luftfeuchtigkeit zwischen innen und außen, ab der 'Lüften empfohlen' auf 'Ja' springt. Ein Wert von 1,0 g/m³ (Gramm Wasser pro Kubikmeter Luft) bedeutet, dass die Außenluft deutlich trockener sein muss als die Innenluft, bevor eine Empfehlung erfolgt. Verhindert flatternde Sensoren bei minimalen Unterschieden. Standard: 1,0."
             }
           },
           "advanced": {
@@ -413,26 +463,26 @@
             }
           },
           "api_quota": {
-            "name": "Auto API Quota & Sicherheit",
+            "name": "Auto-API-Kontingent & Sicherheit",
             "data": {
-              "auto_api_quota_percent": "Auto-API-Kontingent (%)",
-              "throttle_threshold": "Drossel-Schwellenwert (Sicherheits-Puffer)",
-              "quota_safety_reserve": "Quota-Sicherheitsreserve",
-              "min_auto_quota_interval_s": "Minimales Auto-Kontingent Intervall",
-              "disable_polling_when_throttled": "Polling deaktivieren wenn gedrosselt",
-              "refresh_after_resume": "Status nach Schedule-Resume aktualisieren",
-              "suppress_redundant_calls": "Redundante Aufrufe unterdrücken",
-              "suppress_redundant_buttons": "Redundante Button-Aktionen unterdrücken"
+              "auto_api_quota_percent": "auto_api_quota_percent (%)",
+              "throttle_threshold": "throttle_threshold (Sicherheits-Puffer)",
+              "quota_safety_reserve": "quota_safety_reserve",
+              "min_auto_quota_interval_s": "min_auto_quota_interval_s",
+              "disable_polling_when_throttled": "disable_polling_when_throttled",
+              "refresh_after_resume": "refresh_after_resume",
+              "suppress_redundant_calls": "suppress_redundant_calls",
+              "suppress_redundant_buttons": "suppress_redundant_buttons"
             },
             "data_description": {
-              "auto_api_quota_percent": "Nutze X% der FREIEN Tagesquota für Status-Polling (0 = deaktiviert). FREI = Limit - Hintergrund-Reserve (Syncs) - Externe-Aktivität (Automationen, App-Nutzung über dem Puffer). Hybrid-Strategie: Nutzt MAX(Tagesbudget - Verbraucht, Verbleibend * X%) → System pollt IMMER weiter, auch wenn Tagesbudget überschritten.",
-              "throttle_threshold": "Reserviert N Aufrufe für ALLES außerhalb des Hijack-Hintergrund-Pollings (Automationen, Skripte, manuelle App-Nutzung). Das Polling stoppt bei Erreichen dieser Schwelle, um deren Funktion zu sichern. Empfohlen: 20. 0 = deaktiviert.",
+              "auto_api_quota_percent": "Nutze X% des FREIEN Tageskontingents für Status-Abfragen (0 = deaktiviert). FREI = Limit - Hintergrund-Reserve (Syncs) - Externe-Aktivität (Automationen, App-Nutzung über dem Puffer). Hybrid-Strategie: Nutzt MAX(Tagesbudget - Verbraucht, Verbleibend * X%) → System fragt IMMER weiter ab, auch wenn Tagesbudget überschritten.",
+              "throttle_threshold": "Reserviert N Aufrufe für ALLES außerhalb des Hijack-Hintergrund-Pollings (Automationen, Skripte, manuelle App-Nutzung). Die Abfrage stoppt bei Erreichen dieser Schwelle (throttle_threshold), um deren Funktion zu sichern. Empfohlen: 20. 0 = deaktiviert.",
               "quota_safety_reserve": "API-Aufrufe, die für das selbstlernende Reset-Fenster reserviert werden. Das System lernt den Reset-Zeitpunkt automatisch und verteilt diese Reserve adaptiv während des Fensters, um Cloud-Schwankungen zu überbrücken. 0 = deaktiviert (nicht empfohlen). Standard: 2.",
-              "min_auto_quota_interval_s": "Minimales Polling-Intervall in Sekunden (5-43200 = 12h max). Standard-API: 5s Minimum. Proxy: 120s Minimum erzwungen. Niedriger = schnellere Updates aber höherer API-Verbrauch. Standard 20s.",
-              "disable_polling_when_throttled": "Stoppt das periodische Polling vollständig, wenn das verbleibende Kontingent den Puffer erreicht.",
-              "refresh_after_resume": "Automatisch Zieltemperatur/State abrufen nach Resume Schedule (HVAC AUTO). Notwendig, da Zeitpläne Tado-Cloud-seitig verwaltet werden. Nutzt 1s Grace-Period um mehrere Resumes zu mergen. Kostet 1 API-Aufruf.",
-              "suppress_redundant_calls": "Überspringe API-Aufrufe wenn Zielzustand dem Cache entspricht (Temperatur, Modus, Anwesenheit, Power). Spart Quota bei versehentlichem Doppelklick oder UI-Interaktionen. Sendet nur bei tatsächlicher Änderung. Werte die nicht im Cache sind werden immer gesendet.",
-              "suppress_redundant_buttons": "Überspringe auch Button-Aktionen (resume_all, boost_all, turn_off_all, set_mode_all) wenn alle Zonen bereits im Zielzustand. Benötigt 'Redundante Aufrufe unterdrücken'. Einzelne explizite Aktionen und Sync-Buttons (manual_poll, refresh) werden immer gesendet."
+              "min_auto_quota_interval_s": "Minimales Abfrage-Intervall in Sekunden (5-43200 = 12h max). Standard-API: 5s Minimum. Proxy: 120s Minimum erzwungen. Niedriger = schnellere Updates aber höherer API-Verbrauch. Standard 20s.",
+              "disable_polling_when_throttled": "Stoppt die periodische Abfrage vollständig, wenn das verbleibende Kontingent den Puffer (throttle_threshold) erreicht.",
+              "refresh_after_resume": "Automatisch Zieltemperatur/Status abrufen nach 'resume_schedule' (HVAC AUTO). Notwendig, da Zeitpläne Tado-Cloud-seitig verwaltet werden. Nutzt 1s Karenzzeit (Grace-Period), um mehrere Fortsetzungen zusammenzufassen. Kostet 1 API-Aufruf.",
+              "suppress_redundant_calls": "Überspringe API-Aufrufe wenn Zielzustand dem Cache entspricht (Temperatur, Modus, Anwesenheit, Power). Spart Kontingent bei versehentlichem Doppelklick oder UI-Interaktionen. Sendet nur bei tatsächlicher Änderung. Werte die nicht im Cache sind werden immer gesendet.",
+              "suppress_redundant_buttons": "Überspringe auch Button-Aktionen (resume_all, boost_all, turn_off_all, set_mode_all) wenn alle Zonen bereits im Zielzustand. Benötigt 'suppress_redundant_calls'. Einzelne explizite Aktionen und Synchronisierungs-Buttons werden immer gesendet."
             }
           },
           "reduced_polling": {
@@ -448,6 +498,21 @@
               "reduced_polling_start": "Zeitpunkt, an dem das Sparfenster beginnt (z. B. 22:00).",
               "reduced_polling_end": "Zeitpunkt, an dem das Sparfenster endet (z. B. 07:00).",
               "reduced_polling_interval": "Polling-Intervall während des Sparfensters (z.B. 3600s = 1h). Auf 0 setzen für Pause."
+            }
+          },
+          "features": {
+            "name": "Features",
+            "data": {
+              "feature_dew_point": "Taupunkt-Sensor",
+              "feature_mold_detection": "Schimmelrisiko-Sensoren",
+              "outdoor_weather_entity": "Lüftungsempfehlung-Sensor (Benötigt Wetter-Entität)",
+              "ventilation_ah_threshold": "Lüftungs-Schwellenwert (g/m³)"
+            },
+            "data_description": {
+              "feature_dew_point": "Erstellt einen Taupunkt-Sensor pro Zone. Berechnet aus Raumtemperatur und Luftfeuchtigkeit. WICHTIG für Tado X: Erfordert zwingend eine verknüpfte Temperaturquelle am Zonen-Gerät, da die Cloud-API für Tado X keine Temperatur liefert.",
+              "feature_mold_detection": "Erstellt Schimmelrisiko-Sensoren pro Zone. Enthält ein Risikolevel (keins/niedrig/mittel/hoch) und einen binären Sensor für akutes Schimmelrisiko. WICHTIG für Tado X: Erfordert zwingend eine verknüpfte Temperaturquelle am Zonen-Gerät.",
+              "outdoor_weather_entity": "Wähle eine Wetter-Entität (z. B. weather.home) aus, die Außentemperatur und Luftfeuchtigkeit bereitstellt. Dies wird benötigt, um die absolute Luftfeuchtigkeit innen zu berechnen und 'Lüften empfohlen'-Sensoren zu aktivieren. Der Sensor meldet 'Ja', wenn Lüften die Feuchtigkeit im Raum effektiv senkt.",
+              "ventilation_ah_threshold": "Mindest-Differenz der absoluten Luftfeuchtigkeit zwischen innen und außen, ab der 'Lüften empfohlen' auf 'Ja' springt. Ein Wert von 1,0 g/m³ (Gramm Wasser pro Kubikmeter Luft) bedeutet, dass die Außenluft deutlich trockener sein muss als die Innenluft, bevor eine Empfehlung erfolgt. Verhindert flatternde Sensoren bei minimalen Unterschieden. Standard: 1,0."
             }
           },
           "advanced": {
@@ -553,6 +618,20 @@
         "temperature": {
           "name": "Temperatur",
           "description": "Zieltemperatur (wird je nach Zonentyp automatisch begrenzt)."
+        }
+      }
+    },
+    "add_meter_reading": {
+      "name": "Zählerstand hinzufügen",
+      "description": "Lädt einen Zählerstand zu Tado Energy IQ hoch.",
+      "fields": {
+        "config_entry": {
+          "name": "Konfigurations-Eintrag",
+          "description": "Tado Hijack Konfigurations-Eintrag, für den der Zählerstand hinzugefügt werden soll."
+        },
+        "reading": {
+          "name": "Zählerstand",
+          "description": "Zählerstand (ganze Zahl)."
         }
       }
     }

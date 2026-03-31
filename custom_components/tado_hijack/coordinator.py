@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, cast
 
+import aiohttp
+
 from homeassistant.core import (
     HomeAssistant,
 )
@@ -12,7 +14,6 @@ from homeassistant.core import (
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 from tadoasync import Tado, TadoError
-from tadoasync.models import TemperatureOffset
 
 if TYPE_CHECKING:
     from tadoasync.models import Device, Zone
@@ -93,7 +94,6 @@ from .helpers.quota_math import (
     calculate_safety_reserve_interval,
     calculate_weighted_interval,
     check_quota_reset,
-    get_next_reset_time,
     get_seconds_until_reset,
     is_in_reset_safe_window,
 )
@@ -409,9 +409,20 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             self._force_next_update = False
 
             return cast(TadoData, data)
-        except TadoError as err:
+        except (TimeoutError, TadoError, aiohttp.ClientError) as err:
             self._force_next_update = False
+
+            if self.data:
+                _LOGGER.warning("Tado API transient error, using cached data: %s", err)
+                return cast(TadoData, self.data)
+
             raise UpdateFailed(f"Tado API error: {err}") from err
+        except Exception as err:
+            self._force_next_update = False
+            _LOGGER.error("Unexpected error fetching Tado data: %s", err, exc_info=True)
+            if self.data:
+                return cast(TadoData, self.data)
+            raise UpdateFailed(f"Unexpected error: {err}") from err
 
     def _handle_throttled_interval(self, seconds_until_reset: int) -> int:
         """Handle polling interval when throttled."""
@@ -435,9 +446,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         reduced_interval = conf["interval"]
         if reduced_interval == 0:
             test_dt = now + timedelta(minutes=1)
-            next_reset = get_next_reset_time(
-                expected_hour, expected_minute, self._last_quota_reset
-            )
+            next_reset = self.reset_tracker.get_next_reset_time()
             while self._is_in_reduced_window(test_dt, conf) and test_dt < next_reset:
                 test_dt += timedelta(minutes=15)
             diff = int((test_dt - now).total_seconds())
@@ -505,7 +514,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
 
         expected_hour, expected_minute = self._get_learned_reset_window()
         seconds_until_reset = get_seconds_until_reset(
-            expected_hour, expected_minute, self._last_quota_reset
+            self.reset_tracker.get_next_reset_time()
         )
 
         # 1. Throttling (Highest Priority)
@@ -558,9 +567,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
                 is_in_reduced_window_func=self._is_in_reduced_window,
                 reduced_window_conf=conf,
                 min_floor=min_floor,
-                expected_hour=expected_hour,
-                expected_minute=expected_minute,
-                last_reset=self._last_quota_reset,
+                next_reset=self.reset_tracker.get_next_reset_time(),
             )
 
         return SECONDS_PER_HOUR
@@ -606,10 +613,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         if self._auto_api_quota_percent <= 0:
             return
 
-        expected_hour, expected_minute = self._get_learned_reset_window()
-        next_reset = get_next_reset_time(
-            expected_hour, expected_minute, self._last_quota_reset
-        )
+        next_reset = self.reset_tracker.get_next_reset_time()
         now = dt_util.now()
         delay = (next_reset - now).total_seconds()
 
@@ -1053,38 +1057,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
 
     async def async_set_temperature_offset(self, serial_no: str, offset: float) -> None:
         """Set temperature offset for a device."""
-        if self.generation == GEN_X:
-            # Tado X: Update devices_meta directly (value_fn reads from there)
-            if dev := self.data_manager.devices_meta.get(serial_no):
-                dev.temperature_offset = offset
-            self.async_update_listeners()
-            if self.provider:
-                await self.provider.async_set_temperature_offset(serial_no, offset)
-        else:
-            # v3 Classic: Use legacy property manager
-            old_val = self.data_manager.offsets_cache.get(serial_no)
-
-            self.data_manager.offsets_cache[serial_no] = TemperatureOffset(
-                celsius=offset,
-                fahrenheit=0.0,
-            )
-
-            if old_val:
-                import copy
-
-                try:
-                    old_val = copy.deepcopy(old_val)
-                except Exception:
-                    old_val = None
-
-            await self.property_manager.async_set_device_property(
-                serial_no,
-                CommandType.SET_OFFSET,
-                {"serial": serial_no, "offset": offset},
-                self.optimistic.set_offset,
-                offset,
-                rollback_context=old_val,
-            )
+        await self.action_provider.async_set_temperature_offset(serial_no, offset)
 
     async def async_set_away_temperature(self, zone_id: int, temp: float) -> None:
         """Set away temperature for a zone."""
@@ -1170,6 +1143,20 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
                 data={"serial": serial_no},
             ),
         )
+
+    async def async_add_meter_reading(self, reading: int) -> None:
+        """Add a meter reading to Tado Energy IQ."""
+        if self.generation == GEN_X:
+            _LOGGER.warning(
+                "Meter readings are not currently supported via Hops API in this integration"
+            )
+            # Tado X does not support set_meter_readings via the current Hops Api wrapper we have,
+            # or it requires EIQ API. We will just pass for now or throw error if user tries.
+        else:
+            try:
+                await self.client.set_meter_readings(reading=reading)
+            except Exception as e:
+                _LOGGER.error("Failed to add meter reading: %s", e)
 
     async def async_set_ac_setting(self, zone_id: int, key: str, value: str) -> None:
         """Set an AC specific setting (fan speed, swing, temperature, etc.)."""

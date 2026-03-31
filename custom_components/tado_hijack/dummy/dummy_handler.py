@@ -24,6 +24,8 @@ _LOGGER = get_redacted_logger(__name__)
 class RobustNamespace(SimpleNamespace):
     """A namespace that returns None for missing attributes instead of crashing."""
 
+    _is_dummy_state: bool = True  # [DUMMY_HOOK] marker for state_patcher to skip
+
     def __getattr__(self, name: str) -> Any:
         """Return None for any missing attribute to mimic Pydantic model behavior."""
         return None

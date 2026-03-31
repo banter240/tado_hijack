@@ -27,6 +27,10 @@ from .logging_utils import get_redacted_logger
 
 _LOGGER = get_redacted_logger(__name__)
 
+# Tolerance for polling intervals to handle scheduler jitter (5% of interval, max 10s)
+_JITTER_TOLERANCE_FACTOR = 0.05
+_MAX_JITTER_TOLERANCE_S = 10.0
+
 
 class PollTask:
     """Represents a single unit of work in a polling cycle."""
@@ -57,7 +61,6 @@ class TadoDataManager:
         self._offset_poll_seconds = offset_poll_seconds
         self._presence_poll_seconds = presence_poll_seconds
 
-        # Caches
         self.zones_meta: dict[int, Any] = {}
         self.devices_meta: dict[str, Any] = {}
         self.capabilities_cache: dict[int, Any] = {}
@@ -74,7 +77,6 @@ class TadoDataManager:
         self._presence_invalidated_at: float = 0
         self._zones_invalidated_at: float = 0
 
-        # Initialization flags for independent bootstrapping
         self._metadata_init = False
         self._zones_init = False
         self._presence_init = False
@@ -83,6 +85,18 @@ class TadoDataManager:
     def client(self) -> TadoHijackClient:
         """Return the client cast to TadoHijackClient."""
         return cast("TadoHijackClient", self._tado)
+
+    def _should_run_task(self, elapsed: float, interval: float) -> bool:
+        """Determine if a task should run, considering timing jitter.
+
+        Long intervals (e.g. 1800s) are given more absolute tolerance than
+        short ones, but we cap it to prevent overlapping high-frequency polls.
+        """
+        if interval <= 0:
+            return False
+
+        tolerance = min(interval * _JITTER_TOLERANCE_FACTOR, _MAX_JITTER_TOLERANCE_S)
+        return elapsed >= (interval - tolerance)
 
     def _build_poll_plan(self, current_time: float) -> list[PollTask]:
         """Construct the execution plan for the current poll cycle."""
@@ -95,46 +109,54 @@ class TadoDataManager:
         return plan
 
     def _add_fast_track_to_plan(self, plan: list[PollTask], now: float) -> None:
-        """Add zone states polling (fast track - every poll)."""
+        """Add zone states polling (fast track)."""
         interval = (
             self.coordinator.update_interval.total_seconds()
             if self.coordinator.update_interval
             else 0
         )
+
+        elapsed = now - self._last_zones_poll
         if not self._zones_init or (
             self._zones_invalidated_at > self._last_zones_poll
-            or (interval > 0 and (now - self._last_zones_poll) >= (interval - 1))
+            or self._should_run_task(elapsed, interval)
         ):
-            # Unified method for both generations
             plan.append(PollTask(1, self._fetch_zones))
+        else:
+            _LOGGER.debug(
+                "DataManager: Skipping fast track (elapsed: %.1fs, interval: %.1fs)",
+                elapsed,
+                interval,
+            )
 
     def _add_presence_track_to_plan(self, plan: list[PollTask], now: float) -> None:
-        """Add presence/home state polling (separate interval)."""
-        # Tado X updates presence via metadata poll, so no separate task
+        """Add presence/home state polling."""
         if self.coordinator.generation == GEN_X:
             return
 
+        elapsed = now - self._last_presence_poll
+        interval = float(self._presence_poll_seconds)
         if not self._presence_init or (
             self._presence_invalidated_at > self._last_presence_poll
-            or (
-                self._presence_poll_seconds > 0
-                and (now - self._last_presence_poll)
-                >= (self._presence_poll_seconds - 1)
-            )
+            or self._should_run_task(elapsed, interval)
         ):
             plan.append(PollTask(1, self._fetch_presence))
+        else:
+            _LOGGER.debug(
+                "DataManager: Skipping presence track (elapsed: %.1fs, interval: %.1fs)",
+                elapsed,
+                interval,
+            )
 
     def _add_slow_track_to_plan(self, plan: list[PollTask], now: float) -> None:
-        """Add metadata polling (slow track - infrequent)."""
-        if (
-            not self._metadata_init
-            or (now - self._last_slow_poll) > self._slow_poll_seconds
-        ):
-            # Unified method for both generations
+        """Add metadata polling (slow track)."""
+        elapsed = now - self._last_slow_poll
+        interval = float(self._slow_poll_seconds)
+
+        if not self._metadata_init or self._should_run_task(elapsed, interval):
             plan.append(PollTask(1, self._fetch_metadata))
 
     def _add_medium_track_to_plan(self, plan: list[PollTask], now: float) -> None:
-        # Tado X: offsets come from roomsAndDevices metadata (no separate poll needed)
         if self.coordinator.generation == GEN_X:
             return
 
@@ -147,9 +169,11 @@ class TadoDataManager:
         if is_initial_poll and not self.coordinator.fetch_extended_data:
             return
 
+        elapsed = now - self._last_offset_poll
+        interval = float(self._offset_poll_seconds)
+
         if (self._offset_invalidated_at > self._last_offset_poll) or (
-            self._offset_poll_seconds > 0
-            and (now - self._last_offset_poll) > self._offset_poll_seconds
+            self._should_run_task(elapsed, interval)
         ):
             plan.append(PollTask(1, self._fetch_offsets))
 
@@ -388,7 +412,7 @@ class TadoDataManager:
             from .tadox.mapper import TadoXMapper
 
             presence = cast(TadoXMapper, self.provider).get_last_presence()
-            if self.coordinator.data:
+            if self.coordinator.data and self.coordinator.data.home_state:
                 self.coordinator.data.home_state.presence = presence
             self._presence_init = True
             self._last_presence_poll = now
@@ -403,7 +427,7 @@ class TadoDataManager:
         self._last_slow_poll = now
 
     def _sync_optimistic_owd(self, zid: int, new_zone: Any) -> None:
-        """Sync OWD state from optimistic manager or cache."""
+        """Sync OWD state from optimistic manager."""
         opt_timeout = self.coordinator.optimistic.get_open_window(zid)
         if (
             opt_timeout is not None
@@ -412,11 +436,6 @@ class TadoDataManager:
         ):
             new_zone.open_window_detection.enabled = opt_timeout > 0
             new_zone.open_window_detection.timeout_in_seconds = opt_timeout
-        elif existing := self.zones_meta.get(zid):
-            if hasattr(existing, "open_window_detection") and hasattr(
-                new_zone, "open_window_detection"
-            ):
-                new_zone.open_window_detection = existing.open_window_detection
 
     async def _fetch_capabilities(self, zone_id: int) -> None:
         """Fetch and cache capabilities for a zone."""
@@ -548,10 +567,15 @@ class TadoDataManager:
         if not self.provider or self.coordinator.generation == GEN_X:
             return
 
+        # Don't overwrite cache while a SET_AWAY_TEMP command is pending —
+        # the API GET may race with the pending POST and return a stale value.
+
+        if f"set_away_temp_{zone_id}" in self.coordinator.api_manager.pending_keys:
+            return
+
         opt_val = self.coordinator.optimistic.get_away_temp(zone_id)
         if opt_val is not None:
             self.away_cache[zone_id] = float(opt_val)
-            _LOGGER.debug("Synced away config from optimistic for zone %d", zone_id)
             return
 
         try:
@@ -602,6 +626,7 @@ class TadoDataManager:
                 "Targeted capabilities fetch: could not resolve zone for %s, falling back",
                 entity_id,
             )
+            self.capabilities_cache.clear()
             return False
 
         # Bulk-only types (zone, metadata, presence, all): invalidate and signal full refresh

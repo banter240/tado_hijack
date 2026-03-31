@@ -127,25 +127,14 @@ class TadoV3ActionProvider(TadoActionProvider):
         include_ac: bool = False,
     ) -> list[int]:
         """Get active zone IDs (v3 uses zone.id)."""
-        all_zones = list(
-            yield_zones(
+        return [
+            zone.id
+            for zone in yield_zones(
                 self.coordinator,
                 include_heating=include_heating,
                 include_hot_water=include_hot_water,
                 include_ac=include_ac,
             )
-        )
-        _LOGGER.debug(
-            "get_active_zone_ids: zones_meta has %d entries, matched %d zones (H=%s AC=%s HW=%s)",
-            len(self.coordinator.zones_meta),
-            len(all_zones),
-            include_heating,
-            include_ac,
-            include_hot_water,
-        )
-        return [
-            zone.id
-            for zone in all_zones
             if not self.coordinator.entity_resolver.is_zone_disabled(zone.id)
         ]
 
@@ -284,10 +273,8 @@ class TadoV3ActionProvider(TadoActionProvider):
 
         for cap_name, api_key, attr_name in swing_mappings:
             if cap_values := getattr(mode_caps, cap_name, None):
-                opt_val = (
-                    self.coordinator.optimistic._store.get("zone", {})
-                    .get(zone_id, {})
-                    .get(attr_name, (None, 0))[0]
+                opt_val = self.coordinator.optimistic.get_optimistic(
+                    "zone", zone_id, attr_name
                 ) or getattr(state.setting, attr_name, None)
 
                 val = value if key == attr_name else opt_val
@@ -298,12 +285,40 @@ class TadoV3ActionProvider(TadoActionProvider):
                     if val in cap_values
                     else ("OFF" if "OFF" in cap_values else cap_values[0])
                 )
-            elif opt_val := (
-                self.coordinator.optimistic._store.get("zone", {})
-                .get(zone_id, {})
-                .get(attr_name, (None, 0))[0]
+            elif opt_val := self.coordinator.optimistic.get_optimistic(
+                "zone", zone_id, attr_name
             ) or getattr(state.setting, attr_name, None):
                 val = opt_val.upper()
                 fields[api_key] = str(val)
 
         return fields
+
+    async def async_set_temperature_offset(self, serial_no: str, offset: float) -> None:
+        """Set temperature offset for a v3 device."""
+        old_val = self.coordinator.data_manager.offsets_cache.get(serial_no)
+
+        from tadoasync.models import TemperatureOffset
+
+        self.coordinator.data_manager.offsets_cache[serial_no] = TemperatureOffset(
+            celsius=offset,
+            fahrenheit=0.0,
+        )
+
+        if old_val:
+            import copy
+
+            try:
+                old_val = copy.deepcopy(old_val)
+            except Exception:
+                old_val = None
+
+        from ...models import CommandType
+
+        await self.coordinator.property_manager.async_set_device_property(
+            serial_no,
+            CommandType.SET_OFFSET,
+            {"serial": serial_no, "offset": offset},
+            self.coordinator.optimistic.set_offset,
+            offset,
+            rollback_context=old_val,
+        )

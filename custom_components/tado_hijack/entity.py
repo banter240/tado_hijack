@@ -117,15 +117,15 @@ class TadoOptimisticMixin:
             self._attr_optimistic_scope, entity_id, self._attr_optimistic_key
         )
 
-    def _get_actual_value(self) -> Any:
-        """Return actual value from coordinator data."""
-        raise NotImplementedError
-
     def _resolve_state(self) -> Any:
         """Resolve state: Optimistic > Actual."""
         if (opt := self._get_optimistic_value()) is not None:
             return opt
         return self._get_actual_value()
+
+    def _get_actual_value(self) -> Any:
+        """Return placeholder for mypy (implemented in other mixins/classes)."""
+        return None
 
 
 class TadoStateMemoryMixin(RestoreEntity):
@@ -232,7 +232,8 @@ class TadoEntity(CoordinatorEntity):
             elif hasattr(self, "_serial_no"):
                 suffix = f"_{self._serial_no}_{key}"
 
-        self.entity_id = f"{domain}.{prefix}_{home_slug}{suffix}"
+        home_part = f"_{home_slug}" if home_slug else ""
+        self.entity_id = f"{domain}.{prefix}{home_part}{suffix}"
 
     @property
     def tado_coordinator(self) -> TadoDataUpdateCoordinator:

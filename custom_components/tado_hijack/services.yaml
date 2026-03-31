@@ -1,5 +1,6 @@
 # Shared Field Definitions (DRY)
 manual_poll:
+  description: "Force immediate data refresh."
   fields:
     refresh_type:
       description: "Which data to refresh. Use with entity_id for a targeted single-entity fetch (saves API quota). Without entity_id, all entities of that type are refreshed."
@@ -18,6 +19,38 @@ manual_poll:
       description: "Optional: restrict the refresh to a single entity (targeted fetch). Supported for: offsets, away, capabilities. Other types fall back to a full refresh."
       selector:
         entity:
+          integration: tado_hijack
+    config_entry:
+      description: "Optional: Target a specific Tado Home. If omitted and no entity_id is provided, applies to all Tado Homes."
+      selector:
+        config_entry:
+          integration: tado_hijack
+
+resume_all_schedules:
+  description: "Restore Smart Schedule across all zones."
+  fields:
+    config_entry:
+      description: "Optional: Target a specific Tado Home. If omitted, applies to all Tado Homes."
+      selector:
+        config_entry:
+          integration: tado_hijack
+
+turn_off_all_zones:
+  description: "Turn off all zones instantly."
+  fields:
+    config_entry:
+      description: "Optional: Target a specific Tado Home. If omitted, applies to all Tado Homes."
+      selector:
+        config_entry:
+          integration: tado_hijack
+
+boost_all_zones:
+  description: "Boost all zones to 25°C."
+  fields:
+    config_entry:
+      description: "Optional: Target a specific Tado Home. If omitted, applies to all Tado Homes."
+      selector:
+        config_entry:
           integration: tado_hijack
 
 set_mode:
@@ -75,6 +108,11 @@ set_mode:
 set_mode_all_zones:
   description: "Set a manual overlay for all heating and/or AC zones at once."
   fields:
+    config_entry:
+      description: "Optional: Target a specific Tado Home. If omitted, applies to all Tado Homes."
+      selector:
+        config_entry:
+          integration: tado_hijack
     include_heating:
       description: "Include all heating zones (Thermostats)."
       required: true
@@ -142,3 +180,21 @@ set_water_heater_mode:
           step: 1
           unit_of_measurement: "°C"
     refresh_after: *field_refresh_after
+
+add_meter_reading:
+  description: "Upload a meter reading to Tado Energy IQ."
+  fields:
+    config_entry:
+      description: "Tado Hijack configuration entry."
+      required: true
+      selector:
+        config_entry:
+          integration: tado_hijack
+    reading:
+      description: "Meter reading value (integer)."
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 9999999
+          mode: box

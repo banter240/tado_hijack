@@ -7,6 +7,9 @@
       "api_remaining": {
         "name": "API Calls Remaining"
       },
+      "outdoor_absolute_humidity": {
+        "name": "Outdoor Absolute Humidity"
+      },
       "quota_reset_last": {
         "name": "Last Quota Reset"
       },
@@ -80,6 +83,21 @@
       "humidity": {
         "name": "Humidity"
       },
+      "dew_point": {
+        "name": "Dew Point"
+      },
+      "mold_risk_level": {
+        "name": "Mold Risk Level",
+        "state": {
+          "none": "None",
+          "low": "Low",
+          "medium": "Medium",
+          "high": "High"
+        }
+      },
+      "indoor_absolute_humidity": {
+        "name": "Indoor Absolute Humidity"
+      },
       "next_schedule_change": {
         "name": "Next Schedule Change"
       },
@@ -135,6 +153,16 @@
       },
       "connectivity": {
         "name": "Connectivity"
+      },
+      "mold_risk": {
+        "name": "Mold Risk",
+        "state": {
+          "on": "Yes",
+          "off": "No"
+        }
+      },
+      "ventilation_recommended": {
+        "name": "Ventilation Recommended"
       },
       "reduced_polling_active": {
         "name": "Reduced Polling Active"
@@ -228,6 +256,12 @@
       }
     },
     "select": {
+      "zone_temp_source": {
+        "name": "Temperature Source"
+      },
+      "zone_humidity_source": {
+        "name": "Humidity Source"
+      },
       "fan_speed": {
         "name": "Fan Speed",
         "state": {
@@ -276,6 +310,7 @@
     "abort": {
       "already_configured": "Account is already configured.",
       "could_not_authenticate": "Could not authenticate with Tado.",
+      "no_homes_returned": "Authentication failed: The Tado API did not return any 'homes' associated with your account. Please open the official Tado app to check if you need to accept new Terms & Conditions or finish your home setup. If the issue persists, please report this on GitHub.",
       "no_homes": "There are no homes linked to this Tado account.",
       "cannot_connect": "Failed to connect.",
       "reauth_successful": "Re-authentication was successful.",
@@ -358,6 +393,21 @@
               "reduced_polling_start": "Time when the economy window starts (e.g. 22:00).",
               "reduced_polling_end": "Time when the economy window ends (e.g. 07:00).",
               "reduced_polling_interval": "Polling interval during the economy window (e.g. 3600s = 1h). Set to 0 to pause updates."
+            }
+          },
+          "features": {
+            "name": "Features",
+            "data": {
+              "feature_dew_point": "Dew Point Sensor",
+              "feature_mold_detection": "Mold Risk Sensors",
+              "outdoor_weather_entity": "Ventilation Recommendation Sensor (Requires Weather Entity)",
+              "ventilation_ah_threshold": "Ventilation Threshold (g/m³)"
+            },
+            "data_description": {
+              "feature_dew_point": "Create a dew point temperature sensor per zone. Calculated from room temperature and humidity. MANDATORY for Tado X: Requires a linked temperature source on the zone device as the cloud API provides no temperature for Tado X.",
+              "feature_mold_detection": "Create mold risk sensors per zone. Includes a risk level (none/low/medium/high) and a binary sensor for acute mold risk. MANDATORY for Tado X: Requires a linked temperature source on the zone device.",
+              "outdoor_weather_entity": "Select a weather entity (e.g., weather.home) that provides outdoor temperature and humidity. This is required to calculate indoor absolute humidity and to activate 'Ventilation Recommended' sensors. The sensor reports 'Yes' when opening windows effectively reduces indoor moisture.",
+              "ventilation_ah_threshold": "Minimum absolute humidity difference between indoor and outdoor required before 'Ventilation Recommended' turns to 'Yes'. A value of 1.0 g/m³ (grams of water per cubic meter of air) ensures that outdoor air is significantly dryer than indoor air before recommending ventilation. Prevents sensor chatter. Default: 1.0."
             }
           },
           "advanced": {
@@ -448,6 +498,21 @@
               "reduced_polling_start": "Time when the economy window starts (e.g. 22:00).",
               "reduced_polling_end": "Time when the economy window ends (e.g. 07:00).",
               "reduced_polling_interval": "Polling interval during the economy window (e.g. 3600s = 1h). Set to 0 to pause updates."
+            }
+          },
+          "features": {
+            "name": "Features",
+            "data": {
+              "feature_dew_point": "Dew Point Sensor",
+              "feature_mold_detection": "Mold Risk Sensors",
+              "outdoor_weather_entity": "Ventilation Recommendation Sensor (Requires Weather Entity)",
+              "ventilation_ah_threshold": "Ventilation Threshold (g/m³)"
+            },
+            "data_description": {
+              "feature_dew_point": "Create a dew point temperature sensor per zone. Calculated from room temperature and humidity. MANDATORY for Tado X: Requires a linked temperature source on the zone device as the cloud API provides no temperature for Tado X.",
+              "feature_mold_detection": "Create mold risk sensors per zone. Includes a risk level (none/low/medium/high) and a binary sensor for acute mold risk. MANDATORY for Tado X: Requires a linked temperature source on the zone device.",
+              "outdoor_weather_entity": "Select a weather entity (e.g., weather.home) that provides outdoor temperature and humidity. This is required to calculate indoor absolute humidity and to activate 'Ventilation Recommended' sensors. The sensor reports 'Yes' when opening windows effectively reduces indoor moisture.",
+              "ventilation_ah_threshold": "Minimum absolute humidity difference between indoor and outdoor required before 'Ventilation Recommended' turns to 'Yes'. A value of 1.0 g/m³ (grams of water per cubic meter of air) ensures that outdoor air is significantly dryer than indoor air before recommending ventilation. Prevents sensor chatter. Default: 1.0."
             }
           },
           "advanced": {
@@ -553,6 +618,20 @@
         "temperature": {
           "name": "Temperature",
           "description": "Target temperature (will be capped based on zone type)."
+        }
+      }
+    },
+    "add_meter_reading": {
+      "name": "Add meter reading",
+      "description": "Upload a meter reading to Tado Energy IQ.",
+      "fields": {
+        "config_entry": {
+          "name": "Config Entry",
+          "description": "Tado Hijack configuration entry to add meter reading to."
+        },
+        "reading": {
+          "name": "Reading",
+          "description": "Meter reading value (integer)."
         }
       }
     }

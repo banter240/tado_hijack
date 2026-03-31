@@ -16,6 +16,7 @@ from .const import (
     OVERLAY_TIMER,
     POWER_OFF,
     POWER_ON,
+    SERVICE_ADD_METER_READING,
     SERVICE_BOOST_ALL_ZONES,
     SERVICE_MANUAL_POLL,
     SERVICE_RESUME_ALL_SCHEDULES,
@@ -104,40 +105,79 @@ def _validate_service_params(
     return
 
 
-async def async_setup_services(
-    hass: HomeAssistant, coordinator: TadoDataUpdateCoordinator
-) -> None:
+def _get_all_coordinators(hass: HomeAssistant) -> list[TadoDataUpdateCoordinator]:
+    """Return all active TadoDataUpdateCoordinators."""
+    return [
+        entry.runtime_data
+        for entry in hass.config_entries.async_entries(DOMAIN)
+        if hasattr(entry, "runtime_data") and entry.runtime_data is not None
+    ]
+
+
+def _get_coordinators_for_call(
+    hass: HomeAssistant, call: ServiceCall
+) -> list[TadoDataUpdateCoordinator]:
+    """Get targeted coordinators from service call."""
+    if not (config_entry_id := call.data.get("config_entry")):
+        return _get_all_coordinators(hass)
+    if isinstance(config_entry_id, list):
+        coords = []
+        for entry_id in config_entry_id:
+            entry = hass.config_entries.async_get_entry(entry_id)
+            if entry and hasattr(entry, "runtime_data") and entry.runtime_data:
+                coords.append(entry.runtime_data)
+        return coords
+    else:
+        entry = hass.config_entries.async_get_entry(config_entry_id)
+        if entry and hasattr(entry, "runtime_data") and entry.runtime_data:
+            return [entry.runtime_data]
+    return []
+
+
+async def async_setup_services(hass: HomeAssistant) -> None:  # noqa: C901
     """Set up the services for Tado Hijack."""
+    if hass.data.get(f"{DOMAIN}_services_registered"):
+        return
+    hass.data[f"{DOMAIN}_services_registered"] = True
 
     async def handle_manual_poll(call: ServiceCall) -> None:
         """Service to force refresh."""
         refresh_type = call.data.get("refresh_type", "all")
         entity_id = call.data.get("entity_id")
+
         if entity_id:
-            _LOGGER.debug(
-                "Service call: manual_poll (type: %s, entity: %s)",
-                refresh_type,
-                entity_id,
-            )
-            await coordinator.async_targeted_fetch(refresh_type, entity_id)
+            for coord in _get_all_coordinators(hass):
+                if coord.get_zone_id_from_entity(entity_id) is not None:
+                    _LOGGER.debug(
+                        "Service call: manual_poll (type: %s, entity: %s)",
+                        refresh_type,
+                        entity_id,
+                    )
+                    await coord.async_targeted_fetch(refresh_type, entity_id)
+                    return
+            _LOGGER.warning("Could not resolve Tado zone for entity %s", entity_id)
         else:
             _LOGGER.debug("Service call: manual_poll (type: %s)", refresh_type)
-            await coordinator.async_manual_poll(refresh_type)
+            for coord in _get_coordinators_for_call(hass, call):
+                await coord.async_manual_poll(refresh_type)
 
     async def handle_resume_schedules(call: ServiceCall) -> None:
         """Service to resume all schedules."""
         _LOGGER.debug("Service call: resume_all_schedules")
-        await coordinator.async_resume_all_schedules()
+        for coord in _get_coordinators_for_call(hass, call):
+            await coord.async_resume_all_schedules()
 
     async def handle_turn_off_all(call: ServiceCall) -> None:
         """Service to turn off all zones."""
         _LOGGER.debug("Service call: turn_off_all_zones")
-        await coordinator.async_turn_off_all_zones()
+        for coord in _get_coordinators_for_call(hass, call):
+            await coord.async_turn_off_all_zones()
 
     async def handle_boost_all(call: ServiceCall) -> None:
         """Service to boost all zones."""
         _LOGGER.debug("Service call: boost_all_zones")
-        await coordinator.async_boost_all_zones()
+        for coord in _get_coordinators_for_call(hass, call):
+            await coord.async_boost_all_zones()
 
     async def handle_set_mode(call: ServiceCall) -> None:
         """Service to set a manual mode (batched)."""
@@ -149,39 +189,47 @@ async def async_setup_services(
             entity_ids = [entity_ids]
 
         params = _parse_service_call_data(call)
-        zone_ids: list[int] = []
+
+        coord_map: dict[TadoDataUpdateCoordinator, list[int]] = {}
         for entity_id in entity_ids:
-            if (zone_id := coordinator.get_zone_id_from_entity(entity_id)) is not None:
-                zone_ids.append(zone_id)
-            else:
+            resolved = False
+            for coord in _get_all_coordinators(hass):
+                if (zone_id := coord.get_zone_id_from_entity(entity_id)) is not None:
+                    if coord not in coord_map:
+                        coord_map[coord] = []
+                    coord_map[coord].append(zone_id)
+                    resolved = True
+                    break
+            if not resolved:
                 _LOGGER.warning("Could not resolve Tado zone for entity %s", entity_id)
 
-        if zone_ids:
-            await _execute_set_mode(coordinator, zone_ids, params)
+        for coord, zone_ids in coord_map.items():
+            if zone_ids:
+                await _execute_set_mode(coord, zone_ids, params)
 
     async def handle_set_mode_all(call: ServiceCall) -> None:
         """Service to set a manual overlay for all heating/AC zones (batched)."""
         params = _parse_service_call_data(call)
-        zone_ids = coordinator.get_active_zones(
-            include_heating=call.data.get("include_heating", True),
-            include_ac=call.data.get("include_ac", False),
-        )
-
-        if not zone_ids:
-            _LOGGER.warning("No zones found for set_mode_all_zones")
-            return
-
-        await _execute_set_mode(coordinator, zone_ids, params)
+        for coord in _get_coordinators_for_call(hass, call):
+            zone_ids = coord.get_active_zones(
+                include_heating=call.data.get("include_heating", True),
+                include_ac=call.data.get("include_ac", False),
+            )
+            if not zone_ids:
+                _LOGGER.warning(
+                    "No zones found for set_mode_all_zones in home %s", coord.home_name
+                )
+                continue
+            await _execute_set_mode(coord, zone_ids, params)
 
     async def handle_set_water_heater_mode(call: ServiceCall) -> None:
         """Service to set a mode for water heater entities."""
-        entity_id = call.data.get("entity_id")
-        if not entity_id:
+        entity_ids = call.data.get("entity_id")
+        if not entity_ids:
             return
-        zone_id = coordinator.get_zone_id_from_entity(entity_id)
-        if zone_id is None:
-            _LOGGER.warning("Could not resolve Tado zone for entity %s", entity_id)
-            return
+
+        if isinstance(entity_ids, str):
+            entity_ids = [entity_ids]
 
         params = _parse_service_call_data(call)
         operation_mode = params["operation_mode"]
@@ -190,50 +238,70 @@ async def async_setup_services(
         overlay_mode = params["overlay"]
         refresh_after = params["refresh_after"]
 
-        # Validate parameters (DRY)
         _validate_service_params(
             operation_mode, temperature, duration, overlay_mode, is_water_heater=True
         )
 
-        if operation_mode == "auto":
-            await coordinator.async_set_hot_water_auto(
-                zone_id, refresh_after=refresh_after, ignore_global_config=True
-            )
+        coord_map: dict[TadoDataUpdateCoordinator, list[int]] = {}
+        for entity_id in entity_ids:
+            resolved = False
+            for coord in _get_all_coordinators(hass):
+                if (zone_id := coord.get_zone_id_from_entity(entity_id)) is not None:
+                    if coord not in coord_map:
+                        coord_map[coord] = []
+                    coord_map[coord].append(zone_id)
+                    resolved = True
+                    break
+            if not resolved:
+                _LOGGER.warning("Could not resolve Tado zone for entity %s", entity_id)
+
+        for coord, zone_ids in coord_map.items():
+            for zone_id in zone_ids:
+                if operation_mode == "auto":
+                    await coord.async_set_hot_water_auto(
+                        zone_id, refresh_after=refresh_after, ignore_global_config=True
+                    )
+                    continue
+
+                if operation_mode == "off":
+                    await coord.async_set_zone_overlay(
+                        zone_id=zone_id,
+                        power=POWER_OFF,
+                        duration=duration,
+                        overlay_type=ZONE_TYPE_HOT_WATER,
+                        overlay_mode=overlay_mode,
+                        refresh_after=refresh_after,
+                    )
+                    continue
+
+                if operation_mode == "heat":
+                    final_temp = (
+                        round(float(temperature)) if temperature is not None else None
+                    )
+                    await coord.async_set_zone_overlay(
+                        zone_id=zone_id,
+                        power=POWER_ON,
+                        temperature=final_temp,
+                        duration=duration,
+                        overlay_type=ZONE_TYPE_HOT_WATER,
+                        overlay_mode=overlay_mode,
+                        refresh_after=refresh_after,
+                    )
+
+    async def handle_add_meter_reading(call: ServiceCall) -> None:
+        """Service to add a meter reading."""
+        reading = call.data.get("reading")
+        if reading is None:
             return
 
-        if operation_mode == "off":
-            # Use overlay helper to support duration/overlay_mode for OFF
-            await coordinator.async_set_zone_overlay(
-                zone_id=zone_id,
-                power=POWER_OFF,
-                duration=duration,
-                overlay_type=ZONE_TYPE_HOT_WATER,
-                overlay_mode=overlay_mode,
-                refresh_after=refresh_after,
-            )
+        coordinators = _get_coordinators_for_call(hass, call)
+        if not coordinators:
+            _LOGGER.warning("No Tado config entry specified for add_meter_reading")
             return
 
-        if operation_mode == "heat":
-            # Round to integer for hot water (Tado requirement) - validation is now in coordinator
-            final_temp = round(float(temperature)) if temperature is not None else None
-
-            # Use overlay helper which supports duration/timer
-            await coordinator.async_set_zone_overlay(
-                zone_id=zone_id,
-                power=POWER_ON,
-                temperature=final_temp,
-                duration=duration,
-                overlay_type=ZONE_TYPE_HOT_WATER,
-                overlay_mode=overlay_mode,
-                refresh_after=refresh_after,
-            )
-            return
-
-        _LOGGER.warning(
-            "Unsupported operation_mode '%s' for water heater entity %s",
-            operation_mode,
-            entity_id,
-        )
+        _LOGGER.debug("Service call: add_meter_reading (%s)", reading)
+        for coord in coordinators:
+            await coord.async_add_meter_reading(reading)
 
     hass.services.async_register(DOMAIN, SERVICE_MANUAL_POLL, handle_manual_poll)
     hass.services.async_register(
@@ -247,6 +315,9 @@ async def async_setup_services(
     hass.services.async_register(DOMAIN, SERVICE_SET_MODE_ALL, handle_set_mode_all)
     hass.services.async_register(
         DOMAIN, SERVICE_SET_WATER_HEATER_MODE, handle_set_water_heater_mode
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_ADD_METER_READING, handle_add_meter_reading
     )
 
 
@@ -263,10 +334,8 @@ async def _execute_set_mode(
     duration = params["duration"]
     overlay_mode = params["overlay"]
 
-    # Validate parameters (DRY)
     _validate_service_params(operation_mode, temperature, duration, overlay_mode)
 
-    # Special case: 'auto' means resume schedule for all target zones
     if operation_mode == "auto":
         for zone_id in zone_ids:
             await coordinator.async_set_zone_auto(
@@ -274,10 +343,8 @@ async def _execute_set_mode(
             )
         return
 
-    # Derive power from mode
     power = POWER_OFF if operation_mode == "off" else POWER_ON
 
-    # Fallback to manual overlay if no duration or mode is given
     if not overlay_mode and not duration:
         overlay_mode = OVERLAY_MANUAL
 
@@ -293,7 +360,13 @@ async def _execute_set_mode(
 
 
 async def async_unload_services(hass: HomeAssistant) -> None:
-    """Unload Tado Hijack services."""
+    """Unload Tado Hijack services if no active entries remain."""
+    if any(
+        hasattr(e, "runtime_data") and e.runtime_data is not None
+        for e in hass.config_entries.async_entries(DOMAIN)
+    ):
+        return
+
     hass.services.async_remove(DOMAIN, SERVICE_MANUAL_POLL)
     hass.services.async_remove(DOMAIN, SERVICE_RESUME_ALL_SCHEDULES)
     hass.services.async_remove(DOMAIN, SERVICE_TURN_OFF_ALL_ZONES)
@@ -301,3 +374,5 @@ async def async_unload_services(hass: HomeAssistant) -> None:
     hass.services.async_remove(DOMAIN, SERVICE_SET_MODE)
     hass.services.async_remove(DOMAIN, SERVICE_SET_MODE_ALL)
     hass.services.async_remove(DOMAIN, SERVICE_SET_WATER_HEATER_MODE)
+    hass.services.async_remove(DOMAIN, SERVICE_ADD_METER_READING)
+    hass.data.pop(f"{DOMAIN}_services_registered", None)

@@ -34,11 +34,14 @@ class TadoXExecutor(TadoExecutorBase):
         """Process the entire merged batch using Tado X logic."""
 
         # 1. Presence
-        if merged["presence"]:
+        if presence := merged["presence"]:
             await self._safe_execute(
                 "presence",
-                self.bridge.async_set_presence(merged["presence"]),
+                self.bridge.async_set_presence(presence),
                 rollback_fn=self._create_presence_rollback(merged.get("old_presence")),
+                success_fn=lambda: self.coordinator.optimistic.set_presence(
+                    presence, grace_period=2.0
+                ),
             )
 
         # 2. Device Properties (Child Lock, Offset) -> Unified into PATCH
@@ -53,13 +56,19 @@ class TadoXExecutor(TadoExecutorBase):
             if self._should_skip_zone(zone_id):  # [DUMMY_HOOK]
                 continue
 
+            enabled = data["enabled"]
             await self._safe_execute(
                 f"open_window_{zone_id}",
-                self.bridge.async_set_open_window_detection(zone_id, data["enabled"]),
+                self.bridge.async_set_open_window_detection(zone_id, enabled),
                 rollback_fn=self._create_open_window_rollback(
                     zone_id, rollback_open_windows.get(zone_id)
                 ),
-                context={"zone_id": zone_id, "enabled": data["enabled"]},
+                success_fn=lambda zid=zone_id, e=enabled: (
+                    self.coordinator.optimistic.set_open_window(
+                        zid, 0, grace_period=2.0
+                    )
+                ),
+                context={"zone_id": zone_id, "enabled": enabled},
             )
 
         # 5. Identify Actions
@@ -102,12 +111,19 @@ class TadoXExecutor(TadoExecutorBase):
                 await rb_c()
                 await rb_o()
 
+            def _on_success(s: str = serial, p: dict[str, Any] = payload) -> None:
+                if (val := p.get("childLockEnabled")) is not None:
+                    self.coordinator.optimistic.set_child_lock(s, val, grace_period=2.0)
+                if (val := p.get("temperatureOffset")) is not None:
+                    self.coordinator.optimistic.set_offset(s, val, grace_period=2.0)
+
             await self._safe_execute(
                 f"device_update_{serial}",
                 self.bridge._request(
                     "PATCH", f"roomsAndDevices/devices/{serial}", json_data=payload
                 ),
                 rollback_fn=_rollback_combined,
+                success_fn=_on_success,
                 context={"serial": serial, "payload": payload},
             )
 
@@ -118,9 +134,9 @@ class TadoXExecutor(TadoExecutorBase):
             return
 
         real_zones = {
-            zid: data
-            for zid, data in zones.items()
-            if not self._intercept_zone_command(zid, data)
+            zone_id: data
+            for zone_id, data in zones.items()
+            if not self._intercept_zone_command(zone_id, data)
         }
         if not real_zones:
             return
@@ -130,19 +146,25 @@ class TadoXExecutor(TadoExecutorBase):
         # Check for Quick Action potential (Heuristic)
         all_heating = self.coordinator.get_active_zones(include_heating=True)
         pending_resumes = [
-            zid
-            for zid, data in real_zones.items()
-            if data is None and zid in all_heating
+            zone_id
+            for zone_id, data in real_zones.items()
+            if data is None and zone_id in all_heating
         ]
 
         if pending_resumes and len(pending_resumes) == len(all_heating):
             _LOGGER.info("Tado X: Fusing multiple resumes into house-wide Quick Action")
+
+            def _clear_all_optimistic() -> None:
+                for zone_id in pending_resumes:
+                    self.coordinator.optimistic.clear_zone(zone_id)
+
             await self._safe_execute(
                 "resume_all",
                 self.bridge.async_resume_all_schedules(),
                 rollback_fn=self._create_zones_rollback(
                     pending_resumes, rollback_zones
                 ),
+                success_fn=_clear_all_optimistic,
                 context={"zones": pending_resumes},
             )
             return
@@ -154,6 +176,9 @@ class TadoXExecutor(TadoExecutorBase):
                     f"resume_{zone_id}",
                     self.bridge.async_resume_schedule(zone_id),
                     rollback_fn=self._create_zones_rollback([zone_id], rollback_zones),
+                    success_fn=lambda zid=zone_id: (
+                        self.coordinator.optimistic.clear_zone(zid)
+                    ),
                     context={"zone_id": zone_id},
                 )
             else:
@@ -171,5 +196,14 @@ class TadoXExecutor(TadoExecutorBase):
                     f"overlay_{zone_id}",
                     self.bridge.async_set_manual_control(zone_id, temp, power=power),
                     rollback_fn=self._create_zones_rollback([zone_id], rollback_zones),
+                    success_fn=lambda zid=zone_id, pwr=power, t=temp: (
+                        self.coordinator.optimistic.apply_zone_state(
+                            zid,
+                            overlay=True,
+                            power=pwr,
+                            temperature=t,
+                            grace_period=2.0,
+                        )
+                    ),
                     context={"zone_id": zone_id, "temp": temp, "power": power},
                 )

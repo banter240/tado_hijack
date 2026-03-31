@@ -84,7 +84,7 @@ class TadoGenericSwitchMixin(TadoGenericEntityMixin):
 
 
 class TadoGenericHomeSwitch(
-    TadoHomeEntity, TadoGenericSwitchMixin, TadoOptimisticMixin, SwitchEntity
+    TadoGenericSwitchMixin, TadoOptimisticMixin, TadoHomeEntity, SwitchEntity
 ):
     """Generic switch for Home scope."""
 
@@ -110,7 +110,7 @@ class TadoGenericHomeSwitch(
 
 
 class TadoGenericZoneSwitch(
-    TadoZoneEntity, TadoGenericSwitchMixin, TadoOptimisticMixin, SwitchEntity
+    TadoGenericSwitchMixin, TadoOptimisticMixin, TadoZoneEntity, SwitchEntity
 ):
     """Generic switch for Zone scope."""
 
@@ -130,6 +130,7 @@ class TadoGenericZoneSwitch(
             zone_name,
         )
         TadoGenericSwitchMixin.__init__(self, definition)
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_zone_{zone_id}_{self._get_unique_id_suffix()}"
 
     @property
     def is_on(self) -> bool:
@@ -138,7 +139,7 @@ class TadoGenericZoneSwitch(
 
 
 class TadoGenericDeviceSwitch(
-    TadoDeviceEntity, TadoGenericSwitchMixin, TadoOptimisticMixin, SwitchEntity
+    TadoGenericSwitchMixin, TadoOptimisticMixin, TadoDeviceEntity, SwitchEntity
 ):
     """Generic switch for Device scope."""
 
@@ -161,6 +162,9 @@ class TadoGenericDeviceSwitch(
             device.current_fw_version,
         )
         TadoGenericSwitchMixin.__init__(self, definition)
+        self._attr_unique_id = (
+            f"{coordinator.config_entry.entry_id}_{self._get_unique_id_suffix()}"
+        )
 
     @property
     def is_on(self) -> bool:
