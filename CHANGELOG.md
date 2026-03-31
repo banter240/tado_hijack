@@ -1,3 +1,16 @@
+## [5.2.0-dev.9](https://github.com/banter240/tado_hijack/compare/v5.2.0-dev.8...v5.2.0-dev.9) (2026-03-31)
+
+### 🐛 Bug Fixes
+
+* fix(entity): prevent double underscore in entity IDs when home slug is empty
+
+If the config entry title starts with "Tado " and the remainder slugifies
+to an empty string (e.g. empty home name or non-ASCII-only characters),
+the entity_id would contain a double underscore (e.g. tado__refresh_presence)
+which HA flags as invalid since 2025.x and will break in 2027.2.0.
+
+Skip the home slug segment entirely when it is empty.
+
 ## [5.2.0-dev.8](https://github.com/banter240/tado_hijack/compare/v5.2.0-dev.7...v5.2.0-dev.8) (2026-03-30)
 
 ### 🐛 Bug Fixes
