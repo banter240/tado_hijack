@@ -84,9 +84,6 @@ class TadoGenericHomeSelect(
         self._attr_optimistic_scope = definition.get("optimistic_scope")
         self._option_map: dict[str, str] = {}
         self._set_entity_id("select", definition["key"])
-        self._attr_unique_id = (
-            f"{coordinator.config_entry.entry_id}_{self._get_unique_id_suffix()}"
-        )
 
         if options_fn := definition.get("options_fn"):
             source_options = options_fn(coordinator)

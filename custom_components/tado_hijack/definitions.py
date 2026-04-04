@@ -1697,9 +1697,9 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         key="presence_mode",
         value_fn=lambda c: str(
             getattr(c.data.home_state, "presence", "HOME")
-        ).lower()
-        if c.data and c.data.home_state
-        else "home",
+            if c.data and c.data.home_state
+            else "HOME"
+        ).lower(),
         options_fn=lambda c: ["HOME", "AWAY", "AUTO"],
         select_option_fn=lambda c, val: c.async_set_presence_debounced(val),
         icon="mdi:home-account",
