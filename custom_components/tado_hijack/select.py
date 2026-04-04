@@ -12,7 +12,13 @@ from .const import (
     CONF_ZONE_HUMIDITY_ENTITIES,
     CONF_ZONE_TEMP_ENTITIES,
 )
-from .entity import TadoGenericEntityMixin, TadoZoneEntity
+from .entity import (
+    TadoDefinitionMixin,
+    TadoGenericEntityMixin,
+    TadoHomeEntity,
+    TadoOptimisticMixin,
+    TadoZoneEntity,
+)
 from .helpers.discovery import yield_zones
 from .helpers.entity_setup import async_setup_generic_platform
 from .helpers.logging_utils import get_redacted_logger
@@ -40,6 +46,7 @@ async def async_setup_entry(
         async_add_entities,
         "select",
         {
+            "home": TadoGenericHomeSelect,
             "zone": TadoGenericZoneSelect,
         },
     )
@@ -56,6 +63,50 @@ async def async_setup_entry(
         )
     if source_entities:
         async_add_entities(source_entities)
+
+
+class TadoGenericHomeSelect(
+    TadoGenericEntityMixin, TadoOptimisticMixin, TadoHomeEntity, SelectEntity
+):
+    """Generic select for Home scope."""
+
+    def __init__(
+        self,
+        coordinator: TadoDataUpdateCoordinator,
+        definition: TadoEntityDefinition,
+    ) -> None:
+        """Initialize the generic home select."""
+        TadoHomeEntity.__init__(
+            self, coordinator, cast(str, definition["translation_key"])
+        )
+        TadoDefinitionMixin.__init__(self, definition)
+        self._attr_optimistic_key = definition.get("optimistic_key")
+        self._attr_optimistic_scope = definition.get("optimistic_scope")
+        self._option_map: dict[str, str] = {}
+        self._set_entity_id("select", definition["key"])
+        self._attr_unique_id = (
+            f"{coordinator.config_entry.entry_id}_{self._get_unique_id_suffix()}"
+        )
+
+        if options_fn := definition.get("options_fn"):
+            source_options = options_fn(coordinator)
+            if source_options:
+                self._option_map = {opt.lower(): opt for opt in source_options}
+                self._attr_options = [opt.lower() for opt in source_options]
+
+    @property
+    def current_option(self) -> str | None:
+        """Return the current selected option."""
+        val = self._resolve_state()
+        if val is not None:
+            return str(val).lower()
+        return None
+
+    async def async_select_option(self, option: str) -> None:
+        """Change the selected option."""
+        api_value = self._option_map.get(option, option.upper())
+        await self._async_select_option(api_value)
+        self.async_write_ha_state()
 
 
 class TadoGenericZoneSelect(TadoZoneEntity, TadoGenericEntityMixin, SelectEntity):

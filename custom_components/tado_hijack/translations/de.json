@@ -178,9 +178,6 @@
       }
     },
     "switch": {
-      "away_mode": {
-        "name": "Abwesend-Modus"
-      },
       "polling_active": {
         "name": "Globales Polling"
       },
@@ -256,6 +253,14 @@
       }
     },
     "select": {
+      "presence_mode": {
+        "name": "Anwesenheitsmodus",
+        "state": {
+          "home": "Zuhause",
+          "away": "Abwesend",
+          "auto": "Automatisch"
+        }
+      },
       "zone_temp_source": {
         "name": "Temperaturquelle"
       },

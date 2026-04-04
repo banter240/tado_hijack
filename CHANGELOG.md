@@ -1,3 +1,18 @@
+## [5.4.0](https://github.com/banter240/tado_hijack/compare/v5.3.0...v5.4.0) (2026-04-04)
+
+### ✨ New Features
+
+* feat(presence): replace Away Mode switch with Presence Mode select entity
+
+Replaces the binary `away_mode` switch with a three-option `presence_mode` select entity supporting all Tado presence states:
+- **Home** — forces the home into Home mode (`PUT presenceLock`)
+- **Away** — forces the home into Away mode (`PUT presenceLock`)
+- **Auto** — returns presence control to Tado geofencing (`DELETE presenceLock`)
+
+The previous switch only exposed Home/Away and had no way to restore Auto mode from the UI. The new select works across both Classic (V3) and Tado X generations and integrates with the existing optimistic state and redundancy-check pipeline.
+
+---
+
 ## [5.3.0](https://github.com/banter240/tado_hijack/compare/v5.2.0...v5.3.0) (2026-04-03)
 
 ### ✨ New Features

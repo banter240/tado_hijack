@@ -178,9 +178,6 @@
       }
     },
     "switch": {
-      "away_mode": {
-        "name": "Away Mode"
-      },
       "polling_active": {
         "name": "Global Polling"
       },
@@ -256,6 +253,14 @@
       }
     },
     "select": {
+      "presence_mode": {
+        "name": "Presence Mode",
+        "state": {
+          "home": "Home",
+          "away": "Away",
+          "auto": "Auto"
+        }
+      },
       "zone_temp_source": {
         "name": "Temperature Source"
       },

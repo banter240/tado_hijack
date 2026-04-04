@@ -826,6 +826,32 @@ def create_device_button(
     )
 
 
+def create_home_select(
+    key: str,
+    value_fn: Any,
+    options_fn: Any,
+    select_option_fn: Any,
+    icon: str | None = None,
+    entity_category: EntityCategory | None = None,
+    optimistic_key: str | None = None,
+    unique_id_suffix: str | None = None,
+) -> TadoEntityDefinition:
+    """Create a select entity for the Tado Home."""
+    return _create_definition(
+        key=key,
+        platform="select",
+        scope="home",
+        value_fn=value_fn,
+        options_fn=options_fn,
+        select_option_fn=select_option_fn,
+        icon=icon,
+        entity_category=entity_category,
+        optimistic_key=optimistic_key,
+        optimistic_scope="home",
+        unique_id_suffix=unique_id_suffix,
+    )
+
+
 def create_zone_select(
     key: str,
     value_fn: Any,
@@ -1667,13 +1693,17 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         supported_zone_types={ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING},
         unique_id_suffix="resume",
     ),
-    create_home_switch(
-        key="away_mode",
-        value_fn=lambda c: str(getattr(c.data.home_state, "presence", "")) == "AWAY",
-        turn_on_fn=lambda c: c.async_set_presence_debounced("AWAY"),
-        turn_off_fn=lambda c: c.async_set_presence_debounced("HOME"),
+    create_home_select(
+        key="presence_mode",
+        value_fn=lambda c: str(
+            getattr(c.data.home_state, "presence", "HOME")
+        ).lower()
+        if c.data and c.data.home_state
+        else "home",
+        options_fn=lambda c: ["HOME", "AWAY", "AUTO"],
+        select_option_fn=lambda c, val: c.async_set_presence_debounced(val),
+        icon="mdi:home-account",
         optimistic_key="presence",
-        optimistic_value_map={"AWAY": True, "HOME": False},
     ),
     create_home_switch(
         key="polling_active",
