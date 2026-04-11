@@ -1,3 +1,48 @@
+## [5.4.1-dev.1](https://github.com/banter240/tado_hijack/compare/v5.4.0...v5.4.1-dev.1) (2026-04-11)
+
+### 🐛 Bug Fixes
+
+* fix(quota): fix DST-driven reset prediction drift and CET->UTC migration
+
+Root cause: quota reset history was stored in Europe/Berlin local time.
+After CET->CEST, the learned reset hour shifted by 1h in UTC (e.g.
+12:30 Berlin stored as 13:30 CEST = 11:30 UTC instead of 12:30 UTC),
+causing the integration to enter quota-conservation mode ~30 min early.
+
+reset_window_tracker.py:
+- record_reset: normalize history in UTC instead of Berlin tz
+- _update_learned_window: compute recent list once; detect pattern break
+  (two newest entries disagree on UTC hour) and reset to 1 entry so the
+  tracker re-learns cleanly; remove redundant same_hour_resets filter
+- _default_utc_window: new helper to convert Berlin-local defaults to
+  UTC respecting the current DST offset - single source of truth
+- get_expected_window: use _default_utc_window so "default" confidence
+  also returns correct UTC values, not Berlin-local hour as UTC
+- get_next_reset_time: use _learned_window directly (learned and
+  single_observation) so the proactive poll is never scheduled from the
+  Berlin-local default hour treated as UTC; fall back to _default_utc_window
+- ResetWindow.__str__: convert UTC hour to Berlin local for display
+- to_dict: add data_version=2, drop serialized learned_window
+- load_dict: remove inline migration (handled by config entry v10);
+  fix duplicate initial_target parse; always re-derive learned_window
+- DATA_VERSION = 2 class constant for versioned storage migration
+
+quota_math.py:
+- is_in_reset_safe_window: compare UTC hours instead of Berlin hours;
+  when no explicit hour given, derive expected UTC hour from the
+  Berlin-local default respecting the current DST offset
+
+coordinator.py:
+- async_setup: reschedule reset poll after loading stored tracker so
+  the proactive poll fires at the correct learned time after a restart
+  (previously scheduled in __init__ with an empty tracker)
+
+migration.py / __init__.py / config_flow.py:
+- _v10 (async): one-time migration of stored reset_tracker history from
+  Berlin tz to UTC for existing users
+- async_migrate_entry: await coroutine migration steps
+- config entry VERSION bumped 9 -> 10
+
 ## [5.4.0](https://github.com/banter240/tado_hijack/compare/v5.3.0...v5.4.0) (2026-04-07)
 
 ### ✨ New Features
