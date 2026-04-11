@@ -266,9 +266,9 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
                 "Restored adaptive quota tracker state (history: %d)",
                 self.reset_tracker.history_count,
             )
-            # Without this, get_next_reset_time falls back to now+20h on restart.
             if last_reset := self.reset_tracker.get_last_reset_original():
                 self._last_quota_reset = last_reset
+            self._schedule_reset_poll()
 
     def _save_reset_tracker(self) -> None:
         """Persist reset tracker state to storage."""

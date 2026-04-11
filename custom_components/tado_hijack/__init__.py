@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import logging
 from typing import TYPE_CHECKING, cast
 
@@ -71,7 +72,10 @@ async def async_migrate_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bo
     for target_version, step in MIGRATION_STEPS:
         if entry.version < target_version:
             _LOGGER.info("Migrating to version %s", target_version)
-            step(hass, entry)
+            if inspect.iscoroutinefunction(step):
+                await step(hass, entry)
+            else:
+                step(hass, entry)
             hass.config_entries.async_update_entry(entry, version=target_version)
 
     _LOGGER.info("Migration to version %s successful", entry.version)

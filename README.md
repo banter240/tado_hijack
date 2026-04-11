@@ -437,7 +437,7 @@ Tado Hijack is now an **official HACS integration**! No custom repository needed
 | **Debounce Time**                  | `5s`      | **Batching Window:** Fuses actions into single calls.                                                                                                                                                                                                      |
 | **Refresh After Resume**           | `On`      | Auto-refresh target temperature/state after resume schedule (HVAC AUTO). Required because schedules are Tado cloud-side. Uses 1s grace period to merge multiple resumes. Costs 1 API call.                                                                 |
 | **Throttle Threshold**             | `20`      | **External Protection Buffer:** Reserve N calls for everything outside of Hijack's periodic background polling (External Automations, Scripts, Manual App use). Polling stops when remaining quota hits this floor to ensure your automations never stall. |
-| **Quota Safety Reserve**           | `2`       | **Reset Window Bridge:** API calls reserved from quota percentage for the reset window (12:00-13:00 Berlin). Distributed evenly during the window to bridge uncertainty when reset time varies (e.g., 12:05 vs 12:30). Set to 0 to disable (not recommended). |
+| **Quota Safety Reserve**           | `2`       | **Reset Window Bridge:** API calls reserved from quota percentage for the ±1h window around the expected reset time. Distributed evenly during the window to bridge uncertainty when reset time varies (e.g., 11:05 vs 11:30 UTC). Set to 0 to disable (not recommended). |
 | **Disable Polling When Throttled** | `Off`     | Stop periodic polling entirely when throttled.                                                                                                                                                                                                             |
 | **API Proxy URL**                  | `None`    | **Advanced:** URL of local `tado-api-proxy` workaround.                                                                                                                                                                                                    |
 | **API Proxy Token**                | `None`    | **Security:** Authentication token for your proxy. Injected into the path (`/token/api/v2`).                                                                                                                                                               |
@@ -557,7 +557,7 @@ Advanced monitoring sensors available under the Internet Bridge device diagnosti
 **Quota Reset Learning (NEW in v5.0):**
 - `sensor.quota_reset_last` - Last observed reset timestamp
 - `sensor.quota_reset_next` - Predicted next reset (learned pattern)
-- `sensor.quota_reset_expected_window` - Learned reset window (e.g., "12:15-12:45")
+- `sensor.quota_reset_expected_window` - Learned reset window in local time (e.g., "13:30 (learned)")
 - `sensor.quota_reset_pattern_confidence` - Pattern confidence (low/medium/high/confirmed)
 - `sensor.quota_reset_history_count` - Number of observed resets
 
