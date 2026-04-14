@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any, cast
 from aiohttp import ClientTimeout
 
 from ..helpers.logging_utils import get_redacted_logger
+from ..helpers.parsers import parse_ratelimit_headers
 from ..helpers.tadox.const import HOPS_BASE_URL
 from .tadox_models import HopsRoomsAndDevicesResponse, TadoXZoneState
 
@@ -49,6 +50,7 @@ class TadoXApi:
         # Private attribute access - could be public in future tadoasync
         self._session = tado_client._ensure_session()
         self._home_id = tado_client._home_id
+        self.rate_limit_data: dict[str, int] = {"limit": 0, "remaining": 0}
         _LOGGER.debug(
             "TadoXApi initialized: home_id=%s, session=%s",
             self._home_id,
@@ -121,6 +123,8 @@ class TadoXApi:
                     return [] if "rooms" in endpoint else {}
                 response.raise_for_status()
 
+                self._capture_rate_limit_headers(response.headers)
+
                 # Parse JSON without Content-Type validation (Hops API omits it).
                 # quickActions POST endpoints return 200 with empty body → raises → success.
                 try:
@@ -130,6 +134,28 @@ class TadoXApi:
         except Exception as err:
             _LOGGER.error("Hops API Error on %s: %s", endpoint, err)
             raise
+
+    def _capture_rate_limit_headers(self, headers: Any) -> None:
+        """Capture rate limit headers from a Hops API response.
+
+        Hops uses lowercase header names (ratelimit-policy, ratelimit).
+        Normalise to match parse_ratelimit_headers expectations.
+        """
+        normalised = {k.lower(): v for k, v in headers.items()}
+        title_cased = {
+            "RateLimit-Policy": normalised.get("ratelimit-policy", ""),
+            "RateLimit": normalised.get("ratelimit", ""),
+        }
+        if rl := parse_ratelimit_headers(title_cased):
+            if rl.limit:
+                self.rate_limit_data["limit"] = rl.limit
+            if rl.remaining:
+                self.rate_limit_data["remaining"] = rl.remaining
+            _LOGGER.debug(
+                "Hops rate limit: %d/%d remaining",
+                self.rate_limit_data["remaining"],
+                self.rate_limit_data["limit"],
+            )
 
     async def async_get_rooms_and_devices(self) -> HopsRoomsAndDevicesResponse:
         """Fetch all rooms and devices snapshot."""

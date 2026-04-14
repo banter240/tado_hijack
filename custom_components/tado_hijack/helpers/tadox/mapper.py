@@ -146,6 +146,10 @@ class TadoXMapper:
         """Get bridge device types for Tado X."""
         return {"IB02"}
 
+    def get_rate_limit_source(self) -> TadoXApi:
+        """Return the Hops API bridge as the rate limit data source."""
+        return self.bridge
+
     async def async_fetch_home_state(self) -> Any:
         """Not used for Tado X — presence is embedded in metadata."""
         return None

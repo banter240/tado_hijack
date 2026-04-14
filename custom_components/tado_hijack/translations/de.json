@@ -389,14 +389,14 @@
           "api_quota": {
             "name": "Auto-API-Kontingent & Sicherheit",
             "data": {
-              "auto_api_quota_percent": "auto_api_quota_percent (%)",
-              "throttle_threshold": "throttle_threshold (Sicherheits-Puffer)",
-              "quota_safety_reserve": "quota_safety_reserve",
-              "min_auto_quota_interval_s": "min_auto_quota_interval_s",
-              "disable_polling_when_throttled": "disable_polling_when_throttled",
-              "refresh_after_resume": "refresh_after_resume",
-              "suppress_redundant_calls": "suppress_redundant_calls",
-              "suppress_redundant_buttons": "suppress_redundant_buttons"
+              "auto_api_quota_percent": "Auto-API-Kontingent (%)",
+              "throttle_threshold": "Drosselungs-Schwelle (Sicherheits-Puffer)",
+              "quota_safety_reserve": "Kontingent-Sicherheitsreserve",
+              "min_auto_quota_interval_s": "Minimales Auto-Quota-Intervall",
+              "disable_polling_when_throttled": "Polling stoppen wenn gedrosselt",
+              "refresh_after_resume": "Status nach Zeitplan-Fortsetzung abrufen",
+              "suppress_redundant_calls": "Redundante API-Aufrufe unterdrücken",
+              "suppress_redundant_buttons": "Redundante Button-Aktionen unterdrücken"
             },
             "data_description": {
               "auto_api_quota_percent": "Nutze X% des FREIEN Tageskontingents für Status-Abfragen (0 = deaktiviert). FREI = Limit - Hintergrund-Reserve (Syncs) - Externe-Aktivität (Automationen, App-Nutzung über dem Puffer). Hybrid-Strategie: Nutzt MAX(Tagesbudget - Verbraucht, Verbleibend * X%) → System fragt IMMER weiter ab, auch wenn Tagesbudget überschritten.",
@@ -406,7 +406,7 @@
               "disable_polling_when_throttled": "Stoppt die periodische Abfrage vollständig, wenn das verbleibende Kontingent den Puffer (throttle_threshold) erreicht.",
               "refresh_after_resume": "Automatisch Zieltemperatur/Status abrufen nach 'resume_schedule' (HVAC AUTO). Notwendig, da Zeitpläne Tado-Cloud-seitig verwaltet werden. Nutzt 1s Karenzzeit (Grace-Period), um mehrere Fortsetzungen zusammenzufassen. Kostet 1 API-Aufruf.",
               "suppress_redundant_calls": "Überspringe API-Aufrufe wenn Zielzustand dem Cache entspricht (Temperatur, Modus, Anwesenheit, Power). Spart Kontingent bei versehentlichem Doppelklick oder UI-Interaktionen. Sendet nur bei tatsächlicher Änderung. Werte die nicht im Cache sind werden immer gesendet.",
-              "suppress_redundant_buttons": "Überspringe auch Button-Aktionen (resume_all, boost_all, turn_off_all, set_mode_all) wenn alle Zonen bereits im Zielzustand. Benötigt 'suppress_redundant_calls'. Einzelne explizite Aktionen und Synchronisierungs-Buttons werden immer gesendet."
+              "suppress_redundant_buttons": "Überspringe auch Button-Aktionen (resume_all, boost_all, turn_off_all, set_mode_all) wenn alle Zonen bereits im Zielzustand. Benötigt 'Redundante API-Aufrufe unterdrücken'. Einzelne explizite Aktionen und Synchronisierungs-Buttons werden immer gesendet."
             }
           },
           "reduced_polling": {
@@ -496,14 +496,14 @@
           "api_quota": {
             "name": "Auto-API-Kontingent & Sicherheit",
             "data": {
-              "auto_api_quota_percent": "auto_api_quota_percent (%)",
-              "throttle_threshold": "throttle_threshold (Sicherheits-Puffer)",
-              "quota_safety_reserve": "quota_safety_reserve",
-              "min_auto_quota_interval_s": "min_auto_quota_interval_s",
-              "disable_polling_when_throttled": "disable_polling_when_throttled",
-              "refresh_after_resume": "refresh_after_resume",
-              "suppress_redundant_calls": "suppress_redundant_calls",
-              "suppress_redundant_buttons": "suppress_redundant_buttons"
+              "auto_api_quota_percent": "Auto-API-Kontingent (%)",
+              "throttle_threshold": "Drosselungs-Schwelle (Sicherheits-Puffer)",
+              "quota_safety_reserve": "Kontingent-Sicherheitsreserve",
+              "min_auto_quota_interval_s": "Minimales Auto-Quota-Intervall",
+              "disable_polling_when_throttled": "Polling stoppen wenn gedrosselt",
+              "refresh_after_resume": "Status nach Zeitplan-Fortsetzung abrufen",
+              "suppress_redundant_calls": "Redundante API-Aufrufe unterdrücken",
+              "suppress_redundant_buttons": "Redundante Button-Aktionen unterdrücken"
             },
             "data_description": {
               "auto_api_quota_percent": "Nutze X% des FREIEN Tageskontingents für Status-Abfragen (0 = deaktiviert). FREI = Limit - Hintergrund-Reserve (Syncs) - Externe-Aktivität (Automationen, App-Nutzung über dem Puffer). Hybrid-Strategie: Nutzt MAX(Tagesbudget - Verbraucht, Verbleibend * X%) → System fragt IMMER weiter ab, auch wenn Tagesbudget überschritten.",
@@ -513,7 +513,7 @@
               "disable_polling_when_throttled": "Stoppt die periodische Abfrage vollständig, wenn das verbleibende Kontingent den Puffer (throttle_threshold) erreicht.",
               "refresh_after_resume": "Automatisch Zieltemperatur/Status abrufen nach 'resume_schedule' (HVAC AUTO). Notwendig, da Zeitpläne Tado-Cloud-seitig verwaltet werden. Nutzt 1s Karenzzeit (Grace-Period), um mehrere Fortsetzungen zusammenzufassen. Kostet 1 API-Aufruf.",
               "suppress_redundant_calls": "Überspringe API-Aufrufe wenn Zielzustand dem Cache entspricht (Temperatur, Modus, Anwesenheit, Power). Spart Kontingent bei versehentlichem Doppelklick oder UI-Interaktionen. Sendet nur bei tatsächlicher Änderung. Werte die nicht im Cache sind werden immer gesendet.",
-              "suppress_redundant_buttons": "Überspringe auch Button-Aktionen (resume_all, boost_all, turn_off_all, set_mode_all) wenn alle Zonen bereits im Zielzustand. Benötigt 'suppress_redundant_calls'. Einzelne explizite Aktionen und Synchronisierungs-Buttons werden immer gesendet."
+              "suppress_redundant_buttons": "Überspringe auch Button-Aktionen (resume_all, boost_all, turn_off_all, set_mode_all) wenn alle Zonen bereits im Zielzustand. Benötigt 'Redundante API-Aufrufe unterdrücken'. Einzelne explizite Aktionen und Synchronisierungs-Buttons werden immer gesendet."
             }
           },
           "reduced_polling": {

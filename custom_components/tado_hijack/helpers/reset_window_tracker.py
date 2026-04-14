@@ -14,7 +14,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any, cast
+from typing import Any
 
 from homeassistant.util import dt as dt_util
 
@@ -87,28 +87,36 @@ class ResetWindowTracker:
         self._initial_target: datetime | None = None
 
     def get_initial_target(self) -> datetime:
-        """Get or create a static initial target for new setups."""
-        if self._initial_target is None:
-            berlin_tz = dt_util.get_time_zone("Europe/Berlin")
-            now_utc = dt_util.now().astimezone(UTC)
+        """Get or compute a future initial target for setups without reset history.
 
-            target_utc = now_utc.replace(
-                hour=self._default_hour,
-                minute=self._default_minute,
-                second=0,
-                microsecond=0,
-            )
+        Re-computes whenever the cached value is in the past (e.g. after loading
+        stale persistent state or when HA was offline for over 24 h).
+        """
+        berlin_tz = dt_util.get_time_zone("Europe/Berlin")
+        now_utc = dt_util.now().astimezone(UTC)
 
-            if target_utc <= now_utc:
-                target_utc += timedelta(days=1)
+        if (
+            self._initial_target is not None
+            and self._initial_target.astimezone(UTC) > now_utc
+        ):
+            return self._initial_target
 
-            if (target_utc - now_utc).total_seconds() < (
-                API_RESET_MIN_PLANNING_HOURS * 3600
-            ):
-                target_utc += timedelta(days=1)
+        target_utc = now_utc.replace(
+            hour=self._default_hour,
+            minute=self._default_minute,
+            second=0,
+            microsecond=0,
+        )
 
-            self._initial_target = target_utc.astimezone(berlin_tz)
+        if target_utc <= now_utc:
+            target_utc += timedelta(days=1)
 
+        if (target_utc - now_utc).total_seconds() < (
+            API_RESET_MIN_PLANNING_HOURS * 3600
+        ):
+            target_utc += timedelta(days=1)
+
+        self._initial_target = target_utc.astimezone(berlin_tz)
         return self._initial_target
 
     def record_reset(self, reset_time: datetime) -> None:
@@ -196,16 +204,11 @@ class ResetWindowTracker:
         if not self._history:
             return self.get_initial_target()
 
-        hour_utc = self._history[0].hour
-        minute_utc = self._history[0].minute
-
-        next_reset_utc = now_utc.replace(
-            hour=hour_utc, minute=minute_utc, second=0, microsecond=0
-        )
-        if next_reset_utc <= now_utc:
+        next_reset_utc = self._history[0] + timedelta(days=1)
+        while next_reset_utc <= now_utc:
             next_reset_utc += timedelta(days=1)
 
-        return cast(datetime, next_reset_utc.astimezone(berlin_tz))
+        return next_reset_utc.astimezone(berlin_tz)
 
     @property
     def history_count(self) -> int:

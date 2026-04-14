@@ -19,7 +19,7 @@ warn_redundant_casts = true
 warn_return_any = true
 warn_unused_configs = true
 warn_unused_ignores = true
-exclude = ["testing_config/"]
+exclude = ["testing_config/", "dev/"]
 
 [tool.ruff]
 target-version = "py313"

@@ -194,7 +194,10 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             entry.data.get(CONF_REDUCED_POLLING_ACTIVE, False)
         )
 
-        self.rate_limit = RateLimitManager(throttle_threshold, get_handler())
+        self.rate_limit = RateLimitManager(
+            throttle_threshold,
+            self.provider.get_rate_limit_source() if self.provider else get_handler(),
+        )
         self.auth_manager = AuthManager(hass, entry, client)
         self.property_manager = PropertyManager(self)
 

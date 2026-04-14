@@ -108,6 +108,12 @@ class TadoV3Mapper:
 
         return {DEVICE_TYPE_IB01, DEVICE_TYPE_GW01}
 
+    def get_rate_limit_source(self) -> Any:
+        """Return the V3 request handler as the rate limit data source."""
+        from ...lib.patches import get_handler
+
+        return get_handler()
+
     async def async_set_temperature_offset(self, serial_no: str, offset: float) -> None:
         """Set temperature offset via V3 API."""
         await self.client.set_temperature_offset(serial_no, offset)

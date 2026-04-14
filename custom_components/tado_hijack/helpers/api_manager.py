@@ -139,6 +139,14 @@ class TadoApiManager:
         """Return set of currently pending command keys."""
         return self._pending_keys.copy()
 
+    @property
+    def _suppress_calls(self) -> bool:
+        return getattr(self.coordinator, "_suppress_redundant_calls", False)
+
+    @property
+    def _suppress_buttons(self) -> bool:
+        return getattr(self.coordinator, "_suppress_redundant_buttons", False)
+
     @staticmethod
     def get_protected_fields_for_key(key: str) -> set[str]:
         """Return which state fields should be protected for a given command key.
@@ -169,6 +177,12 @@ class TadoApiManager:
         if cancel_fn := self._pending_timers.pop(key, None):
             cancel_fn()
             was_replaced = True
+
+        if was_replaced and self._suppress_calls:
+            if existing := self._action_queue.get(key):
+                from .redundancy_checker import preserve_rollback_state
+
+                preserve_rollback_state(existing, command)
 
         self._action_queue[key] = command
         self._pending_keys.add(key)  # Mark key as pending
@@ -258,24 +272,23 @@ class TadoApiManager:
         # Filter redundant operations BEFORE sending (Toggle 1 - State Changes)
         from .redundancy_checker import filter_redundant_merged_data
 
-        if suppress_enabled := getattr(
-            self.coordinator, "_suppress_redundant_calls", False
-        ):
+        if suppress_enabled := self._suppress_calls:
             # Use pre-patch states from rollback_context: zone_states in coordinator.data
             # are already mutated by state_patcher before queuing, so they reflect the
             # target — not the device state we should compare against.
             pre_patch_states: dict[str, Any] = {
                 str(cmd.zone_id): cmd.rollback_context
                 for cmd in commands
-                if cmd.cmd_type == CommandType.SET_OVERLAY
+                if cmd.cmd_type
+                in (CommandType.SET_OVERLAY, CommandType.RESUME_SCHEDULE)
                 and cmd.zone_id is not None
                 and cmd.rollback_context is not None
             }
             merged = filter_redundant_merged_data(
                 merged,
                 pre_patch_states,
-                self.coordinator.optimistic,
                 suppress_enabled,
+                self._suppress_buttons,
             )
 
             # Check if payload is empty after filtering - if so, skip sending
