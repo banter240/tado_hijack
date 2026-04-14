@@ -1,3 +1,37 @@
+## [5.4.1-dev.2](https://github.com/banter240/tado_hijack/compare/v5.4.1-dev.1...v5.4.1-dev.2) (2026-04-14)
+
+### 🐛 Bug Fixes
+
+* fix: fix quota overconsumption, redundancy filter regression, and DE translations
+
+Quota (fix):
+- get_next_reset_time() anchored on now.replace(hour, minute) instead of
+  last_history_entry + 1 day, collapsing adaptive interval to 20s minimum
+  after every observed reset
+- get_initial_target() cached a stale past timestamp and never refreshed,
+  driving seconds_until_reset negative for all generations
+- TadoX rate limit counter stayed frozen because hops.tado.com calls never
+  went through the V3 handler; TadoXApi now captures ratelimit headers and
+  exposes them via rate_limit_data. UnifiedDataProvider gains
+  get_rate_limit_source() so the coordinator stays generation-agnostic
+
+Redundancy (fix):
+- _filter_presence and _filter_simple_attributes compared against the
+  optimistic already-patched state, silently dropping every command when
+  suppress_redundant_calls was enabled
+- Debounce replacements overwrote the rollback reference with the optimistic
+  intermediate state; preserve_rollback_state() now carries the original
+  confirmed API state forward through replacements
+- RESUME_SCHEDULE commands for zones already in schedule are now filtered
+  when suppress_redundant_buttons is enabled
+
+Redundancy (refactor):
+- Extract _merge_keyed() in CommandMerger replacing 5 identical merge methods
+- Replace 6x _filter_simple_attributes() calls with a config loop
+- Add _suppress_calls/_suppress_buttons properties on TadoApiManager
+
+i18n: fix raw key names shown as labels in Auto API Quota config section
+
 ## [5.4.1-dev.1](https://github.com/banter240/tado_hijack/compare/v5.4.0...v5.4.1-dev.1) (2026-04-11)
 
 ### 🐛 Bug Fixes
