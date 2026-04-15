@@ -543,6 +543,7 @@ Global controls and elite transparency for your home. _Linked to your Internet B
 | `sensor.tado_{home}_api_limit`             | Sensor | Total daily API quota limit (1000 standard, 3000 with proxy).     |
 | `sensor.tado_{home}_api_remaining`         | Sensor | **API Gold:** Your remaining daily call budget.                   |
 | `sensor.tado_{home}_api_status`            | Sensor | Real-time health (`connected`, `throttled`, `rate_limited`).      |
+| `sensor.tado_{home}_home_mode`             | Sensor | Aggregate zone mode across all heating/AC zones: `schedule`, `manual`, `boost`, `off`, or `mixed` (zones differ). Useful for automations — e.g. trigger "resume schedule" when `mixed`. |
 
 <br>
 
@@ -615,6 +616,7 @@ Cloud-only features that HomeKit does not support.
 | `select.fan_speed`                  | Select        | **v3 AC Only:** Full fan speed control.                                                         |
 | `select.vertical_swing`             | Select        | **v3 AC Only:** Vertical swing control (ON/OFF or position modes).                              |
 | `select.horizontal_swing`           | Select        | **v3 AC Only:** Horizontal swing control (ON/OFF or position modes).                            |
+| `sensor.zone_mode`                  | Sensor        | **Mode:** Current operating mode: `schedule`, `manual`, `boost`, `off`. Classic: boost detected via 25°C setpoint. Tado X: native boost field. Heating and AC zones only. |
 | `sensor.heating_power`              | Sensor        | **Insight:** Valve opening % or Boiler Load %.                                                  |
 | `sensor.humidity`                   | Sensor        | Zone humidity (faster than HomeKit).                                                            |
 | `sensor.dew_point`                  | Sensor        | **Climate:** Dew point temperature (°C) via Magnus formula. Sources: linked `zone_temp_source` → zone state (v3) → unavailable (Tado X). Enabled via _Dew Point Sensor_ feature flag. |

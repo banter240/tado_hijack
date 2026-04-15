@@ -140,6 +140,13 @@ ZONE_TYPE_HEATING: Final = "HEATING"
 ZONE_TYPE_HOT_WATER: Final = "HOT_WATER"
 ZONE_TYPE_AIR_CONDITIONING: Final = "AIR_CONDITIONING"
 
+# Zone Mode States
+ZONE_MODE_SCHEDULE: Final = "schedule"
+ZONE_MODE_OFF: Final = "off"
+ZONE_MODE_BOOST: Final = "boost"
+ZONE_MODE_MANUAL: Final = "manual"
+ZONE_MODE_MIXED: Final = "mixed"
+
 # Power States
 POWER_ON: Final = "ON"
 POWER_OFF: Final = "OFF"

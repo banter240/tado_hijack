@@ -7,6 +7,7 @@ from typing import Any
 
 import homeassistant.util.dt as dt_util
 
+from ...const import BOOST_MODE_TEMP, TEMP_TOLERANCE
 from ..climate_physics import (
     VENTILATION_AH_THRESHOLD as _DEFAULT_VENTILATION_AH_THRESHOLD,
 )
@@ -18,6 +19,7 @@ from ..climate_physics import (
 from ..climate_physics import (
     compute_dew_point as _compute_dew_point,
 )
+from ..parsers import resolve_zone_mode
 
 # Re-export for callers that import it directly (e.g. definitions.py uses
 # compute_absolute_humidity via this module).
@@ -184,3 +186,19 @@ def parse_mold_risk_level(state: Any) -> str | None:
         return None
     temp, rh = values
     return compute_mold_risk_level(temp, rh)
+
+
+def parse_zone_mode(state: Any) -> str | None:
+    """Return the current operating mode of a v3 zone."""
+    if not state:
+        return None
+    setting = getattr(state, "setting", None)
+    power = getattr(setting, "power", "OFF") if setting else "OFF"
+    temp_obj = getattr(setting, "temperature", None) if setting else None
+    celsius = getattr(temp_obj, "celsius", None) if temp_obj else None
+    is_boost = celsius is not None and abs(celsius - BOOST_MODE_TEMP) <= TEMP_TOLERANCE
+    return resolve_zone_mode(
+        overlay_active=getattr(state, "overlay_active", False),
+        power=power,
+        is_boost=is_boost,
+    )

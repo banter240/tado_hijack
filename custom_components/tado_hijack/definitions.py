@@ -70,6 +70,7 @@ from .const import (
     TEMP_MAX_HOT_WATER_OVERRIDE,
     TEMP_MIN_AC,
     TEMP_MIN_HOT_WATER,
+    ZONE_MODE_MIXED,
     ZONE_TYPE_AIR_CONDITIONING,
     ZONE_TYPE_HEATING,
     ZONE_TYPE_HOT_WATER,
@@ -910,11 +911,44 @@ def create_zone_sensor(
     )
 
 
+def _parse_home_zone_mode(c: Any) -> str | None:
+    """Return the combined zone mode across all heating/AC zones."""
+    zone_states = c.data.zone_states
+    if not zone_states:
+        return None
+
+    parse_fn = (
+        tadox_parsers.parse_zone_mode
+        if c.generation == GEN_X
+        else v3_parsers.parse_zone_mode
+    )
+
+    relevant_ids = [
+        zid
+        for zid, zmeta in c.zones_meta.items()
+        if getattr(zmeta, "type", ZONE_TYPE_HEATING)
+        in {ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING}
+    ]
+    if not relevant_ids:
+        return None
+
+    if modes := {parse_fn(zone_states.get(str(zid))) for zid in relevant_ids} - {None}:
+        return next(iter(modes)) if len(modes) == 1 else ZONE_MODE_MIXED
+    else:
+        return None
+
+
 ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     create_diagnostic_sensor(
         key="api_status",
         value_fn=lambda c: str(c.data.api_status),
         device_class=SensorDeviceClass.ENUM,
+    ),
+    create_home_sensor(
+        key="home_mode",
+        value_fn=_parse_home_zone_mode,
+        device_class=SensorDeviceClass.ENUM,
+        icon="mdi:home-thermometer",
     ),
     create_diagnostic_sensor(
         key="tado_generation",
@@ -1153,6 +1187,28 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         unit="%",
         state_class=SensorStateClass.MEASUREMENT,
         unique_id_suffix="pwr",
+    ),
+    create_zone_sensor(
+        key="zone_mode",
+        supported_generations={GEN_CLASSIC},
+        value_fn=lambda c, zid: v3_parsers.parse_zone_mode(
+            c.data.zone_states.get(str(zid))
+        ),
+        device_class=SensorDeviceClass.ENUM,
+        icon="mdi:thermostat",
+        supported_zone_types={ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING},
+        unique_id_suffix="mode",
+    ),
+    create_zone_sensor(
+        key="zone_mode",
+        supported_generations={GEN_X},
+        value_fn=lambda c, zid: tadox_parsers.parse_zone_mode(
+            c.data.zone_states.get(str(zid))
+        ),
+        device_class=SensorDeviceClass.ENUM,
+        icon="mdi:thermostat",
+        supported_zone_types={ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING},
+        unique_id_suffix="mode",
     ),
     create_zone_sensor(
         key="humidity",

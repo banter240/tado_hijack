@@ -17,6 +17,7 @@ from ..climate_physics import (
 from ..climate_physics import (
     compute_dew_point as _compute_dew_point,
 )
+from ..parsers import resolve_zone_mode
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -163,3 +164,14 @@ def parse_ventilation_recommended(
     indoor_ah = compute_absolute_humidity(temp_celsius, rh)
     outdoor_ah = compute_absolute_humidity(outdoor_temp, outdoor_rh)
     return compute_ventilation_beneficial(indoor_ah, outdoor_ah, threshold)
+
+
+def parse_zone_mode(state: TadoXZoneState | None) -> str | None:
+    """Return the current operating mode of a Tado X zone."""
+    if not state:
+        return None
+    return resolve_zone_mode(
+        overlay_active=state.overlay_active,
+        power=state.setting.power,
+        is_boost=state.boost_mode is not None,
+    )

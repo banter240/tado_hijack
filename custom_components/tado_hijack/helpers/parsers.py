@@ -5,6 +5,13 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any
 
+from ..const import (
+    POWER_OFF,
+    ZONE_MODE_BOOST,
+    ZONE_MODE_MANUAL,
+    ZONE_MODE_OFF,
+    ZONE_MODE_SCHEDULE,
+)
 from ..models import RateLimit
 
 if TYPE_CHECKING:
@@ -58,6 +65,22 @@ def get_ac_capabilities(capabilities: Capabilities) -> dict[str, set[str]]:
         "vertical_swings": v_swings,
         "horizontal_swings": h_swings,
     }
+
+
+def resolve_zone_mode(overlay_active: bool, power: str, is_boost: bool) -> str:
+    """Resolve zone operating mode from overlay state.
+
+    Args:
+        overlay_active: Whether a manual overlay is active.
+        power: Zone power state ("ON" or "OFF").
+        is_boost: Whether the zone is currently in boost mode.
+
+    """
+    if not overlay_active:
+        return ZONE_MODE_SCHEDULE
+    if power == POWER_OFF:
+        return ZONE_MODE_OFF
+    return ZONE_MODE_BOOST if is_boost else ZONE_MODE_MANUAL
 
 
 def parse_schedule_temperature(state: Any) -> float | None:
