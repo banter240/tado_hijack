@@ -67,7 +67,7 @@ def redact(data: Any) -> Any:
         if sn.startswith("_"):
             prefix = "_"
             sn = sn[1:]
-        return f"{prefix}{sn[:2]}...{sn[-4:]}"
+        return f"{prefix}{sn[:2]}...{sn[-5:]}"
 
     data = re.sub(
         r"(?:\b|_|^)[A-Z]{2,3}[A-Z0-9]{8,12}(?=\b|_|$)", partial_redact_sn, data
