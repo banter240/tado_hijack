@@ -1,3 +1,38 @@
+## [5.5.0-dev.1](https://github.com/banter240/tado_hijack/compare/v5.4.1-dev.2...v5.5.0-dev.1) (2026-04-17)
+
+### ✨ New Features
+
+* feat(sensors): add zone_mode and home_mode sensors (#86)
+
+Adds per-zone operating mode sensor (schedule/off/boost/manual) for
+both Tado Classic and Tado X generations, and a home-level aggregate
+sensor that returns "mixed" when zones are in different modes.
+
+No additional API calls - reads from already-fetched zone_states.
+Boost detection for Classic uses the existing 25°C temperature heuristic
+consistent with action_provider.py.
+
+Co-authored-by: laurensdehoorne <laurensdehoorne@users.noreply.github.com>
+
+
+### 🐛 Bug Fixes
+
+* fix(diagnostics): increase serial number redaction suffix to 5 chars
+
+Prevents false duplicate-device appearance in diagnostics output when
+two serials both end in the same 4 digits (e.g. both ending in "1234").
+
+* fix(tadox): resolve device-to-zone mapping and pass termination to manual control (#89)
+
+Fix _resolve_device_to_zone() using zone.id which doesn't exist on
+HopsRoomSnapshot (Tado X zones use room_id). Iterate zones_meta.items()
+and use the dict key as zone_id instead.
+
+Fix TadoXExecutor ignoring the termination dict from the merged overlay
+data. Extract termination_type and duration_seconds and pass them to
+async_set_manual_control so TIMER overlays created via set_mode duration
+parameter actually expire as intended.
+
 ## [5.4.1-dev.2](https://github.com/banter240/tado_hijack/compare/v5.4.1-dev.1...v5.4.1-dev.2) (2026-04-14)
 
 ### 🐛 Bug Fixes
