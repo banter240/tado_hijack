@@ -1895,4 +1895,30 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         optimistic_key="horizontal_swing",
         supported_generations={GEN_CLASSIC},
     ),
+    create_zone_button(
+        key="refresh_timetable",
+        press_fn=lambda c, zid: c.async_refresh_timetable(zid),
+        icon="mdi:calendar-refresh",
+        entity_category=EntityCategory.CONFIG,
+        supported_zone_types={ZONE_TYPE_HEATING, ZONE_TYPE_HOT_WATER},
+        supported_generations={GEN_CLASSIC},
+        unique_id_suffix="refresh_timetable",
+    ),
+    create_zone_select(
+        key="timetable_type",
+        value_fn=lambda c, zid: (
+            c.timetable_cache.get(zid, {}).get("type", "ONE_DAY").lower()
+            if hasattr(c, "timetable_cache")
+            else None
+        ),
+        options_fn=lambda c, zid: ["one_day", "three_day", "seven_day"],
+        select_option_fn=lambda c, zid, val: c.async_set_timetable(
+            zid, val.upper()
+        ),
+        icon="mdi:calendar-week",
+        entity_category=EntityCategory.CONFIG,
+        supported_zone_types={ZONE_TYPE_HEATING, ZONE_TYPE_HOT_WATER},
+        supported_generations={GEN_CLASSIC},
+        unique_id_suffix="timetable_type",
+    ),
 ]
