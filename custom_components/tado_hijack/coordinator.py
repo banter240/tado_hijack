@@ -376,6 +376,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
 
             self.zones_meta = self.data_manager.zones_meta
             self.devices_meta = self.data_manager.devices_meta
+            self.timetable_cache: dict[int, dict] = self.data_manager.timetable_cache
 
             from .helpers.discovery import get_bridges
 
@@ -1105,6 +1106,45 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             enabled,
             rollback_context=old_val,
         )
+
+    async def async_set_timetable(self, zone_id: int, timetable_type: str) -> None:
+        """Set the active timetable schedule type for a zone.
+
+        timetable_type: "ONE_DAY" | "THREE_DAY" | "SEVEN_DAY"
+        Goes through the command queue (1 API call, debounced & merged).
+        """
+        type_to_id = {"ONE_DAY": 0, "THREE_DAY": 1, "SEVEN_DAY": 2}
+        timetable_id = type_to_id.get(timetable_type)
+        if timetable_id is None:
+            _LOGGER.error("Invalid timetable type: %s", timetable_type)
+            return
+
+        # Optimistically update local cache for immediate UI feedback
+        entry = {"id": timetable_id, "type": timetable_type}
+        self.timetable_cache[zone_id] = entry
+        self.data_manager.timetable_cache[zone_id] = entry
+        self.async_update_listeners()
+
+        self.api_manager.queue_command(
+            f"set_timetable_{zone_id}",
+            TadoCommand(
+                CommandType.SET_TIMETABLE,
+                zone_id=zone_id,
+                data={"zone_id": zone_id, "timetable_id": timetable_id},
+            ),
+        )
+
+    async def async_refresh_timetable(self, zone_id: int) -> None:
+        """Refresh the active timetable for a zone from the API."""
+        _LOGGER.info("Refreshing timetable for zone %s", zone_id)
+        try:
+            entry = await self._tado.get_active_timetable(zone_id)
+            self.timetable_cache[zone_id] = entry
+            self.data_manager.timetable_cache[zone_id] = entry
+            self.async_update_listeners()
+            _LOGGER.debug("Timetable refreshed for zone %s: %s", zone_id, entry)
+        except Exception as err:
+            _LOGGER.error("Failed to refresh timetable for zone %s: %s", zone_id, err)
 
     async def async_set_open_window_detection(
         self, zone_id: int, enabled: bool, timeout_seconds: int | None = None
