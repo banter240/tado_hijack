@@ -760,6 +760,7 @@ def create_home_button(
     entity_category: EntityCategory | None = None,
     translation_key: str | None = None,
     unique_id_suffix: str | None = None,
+    is_supported_fn: Any | None = None,
 ) -> TadoEntityDefinition:
     """Create a button for the Tado Home."""
     return _create_definition(
@@ -772,6 +773,7 @@ def create_home_button(
         entity_category=entity_category,
         translation_key=translation_key,
         unique_id_suffix=unique_id_suffix,
+        is_supported_fn=is_supported_fn,
     )
 
 
@@ -835,6 +837,7 @@ def create_home_select(
     icon: str | None = None,
     entity_category: EntityCategory | None = None,
     unique_id_suffix: str | None = None,
+    is_supported_fn: Any | None = None,
 ) -> TadoEntityDefinition:
     """Create a select entity for the Tado Home."""
     return _create_definition(
@@ -847,6 +850,7 @@ def create_home_select(
         icon=icon,
         entity_category=entity_category,
         unique_id_suffix=unique_id_suffix,
+        is_supported_fn=is_supported_fn,
     )
 
 
@@ -1895,14 +1899,26 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         optimistic_key="horizontal_swing",
         supported_generations={GEN_CLASSIC},
     ),
-    create_zone_button(
-        key="refresh_timetable",
-        press_fn=lambda c, zid: c.async_refresh_timetable(zid),
+    create_home_select(
+        key="timetable_type_all_zones",
+        value_fn=lambda c: (
+            next(iter(c.timetable_cache.values()), {}).get("type", "ONE_DAY").lower()
+            if hasattr(c, "timetable_cache") and c.timetable_cache
+            else "one_day"
+        ),
+        options=["one_day", "three_day", "seven_day"],
+        select_option_fn=lambda c, val: c.async_set_timetable_all_zones(val.upper()),
+        icon="mdi:calendar-week",
+        entity_category=EntityCategory.CONFIG,
+        unique_id_suffix="timetable_type_all",
+        is_supported_fn=lambda c: c.generation == GEN_CLASSIC,
+    ),
+    create_home_button(
+        key="refresh_all_timetables",
+        press_fn=lambda c: c.async_refresh_all_timetables(),
         icon="mdi:calendar-refresh",
         entity_category=EntityCategory.CONFIG,
-        supported_zone_types={ZONE_TYPE_HEATING, ZONE_TYPE_HOT_WATER},
-        supported_generations={GEN_CLASSIC},
-        unique_id_suffix="refresh_timetable",
+        is_supported_fn=lambda c: c.generation == GEN_CLASSIC,
     ),
     create_zone_select(
         key="timetable_type",
@@ -1920,5 +1936,14 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         supported_zone_types={ZONE_TYPE_HEATING, ZONE_TYPE_HOT_WATER},
         supported_generations={GEN_CLASSIC},
         unique_id_suffix="timetable_type",
+    ),
+    create_zone_button(
+        key="refresh_timetable",
+        press_fn=lambda c, zid: c.async_refresh_timetable(zid),
+        icon="mdi:calendar-refresh",
+        entity_category=EntityCategory.CONFIG,
+        supported_zone_types={ZONE_TYPE_HEATING, ZONE_TYPE_HOT_WATER},
+        supported_generations={GEN_CLASSIC},
+        unique_id_suffix="refresh_timetable",
     ),
 ]

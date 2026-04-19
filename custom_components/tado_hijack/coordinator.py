@@ -273,6 +273,16 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
                 self._last_quota_reset = last_reset
             self._schedule_reset_poll()
 
+        timetable_data = await self.storage.async_get("timetable_cache")
+        if timetable_data:
+            restored = {int(k): v for k, v in timetable_data.items()}
+            self.data_manager.timetable_cache.update(restored)
+            _LOGGER.debug(
+                "Restored timetable cache for %d zone(s): %s",
+                len(restored),
+                restored,
+            )
+
     def _save_reset_tracker(self) -> None:
         """Persist reset tracker state to storage."""
         self.hass.async_create_task(
@@ -1107,6 +1117,15 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             rollback_context=old_val,
         )
 
+    def _save_timetable_cache(self) -> None:
+        """Persist timetable cache to storage."""
+        self.hass.async_create_task(
+            self.storage.async_update(
+                "timetable_cache",
+                {str(k): v for k, v in self.timetable_cache.items()},
+            )
+        )
+
     async def async_set_timetable(self, zone_id: int, timetable_type: str) -> None:
         """Set the active timetable schedule type for a zone.
 
@@ -1124,6 +1143,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         self.timetable_cache[zone_id] = entry
         self.data_manager.timetable_cache[zone_id] = entry
         self.async_update_listeners()
+        self._save_timetable_cache()
 
         self.api_manager.queue_command(
             f"set_timetable_{zone_id}",
@@ -1142,9 +1162,57 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             self.timetable_cache[zone_id] = entry
             self.data_manager.timetable_cache[zone_id] = entry
             self.async_update_listeners()
+            self._save_timetable_cache()
             _LOGGER.debug("Timetable refreshed for zone %s: %s", zone_id, entry)
         except Exception as err:
             _LOGGER.error("Failed to refresh timetable for zone %s: %s", zone_id, err)
+
+    async def async_refresh_all_timetables(self) -> None:
+        """Refresh the active timetable for all compatible zones (HEATING + HOT_WATER, GEN_CLASSIC only)."""
+        if self.generation != GEN_CLASSIC:
+            _LOGGER.debug("async_refresh_all_timetables: skipped (not GEN_CLASSIC)")
+            return
+
+        from .helpers.zone_utils import get_zone_type
+
+        zone_ids = [
+            zone_id
+            for zone_id, zone in self.zones_meta.items()
+            if get_zone_type(zone) in (ZONE_TYPE_HEATING, ZONE_TYPE_HOT_WATER)
+        ]
+
+        if not zone_ids:
+            _LOGGER.debug("async_refresh_all_timetables: no compatible zones found")
+            return
+
+        _LOGGER.info("Refreshing timetables for %d zone(s): %s", len(zone_ids), zone_ids)
+        for zone_id in zone_ids:
+            await self.async_refresh_timetable(zone_id)
+
+    async def async_set_timetable_all_zones(self, timetable_type: str) -> None:
+        """Set the timetable type for all compatible zones (HEATING + HOT_WATER, GEN_CLASSIC only)."""
+        if self.generation != GEN_CLASSIC:
+            _LOGGER.debug("async_set_timetable_all_zones: skipped (not GEN_CLASSIC)")
+            return
+
+        from .helpers.zone_utils import get_zone_type
+
+        zone_ids = [
+            zone_id
+            for zone_id, zone in self.zones_meta.items()
+            if get_zone_type(zone) in (ZONE_TYPE_HEATING, ZONE_TYPE_HOT_WATER)
+        ]
+
+        if not zone_ids:
+            _LOGGER.debug("async_set_timetable_all_zones: no compatible zones found")
+            return
+
+        _LOGGER.info(
+            "Setting timetable type '%s' for %d zone(s): %s",
+            timetable_type, len(zone_ids), zone_ids,
+        )
+        for zone_id in zone_ids:
+            await self.async_set_timetable(zone_id, timetable_type)
 
     async def async_set_open_window_detection(
         self, zone_id: int, enabled: bool, timeout_seconds: int | None = None
