@@ -194,7 +194,10 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             entry.data.get(CONF_REDUCED_POLLING_ACTIVE, False)
         )
 
-        self.rate_limit = RateLimitManager(throttle_threshold, get_handler())
+        self.rate_limit = RateLimitManager(
+            throttle_threshold,
+            self.provider.get_rate_limit_source() if self.provider else get_handler(),
+        )
         self.auth_manager = AuthManager(hass, entry, client)
         self.property_manager = PropertyManager(self)
 
@@ -266,9 +269,22 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
                 "Restored adaptive quota tracker state (history: %d)",
                 self.reset_tracker.history_count,
             )
-            # Without this, get_next_reset_time falls back to now+20h on restart.
             if last_reset := self.reset_tracker.get_last_reset_original():
                 self._last_quota_reset = last_reset
+            self._schedule_reset_poll()
+
+        timetable_data = await self.storage.async_get("timetable_cache")
+        if timetable_data:
+            restored = {int(k): v for k, v in timetable_data.items()}
+            self.data_manager.timetable_cache.update(restored)
+            self._timetable_cache_initialized = True
+            _LOGGER.debug(
+                "Restored timetable cache for %d zone(s): %s",
+                len(restored),
+                restored,
+            )
+        else:
+            self._timetable_cache_initialized = False
 
     def _save_reset_tracker(self) -> None:
         """Persist reset tracker state to storage."""
@@ -373,6 +389,10 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
 
             self.zones_meta = self.data_manager.zones_meta
             self.devices_meta = self.data_manager.devices_meta
+            self.timetable_cache: dict[int, dict] = self.data_manager.timetable_cache
+
+            if self.generation == GEN_CLASSIC and not self._timetable_cache_initialized:
+                await self._async_init_timetable_cache()
 
             from .helpers.discovery import get_bridges
 
@@ -1102,6 +1122,135 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             enabled,
             rollback_context=old_val,
         )
+
+    def _save_timetable_cache(self) -> None:
+        """Persist timetable cache to storage."""
+        self.hass.async_create_task(
+            self.storage.async_update(
+                "timetable_cache",
+                {str(k): v for k, v in self.timetable_cache.items()},
+            )
+        )
+
+    async def _async_init_timetable_cache(self) -> None:
+        """Fetch timetable type from API for all compatible zones on first boot."""
+        from .helpers.zone_utils import get_zone_type
+
+        zone_ids = [
+            zone_id
+            for zone_id, zone in self.zones_meta.items()
+            if get_zone_type(zone) in (ZONE_TYPE_HEATING, ZONE_TYPE_HOT_WATER)
+        ]
+
+        if not zone_ids:
+            self._timetable_cache_initialized = True
+            return
+
+        _LOGGER.info(
+            "Initializing timetable cache from API for %d zone(s): %s",
+            len(zone_ids), zone_ids,
+        )
+        for zone_id in zone_ids:
+            try:
+                entry = await self._tado.get_active_timetable(zone_id)
+                self.timetable_cache[zone_id] = entry
+                self.data_manager.timetable_cache[zone_id] = entry
+                _LOGGER.debug("Timetable initialized for zone %s: %s", zone_id, entry)
+            except Exception as err:
+                _LOGGER.warning(
+                    "Could not fetch timetable for zone %s: %s", zone_id, err
+                )
+
+        self._timetable_cache_initialized = True
+        self._save_timetable_cache()
+
+    async def async_set_timetable(self, zone_id: int, timetable_type: str) -> None:
+        """Set the active timetable schedule type for a zone.
+
+        timetable_type: "ONE_DAY" | "THREE_DAY" | "SEVEN_DAY"
+        Goes through the command queue (1 API call, debounced & merged).
+        """
+        type_to_id = {"ONE_DAY": 0, "THREE_DAY": 1, "SEVEN_DAY": 2}
+        timetable_id = type_to_id.get(timetable_type)
+        if timetable_id is None:
+            _LOGGER.error("Invalid timetable type: %s", timetable_type)
+            return
+
+        # Optimistically update local cache for immediate UI feedback
+        entry = {"id": timetable_id, "type": timetable_type}
+        self.timetable_cache[zone_id] = entry
+        self.data_manager.timetable_cache[zone_id] = entry
+        self.async_update_listeners()
+        self._save_timetable_cache()
+
+        self.api_manager.queue_command(
+            f"set_timetable_{zone_id}",
+            TadoCommand(
+                CommandType.SET_TIMETABLE,
+                zone_id=zone_id,
+                data={"zone_id": zone_id, "timetable_id": timetable_id},
+            ),
+        )
+
+    async def async_refresh_timetable(self, zone_id: int) -> None:
+        """Refresh the active timetable for a zone from the API."""
+        _LOGGER.info("Refreshing timetable for zone %s", zone_id)
+        try:
+            entry = await self._tado.get_active_timetable(zone_id)
+            self.timetable_cache[zone_id] = entry
+            self.data_manager.timetable_cache[zone_id] = entry
+            self.async_update_listeners()
+            self._save_timetable_cache()
+            _LOGGER.debug("Timetable refreshed for zone %s: %s", zone_id, entry)
+        except Exception as err:
+            _LOGGER.error("Failed to refresh timetable for zone %s: %s", zone_id, err)
+
+    async def async_refresh_all_timetables(self) -> None:
+        """Refresh the active timetable for all compatible zones (HEATING + HOT_WATER, GEN_CLASSIC only)."""
+        if self.generation != GEN_CLASSIC:
+            _LOGGER.debug("async_refresh_all_timetables: skipped (not GEN_CLASSIC)")
+            return
+
+        from .helpers.zone_utils import get_zone_type
+
+        zone_ids = [
+            zone_id
+            for zone_id, zone in self.zones_meta.items()
+            if get_zone_type(zone) in (ZONE_TYPE_HEATING, ZONE_TYPE_HOT_WATER)
+        ]
+
+        if not zone_ids:
+            _LOGGER.debug("async_refresh_all_timetables: no compatible zones found")
+            return
+
+        _LOGGER.info("Refreshing timetables for %d zone(s): %s", len(zone_ids), zone_ids)
+        for zone_id in zone_ids:
+            await self.async_refresh_timetable(zone_id)
+
+    async def async_set_timetable_all_zones(self, timetable_type: str) -> None:
+        """Set the timetable type for all compatible zones (HEATING + HOT_WATER, GEN_CLASSIC only)."""
+        if self.generation != GEN_CLASSIC:
+            _LOGGER.debug("async_set_timetable_all_zones: skipped (not GEN_CLASSIC)")
+            return
+
+        from .helpers.zone_utils import get_zone_type
+
+        zone_ids = [
+            zone_id
+            for zone_id, zone in self.zones_meta.items()
+            if get_zone_type(zone) in (ZONE_TYPE_HEATING, ZONE_TYPE_HOT_WATER)
+        ]
+
+        if not zone_ids:
+            _LOGGER.debug("async_set_timetable_all_zones: no compatible zones found")
+            return
+
+        _LOGGER.info(
+            "Setting timetable type '%s' for %d zone(s): %s",
+            timetable_type, len(zone_ids), zone_ids,
+        )
+        for zone_id in zone_ids:
+            await self.async_set_timetable(zone_id, timetable_type)
 
     async def async_set_open_window_detection(
         self, zone_id: int, enabled: bool, timeout_seconds: int | None = None
