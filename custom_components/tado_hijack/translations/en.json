@@ -282,6 +282,9 @@
       },
       "refresh_timetable": {
         "name": "Refresh timetable"
+      },
+      "refresh_all_timetables": {
+        "name": "Refresh all timetables"
       }
     },
     "number": {
@@ -340,6 +343,14 @@
       },
       "timetable_type": {
         "name": "Schedule Mode",
+        "state": {
+          "one_day": "Mon-Sun (same every day)",
+          "three_day": "Mon-Fri / Sat / Sun",
+          "seven_day": "Per day of the week"
+        }
+      },
+      "timetable_type_all_zones": {
+        "name": "Timetable type (all zones)",
         "state": {
           "one_day": "Mon-Sun (same every day)",
           "three_day": "Mon-Fri / Sat / Sun",
