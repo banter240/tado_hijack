@@ -1923,7 +1923,7 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     create_zone_select(
         key="timetable_type",
         value_fn=lambda c, zid: (
-            c.timetable_cache.get(zid, {}).get("type", "ONE_DAY").lower()
+            c.data_manager.timetable_cache.get(zid, {}).get("type", "ONE_DAY").lower()
             if hasattr(c, "timetable_cache")
             else None
         ),
