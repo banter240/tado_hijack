@@ -1159,7 +1159,6 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         _LOGGER.info("Refreshing timetable for zone %s", zone_id)
         try:
             entry = await self._tado.get_active_timetable(zone_id)
-            self.timetable_cache[zone_id] = entry
             self.data_manager.timetable_cache[zone_id] = entry
             self.async_update_listeners()
             self._save_timetable_cache()
