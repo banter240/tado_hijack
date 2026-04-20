@@ -1122,7 +1122,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         self.hass.async_create_task(
             self.storage.async_update(
                 "timetable_cache",
-                {str(k): v for k, v in self.timetable_cache.items()},
+                {str(k): v for k, v in self.data_manager.timetable_cache.items()},
             )
         )
 
