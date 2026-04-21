@@ -642,6 +642,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
 
             self.reset_tracker.record_reset(reset_time)
             self._save_reset_tracker()
+            self._schedule_reset_poll()
 
             expected = self.reset_tracker.get_expected_window()
             _LOGGER.info(
