@@ -68,25 +68,33 @@ class ResetWindowTracker:
 
     def get_initial_target(self) -> datetime:
         """Get or create a static initial target for new setups."""
-        if self._initial_target is None:
-            berlin_tz = dt_util.get_time_zone("Europe/Berlin")
-            now_berlin = dt_util.now().astimezone(berlin_tz)
+        berlin_tz = dt_util.get_time_zone("Europe/Berlin")
+        now_berlin = dt_util.now().astimezone(berlin_tz)
 
-            target = now_berlin.replace(
-                hour=self._default_hour,
-                minute=self._default_minute,
-                second=0,
-                microsecond=0,
-            )
+        # Always compute a fresh candidate so the staleness check is based
+        # on the fully-advanced target, not the cached value. This avoids a
+        # perpetual-stale edge case where the cached datetime is in the past
+        # but a newly-computed one (before day-advancing) would also be past.
+        # A stale _initial_target loaded from storage causes a 1-second
+        # runaway loop: delay <= 0 → max(1.0, delay) → poll every second
+        # → API quota exhausted → token invalidated.
+        target = now_berlin.replace(
+            hour=self._default_hour,
+            minute=self._default_minute,
+            second=0,
+            microsecond=0,
+        )
 
-            if target <= now_berlin:
-                target += timedelta(days=1)
+        if target <= now_berlin:
+            target += timedelta(days=1)
 
-            if (target - now_berlin).total_seconds() < (
-                API_RESET_MIN_PLANNING_HOURS * 3600
-            ):
-                target += timedelta(days=1)
+        if (target - now_berlin).total_seconds() < (
+            API_RESET_MIN_PLANNING_HOURS * 3600
+        ):
+            target += timedelta(days=1)
 
+        # Only update the cache if missing or the stored value is now stale.
+        if self._initial_target is None or self._initial_target <= now_berlin:
             self._initial_target = target
 
         return self._initial_target

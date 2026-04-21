@@ -15,6 +15,11 @@ _LOGGER = get_redacted_logger(__name__)
 
 type AsyncCallback = Callable[[], Coroutine[Any, Any, None]]
 
+# Safety net for schedule_reset_poll: any delay shorter than this threshold
+# is treated as a stale/negative target and replaced with the fallback.
+_RESET_POLL_SAFETY_THRESHOLD_S: float = 300.0
+_RESET_POLL_SAFETY_FALLBACK_S: float = 3600.0
+
 
 class PollScheduler:
     """Manages deferred poll timers for the coordinator.
@@ -82,8 +87,13 @@ class PollScheduler:
         """Schedule a one-shot timer that fires *callback* after *delay_s* seconds."""
         if self._reset_poll_unsub:
             self._reset_poll_unsub.cancel()
+        # If delay is suspiciously small (stale/negative target), fall back to
+        # 1 hour to prevent a runaway 1-second loop that exhausts the Tado API
+        # quota and causes token invalidation. The primary fix is in
+        # get_initial_target(), this is a second line of defence.
+        safe_delay = delay_s if delay_s > _RESET_POLL_SAFETY_THRESHOLD_S else _RESET_POLL_SAFETY_FALLBACK_S
         self._reset_poll_unsub = self._hass.loop.call_later(
-            max(1.0, delay_s),
+            safe_delay,
             lambda: self._hass.async_create_task(callback()),
         )
 
