@@ -1184,8 +1184,9 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             return
 
         _LOGGER.info("Refreshing timetables for %d zone(s): %s", len(zone_ids), zone_ids)
-        for zone_id in zone_ids:
-            await self.async_refresh_timetable(zone_id)
+        await asyncio.gather(
+            *(self.async_refresh_timetable(zone_id) for zone_id in zone_ids)
+        )
 
     async def async_set_timetable_all_zones(self, timetable_type: str) -> None:
         """Set the timetable type for all compatible zones (HEATING + HOT_WATER, GEN_CLASSIC only)."""
