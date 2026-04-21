@@ -1210,8 +1210,9 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             "Setting timetable type '%s' for %d zone(s): %s",
             timetable_type, len(zone_ids), zone_ids,
         )
-        for zone_id in zone_ids:
-            await self.async_set_timetable(zone_id, timetable_type)
+        await asyncio.gather(
+            *(self.async_set_timetable(zone_id, timetable_type) for zone_id in zone_ids)
+        )
 
     async def async_set_open_window_detection(
         self, zone_id: int, enabled: bool, timeout_seconds: int | None = None
