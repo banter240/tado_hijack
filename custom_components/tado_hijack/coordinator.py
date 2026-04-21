@@ -1139,7 +1139,6 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             return
 
         # Optimistically update local cache for immediate UI feedback
-        # Optimistically update local cache for immediate UI feedback
         entry = {"id": timetable_id, "type": timetable_type}
         self.data_manager.timetable_cache[zone_id] = entry
         self.async_update_listeners()
