@@ -101,6 +101,7 @@ from .helpers.reset_window_tracker import ResetWindowTracker
 from .helpers.state_patcher import patch_zone_overlay, patch_zone_resume
 from .helpers.storage import TadoStorage
 from .helpers.utils import apply_jitter
+from .helpers.zone_utils import get_zone_type
 from .lib.patches import get_handler
 from .models import CommandType, RateLimit, TadoCommand, TadoData
 
@@ -250,6 +251,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         self._last_quota_reset: datetime | None = None
         self._last_remaining: int | None = None
         self._force_next_update: bool = False
+        self._last_ac_swing: dict[int, str] = {}
 
         # Adaptive quota reset window learning
         self.reset_tracker = ResetWindowTracker()
@@ -821,7 +823,6 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         self._execute_resume_command(zone_id)
 
         # Trigger refresh only for AC and Hot Water zones (TRVs are excluded)
-        from .helpers.zone_utils import get_zone_type
 
         zone = self.zones_meta.get(zone_id)
         ztype = get_zone_type(zone, None)
@@ -1187,8 +1188,6 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         if capabilities.temperatures exists. If the API later rejects with 422,
         that's a real error that should be logged.
         """
-        from .helpers.zone_utils import get_zone_type
-
         zone = self.zones_meta.get(zone_id)
         ztype = get_zone_type(zone)
 
@@ -1219,8 +1218,6 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             return None
 
         # Fallback to zone-type defaults for power ON
-        from .helpers.zone_utils import get_zone_type
-
         zone = self.zones_meta.get(zone_id)
         ztype = get_zone_type(zone)
 
@@ -1229,6 +1226,73 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         if ztype == ZONE_TYPE_AIR_CONDITIONING:
             return TEMP_DEFAULT_AC
         return TEMP_DEFAULT_HEATING
+
+    async def _ensure_ac_setting_fields(
+        self, zone_id: int, ac_mode: str | None, power: str
+    ) -> dict[str, Any]:
+        """Return fan/swing fields required for an AC power-on overlay.
+
+        tadoasync does not expose single-toggle swing in mode capabilities,
+        so for single-swing zones in standby we fall back to the last observed
+        value or "OFF" as a safe default.
+        """
+        if power != POWER_ON:
+            return {}
+
+        if get_zone_type(self.zones_meta.get(zone_id)) != ZONE_TYPE_AIR_CONDITIONING:
+            return {}
+
+        capabilities = await self.async_get_capabilities(zone_id)
+        if not capabilities:
+            return {}
+
+        mode_key = (ac_mode or "HEAT").lower()
+        mode_caps = getattr(capabilities, mode_key, None)
+        if not mode_caps:
+            return {}
+
+        state = self.data.zone_states.get(str(zone_id))
+        setting = getattr(state, "setting", None) if state else None
+
+        # Cache any swing value seen in current state
+        if (swing_now := getattr(setting, "swing", None)) is not None:
+            self._last_ac_swing[zone_id] = swing_now
+
+        fields: dict[str, Any] = {}
+
+        if fan_speeds := getattr(mode_caps, "fan_speeds", None):
+            current = getattr(setting, "fan_speed", None)
+            value = current if current in fan_speeds else fan_speeds[0]
+            fields["fanSpeed"] = str(value).upper()
+        elif fan_levels := getattr(mode_caps, "fan_level", None):
+            current = getattr(setting, "fan_level", None)
+            value = current if current in fan_levels else fan_levels[0]
+            fields["fanLevel"] = str(value).upper()
+
+        has_axis_swing = False
+        for cap_attr, api_key, state_attr in [
+            ("vertical_swing", "verticalSwing", "vertical_swing"),
+            ("horizontal_swing", "horizontalSwing", "horizontal_swing"),
+        ]:
+            if swing_caps := getattr(mode_caps, cap_attr, None):
+                has_axis_swing = True
+                current = getattr(setting, state_attr, None)
+                value = (
+                    current
+                    if current in swing_caps
+                    else ("OFF" if "OFF" in swing_caps else swing_caps[0])
+                )
+                fields[api_key] = str(value).upper()
+
+        if not has_axis_swing:
+            # tadoasync does not expose single-toggle swing in mode capabilities;
+            # use cached/current value, or "OFF" for standby zones with no prior state.
+            swing_val = getattr(setting, "swing", None) or self._last_ac_swing.get(
+                zone_id
+            )
+            fields["swing"] = str(swing_val).upper() if swing_val else "OFF"
+
+        return fields
 
     async def async_set_zone_overlay(
         self,
@@ -1245,6 +1309,11 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
     ) -> None:
         """Set a manual overlay with timer/duration support."""
         final_temp = self._resolve_zone_temperature(zone_id, temperature, power)
+
+        if additional_setting_fields is None:
+            ac_fields = await self._ensure_ac_setting_fields(zone_id, ac_mode, power)
+            if ac_fields:
+                additional_setting_fields = ac_fields
 
         data = build_overlay_data(
             zone_id=zone_id,
@@ -1317,6 +1386,14 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         for zone_id in zone_ids:
             zone_temp = self._resolve_zone_temperature(zone_id, temperature, power)
 
+            zone_additional = additional_setting_fields
+            if zone_additional is None:
+                ac_fields = await self._ensure_ac_setting_fields(
+                    zone_id, ac_mode, power
+                )
+                if ac_fields:
+                    zone_additional = ac_fields
+
             data = build_overlay_data(
                 zone_id=zone_id,
                 zones_meta=self.zones_meta,
@@ -1327,7 +1404,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
                 overlay_type=overlay_type,
                 ac_mode=ac_mode,
                 supports_temp=self.supports_temperature(zone_id),
-                additional_setting_fields=additional_setting_fields,
+                additional_setting_fields=zone_additional,
             )
 
             old_state = patch_zone_overlay(
