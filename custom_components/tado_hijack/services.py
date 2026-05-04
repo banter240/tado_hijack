@@ -344,6 +344,7 @@ async def _execute_set_mode(
         return
 
     power = POWER_OFF if operation_mode == "off" else POWER_ON
+    ac_mode = operation_mode.upper() if operation_mode not in ("off", "auto") else None
 
     if not overlay_mode and not duration:
         overlay_mode = OVERLAY_MANUAL
@@ -355,6 +356,7 @@ async def _execute_set_mode(
         duration=duration,
         overlay_mode=overlay_mode,
         overlay_type=overlay_type,
+        ac_mode=ac_mode,
         refresh_after=refresh_after,
     )
 

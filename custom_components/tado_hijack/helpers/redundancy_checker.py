@@ -510,6 +510,47 @@ def should_skip_all_action_provider(
     return False
 
 
+def _is_resume_redundant(
+    zone_id: int, zone_states: dict[str, Any], suppress_buttons: bool
+) -> bool:
+    """Return True if a RESUME_SCHEDULE command is redundant."""
+    if not suppress_buttons:
+        return False
+    state = zone_states.get(str(zone_id))
+    return state is not None and not getattr(state, "overlay_active", True)
+
+
+def _is_overlay_redundant(
+    zone_id: int, zone_data: dict[str, Any], zone_states: dict[str, Any]
+) -> bool:
+    """Return True if a SET_OVERLAY command matches current device state."""
+    state = zone_states.get(str(zone_id))
+    if state is None or not getattr(state, "overlay_active", False):
+        return False
+
+    setting = zone_data.get("setting", {})
+    target_power = setting.get("power")
+
+    api_setting = getattr(state, "setting", None)
+    cache_power = getattr(api_setting, "power", None) if api_setting else None
+
+    if cache_power is None or target_power != cache_power:
+        return False
+
+    if target_power == POWER_OFF:
+        return True
+
+    target_temp = (setting.get("temperature") or {}).get("celsius")
+    if target_temp is None:
+        return False
+
+    cache_temp_obj = getattr(api_setting, "temperature", None)
+    cache_temp = (
+        getattr(cache_temp_obj, "celsius", None) if cache_temp_obj is not None else None
+    )
+    return cache_temp is not None and abs(cache_temp - target_temp) < TEMP_TOLERANCE
+
+
 def _filter_zone_updates(
     merged: dict[str, Any],
     zone_states: dict[str, Any],
@@ -521,65 +562,37 @@ def _filter_zone_updates(
     optimistic patching. coordinator.data.zone_states is mutated in-place by
     state_patcher before queuing, so it already reflects the target by batch time.
     """
-    if zones := merged.get("zones", {}):
-        filtered_zones: dict[str, Any] = {}
-        for zone_id_str, zone_data in zones.items():
-            zone_id = int(zone_id_str)
+    if not (zones := merged.get("zones", {})):
+        return merged
 
-            if zone_data is None:
-                if suppress_buttons:
-                    state = zone_states.get(str(zone_id))
-                    if state is not None and not getattr(state, "overlay_active", True):
-                        _LOGGER.debug(
-                            "Skipping redundant RESUME_SCHEDULE zone_%s: already in schedule",
-                            zone_id,
-                        )
-                        continue
-                filtered_zones[zone_id_str] = zone_data
-                continue
+    filtered_zones: dict[str, Any] = {}
+    for zone_id_str, zone_data in zones.items():
+        zone_id = int(zone_id_str)
 
-            setting = zone_data.get("setting", {})
-            target_power = setting.get("power")
-            target_temp = (setting.get("temperature") or {}).get("celsius")
-
-            state = zone_states.get(str(zone_id))
-            if state is None or not getattr(state, "overlay_active", False):
-                filtered_zones[zone_id_str] = zone_data
-                continue
-
-            api_setting = getattr(state, "setting", None)
-            cache_power = getattr(api_setting, "power", None) if api_setting else None
-
-            if cache_power is None or target_power != cache_power:
-                filtered_zones[zone_id_str] = zone_data
-                continue
-
-            if target_power == POWER_OFF:
-                _LOGGER.debug("Skipping redundant zone_%s overlay: both OFF", zone_id)
-                continue
-
-            if target_temp is not None:
-                cache_temp_obj = getattr(api_setting, "temperature", None)
-                cache_temp = (
-                    getattr(cache_temp_obj, "celsius", None)
-                    if cache_temp_obj is not None
-                    else None
-                )
-                if (
-                    cache_temp is not None
-                    and abs(cache_temp - target_temp) < TEMP_TOLERANCE
-                ):
-                    _LOGGER.debug(
-                        "Skipping redundant zone_%s overlay: power=%s, temp=%s",
-                        zone_id,
-                        target_power,
-                        target_temp,
-                    )
-                    continue
-
+        if zone_data is None and _is_resume_redundant(
+            zone_id, zone_states, suppress_buttons
+        ):
+            _LOGGER.debug(
+                "Skipping redundant RESUME_SCHEDULE zone_%s: already in schedule",
+                zone_id,
+            )
+        elif (
+            zone_data is None
+            and not _is_resume_redundant(zone_id, zone_states, suppress_buttons)
+        ) or (
+            zone_data is not None
+            and not _is_overlay_redundant(zone_id, zone_data, zone_states)
+        ):
             filtered_zones[zone_id_str] = zone_data
-
-        merged["zones"] = filtered_zones
+        else:
+            setting = zone_data.get("setting", {})
+            _LOGGER.debug(
+                "Skipping redundant zone_%s overlay: power=%s, temp=%s",
+                zone_id,
+                setting.get("power"),
+                (setting.get("temperature") or {}).get("celsius"),
+            )
+    merged["zones"] = filtered_zones
     return merged
 
 

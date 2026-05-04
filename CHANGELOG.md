@@ -1,3 +1,37 @@
+## [5.5.0-dev.3](https://github.com/banter240/tado_hijack/compare/v5.5.0-dev.2...v5.5.0-dev.3) (2026-04-30)
+
+### 🐛 Bug Fixes
+
+* fix(ac): populate mode, fanSpeed and swing for AC power-on overlays
+
+- add _ensure_ac_setting_fields coordinator helper: fetches cached
+  capabilities and auto-populates fanSpeed/Level and swing fields
+  when additional_setting_fields is not explicitly provided; called
+  from async_set_zone_overlay and per-zone from async_set_multiple_zone_overlays
+
+- fix _execute_set_mode in services.py: map operation_mode to ac_mode
+  (HEAT/COOL/DRY/FAN) and forward to async_set_multiple_zone_overlays;
+  mode field was never set for this service path
+
+- single-toggle swing fallback: use current state, last-seen cache,
+  then "OFF" (tadoasync does not expose swings in mode capabilities)
+
+Resolves 422 errors for AC zones in standby that were missing mode,
+fanSpeed and swing fields in overlay payloads.
+
+## [5.5.0-dev.2](https://github.com/banter240/tado_hijack/compare/v5.5.0-dev.1...v5.5.0-dev.2) (2026-04-21)
+
+### 🐛 Bug Fixes
+
+* fix(quota): prevent reset-poll runaway loop and sync timer on detected reset
+
+Replace max(1s, delay) in schedule_reset_poll with an explicit 24h fallback
+when delay is invalid, preventing a tight API-quota-burning loop on stale
+initial_target. Reschedule the reset poll immediately when a quota reset is
+detected via regular polling so the timer stays in sync without waiting for
+the next scheduled fire. Also refactor zone overlay/resume redundancy checks
+into dedicated helpers for clarity.
+
 ## [5.5.0-dev.1](https://github.com/banter240/tado_hijack/compare/v5.4.1-dev.2...v5.5.0-dev.1) (2026-04-17)
 
 ### ✨ New Features

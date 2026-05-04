@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
+from ..const import SECONDS_PER_DAY
 from .logging_utils import get_redacted_logger
 
 _LOGGER = get_redacted_logger(__name__)
@@ -82,8 +83,13 @@ class PollScheduler:
         """Schedule a one-shot timer that fires *callback* after *delay_s* seconds."""
         if self._reset_poll_unsub:
             self._reset_poll_unsub.cancel()
+        if delay_s <= 0:
+            _LOGGER.warning(
+                "Reset poll delay invalid (%.1fs), falling back to 24h", delay_s
+            )
+            delay_s = float(SECONDS_PER_DAY)
         self._reset_poll_unsub = self._hass.loop.call_later(
-            max(1.0, delay_s),
+            delay_s,
             lambda: self._hass.async_create_task(callback()),
         )
 
