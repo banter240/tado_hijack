@@ -1,3 +1,21 @@
+## [5.5.0-dev.4](https://github.com/banter240/tado_hijack/compare/v5.5.0-dev.3...v5.5.0-dev.4) (2026-05-13)
+
+### 🐛 Bug Fixes
+
+* fix(ac): add light field to AC power-on overlay payloads
+
+- extract _build_ac_fan_fields, _build_ac_swing_fields and
+  _build_ac_light_fields from _ensure_ac_setting_fields to
+  reduce function complexity and satisfy Sourcery quality check
+
+- _build_ac_light_fields: include light field when the mode
+  capability exposes it; defaults to "OFF" if present in the
+  allowed values, otherwise first listed value
+
+Resolves 422 errors for AC zones whose capabilities require a
+light field in the overlay setting (e.g. "light not in supported
+light [OFF, ON]").
+
 ## [5.5.0-dev.3](https://github.com/banter240/tado_hijack/compare/v5.5.0-dev.2...v5.5.0-dev.3) (2026-04-30)
 
 ### 🐛 Bug Fixes
