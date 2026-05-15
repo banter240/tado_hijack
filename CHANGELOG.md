@@ -1,3 +1,17 @@
+## [5.5.0-dev.5](https://github.com/banter240/tado_hijack/compare/v5.5.0-dev.4...v5.5.0-dev.5) (2026-05-15)
+
+### 🐛 Bug Fixes
+
+* fix(device-linker): guard against non-string manufacturer in device registry
+
+- add _is_tado_device() helper that checks isinstance before .lower(),
+  centralising the Tado manufacturer check (DRY)
+- use _is_tado_device() in _build_device_cache() and get_climate_entity_id()
+  replacing the bare device.manufacturer.lower() calls that raised
+  AttributeError when HA stores manufacturer as int
+- fix .gitignore to match dev/local as symlinks (trailing slash only
+  matches real directories)
+
 ## [5.5.0-dev.4](https://github.com/banter240/tado_hijack/compare/v5.5.0-dev.3...v5.5.0-dev.4) (2026-05-13)
 
 ### 🐛 Bug Fixes
