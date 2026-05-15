@@ -37,6 +37,7 @@ def _build_device_cache(hass: HomeAssistant, force: bool = False) -> None:
     for device in registry.devices.values():
         if (
             device.manufacturer
+            and isinstance(device.manufacturer, str)
             and "tado" in device.manufacturer.lower()
             and device.serial_number
         ):
@@ -88,6 +89,7 @@ def get_climate_entity_id(hass: HomeAssistant, serial_no: str) -> str | None:
             for device in d_registry.devices.values()
             if (
                 device.manufacturer
+                and isinstance(device.manufacturer, str)
                 and "tado" in device.manufacturer.lower()
                 and device.serial_number == serial_no
             )
