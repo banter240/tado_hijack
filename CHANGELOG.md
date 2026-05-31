@@ -1,3 +1,19 @@
+## [5.6.1-dev.1](https://github.com/banter240/tado_hijack/compare/v5.6.0...v5.6.1-dev.1) (2026-05-31)
+
+### 🐛 Bug Fixes
+
+* fix(ac): include required 'light' field for AIR_CONDITIONING overlays on supported devices
+
+Some V3 AC units declare a "light" capability per operating mode. Sending
+overlays without this field resulted in 422 "setting.notSupported" errors
+from the Tado API when changing fan speed, swing or mode.
+
+We now populate the light field from capabilities (when present) in
+TadoV3ActionProvider, following the same approach used for fan and swing
+fields. The FAN mode path in the climate entity is updated accordingly.
+
+Fixes #105.
+
 ## [5.6.0](https://github.com/banter240/tado_hijack/compare/v5.5.0...v5.6.0) (2026-05-19)
 
 ### ✨ New Features
