@@ -75,8 +75,7 @@ class TadoXMapper:
             unified_data.zone_states[str(state.room_id)] = state
 
         # 3b. Map Hot Water State (virtual zone 0, if installed)
-        if (hw := await self._fetch_hot_water_state_safe()) is not None:
-            unified_data.zone_states[str(TADOX_HOT_WATER_ZONE_ID)] = hw
+        await self._augment_with_hot_water(unified_data.zone_states)
 
         # 4. Map Devices (Hardware Metadata)
         all_hops_devices = other_devices + [
@@ -107,6 +106,11 @@ class TadoXMapper:
         self._hot_water_available = True
         return result
 
+    async def _augment_with_hot_water(self, zones: dict[str, Any]) -> None:
+        """Add hot water state as virtual zone 0 if the programmer is installed."""
+        if (hw := await self._fetch_hot_water_state_safe()) is not None:
+            zones[str(TADOX_HOT_WATER_ZONE_ID)] = hw
+
     async def async_fetch_zones(self) -> dict[str, Any]:
         """Fetch Tado X room states (fast poll)."""
         try:
@@ -120,8 +124,7 @@ class TadoXMapper:
             )
             return {}
         result: dict[str, Any] = {str(state.room_id): state for state in room_states}
-        if (hw := await self._fetch_hot_water_state_safe()) is not None:
-            result[str(TADOX_HOT_WATER_ZONE_ID)] = hw
+        await self._augment_with_hot_water(result)
         return result
 
     async def async_fetch_metadata(self) -> tuple[dict[int, Any], dict[str, Any]]:
