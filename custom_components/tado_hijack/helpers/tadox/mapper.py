@@ -6,8 +6,10 @@ from typing import Any
 
 from ...const import GEN_X
 from ...lib.tadox_api import TadoXApi
+from ...lib.tadox_models import TadoXHotWaterState
 from ..logging_utils import get_redacted_logger
 from ..models_unified import UnifiedTadoData
+from .const import TADOX_HOT_WATER_ZONE_ID
 
 _LOGGER = get_redacted_logger(__name__)
 
@@ -70,6 +72,10 @@ class TadoXMapper:
         for state in room_states:
             unified_data.zone_states[str(state.room_id)] = state
 
+        # 3b. Map Hot Water State (virtual zone 0, if installed)
+        if (hw := await self._fetch_hot_water_state_safe()) is not None:
+            unified_data.zone_states[str(TADOX_HOT_WATER_ZONE_ID)] = hw
+
         # 4. Map Devices (Hardware Metadata)
         all_hops_devices = other_devices + [
             dev for room in rooms for dev in room.devices
@@ -78,6 +84,16 @@ class TadoXMapper:
             unified_data.devices[dev.serial_no] = dev
 
         return unified_data
+
+    async def _fetch_hot_water_state_safe(self) -> TadoXHotWaterState | None:
+        """Fetch hot water state, returning None if not installed or on error."""
+        try:
+            return await self.bridge.async_get_hot_water_state()
+        except Exception as e:
+            _LOGGER.debug(
+                "Tado X hot water state fetch failed (may not be installed): %s", e
+            )
+            return None
 
     async def async_fetch_zones(self) -> dict[str, Any]:
         """Fetch Tado X room states (fast poll)."""
@@ -91,7 +107,10 @@ class TadoXMapper:
                 exc_info=True,
             )
             return {}
-        return {str(state.room_id): state for state in room_states}
+        result: dict[str, Any] = {str(state.room_id): state for state in room_states}
+        if (hw := await self._fetch_hot_water_state_safe()) is not None:
+            result[str(TADOX_HOT_WATER_ZONE_ID)] = hw
+        return result
 
     async def async_fetch_metadata(self) -> tuple[dict[int, Any], dict[str, Any]]:
         """Fetch Tado X metadata (slow poll): rooms, devices, and presence."""

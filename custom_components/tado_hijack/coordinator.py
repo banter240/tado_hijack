@@ -873,6 +873,10 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         ignore_global_config: bool = False,
     ) -> None:
         """Set hot water zone to auto mode (resume schedule)."""
+        if self.generation == GEN_X:
+            await self._async_set_hot_water_tadox_resume()
+            return
+
         self._execute_resume_command(zone_id, operation_mode="auto")
 
         if refresh_after or (self._refresh_after_resume and not ignore_global_config):
@@ -882,6 +886,10 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         self, zone_id: int, refresh_after: bool = False
     ) -> None:
         """Set hot water zone to off (manual overlay)."""
+        if self.generation == GEN_X:
+            await self._async_set_hot_water_tadox_off()
+            return
+
         data = build_overlay_data(
             zone_id,
             self.zones_meta,
@@ -893,6 +901,36 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
 
         if refresh_after:
             self._schedule_queued_refresh()
+
+    async def _async_set_hot_water_tadox_resume(self) -> None:
+        """Resume hot water schedule for Tado X (direct Hops API call)."""
+        from .helpers.tadox.const import TADOX_HOT_WATER_ZONE_ID
+
+        self.optimistic.set_zone(
+            TADOX_HOT_WATER_ZONE_ID, overlay=False, power="ON", grace_period=10.0
+        )
+        self.async_update_listeners()
+        try:
+            await self.tadox_bridge.async_resume_hot_water_schedule()
+        except Exception as e:
+            _LOGGER.error("Failed to resume Tado X hot water schedule: %s", e)
+            self.optimistic.clear_zone(TADOX_HOT_WATER_ZONE_ID)
+        self._schedule_queued_refresh()
+
+    async def _async_set_hot_water_tadox_off(self) -> None:
+        """Force Tado X hot water OFF (direct Hops API call)."""
+        from .helpers.tadox.const import TADOX_HOT_WATER_ZONE_ID
+
+        self.optimistic.set_zone(
+            TADOX_HOT_WATER_ZONE_ID, overlay=True, power="OFF", grace_period=10.0
+        )
+        self.async_update_listeners()
+        try:
+            await self.tadox_bridge.async_set_hot_water_off()
+        except Exception as e:
+            _LOGGER.error("Failed to set Tado X hot water OFF: %s", e)
+            self.optimistic.clear_zone(TADOX_HOT_WATER_ZONE_ID)
+        self._schedule_queued_refresh()
 
     async def async_set_hot_water_heat(
         self, zone_id: int, temperature: float | None = None

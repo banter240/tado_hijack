@@ -13,6 +13,10 @@ TADO_X_CLIENT_ID: Final = "1bb50063-6b0c-4d11-bd99-387f4a91cc46"
 # Hops API
 HOPS_BASE_URL: Final = "https://hops.tado.com"
 
+# Virtual zone ID used to store Tado X hot water state in zone_states.
+# Real Tado X rooms start at 1, so 0 is safe as a sentinel.
+TADOX_HOT_WATER_ZONE_ID: Final = 0
+
 # Grant Types
 GRANT_TYPE_DEVICE: Final = "urn:ietf:params:oauth:grant-type:device_code"
 GRANT_TYPE_REFRESH: Final = "refresh_token"

@@ -227,3 +227,36 @@ class HopsRoomsAndDevicesResponse(BaseModel):
     rooms: list[HopsRoomSnapshot]
     other_devices: list[TadoXDevice] = Field(alias="otherDevices")
     home: HomePresence | None = None  # Presence information
+
+
+# --- Tado X Hot Water ---
+
+
+class _HotWaterSetting:
+    """Minimal duck-type of v3 zone setting for hot water compatibility."""
+
+    def __init__(self, power: str) -> None:
+        self.power = power
+
+
+class TadoXHotWaterState(BaseModel):
+    """State model for the Tado X domestic hot water programmer.
+
+    Maps the /programmer/domesticHotWater/state response and duck-types
+    the v3 zone state interface expected by water_heater.py.
+    """
+
+    state: str
+    next_state_change: str | None = Field(None, alias="nextStateChange")
+    setpoint: Any | None = None
+    setpoint_constraints: Any | None = Field(None, alias="setpointConstraints")
+
+    @property
+    def overlay_active(self) -> bool:
+        """True when hot water is manually overridden (not following schedule)."""
+        return not self.state.startswith("SCHEDULE_")
+
+    @property
+    def setting(self) -> _HotWaterSetting:
+        """Duck-type v3 setting so water_heater._get_actual_value() reads power correctly."""
+        return _HotWaterSetting(power="OFF" if self.overlay_active else "ON")

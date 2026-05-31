@@ -22,7 +22,7 @@ from aiohttp import ClientTimeout
 from ..helpers.logging_utils import get_redacted_logger
 from ..helpers.parsers import parse_ratelimit_headers
 from ..helpers.tadox.const import HOPS_BASE_URL
-from .tadox_models import HopsRoomsAndDevicesResponse, TadoXZoneState
+from .tadox_models import HopsRoomsAndDevicesResponse, TadoXHotWaterState, TadoXZoneState
 
 if TYPE_CHECKING:
     from tadoasync import Tado
@@ -227,6 +227,26 @@ class TadoXApi:
     async def async_turn_off_all_zones(self) -> Any:
         """Turn off all rooms (frost protection mode)."""
         return await self._request("POST", "quickActions/allOff")
+
+    async def async_get_hot_water_state(self) -> TadoXHotWaterState | None:
+        """Fetch current hot water programmer state. Returns None if not installed (404)."""
+        try:
+            data = await self._request("GET", "programmer/domesticHotWater/state")
+            return TadoXHotWaterState.model_validate(data)
+        except Exception:
+            return None
+
+    async def async_resume_hot_water_schedule(self) -> Any:
+        """Resume hot water schedule (clear boost override)."""
+        return await self._request("POST", "programmer/domesticHotWater/resumeSchedule")
+
+    async def async_set_hot_water_off(self) -> Any:
+        """Force hot water OFF via boost override."""
+        return await self._request(
+            "POST",
+            "programmer/domesticHotWater/boost",
+            json_data={"boost": "OFF"},
+        )
 
     async def async_set_open_window_detection(self, room_id: int, enabled: bool) -> Any:
         """Enable or disable open window detection."""

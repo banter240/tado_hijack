@@ -18,6 +18,7 @@ from .const import (
     TEMP_STEP_HOT_WATER,
     ZONE_TYPE_HOT_WATER,
 )
+from .helpers.tadox.const import TADOX_HOT_WATER_ZONE_ID
 from .entity import TadoHotWaterZoneEntity, TadoOptimisticMixin, TadoStateMemoryMixin
 from .helpers.discovery import yield_zones
 from .helpers.logging_utils import get_redacted_logger
@@ -35,13 +36,19 @@ OPERATION_MODE_HEAT = "heat"
 OPERATION_MODE_OFF = "off"
 
 OPERATION_MODES = [OPERATION_MODE_AUTO, OPERATION_MODE_HEAT, OPERATION_MODE_OFF]
+OPERATION_MODES_TADOX = [OPERATION_MODE_AUTO, OPERATION_MODE_OFF]
 
 
 def _setup_water_heater_entities_tadox(
     coordinator: TadoDataUpdateCoordinator,
 ) -> list[TadoHotWater]:
     """Set up hot water entities for Tado X."""
-    return []  # [TADO_X] Not yet supported
+    if coordinator.data.zone_states.get(str(TADOX_HOT_WATER_ZONE_ID)) is None:
+        _LOGGER.debug(
+            "No Tado X hot water found (programmer/domesticHotWater/state unavailable)"
+        )
+        return []
+    return [TadoHotWaterX(coordinator, TADOX_HOT_WATER_ZONE_ID, "Hot Water")]
 
 
 def _setup_water_heater_entities_v3(
@@ -258,3 +265,33 @@ class TadoHotWater(
             temperature=rounded_temp,
             overlay_type="HOT_WATER",
         )
+
+
+class TadoHotWaterX(TadoHotWater):
+    """Tado X hot water — schedule (auto) or forced off only, no temperature control."""
+
+    _attr_operation_list = OPERATION_MODES_TADOX
+    _attr_supported_features = WaterHeaterEntityFeature.OPERATION_MODE
+
+    @property
+    def target_temperature(self) -> float | None:
+        """Tado X hot water has no setpoint."""
+        return None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return next schedule change time if available."""
+        state = self.coordinator.data.zone_states.get(str(self._zone_id))
+        if state and (nsc := getattr(state, "next_state_change", None)):
+            return {"next_state_change": nsc}
+        return {}
+
+    async def async_set_temperature(self, **kwargs: Any) -> None:
+        """Temperature control not supported for Tado X hot water."""
+
+    async def async_set_operation_mode(self, operation_mode: str) -> None:
+        """Set new operation mode (auto or off)."""
+        if operation_mode == OPERATION_MODE_OFF:
+            await self.tado_coordinator.async_set_hot_water_off(self._zone_id)
+        elif operation_mode == OPERATION_MODE_AUTO:
+            await self.tado_coordinator.async_set_hot_water_auto(self._zone_id)
