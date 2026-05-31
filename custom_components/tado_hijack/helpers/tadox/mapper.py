@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from ...const import GEN_X
+from ...const import GEN_X, TADOX_VIRTUAL_HOT_WATER_ZONE_ID
 from ...lib.tadox_api import TadoXApi
+from ...lib.tadox_models import TadoXHotWaterState
 from ..logging_utils import get_redacted_logger
 from ..models_unified import UnifiedTadoData
 
@@ -22,6 +23,8 @@ class TadoXMapper:
         """Initialize the Tado X mapper."""
         self.bridge = bridge
         self._last_presence: str = "HOME"
+        # None = not probed; True = installed; False = not installed (skip future calls)
+        self._hot_water_available: bool | None = None
 
     async def async_fetch_unified_data(self) -> UnifiedTadoData:
         """Fetch all relevant Tado X data and return a UnifiedTadoData container."""
@@ -70,6 +73,8 @@ class TadoXMapper:
         for state in room_states:
             unified_data.zone_states[str(state.room_id)] = state
 
+        await self._augment_with_hot_water(unified_data.zone_states)
+
         # 4. Map Devices (Hardware Metadata)
         all_hops_devices = other_devices + [
             dev for room in rooms for dev in room.devices
@@ -91,7 +96,9 @@ class TadoXMapper:
                 exc_info=True,
             )
             return {}
-        return {str(state.room_id): state for state in room_states}
+        result: dict[str, Any] = {str(state.room_id): state for state in room_states}
+        await self._augment_with_hot_water(result)
+        return result
 
     async def async_fetch_metadata(self) -> tuple[dict[int, Any], dict[str, Any]]:
         """Fetch Tado X metadata (slow poll): rooms, devices, and presence."""
@@ -165,3 +172,28 @@ class TadoXMapper:
     async def async_set_temperature_offset(self, serial_no: str, offset: float) -> None:
         """Set temperature offset via Hops API."""
         await self.bridge.async_set_temperature_offset(serial_no, offset)
+
+    async def _fetch_hot_water_state_safe(self) -> TadoXHotWaterState | None:
+        """Fetch hot water state with caching for 'not installed'."""
+        if self._hot_water_available is False:
+            return None
+
+        try:
+            result = await self.bridge.async_get_hot_water_state()
+        except Exception as e:
+            _LOGGER.debug("Tado X hot water state fetch failed (transient): %s", e)
+            return None
+
+        if result is None:
+            if self._hot_water_available is None:
+                _LOGGER.debug("Tado X hot water programmer not detected (no hardware)")
+                self._hot_water_available = False
+            return None
+
+        self._hot_water_available = True
+        return result
+
+    async def _augment_with_hot_water(self, zones: dict[str, Any]) -> None:
+        """Inject Tado X hot water state from Hops (real hardware, synthetic ID)."""
+        if (hw := await self._fetch_hot_water_state_safe()) is not None:
+            zones[str(TADOX_VIRTUAL_HOT_WATER_ZONE_ID)] = hw

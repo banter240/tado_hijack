@@ -9,6 +9,7 @@ from homeassistant.exceptions import ServiceValidationError
 
 from .const import (
     DOMAIN,
+    GEN_X,
     OVERLAY_AUTO,
     OVERLAY_MANUAL,
     OVERLAY_NEXT_BLOCK,
@@ -24,6 +25,7 @@ from .const import (
     SERVICE_SET_MODE_ALL,
     SERVICE_SET_WATER_HEATER_MODE,
     SERVICE_TURN_OFF_ALL_ZONES,
+    TADOX_VIRTUAL_HOT_WATER_ZONE_ID,
     ZONE_TYPE_HOT_WATER,
 )
 from .helpers.logging_utils import get_redacted_logger
@@ -257,6 +259,27 @@ async def async_setup_services(hass: HomeAssistant) -> None:  # noqa: C901
 
         for coord, zone_ids in coord_map.items():
             for zone_id in zone_ids:
+                # Tado X hot water uses dedicated Hops paths (no zone overlay)
+                if (
+                    coord.generation == GEN_X
+                    and zone_id == TADOX_VIRTUAL_HOT_WATER_ZONE_ID
+                ):
+                    if operation_mode == "auto":
+                        await coord.async_set_hot_water_auto(
+                            zone_id,
+                            refresh_after=refresh_after,
+                            ignore_global_config=True,
+                        )
+                    elif operation_mode == "off":
+                        await coord.async_set_hot_water_off(
+                            zone_id, refresh_after=refresh_after
+                        )
+                    else:
+                        _LOGGER.warning(
+                            "Hot water 'heat' mode is not supported on Tado X"
+                        )
+                    continue
+
                 if operation_mode == "auto":
                     await coord.async_set_hot_water_auto(
                         zone_id, refresh_after=refresh_after, ignore_global_config=True

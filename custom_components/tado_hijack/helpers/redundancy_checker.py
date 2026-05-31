@@ -551,6 +551,32 @@ def _is_overlay_redundant(
     return cache_temp is not None and abs(cache_temp - target_temp) < TEMP_TOLERANCE
 
 
+def _is_hot_water_off_redundant(
+    zone_id: int, zone_states: dict[str, Any], suppress_buttons: bool
+) -> bool:
+    """Return True if hot water off (manual overlay) is redundant."""
+    if not suppress_buttons:
+        return False
+    state = zone_states.get(str(zone_id))
+    if state is None:
+        return False
+    return bool(getattr(state, "overlay_active", False))
+
+
+def should_skip_hot_water_resume(
+    zone_id: int, zone_states: dict[str, Any], suppress_buttons: bool
+) -> bool:
+    """Return True if hot water resume to schedule is redundant (v3 + TadoX)."""
+    return _is_resume_redundant(zone_id, zone_states, suppress_buttons)
+
+
+def should_skip_hot_water_off(
+    zone_id: int, zone_states: dict[str, Any], suppress_buttons: bool
+) -> bool:
+    """Return True if hot water off is redundant (TadoX Hops + v3 HW)."""
+    return _is_hot_water_off_redundant(zone_id, zone_states, suppress_buttons)
+
+
 def _filter_zone_updates(
     merged: dict[str, Any],
     zone_states: dict[str, Any],

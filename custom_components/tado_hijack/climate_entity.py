@@ -14,6 +14,8 @@ from homeassistant.components.climate import (
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 
 from .const import (
+    DUMMY_ZONE_ID_AC,
+    DUMMY_ZONE_ID_HOT_WATER,
     GEN_X,
     OVERLAY_MANUAL,
     POWER_OFF,
@@ -23,7 +25,6 @@ from .const import (
     TEMP_MIN_AC,
     TEMP_STEP_AC,
 )
-from .dummy.const import DUMMY_ZONE_ID_AC, DUMMY_ZONE_ID_HOT_WATER
 from .entity import TadoOptimisticMixin, TadoStateMemoryMixin, TadoZoneEntity
 from .helpers.logging_utils import get_redacted_logger
 from .helpers.parsers import (
@@ -219,7 +220,7 @@ class TadoClimateEntity(
                 temp = getattr(temp_obj, "celsius", getattr(temp_obj, "value", None))
                 if temp is not None:
                     result = float(temp)
-                    # Only log for real zones, skip dummy zones (998, 999)
+                    # Only log for real zones, skip dummy zones
                     if self._zone_id not in (DUMMY_ZONE_ID_AC, DUMMY_ZONE_ID_HOT_WATER):
                         _LOGGER.debug(
                             "Zone %d current_temperature: %s (from inside_temperature)",
@@ -249,7 +250,7 @@ class TadoClimateEntity(
         if state and state.setting and state.setting.temperature:
             if temp := getattr(state.setting.temperature, "celsius", None):
                 result = float(temp)
-                # Only log for real zones, skip dummy zones (998, 999)
+                # Only log for real zones, skip dummy zones
                 if self._zone_id not in (DUMMY_ZONE_ID_AC, DUMMY_ZONE_ID_HOT_WATER):
                     _LOGGER.debug(
                         "Zone %d target_temperature: %s (min=%s, max=%s, step=%s)",

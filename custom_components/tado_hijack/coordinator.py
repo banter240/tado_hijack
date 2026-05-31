@@ -59,6 +59,7 @@ from .const import (
     DEFAULT_SUPPRESS_REDUNDANT_CALLS,
     DEFAULT_THROTTLE_THRESHOLD,
     DOMAIN,
+    DUMMY_ZONE_ID_TADOX_HOT_WATER,
     GEN_CLASSIC,
     GEN_X,
     MIN_AUTO_QUOTA_INTERVAL_S,
@@ -68,6 +69,7 @@ from .const import (
     POWER_ON,
     RESUME_REFRESH_DELAY_S,
     SECONDS_PER_HOUR,
+    TADOX_VIRTUAL_HOT_WATER_ZONE_ID,
     TEMP_DEFAULT_AC,
     TEMP_DEFAULT_HEATING,
     TEMP_DEFAULT_HOT_WATER,
@@ -873,6 +875,10 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         ignore_global_config: bool = False,
     ) -> None:
         """Set hot water zone to auto mode (resume schedule)."""
+        if self._is_tadox_hot_water_zone(zone_id):
+            await self._async_set_hot_water_tadox_resume()
+            return
+
         self._execute_resume_command(zone_id, operation_mode="auto")
 
         if refresh_after or (self._refresh_after_resume and not ignore_global_config):
@@ -882,6 +888,10 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         self, zone_id: int, refresh_after: bool = False
     ) -> None:
         """Set hot water zone to off (manual overlay)."""
+        if self._is_tadox_hot_water_zone(zone_id):
+            await self._async_set_hot_water_tadox_off()
+            return
+
         data = build_overlay_data(
             zone_id,
             self.zones_meta,
@@ -894,10 +904,131 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         if refresh_after:
             self._schedule_queued_refresh()
 
+    def _get_tadox_hot_water_zid(self) -> int:
+        """Return the effective zone ID for TadoX hot water (real 9001 or test dummy 9997)."""
+        if self.dummy_handler and self.dummy_handler.is_tadox_hot_water_test_dummy(
+            DUMMY_ZONE_ID_TADOX_HOT_WATER
+        ):
+            return DUMMY_ZONE_ID_TADOX_HOT_WATER
+        return TADOX_VIRTUAL_HOT_WATER_ZONE_ID
+
+    def _is_tadox_hot_water_zone(self, zone_id: int) -> bool:
+        """True for TadoX domesticHotWater programmer (real 9001 or test dummy 9997)."""
+        if self.generation == GEN_X and zone_id == TADOX_VIRTUAL_HOT_WATER_ZONE_ID:
+            return True
+        return bool(
+            self.dummy_handler
+            and (
+                self.dummy_handler.is_tadox_hot_water_dummy(zone_id)
+                or self.dummy_handler.is_tadox_hot_water_test_dummy(zone_id)
+            )
+        )
+
+    async def _async_set_hot_water_tadox_resume(self) -> None:
+        from .helpers.overlay_validator import validate_tadox_hot_water_resume
+        from .helpers.redundancy_checker import should_skip_hot_water_resume
+
+        zid = self._get_tadox_hot_water_zid()
+
+        is_valid, error = validate_tadox_hot_water_resume()
+        if not is_valid:
+            _LOGGER.error("TadoX hot water resumeSchedule validation failed: %s", error)
+            return
+
+        if should_skip_hot_water_resume(
+            zid, self.data.zone_states, self._suppress_redundant_buttons
+        ):
+            _LOGGER.debug(
+                "Skipping TadoX hot water resumeSchedule for zone %s: already on schedule",
+                zid,
+            )
+            return
+
+        if self.dummy_handler and (
+            self.dummy_handler.is_tadox_hot_water_dummy(zid)
+            or self.dummy_handler.is_tadox_hot_water_test_dummy(zid)
+        ):
+            self.dummy_handler.set_tadox_hot_water_auto(zid)
+            self.optimistic.apply_zone_state(zid, overlay=False, grace_period=10.0)
+            self.async_update_listeners()
+            _LOGGER.debug(
+                "TadoX hot water dummy: resumeSchedule handled for zone %s", zid
+            )
+            self._schedule_queued_refresh()
+            return
+
+        self.optimistic.apply_zone_state(zid, overlay=False, grace_period=10.0)
+        self.async_update_listeners()
+
+        _LOGGER.debug("Sending TadoX hot water resumeSchedule for zone %s", zid)
+        try:
+            await self.tadox_bridge.async_resume_hot_water_schedule()
+        except Exception as e:
+            _LOGGER.error("Failed to resume Tado X hot water schedule: %s", e)
+            self.optimistic.clear_zone(zid)
+        self._schedule_queued_refresh()
+
+    async def _async_set_hot_water_tadox_off(self) -> None:
+        from .helpers.overlay_validator import validate_tadox_hot_water_boost_off
+        from .helpers.redundancy_checker import should_skip_hot_water_off
+
+        zid = self._get_tadox_hot_water_zid()
+
+        is_valid, error = validate_tadox_hot_water_boost_off()
+        if not is_valid:
+            _LOGGER.error("TadoX hot water boost OFF validation failed: %s", error)
+            return
+
+        if should_skip_hot_water_off(
+            zid, self.data.zone_states, self._suppress_redundant_buttons
+        ):
+            _LOGGER.debug(
+                "Skipping TadoX hot water boost OFF for zone %s: already forced off",
+                zid,
+            )
+            return
+
+        if self.dummy_handler and (
+            self.dummy_handler.is_tadox_hot_water_dummy(zid)
+            or self.dummy_handler.is_tadox_hot_water_test_dummy(zid)
+        ):
+            self.dummy_handler.set_tadox_hot_water_off(zid)
+            self.optimistic.apply_zone_state(
+                zid, overlay=True, power="OFF", grace_period=10.0
+            )
+            self.async_update_listeners()
+            _LOGGER.debug("TadoX hot water dummy: boost OFF handled for zone %s", zid)
+            self._schedule_queued_refresh()
+            return
+
+        self.optimistic.apply_zone_state(
+            zid, overlay=True, power="OFF", grace_period=10.0
+        )
+        self.async_update_listeners()
+
+        _LOGGER.debug("Sending TadoX hot water boost OFF for zone %s", zid)
+        try:
+            await self.tadox_bridge.async_set_hot_water_off()
+        except Exception as e:
+            _LOGGER.error("Failed to set Tado X hot water OFF: %s", e)
+            self.optimistic.clear_zone(zid)
+        self._schedule_queued_refresh()
+
     async def async_set_hot_water_heat(
         self, zone_id: int, temperature: float | None = None
     ) -> None:
         """Set hot water zone to heat mode (manual overlay)."""
+        if self._is_tadox_hot_water_zone(zone_id):
+            # Tado X hot water programmer only supports auto/off via Hops.
+            # Run through central validator for consistency (Hops path is different).
+            from .helpers.overlay_validator import validate_tadox_hot_water_boost_off
+
+            is_valid, error = validate_tadox_hot_water_boost_off()
+            if not is_valid:
+                _LOGGER.error("TadoX hot water heat validation failed: %s", error)
+            _LOGGER.warning("Hot water 'heat' mode is not supported on Tado X")
+            return
+
         state = self.data.zone_states.get(str(zone_id))
         temp = temperature or TEMP_DEFAULT_HOT_WATER
 
@@ -1182,12 +1313,17 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             self._schedule_queued_refresh()
 
     def supports_temperature(self, zone_id: int) -> bool:
-        """Check if a zone supports temperature control in overlays.
+        """Check if a zone supports temperature control in overlays."""
+        if (
+            self.generation == GEN_X and zone_id == TADOX_VIRTUAL_HOT_WATER_ZONE_ID
+        ) or (
+            self.dummy_handler
+            and self.dummy_handler.is_tadox_hot_water_test_dummy(zone_id)
+        ):
+            # Tado X hot water programmer has no temperature control
+            # (also for the dedicated TadoX test dummy)
+            return False
 
-        Uses capabilities as source of truth. For HOT_WATER zones, we check
-        if capabilities.temperatures exists. If the API later rejects with 422,
-        that's a real error that should be logged.
-        """
         zone = self.zones_meta.get(zone_id)
         ztype = get_zone_type(zone)
 
