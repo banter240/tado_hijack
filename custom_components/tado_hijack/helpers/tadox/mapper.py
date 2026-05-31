@@ -24,6 +24,8 @@ class TadoXMapper:
         """Initialize the Tado X mapper."""
         self.bridge = bridge
         self._last_presence: str = "HOME"
+        # None = not yet probed; True = installed; False = not installed (skip future polls)
+        self._hot_water_available: bool | None = None
 
     async def async_fetch_unified_data(self) -> UnifiedTadoData:
         """Fetch all relevant Tado X data and return a UnifiedTadoData container."""
@@ -86,14 +88,24 @@ class TadoXMapper:
         return unified_data
 
     async def _fetch_hot_water_state_safe(self) -> TadoXHotWaterState | None:
-        """Fetch hot water state, returning None if not installed or on error."""
-        try:
-            return await self.bridge.async_get_hot_water_state()
-        except Exception as e:
-            _LOGGER.debug(
-                "Tado X hot water state fetch failed (may not be installed): %s", e
-            )
+        """Fetch hot water state, caching 'not installed' to avoid repeated 404 polls."""
+        if self._hot_water_available is False:
             return None
+
+        try:
+            result = await self.bridge.async_get_hot_water_state()
+        except Exception as e:
+            _LOGGER.debug("Tado X hot water state fetch failed (transient): %s", e)
+            return None  # Transient error — don't cache, retry next poll
+
+        if result is None:
+            if self._hot_water_available is None:
+                _LOGGER.debug("Tado X hot water programmer not detected (no hardware)")
+                self._hot_water_available = False
+            return None
+
+        self._hot_water_available = True
+        return result
 
     async def async_fetch_zones(self) -> dict[str, Any]:
         """Fetch Tado X room states (fast poll)."""

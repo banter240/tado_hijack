@@ -233,12 +233,15 @@ class TadoXApi:
         return await self._request("POST", "quickActions/allOff")
 
     async def async_get_hot_water_state(self) -> TadoXHotWaterState | None:
-        """Fetch current hot water programmer state. Returns None if not installed (404)."""
-        try:
-            data = await self._request("GET", "programmer/domesticHotWater/state")
-            return cast(TadoXHotWaterState, TadoXHotWaterState.model_validate(data))
-        except Exception:
-            return None
+        """Fetch current hot water programmer state.
+
+        Returns None when the endpoint returns an empty response (404 = not installed).
+        Raises on network or unexpected errors so callers can distinguish transient failures.
+        """
+        data = await self._request("GET", "programmer/domesticHotWater/state")
+        if not data:
+            return None  # 404 → _request returns {} → not installed
+        return cast(TadoXHotWaterState, TadoXHotWaterState.model_validate(data))
 
     async def async_resume_hot_water_schedule(self) -> Any:
         """Resume hot water schedule (clear boost override)."""
