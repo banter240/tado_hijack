@@ -103,7 +103,7 @@ It is designed to work **alongside** your local HomeKit (v3) or Matter (Tado X) 
 > - **Other integrations:** Support Tado X only via **full cloud** (no local control, 100% API dependent)
 > - **Tado Hijack:** Uses **Matter** for local temperature control + cloud API for advanced features (Schedules, QuickActions, etc.)
 >
-> We support **BOTH** Tado v3 Classic (HomeKit) **AND** Tado X (Matter) through a unified architecture. Note: Some features are v3-specific (Hot Water, AC, Early Start) due to hardware limitations.
+> We support **BOTH** Tado v3 Classic (HomeKit) **AND** Tado X (Matter) through a unified architecture. Note: Some features are v3-specific (AC, Early Start) due to hardware limitations.
 
 <br>
 
@@ -118,7 +118,7 @@ It is designed to work **alongside** your local HomeKit (v3) or Matter (Tado X) 
 | Feature Category              | V2 (GW) | v3 Classic | Tado X | Notes                        |
 | :---------------------------- | :-----: | :--------: | :----: | :--------------------------- |
 | **Temperature Control**       | ☁️ |     ✅     |   ✅   | All: Cloud mode available / V3: HomeKit / X: Matter |
-| **Hot Water**                 | ✅ |     ✅     |   ❌   | Cloud API + water_heater entity |
+| **Hot Water**                 | ✅ |     ✅     |   ✅   | Cloud API + water_heater entity. Tado X supports only `auto` and `off` toggle (no setpoint) |
 | **AC Pro (Fan/Swing)**        | ✅ |     ✅     |   ❌   | Cloud API + climate entity   |
 | **QuickActions (Bulk)**       | ✅ |     ✅     |   ✅   | boost/off/resume = 1 call    |
 | **set_mode_all (Bulk)**       | ✅ |     ✅     |   ❌   | v3=1 call, X=N calls         |
@@ -203,7 +203,7 @@ While other integrations waste your precious API quota for every tiny interactio
 
 ### Cloud Features (Non-HomeKit)
 
-- **🚿 Professional Hot Water Platform:** Native `water_heater` entity with standardized `auto`, `heat`, and `off` modes. Full Pre-Validation ensures you never send invalid configurations.
+- **🚿 Professional Hot Water Platform:** Native `water_heater` entity for both v3 Classic and Tado X. v3: `auto`, `heat`, and `off` modes with full temperature control. Tado X: `auto` and `off` toggle (no setpoint). Full Pre-Validation ensures you never send invalid configurations.
 - **❄️ AC Pro Features:** Precise Fan Speed and Swing (Horizontal/Vertical) selection.
 - **📅 Schedule Transparency:** View the target temperature of your active Smart Schedule directly via the `auto_target_temperature` attribute while in `auto` mode (available for Heating, AC and Hot Water).
 - **🕵️‍♂️ Expert-Level Error Capturing:** Captures the actual response body from Tado\'s API (e.g. _"temperature must not be null"_), giving precise feedback for troubleshooting.
@@ -603,7 +603,7 @@ Cloud-only features that HomeKit does not support.
 | :---------------------------------- | :------------ | :---------------------------------------------------------------------------------------------- |
 | `switch.schedule`                   | Switch        | **ON** = Smart Schedule, **OFF** = Manual. Simple way to resume schedule. **Supports heating and AC zones** (v3). |
 | `climate.ac_{room}`                 | Climate       | **v3 AC Only:** Full HVAC mode control (`cool`, `heat`, `dry`, `fan`, `auto`) with native slider. |
-| `water_heater.hot_water`            | WaterHeater   | **v3 Only:** Modes: `auto` (schedule), `heat` (manual), `off`.                                 |
+| `water_heater.hot_water`            | WaterHeater   | **v3:** `auto`/`heat`/`off` with temperature. **Tado X:** `auto`/`off` only (no setpoint).      |
 | `binary_sensor.hot_water_power`     | Binary Sensor | **v3 Only:** Boiler heating status.                                                             |
 | `binary_sensor.hot_water_overlay`   | Binary Sensor | **v3 Only:** Manual override active status.                                                     |
 | `binary_sensor.hot_water_connectivity` | Binary Sensor | **v3 Only:** Zone connectivity based on device connections.                                  |
@@ -677,7 +677,7 @@ For advanced automation, use these services. All manual control services feature
 | `tado_hijack.resume_all_schedules`  | Restore Smart Schedule across all zones.                                                                                     | **1 call** (bulk)    | **1 call** (bulk)    |
 | `tado_hijack.set_mode`              | Set mode, temperature, and termination. Supports `hvac_mode` (auto, heat, off) and `overlay` (manual, next_block, presence). | **1 call** (batched) | **1 call** (batched) |
 | `tado_hijack.set_mode_all_zones`    | Targets all HEATING and/or AC zones at once using `hvac_mode`.                                                               | **1 call** (bulk)    | **N calls** (per zone) |
-| `tado_hijack.set_water_heater_mode` | Set `operation_mode` and temperature for hot water (v3 only).                                                                | **1 call**           | N/A (no HW zones)    |
+| `tado_hijack.set_water_heater_mode` | Set `operation_mode` for hot water. v3: `auto`/`heat`/`off` + temperature. Tado X: `auto`/`off` only.                       | **1 call**           | **1 call**           |
 | `tado_hijack.add_meter_reading`     | Upload a meter reading (integer) to Tado Energy IQ (v3 only).                                                                | **1 call**           | N/A (unsupported)    |
 | `tado_hijack.manual_poll`           | Force immediate data refresh. Use `refresh_type` to control scope. Add `entity_id` for a targeted single-entity fetch (saves quota). | **1-N** (depends)    | **1-N** (depends)    |
 
