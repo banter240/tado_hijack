@@ -8,12 +8,16 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 from ..const import (
     DEVICE_TYPE_RU01,
     DEVICE_TYPE_VA01,
+    DUMMY_ZONE_ID_AC,
+    DUMMY_ZONE_ID_HOT_WATER,
+    DUMMY_ZONE_ID_TADOX_HOT_WATER,
+    TADOX_VIRTUAL_HOT_WATER_ZONE_ID,
     ZONE_TYPE_AIR_CONDITIONING,
     ZONE_TYPE_HEATING,
     ZONE_TYPE_HOT_WATER,
 )
 from ..helpers.logging_utils import get_redacted_logger
-from .const import DUMMY_ZONE_ID_AC, DUMMY_ZONE_ID_HOT_WATER
+from ..lib.tadox_models import TadoXHotWaterState
 
 if TYPE_CHECKING:
     from ..coordinator import TadoDataUpdateCoordinator
@@ -42,7 +46,7 @@ class TadoDummyHandler:
 
     def _init_dummy_states(self) -> None:
         """Initialize internal dummy state objects."""
-        # 1. Hot Water Dummy
+        # 1. Classic v3 Hot Water Dummy (original test entity)
         self._states[DUMMY_ZONE_ID_HOT_WATER] = RobustNamespace(
             setting=RobustNamespace(
                 type=ZONE_TYPE_HOT_WATER,
@@ -51,7 +55,6 @@ class TadoDummyHandler:
             ),
             overlay=None,
             overlay_active=False,
-            # Classic HW doesn't have current_temperature at zone level, use RobustNamespace for safe access
             current_temperature=RobustNamespace(celsius=45.0, fahrenheit=113.0),
             sensor_data_points=RobustNamespace(
                 inside_temperature=RobustNamespace(celsius=45.0, fahrenheit=113.0)
@@ -68,7 +71,19 @@ class TadoDummyHandler:
             ),
         )
 
-        # 2. AC Dummy
+        # 2. Tado X Hot Water dummy (real Hops behavior, for testing)
+        self._states[TADOX_VIRTUAL_HOT_WATER_ZONE_ID] = TadoXHotWaterState(
+            state="SCHEDULE_ON",
+            nextStateChange="2026-02-01T06:00:00Z",
+        )
+
+        # 3. Dedicated Tado X Hot Water test dummy (separate ID from real 9001)
+        self._states[DUMMY_ZONE_ID_TADOX_HOT_WATER] = TadoXHotWaterState(
+            state="SCHEDULE_ON",
+            nextStateChange="2026-02-01T06:00:00Z",
+        )
+
+        # 3. AC Dummy
         self._states[DUMMY_ZONE_ID_AC] = RobustNamespace(
             setting=RobustNamespace(
                 type=ZONE_TYPE_AIR_CONDITIONING,
@@ -101,7 +116,29 @@ class TadoDummyHandler:
 
     def is_dummy_zone(self, zone_id: int) -> bool:
         """Check if a zone ID belongs to a dummy zone."""
-        return zone_id in (DUMMY_ZONE_ID_AC, DUMMY_ZONE_ID_HOT_WATER)
+        return zone_id in (
+            DUMMY_ZONE_ID_AC,
+            DUMMY_ZONE_ID_HOT_WATER,
+            DUMMY_ZONE_ID_TADOX_HOT_WATER,
+            TADOX_VIRTUAL_HOT_WATER_ZONE_ID,
+        )
+
+    def is_tadox_hot_water_dummy(self, zone_id: int) -> bool:
+        """Check if this is the Tado X hot water dummy (real hardware simulation)."""
+        return zone_id == TADOX_VIRTUAL_HOT_WATER_ZONE_ID
+
+    def is_tadox_style_hot_water(self, zone_id: int) -> bool:
+        """Check if the hot water at this zone_id uses Tado X style state (for dummy testing of TadoHotWaterX)."""
+        state = self._states.get(zone_id)
+        return bool(
+            state
+            and hasattr(state, "state")
+            and not hasattr(state, "current_temperature")
+        )
+
+    def is_tadox_hot_water_test_dummy(self, zone_id: int) -> bool:
+        """Dedicated test dummy for Tado X hot water behavior (separate from real 9001)."""
+        return zone_id == DUMMY_ZONE_ID_TADOX_HOT_WATER
 
     def split_zones(self, zone_ids: list[int]) -> tuple[list[int], list[int]]:
         """Split a list of zone IDs into real and dummy buckets."""
@@ -150,7 +187,7 @@ class TadoDummyHandler:
         capabilities: dict[int, Any],
     ) -> None:
         """Inject dummy zone metadata into real data."""
-        _LOGGER.debug("Injecting dummy zones (998=AC, 999=HW)")
+        _LOGGER.debug("Injecting dummy zones (998=AC, 999=HW, 9997=TadoX HW test)")
         # Inject Hot Water Zone
         zones[DUMMY_ZONE_ID_HOT_WATER] = self._create_hw_metadata()
         capabilities[DUMMY_ZONE_ID_HOT_WATER] = self._create_hw_capabilities()
@@ -231,6 +268,26 @@ class TadoDummyHandler:
 
         return True
 
+    # --- Tado X Hot Water Dummy (real hardware behavior) ---
+
+    def set_tadox_hot_water_off(self, zone_id: int | None = None) -> None:
+        """Simulate the Hops boost OFF for hot water (forced off)."""
+        zid = zone_id or TADOX_VIRTUAL_HOT_WATER_ZONE_ID
+        if current := self._states.get(zid):
+            self._states[zid] = TadoXHotWaterState(
+                state="BOOST_OFF",
+                nextStateChange=getattr(current, "next_state_change", None),
+            )
+
+    def set_tadox_hot_water_auto(self, zone_id: int | None = None) -> None:
+        """Simulate resuming the schedule (SCHEDULE_ON)."""
+        zid = zone_id or TADOX_VIRTUAL_HOT_WATER_ZONE_ID
+        if current := self._states.get(zid):
+            self._states[zid] = TadoXHotWaterState(
+                state="SCHEDULE_ON",
+                nextStateChange=getattr(current, "next_state_change", None),
+            )
+
     def get_away_configuration(self, zone_id: int) -> dict[str, Any]:
         """Return a mock away configuration."""
         return {
@@ -243,6 +300,9 @@ class TadoDummyHandler:
         """Return mock capabilities for a zone."""
         if zone_id == DUMMY_ZONE_ID_HOT_WATER:
             return self._create_hw_capabilities()
+        if zone_id == DUMMY_ZONE_ID_TADOX_HOT_WATER:
+            # Tado X hot water has no temperature control (like real Hops behavior)
+            return RobustNamespace(type=ZONE_TYPE_HOT_WATER, temperatures=None)
         return self._create_ac_capabilities() if zone_id == DUMMY_ZONE_ID_AC else None
 
     def _update_activity(self, zone_id: int, state: Any) -> None:
