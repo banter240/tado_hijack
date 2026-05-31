@@ -286,6 +286,18 @@ class TadoHotWaterX(TadoHotWater):
             return {"next_state_change": nsc}
         return {}
 
+    def _get_actual_value(self) -> str:
+        """Return actual operation mode, restricted to Tado X hot water modes (auto/off)."""
+        state = self.coordinator.data.zone_states.get(str(self._zone_id))
+        if state is None:
+            return OPERATION_MODE_AUTO
+        # Any active overlay on Tado X hot water means manually forced OFF
+        return (
+            OPERATION_MODE_OFF
+            if getattr(state, "overlay_active", False)
+            else OPERATION_MODE_AUTO
+        )
+
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Temperature control not supported for Tado X hot water."""
 
@@ -295,3 +307,9 @@ class TadoHotWaterX(TadoHotWater):
             await self.tado_coordinator.async_set_hot_water_off(self._zone_id)
         elif operation_mode == OPERATION_MODE_AUTO:
             await self.tado_coordinator.async_set_hot_water_auto(self._zone_id)
+        else:
+            _LOGGER.warning(
+                "Tado X hot water: unsupported operation mode '%s' (supported: %s)",
+                operation_mode,
+                OPERATION_MODES_TADOX,
+            )
