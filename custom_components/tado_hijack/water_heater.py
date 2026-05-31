@@ -18,11 +18,11 @@ from .const import (
     TEMP_STEP_HOT_WATER,
     ZONE_TYPE_HOT_WATER,
 )
-from .helpers.tadox.const import TADOX_HOT_WATER_ZONE_ID
 from .entity import TadoHotWaterZoneEntity, TadoOptimisticMixin, TadoStateMemoryMixin
 from .helpers.discovery import yield_zones
 from .helpers.logging_utils import get_redacted_logger
 from .helpers.parsers import parse_schedule_temperature
+from .helpers.tadox.const import TADOX_HOT_WATER_ZONE_ID
 
 if TYPE_CHECKING:
     from . import TadoConfigEntry

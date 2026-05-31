@@ -22,7 +22,11 @@ from aiohttp import ClientTimeout
 from ..helpers.logging_utils import get_redacted_logger
 from ..helpers.parsers import parse_ratelimit_headers
 from ..helpers.tadox.const import HOPS_BASE_URL
-from .tadox_models import HopsRoomsAndDevicesResponse, TadoXHotWaterState, TadoXZoneState
+from .tadox_models import (
+    HopsRoomsAndDevicesResponse,
+    TadoXHotWaterState,
+    TadoXZoneState,
+)
 
 if TYPE_CHECKING:
     from tadoasync import Tado
@@ -232,7 +236,7 @@ class TadoXApi:
         """Fetch current hot water programmer state. Returns None if not installed (404)."""
         try:
             data = await self._request("GET", "programmer/domesticHotWater/state")
-            return TadoXHotWaterState.model_validate(data)
+            return cast(TadoXHotWaterState, TadoXHotWaterState.model_validate(data))
         except Exception:
             return None
 
