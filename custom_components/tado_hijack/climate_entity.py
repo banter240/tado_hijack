@@ -553,6 +553,16 @@ class TadoAirConditioning(TadoClimateEntity):
                 )
                 additional_fields[api_key] = str(swing_value).upper()
 
+        # Build light setting when supported (carry over from current state)
+        if light_caps := getattr(fan_mode_caps, "light", None):
+            current = getattr(state.setting, "light", None) if state else None
+            if current and current in light_caps:
+                additional_fields["light"] = str(current).upper()
+            else:
+                additional_fields["light"] = (
+                    "OFF" if "OFF" in light_caps else str(light_caps[0]).upper()
+                )
+
         await self.tado_coordinator.async_set_zone_overlay(
             zone_id=self._zone_id,
             power=POWER_ON,
