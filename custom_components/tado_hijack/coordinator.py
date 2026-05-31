@@ -906,8 +906,8 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         """Resume hot water schedule for Tado X (direct Hops API call)."""
         from .helpers.tadox.const import TADOX_HOT_WATER_ZONE_ID
 
-        self.optimistic.set_zone(
-            TADOX_HOT_WATER_ZONE_ID, overlay=False, power="ON", grace_period=10.0
+        self.optimistic.apply_zone_state(
+            TADOX_HOT_WATER_ZONE_ID, overlay=False, grace_period=10.0
         )
         self.async_update_listeners()
         try:
@@ -921,7 +921,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         """Force Tado X hot water OFF (direct Hops API call)."""
         from .helpers.tadox.const import TADOX_HOT_WATER_ZONE_ID
 
-        self.optimistic.set_zone(
+        self.optimistic.apply_zone_state(
             TADOX_HOT_WATER_ZONE_ID, overlay=True, power="OFF", grace_period=10.0
         )
         self.async_update_listeners()
