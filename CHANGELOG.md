@@ -1,3 +1,22 @@
+## [5.7.0-dev.1](https://github.com/banter240/tado_hijack/compare/v5.6.1-dev.1...v5.7.0-dev.1) (2026-06-01)
+
+### ✨ New Features
+
+* feat(tadox): add Tado X hot water support (auto/off only via Hops) with central guards
+
+Adds support for the domesticHotWater programmer on Tado X devices using the Hops endpoints (resumeSchedule + boost for forced off).
+
+- Hot water exposed as virtual zone with reserved high ID (9001)
+- TadoHotWaterX entity limited to auto/off (no temperature control)
+- Safe fetching with 404 caching
+- Dedicated coordinator paths with optimistic updates
+- All set hot water operations correctly detect and route TadoX (9001 + test dummy 9997)
+- Central redundancy_checker for hot water (v3 + TadoX through same guards)
+- Central overlay_validator for TadoX hot water Hops calls
+- _is_tadox_hot_water_zone helper for consistent routing
+
+Hops programmer paths are fundamentally different from v3 overlays, so all operations go through the dedicated endpoints and central guard infrastructure.
+
 ## [5.6.1-dev.1](https://github.com/banter240/tado_hijack/compare/v5.6.0...v5.6.1-dev.1) (2026-05-31)
 
 ### 🐛 Bug Fixes
