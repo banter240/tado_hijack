@@ -181,5 +181,5 @@ GEMINI.md
 testing_config/
 
 # AI Workspace (Vibe/Claude/Gemini)
-dev/
-local/
+dev
+local

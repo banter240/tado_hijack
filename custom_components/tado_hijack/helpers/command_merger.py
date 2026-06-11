@@ -23,6 +23,7 @@ class CommandMerger:
         self.dazzle_modes: dict[int, bool] = {}
         self.early_starts: dict[int, bool] = {}
         self.open_windows: dict[int, Any] = {}
+        self.timetables: dict[int, int] = {}  # zone_id -> timetable_id
         self.identifies: set[str] = set()
         self.presence: str | None = None
         self.old_presence: str | None = None
@@ -46,6 +47,7 @@ class CommandMerger:
             CommandType.SET_DAZZLE: self._merge_dazzle,
             CommandType.SET_EARLY_START: self._merge_early_start,
             CommandType.SET_OPEN_WINDOW: self._merge_open_window,
+            CommandType.SET_TIMETABLE: self._merge_timetable,
             CommandType.IDENTIFY: self._merge_identify,
             CommandType.SET_PRESENCE: self._merge_presence,
             CommandType.RESUME_SCHEDULE: self._merge_resume,
@@ -60,61 +62,80 @@ class CommandMerger:
         elif self.manual_poll != new_type:
             self.manual_poll = "all"
 
+    def _merge_keyed(
+        self,
+        cmd: TadoCommand,
+        key_field: str,
+        value_field: str,
+        target: dict[Any, Any],
+        rollback: dict[Any, Any],
+        converter: Any = None,
+        store_full_data: bool = False,
+    ) -> None:
+        if not (cmd.data and key_field in cmd.data and value_field in cmd.data):
+            return
+        key = cmd.data[key_field]
+        key = int(key) if key_field == "zone_id" else key
+        raw = cmd.data[value_field]
+        target[key] = (
+            cmd.data if store_full_data else (converter(raw) if converter else raw)
+        )
+        if cmd.rollback_context is not None and key not in rollback:
+            rollback[key] = cmd.rollback_context
+
     def _merge_child_lock(self, cmd: TadoCommand) -> None:
-        if cmd.data and "serial" in cmd.data and "enabled" in cmd.data:
-            serial = cmd.data["serial"]
-            self.child_locks[serial] = bool(cmd.data["enabled"])
-            if (
-                cmd.rollback_context is not None
-                and serial not in self.rollback_child_locks
-            ):
-                self.rollback_child_locks[serial] = cmd.rollback_context
+        self._merge_keyed(
+            cmd, "serial", "enabled", self.child_locks, self.rollback_child_locks, bool
+        )
 
     def _merge_offset(self, cmd: TadoCommand) -> None:
-        if cmd.data and "serial" in cmd.data and "offset" in cmd.data:
-            serial = cmd.data["serial"]
-            self.offsets[serial] = float(cmd.data["offset"])
-            if cmd.rollback_context is not None and serial not in self.rollback_offsets:
-                self.rollback_offsets[serial] = cmd.rollback_context
+        self._merge_keyed(
+            cmd, "serial", "offset", self.offsets, self.rollback_offsets, float
+        )
 
     def _merge_away_temp(self, cmd: TadoCommand) -> None:
-        if cmd.data and "zone_id" in cmd.data and "temp" in cmd.data:
-            zid = int(cmd.data["zone_id"])
-            raw = cmd.data["temp"]
-            self.away_temps[zid] = float(raw) if raw is not None else None
-            if cmd.rollback_context is not None and zid not in self.rollback_away_temps:
-                self.rollback_away_temps[zid] = cmd.rollback_context
+        if not (cmd.data and "zone_id" in cmd.data and "temp" in cmd.data):
+            return
+        zid = int(cmd.data["zone_id"])
+        raw = cmd.data["temp"]
+        self.away_temps[zid] = float(raw) if raw is not None else None
+        if cmd.rollback_context is not None and zid not in self.rollback_away_temps:
+            self.rollback_away_temps[zid] = cmd.rollback_context
 
     def _merge_dazzle(self, cmd: TadoCommand) -> None:
-        if cmd.data and "zone_id" in cmd.data and "enabled" in cmd.data:
-            zid = int(cmd.data["zone_id"])
-            self.dazzle_modes[zid] = bool(cmd.data["enabled"])
-            if (
-                cmd.rollback_context is not None
-                and zid not in self.rollback_dazzle_modes
-            ):
-                self.rollback_dazzle_modes[zid] = cmd.rollback_context
+        self._merge_keyed(
+            cmd,
+            "zone_id",
+            "enabled",
+            self.dazzle_modes,
+            self.rollback_dazzle_modes,
+            bool,
+        )
 
     def _merge_early_start(self, cmd: TadoCommand) -> None:
-        if cmd.data and "zone_id" in cmd.data and "enabled" in cmd.data:
-            zid = int(cmd.data["zone_id"])
-            self.early_starts[zid] = bool(cmd.data["enabled"])
-            if (
-                cmd.rollback_context is not None
-                and zid not in self.rollback_early_starts
-            ):
-                self.rollback_early_starts[zid] = cmd.rollback_context
+        self._merge_keyed(
+            cmd,
+            "zone_id",
+            "enabled",
+            self.early_starts,
+            self.rollback_early_starts,
+            bool,
+        )
 
     def _merge_open_window(self, cmd: TadoCommand) -> None:
-        if cmd.data and "zone_id" in cmd.data and "enabled" in cmd.data:
-            zid = int(cmd.data["zone_id"])
-            # Store the full data packet to preserve timeout_seconds
-            self.open_windows[zid] = cmd.data
-            if (
-                cmd.rollback_context is not None
-                and zid not in self.rollback_open_windows
-            ):
-                self.rollback_open_windows[zid] = cmd.rollback_context
+        self._merge_keyed(
+            cmd,
+            "zone_id",
+            "enabled",
+            self.open_windows,
+            self.rollback_open_windows,
+            store_full_data=True,
+        )
+
+    def _merge_timetable(self, cmd: TadoCommand) -> None:
+        """Merge timetable command — last write wins per zone."""
+        if cmd.data and "zone_id" in cmd.data and "timetable_id" in cmd.data:
+            self.timetables[int(cmd.data["zone_id"])] = int(cmd.data["timetable_id"])
 
     def _merge_identify(self, cmd: TadoCommand) -> None:
         if cmd.data and "serial" in cmd.data:
@@ -178,6 +199,7 @@ class CommandMerger:
             "dazzle_modes": self.dazzle_modes,
             "early_starts": self.early_starts,
             "open_windows": self.open_windows,
+            "timetables": self.timetables,
             "identifies": self.identifies,
             "presence": self.presence,
             "old_presence": self.old_presence,

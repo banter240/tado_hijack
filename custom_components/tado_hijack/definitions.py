@@ -70,6 +70,7 @@ from .const import (
     TEMP_MAX_HOT_WATER_OVERRIDE,
     TEMP_MIN_AC,
     TEMP_MIN_HOT_WATER,
+    ZONE_MODE_MIXED,
     ZONE_TYPE_AIR_CONDITIONING,
     ZONE_TYPE_HEATING,
     ZONE_TYPE_HOT_WATER,
@@ -759,6 +760,7 @@ def create_home_button(
     entity_category: EntityCategory | None = None,
     translation_key: str | None = None,
     unique_id_suffix: str | None = None,
+    is_supported_fn: Any | None = None,
 ) -> TadoEntityDefinition:
     """Create a button for the Tado Home."""
     return _create_definition(
@@ -771,6 +773,7 @@ def create_home_button(
         entity_category=entity_category,
         translation_key=translation_key,
         unique_id_suffix=unique_id_suffix,
+        is_supported_fn=is_supported_fn,
     )
 
 
@@ -834,6 +837,7 @@ def create_home_select(
     icon: str | None = None,
     entity_category: EntityCategory | None = None,
     unique_id_suffix: str | None = None,
+    is_supported_fn: Any | None = None,
 ) -> TadoEntityDefinition:
     """Create a select entity for the Tado Home."""
     return _create_definition(
@@ -846,6 +850,7 @@ def create_home_select(
         icon=icon,
         entity_category=entity_category,
         unique_id_suffix=unique_id_suffix,
+        is_supported_fn=is_supported_fn,
     )
 
 
@@ -910,11 +915,44 @@ def create_zone_sensor(
     )
 
 
+def _parse_home_zone_mode(c: Any) -> str | None:
+    """Return the combined zone mode across all heating/AC zones."""
+    zone_states = c.data.zone_states
+    if not zone_states:
+        return None
+
+    parse_fn = (
+        tadox_parsers.parse_zone_mode
+        if c.generation == GEN_X
+        else v3_parsers.parse_zone_mode
+    )
+
+    relevant_ids = [
+        zid
+        for zid, zmeta in c.zones_meta.items()
+        if getattr(zmeta, "type", ZONE_TYPE_HEATING)
+        in {ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING}
+    ]
+    if not relevant_ids:
+        return None
+
+    if modes := {parse_fn(zone_states.get(str(zid))) for zid in relevant_ids} - {None}:
+        return next(iter(modes)) if len(modes) == 1 else ZONE_MODE_MIXED
+    else:
+        return None
+
+
 ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     create_diagnostic_sensor(
         key="api_status",
         value_fn=lambda c: str(c.data.api_status),
         device_class=SensorDeviceClass.ENUM,
+    ),
+    create_home_sensor(
+        key="home_mode",
+        value_fn=_parse_home_zone_mode,
+        device_class=SensorDeviceClass.ENUM,
+        icon="mdi:home-thermometer",
     ),
     create_diagnostic_sensor(
         key="tado_generation",
@@ -1153,6 +1191,28 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         unit="%",
         state_class=SensorStateClass.MEASUREMENT,
         unique_id_suffix="pwr",
+    ),
+    create_zone_sensor(
+        key="zone_mode",
+        supported_generations={GEN_CLASSIC},
+        value_fn=lambda c, zid: v3_parsers.parse_zone_mode(
+            c.data.zone_states.get(str(zid))
+        ),
+        device_class=SensorDeviceClass.ENUM,
+        icon="mdi:thermostat",
+        supported_zone_types={ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING},
+        unique_id_suffix="mode",
+    ),
+    create_zone_sensor(
+        key="zone_mode",
+        supported_generations={GEN_X},
+        value_fn=lambda c, zid: tadox_parsers.parse_zone_mode(
+            c.data.zone_states.get(str(zid))
+        ),
+        device_class=SensorDeviceClass.ENUM,
+        icon="mdi:thermostat",
+        supported_zone_types={ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING},
+        unique_id_suffix="mode",
     ),
     create_zone_sensor(
         key="humidity",
@@ -1838,5 +1898,52 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         ),
         optimistic_key="horizontal_swing",
         supported_generations={GEN_CLASSIC},
+    ),
+    create_home_select(
+        key="timetable_type_all_zones",
+        value_fn=lambda c: (
+            next(iter(c.data_manager.timetable_cache.values()), {}).get("type", "ONE_DAY").lower()
+            if c.data_manager.timetable_cache
+            else "one_day"
+        ),
+        options=["one_day", "three_day", "seven_day"],
+        select_option_fn=lambda c, val: c.async_set_timetable_all_zones(val.upper()),
+        icon="mdi:calendar-week",
+        entity_category=EntityCategory.CONFIG,
+        unique_id_suffix="timetable_type_all",
+        is_supported_fn=lambda c: c.generation == GEN_CLASSIC,
+    ),
+    create_home_button(
+        key="refresh_all_timetables",
+        press_fn=lambda c: c.async_refresh_all_timetables(),
+        icon="mdi:calendar-refresh",
+        entity_category=EntityCategory.CONFIG,
+        is_supported_fn=lambda c: c.generation == GEN_CLASSIC,
+    ),
+    create_zone_select(
+        key="timetable_type",
+        value_fn=lambda c, zid: (
+            c.data_manager.timetable_cache.get(zid, {}).get("type", "ONE_DAY").lower()
+            if hasattr(c, "timetable_cache")
+            else None
+        ),
+        options_fn=lambda c, zid: ["one_day", "three_day", "seven_day"],
+        select_option_fn=lambda c, zid, val: c.async_set_timetable(
+            zid, val.upper()
+        ),
+        icon="mdi:calendar-week",
+        entity_category=EntityCategory.CONFIG,
+        supported_zone_types={ZONE_TYPE_HEATING, ZONE_TYPE_HOT_WATER},
+        supported_generations={GEN_CLASSIC},
+        unique_id_suffix="timetable_type",
+    ),
+    create_zone_button(
+        key="refresh_timetable",
+        press_fn=lambda c, zid: c.async_refresh_timetable(zid),
+        icon="mdi:calendar-refresh",
+        entity_category=EntityCategory.CONFIG,
+        supported_zone_types={ZONE_TYPE_HEATING, ZONE_TYPE_HOT_WATER},
+        supported_generations={GEN_CLASSIC},
+        unique_id_suffix="refresh_timetable",
     ),
 ]

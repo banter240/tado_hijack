@@ -185,16 +185,29 @@ class TadoXExecutor(TadoExecutorBase):
                 # Manual Control - rebuild overlay from merged data
                 setting = data.get("setting", {})
 
-                # Support both v3 format (celsius) and Tado X format (value)
                 temp_dict = setting.get("temperature", {})
-                temp = temp_dict.get("value") or temp_dict.get("celsius")
+                temp = temp_dict.get("celsius")
 
                 # Magic number mapping: temp=-1 → power=OFF (last call wins)
                 temp, power = map_magic_temp_to_power(temp)
 
+                termination = data.get("termination", {})
+                termination_type = (
+                    termination.get("typeSkillBasedApp")
+                    or termination.get("type")
+                    or "MANUAL"
+                )
+                duration_seconds = termination.get("durationInSeconds")
+
                 await self._safe_execute(
                     f"overlay_{zone_id}",
-                    self.bridge.async_set_manual_control(zone_id, temp, power=power),
+                    self.bridge.async_set_manual_control(
+                        zone_id,
+                        temp,
+                        power=power,
+                        termination_type=termination_type,
+                        duration_seconds=duration_seconds,
+                    ),
                     rollback_fn=self._create_zones_rollback([zone_id], rollback_zones),
                     success_fn=lambda zid=zone_id, pwr=power, t=temp: (
                         self.coordinator.optimistic.apply_zone_state(

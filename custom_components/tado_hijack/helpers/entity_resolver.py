@@ -110,16 +110,16 @@ class EntityResolver:
             if len(parts) >= 3:  # noqa: PLR2004
                 serial_no = parts[-1]
 
-                for zone in self.coordinator.zones_meta.values():
+                for zone_id, zone in self.coordinator.zones_meta.items():
                     for device in zone.devices:
                         if device.serial_no == serial_no:
                             _LOGGER.debug(
                                 "Resolved device %s to zone %d via serial %s",
                                 unique_id,
-                                zone.id,
+                                zone_id,
                                 serial_no,
                             )
-                            return zone.id
+                            return zone_id
         except (ValueError, IndexError, AttributeError):
             pass
         return None

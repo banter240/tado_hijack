@@ -1,3 +1,183 @@
+## [5.5.0-dev.5](https://github.com/banter240/tado_hijack/compare/v5.5.0-dev.4...v5.5.0-dev.5) (2026-05-15)
+
+### 🐛 Bug Fixes
+
+* fix(device-linker): guard against non-string manufacturer in device registry
+
+- add _is_tado_device() helper that checks isinstance before .lower(),
+  centralising the Tado manufacturer check (DRY)
+- use _is_tado_device() in _build_device_cache() and get_climate_entity_id()
+  replacing the bare device.manufacturer.lower() calls that raised
+  AttributeError when HA stores manufacturer as int
+- fix .gitignore to match dev/local as symlinks (trailing slash only
+  matches real directories)
+
+## [5.5.0-dev.4](https://github.com/banter240/tado_hijack/compare/v5.5.0-dev.3...v5.5.0-dev.4) (2026-05-13)
+
+### 🐛 Bug Fixes
+
+* fix(ac): add light field to AC power-on overlay payloads
+
+- extract _build_ac_fan_fields, _build_ac_swing_fields and
+  _build_ac_light_fields from _ensure_ac_setting_fields to
+  reduce function complexity and satisfy Sourcery quality check
+
+- _build_ac_light_fields: include light field when the mode
+  capability exposes it; defaults to "OFF" if present in the
+  allowed values, otherwise first listed value
+
+Resolves 422 errors for AC zones whose capabilities require a
+light field in the overlay setting (e.g. "light not in supported
+light [OFF, ON]").
+
+## [5.5.0-dev.3](https://github.com/banter240/tado_hijack/compare/v5.5.0-dev.2...v5.5.0-dev.3) (2026-04-30)
+
+### 🐛 Bug Fixes
+
+* fix(ac): populate mode, fanSpeed and swing for AC power-on overlays
+
+- add _ensure_ac_setting_fields coordinator helper: fetches cached
+  capabilities and auto-populates fanSpeed/Level and swing fields
+  when additional_setting_fields is not explicitly provided; called
+  from async_set_zone_overlay and per-zone from async_set_multiple_zone_overlays
+
+- fix _execute_set_mode in services.py: map operation_mode to ac_mode
+  (HEAT/COOL/DRY/FAN) and forward to async_set_multiple_zone_overlays;
+  mode field was never set for this service path
+
+- single-toggle swing fallback: use current state, last-seen cache,
+  then "OFF" (tadoasync does not expose swings in mode capabilities)
+
+Resolves 422 errors for AC zones in standby that were missing mode,
+fanSpeed and swing fields in overlay payloads.
+
+## [5.5.0-dev.2](https://github.com/banter240/tado_hijack/compare/v5.5.0-dev.1...v5.5.0-dev.2) (2026-04-21)
+
+### 🐛 Bug Fixes
+
+* fix(quota): prevent reset-poll runaway loop and sync timer on detected reset
+
+Replace max(1s, delay) in schedule_reset_poll with an explicit 24h fallback
+when delay is invalid, preventing a tight API-quota-burning loop on stale
+initial_target. Reschedule the reset poll immediately when a quota reset is
+detected via regular polling so the timer stays in sync without waiting for
+the next scheduled fire. Also refactor zone overlay/resume redundancy checks
+into dedicated helpers for clarity.
+
+## [5.5.0-dev.1](https://github.com/banter240/tado_hijack/compare/v5.4.1-dev.2...v5.5.0-dev.1) (2026-04-17)
+
+### ✨ New Features
+
+* feat(sensors): add zone_mode and home_mode sensors (#86)
+
+Adds per-zone operating mode sensor (schedule/off/boost/manual) for
+both Tado Classic and Tado X generations, and a home-level aggregate
+sensor that returns "mixed" when zones are in different modes.
+
+No additional API calls - reads from already-fetched zone_states.
+Boost detection for Classic uses the existing 25°C temperature heuristic
+consistent with action_provider.py.
+
+Co-authored-by: laurensdehoorne <laurensdehoorne@users.noreply.github.com>
+
+
+### 🐛 Bug Fixes
+
+* fix(diagnostics): increase serial number redaction suffix to 5 chars
+
+Prevents false duplicate-device appearance in diagnostics output when
+two serials both end in the same 4 digits (e.g. both ending in "1234").
+
+* fix(tadox): resolve device-to-zone mapping and pass termination to manual control (#89)
+
+Fix _resolve_device_to_zone() using zone.id which doesn't exist on
+HopsRoomSnapshot (Tado X zones use room_id). Iterate zones_meta.items()
+and use the dict key as zone_id instead.
+
+Fix TadoXExecutor ignoring the termination dict from the merged overlay
+data. Extract termination_type and duration_seconds and pass them to
+async_set_manual_control so TIMER overlays created via set_mode duration
+parameter actually expire as intended.
+
+## [5.4.1-dev.2](https://github.com/banter240/tado_hijack/compare/v5.4.1-dev.1...v5.4.1-dev.2) (2026-04-14)
+
+### 🐛 Bug Fixes
+
+* fix: fix quota overconsumption, redundancy filter regression, and DE translations
+
+Quota (fix):
+- get_next_reset_time() anchored on now.replace(hour, minute) instead of
+  last_history_entry + 1 day, collapsing adaptive interval to 20s minimum
+  after every observed reset
+- get_initial_target() cached a stale past timestamp and never refreshed,
+  driving seconds_until_reset negative for all generations
+- TadoX rate limit counter stayed frozen because hops.tado.com calls never
+  went through the V3 handler; TadoXApi now captures ratelimit headers and
+  exposes them via rate_limit_data. UnifiedDataProvider gains
+  get_rate_limit_source() so the coordinator stays generation-agnostic
+
+Redundancy (fix):
+- _filter_presence and _filter_simple_attributes compared against the
+  optimistic already-patched state, silently dropping every command when
+  suppress_redundant_calls was enabled
+- Debounce replacements overwrote the rollback reference with the optimistic
+  intermediate state; preserve_rollback_state() now carries the original
+  confirmed API state forward through replacements
+- RESUME_SCHEDULE commands for zones already in schedule are now filtered
+  when suppress_redundant_buttons is enabled
+
+Redundancy (refactor):
+- Extract _merge_keyed() in CommandMerger replacing 5 identical merge methods
+- Replace 6x _filter_simple_attributes() calls with a config loop
+- Add _suppress_calls/_suppress_buttons properties on TadoApiManager
+
+i18n: fix raw key names shown as labels in Auto API Quota config section
+
+## [5.4.1-dev.1](https://github.com/banter240/tado_hijack/compare/v5.4.0...v5.4.1-dev.1) (2026-04-11)
+
+### 🐛 Bug Fixes
+
+* fix(quota): fix DST-driven reset prediction drift and CET->UTC migration
+
+Root cause: quota reset history was stored in Europe/Berlin local time.
+After CET->CEST, the learned reset hour shifted by 1h in UTC (e.g.
+12:30 Berlin stored as 13:30 CEST = 11:30 UTC instead of 12:30 UTC),
+causing the integration to enter quota-conservation mode ~30 min early.
+
+reset_window_tracker.py:
+- record_reset: normalize history in UTC instead of Berlin tz
+- _update_learned_window: compute recent list once; detect pattern break
+  (two newest entries disagree on UTC hour) and reset to 1 entry so the
+  tracker re-learns cleanly; remove redundant same_hour_resets filter
+- _default_utc_window: new helper to convert Berlin-local defaults to
+  UTC respecting the current DST offset - single source of truth
+- get_expected_window: use _default_utc_window so "default" confidence
+  also returns correct UTC values, not Berlin-local hour as UTC
+- get_next_reset_time: use _learned_window directly (learned and
+  single_observation) so the proactive poll is never scheduled from the
+  Berlin-local default hour treated as UTC; fall back to _default_utc_window
+- ResetWindow.__str__: convert UTC hour to Berlin local for display
+- to_dict: add data_version=2, drop serialized learned_window
+- load_dict: remove inline migration (handled by config entry v10);
+  fix duplicate initial_target parse; always re-derive learned_window
+- DATA_VERSION = 2 class constant for versioned storage migration
+
+quota_math.py:
+- is_in_reset_safe_window: compare UTC hours instead of Berlin hours;
+  when no explicit hour given, derive expected UTC hour from the
+  Berlin-local default respecting the current DST offset
+
+coordinator.py:
+- async_setup: reschedule reset poll after loading stored tracker so
+  the proactive poll fires at the correct learned time after a restart
+  (previously scheduled in __init__ with an empty tracker)
+
+migration.py / __init__.py / config_flow.py:
+- _v10 (async): one-time migration of stored reset_tracker history from
+  Berlin tz to UTC for existing users
+- async_migrate_entry: await coroutine migration steps
+- config entry VERSION bumped 9 -> 10
+
 ## [5.4.0](https://github.com/banter240/tado_hijack/compare/v5.3.0...v5.4.0) (2026-04-07)
 
 ### ✨ New Features

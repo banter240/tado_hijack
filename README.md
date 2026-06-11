@@ -437,7 +437,7 @@ Tado Hijack is now an **official HACS integration**! No custom repository needed
 | **Debounce Time**                  | `5s`      | **Batching Window:** Fuses actions into single calls.                                                                                                                                                                                                      |
 | **Refresh After Resume**           | `On`      | Auto-refresh target temperature/state after resume schedule (HVAC AUTO). Required because schedules are Tado cloud-side. Uses 1s grace period to merge multiple resumes. Costs 1 API call.                                                                 |
 | **Throttle Threshold**             | `20`      | **External Protection Buffer:** Reserve N calls for everything outside of Hijack's periodic background polling (External Automations, Scripts, Manual App use). Polling stops when remaining quota hits this floor to ensure your automations never stall. |
-| **Quota Safety Reserve**           | `2`       | **Reset Window Bridge:** API calls reserved from quota percentage for the reset window (12:00-13:00 Berlin). Distributed evenly during the window to bridge uncertainty when reset time varies (e.g., 12:05 vs 12:30). Set to 0 to disable (not recommended). |
+| **Quota Safety Reserve**           | `2`       | **Reset Window Bridge:** API calls reserved from quota percentage for the ±1h window around the expected reset time. Distributed evenly during the window to bridge uncertainty when reset time varies (e.g., 11:05 vs 11:30 UTC). Set to 0 to disable (not recommended). |
 | **Disable Polling When Throttled** | `Off`     | Stop periodic polling entirely when throttled.                                                                                                                                                                                                             |
 | **API Proxy URL**                  | `None`    | **Advanced:** URL of local `tado-api-proxy` workaround.                                                                                                                                                                                                    |
 | **API Proxy Token**                | `None`    | **Security:** Authentication token for your proxy. Injected into the path (`/token/api/v2`).                                                                                                                                                               |
@@ -543,6 +543,7 @@ Global controls and elite transparency for your home. _Linked to your Internet B
 | `sensor.tado_{home}_api_limit`             | Sensor | Total daily API quota limit (1000 standard, 3000 with proxy).     |
 | `sensor.tado_{home}_api_remaining`         | Sensor | **API Gold:** Your remaining daily call budget.                   |
 | `sensor.tado_{home}_api_status`            | Sensor | Real-time health (`connected`, `throttled`, `rate_limited`).      |
+| `sensor.tado_{home}_home_mode`             | Sensor | Aggregate zone mode across all heating/AC zones: `schedule`, `manual`, `boost`, `off`, or `mixed` (zones differ). Useful for automations — e.g. trigger "resume schedule" when `mixed`. |
 
 <br>
 
@@ -557,7 +558,7 @@ Advanced monitoring sensors available under the Internet Bridge device diagnosti
 **Quota Reset Learning (NEW in v5.0):**
 - `sensor.quota_reset_last` - Last observed reset timestamp
 - `sensor.quota_reset_next` - Predicted next reset (learned pattern)
-- `sensor.quota_reset_expected_window` - Learned reset window (e.g., "12:15-12:45")
+- `sensor.quota_reset_expected_window` - Learned reset window in local time (e.g., "13:30 (learned)")
 - `sensor.quota_reset_pattern_confidence` - Pattern confidence (low/medium/high/confirmed)
 - `sensor.quota_reset_history_count` - Number of observed resets
 
@@ -615,6 +616,7 @@ Cloud-only features that HomeKit does not support.
 | `select.fan_speed`                  | Select        | **v3 AC Only:** Full fan speed control.                                                         |
 | `select.vertical_swing`             | Select        | **v3 AC Only:** Vertical swing control (ON/OFF or position modes).                              |
 | `select.horizontal_swing`           | Select        | **v3 AC Only:** Horizontal swing control (ON/OFF or position modes).                            |
+| `sensor.zone_mode`                  | Sensor        | **Mode:** Current operating mode: `schedule`, `manual`, `boost`, `off`. Classic: boost detected via 25°C setpoint. Tado X: native boost field. Heating and AC zones only. |
 | `sensor.heating_power`              | Sensor        | **Insight:** Valve opening % or Boiler Load %.                                                  |
 | `sensor.humidity`                   | Sensor        | Zone humidity (faster than HomeKit).                                                            |
 | `sensor.dew_point`                  | Sensor        | **Climate:** Dew point temperature (°C) via Magnus formula. Sources: linked `zone_temp_source` → zone state (v3) → unavailable (Tado X). Enabled via _Dew Point Sensor_ feature flag. |

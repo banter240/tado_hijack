@@ -7,10 +7,13 @@ Entities use Duck Typing to access attributes, allowing for a seamless hybrid mo
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from ..const import GEN_CLASSIC
 from ..models import RateLimit
+
+if TYPE_CHECKING:
+    from .rate_limit_manager import RateLimitSource
 
 
 @runtime_checkable
@@ -68,6 +71,10 @@ class UnifiedDataProvider(Protocol):
 
     async def async_fetch_away_config(self, zone_id: int) -> float | None:
         """Fetch away configuration for a zone (v3 only)."""
+        ...
+
+    def get_rate_limit_source(self) -> RateLimitSource:
+        """Return the rate limit data source for this generation's API."""
         ...
 
 

@@ -117,7 +117,7 @@ MAX_API_QUOTA: Final = 5000  # Default Tado daily limit
 # Timing & Logic
 SECONDS_PER_HOUR: Final = 3600
 SECONDS_PER_DAY: Final = 86400
-API_RESET_MIDPOINT_MINUTE: Final = 30  # Midpoint of 12:00-13:00 reset window
+API_RESET_MIDPOINT_MINUTE: Final = 30  # Normalized minute stored in UTC reset history
 RATELIMIT_SMOOTHING_ALPHA: Final = 0.3  # Exponential moving average factor
 OPTIMISTIC_GRACE_PERIOD_S: Final = 30
 PROTECTION_MODE_TEMP: Final = 5.0  # Minimum safe temperature for manual override
@@ -139,6 +139,13 @@ SLOW_POLL_CYCLE_S: Final = 86400  # 24 Hours in seconds
 ZONE_TYPE_HEATING: Final = "HEATING"
 ZONE_TYPE_HOT_WATER: Final = "HOT_WATER"
 ZONE_TYPE_AIR_CONDITIONING: Final = "AIR_CONDITIONING"
+
+# Zone Mode States
+ZONE_MODE_SCHEDULE: Final = "schedule"
+ZONE_MODE_OFF: Final = "off"
+ZONE_MODE_BOOST: Final = "boost"
+ZONE_MODE_MANUAL: Final = "manual"
+ZONE_MODE_MIXED: Final = "mixed"
 
 # Power States
 POWER_ON: Final = "ON"
@@ -176,16 +183,11 @@ TERMINATION_TADO_MODE: Final = "TADO_MODE"
 TERMINATION_NEXT_TIME_BLOCK: Final = "NEXT_TIME_BLOCK"
 
 # Auto API Quota
-# Reset happens somewhere in this window (Berlin time)
-API_RESET_HOUR_START: Final = 12
-API_RESET_HOUR_END: Final = 13
+API_RESET_DEFAULT_UTC_HOUR: Final = 11  # Default reset hour in UTC
 API_RESET_MIN_PERCENT: Final = (
     0.80  # Minimum % to consider valid reset (guards against throttled 0→1 edge case)
 )
 API_RESET_MIN_PLANNING_HOURS: Final = 20  # Minimum hours to plan ahead (conservative)
-API_RESET_MAX_PLANNING_HOURS: Final = (
-    30  # Maximum hours to project ahead (prevent excessive stretching)
-)
 API_RESET_PATTERN_THRESHOLD: Final = 2  # Consecutive resets needed to learn pattern
 API_RESET_HISTORY_SIZE: Final = 5  # Number of resets to keep in history
 THROTTLE_RECOVERY_INTERVAL_S: Final = 900  # 15 minutes (Recovery check when throttled)

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from ..const import POWER_OFF, POWER_ON, TEMP_STRICT_TOLERANCE, TEMP_TOLERANCE
@@ -16,6 +15,20 @@ if TYPE_CHECKING:
 _LOGGER = get_redacted_logger(__name__)
 
 
+def preserve_rollback_state(existing: TadoCommand, replacement: TadoCommand) -> None:
+    """Carry forward the original rollback state when a pending command is replaced.
+
+    Ensures the redundancy filter always compares against the confirmed API state,
+    not the optimistic intermediate state from a previous replacement in the debounce chain.
+    """
+    if existing.cmd_type == CommandType.SET_PRESENCE:
+        if replacement.data is not None and existing.data is not None:
+            if (original := existing.data.get("old_presence")) is not None:
+                replacement.data["old_presence"] = original
+    elif existing.rollback_context is not None:
+        replacement.rollback_context = existing.rollback_context
+
+
 def _check_presence_redundancy(
     command: TadoCommand, optimistic: OptimisticState
 ) -> bool:
@@ -24,15 +37,14 @@ def _check_presence_redundancy(
         return False
 
     target_presence = command.data.get("presence")
-    cache_presence = optimistic.get_presence()
+    old_presence = command.data.get("old_presence")
 
-    if cache_presence is None:
+    if old_presence is None:
         return False
 
-    if cache_presence == target_presence:
+    if old_presence == target_presence:
         _LOGGER.debug(
-            "Skipping redundant SET_PRESENCE: cache=%s, target=%s",
-            cache_presence,
+            "Skipping redundant SET_PRESENCE: already %s",
             target_presence,
         )
         return True
@@ -498,9 +510,51 @@ def should_skip_all_action_provider(
     return False
 
 
+def _is_resume_redundant(
+    zone_id: int, zone_states: dict[str, Any], suppress_buttons: bool
+) -> bool:
+    """Return True if a RESUME_SCHEDULE command is redundant."""
+    if not suppress_buttons:
+        return False
+    state = zone_states.get(str(zone_id))
+    return state is not None and not getattr(state, "overlay_active", True)
+
+
+def _is_overlay_redundant(
+    zone_id: int, zone_data: dict[str, Any], zone_states: dict[str, Any]
+) -> bool:
+    """Return True if a SET_OVERLAY command matches current device state."""
+    state = zone_states.get(str(zone_id))
+    if state is None or not getattr(state, "overlay_active", False):
+        return False
+
+    setting = zone_data.get("setting", {})
+    target_power = setting.get("power")
+
+    api_setting = getattr(state, "setting", None)
+    cache_power = getattr(api_setting, "power", None) if api_setting else None
+
+    if cache_power is None or target_power != cache_power:
+        return False
+
+    if target_power == POWER_OFF:
+        return True
+
+    target_temp = (setting.get("temperature") or {}).get("celsius")
+    if target_temp is None:
+        return False
+
+    cache_temp_obj = getattr(api_setting, "temperature", None)
+    cache_temp = (
+        getattr(cache_temp_obj, "celsius", None) if cache_temp_obj is not None else None
+    )
+    return cache_temp is not None and abs(cache_temp - target_temp) < TEMP_TOLERANCE
+
+
 def _filter_zone_updates(
     merged: dict[str, Any],
     zone_states: dict[str, Any],
+    suppress_buttons: bool = False,
 ) -> dict[str, Any]:
     """Filter redundant zone updates from merged data.
 
@@ -508,74 +562,53 @@ def _filter_zone_updates(
     optimistic patching. coordinator.data.zone_states is mutated in-place by
     state_patcher before queuing, so it already reflects the target by batch time.
     """
-    if zones := merged.get("zones", {}):
-        filtered_zones: dict[str, Any] = {}
-        for zone_id_str, zone_data in zones.items():
-            zone_id = int(zone_id_str)
+    if not (zones := merged.get("zones", {})):
+        return merged
 
-            # None = RESUME_SCHEDULE — removing an overlay is never redundant
-            if zone_data is None:
-                filtered_zones[zone_id_str] = zone_data
-                continue
+    filtered_zones: dict[str, Any] = {}
+    for zone_id_str, zone_data in zones.items():
+        zone_id = int(zone_id_str)
 
-            setting = zone_data.get("setting", {})
-            target_power = setting.get("power")
-            target_temp = (setting.get("temperature") or {}).get("celsius")
-
-            state = zone_states.get(str(zone_id))
-            if state is None or not getattr(state, "overlay_active", False):
-                filtered_zones[zone_id_str] = zone_data
-                continue
-
-            api_setting = getattr(state, "setting", None)
-            cache_power = getattr(api_setting, "power", None) if api_setting else None
-
-            if cache_power is None or target_power != cache_power:
-                filtered_zones[zone_id_str] = zone_data
-                continue
-
-            if target_power == POWER_OFF:
-                _LOGGER.debug("Skipping redundant zone_%s overlay: both OFF", zone_id)
-                continue
-
-            if target_temp is not None:
-                cache_temp_obj = getattr(api_setting, "temperature", None)
-                cache_temp = (
-                    getattr(cache_temp_obj, "celsius", None)
-                    if cache_temp_obj is not None
-                    else None
-                )
-                if (
-                    cache_temp is not None
-                    and abs(cache_temp - target_temp) < TEMP_TOLERANCE
-                ):
-                    _LOGGER.debug(
-                        "Skipping redundant zone_%s overlay: power=%s, temp=%s",
-                        zone_id,
-                        target_power,
-                        target_temp,
-                    )
-                    continue
-
+        if zone_data is None and _is_resume_redundant(
+            zone_id, zone_states, suppress_buttons
+        ):
+            _LOGGER.debug(
+                "Skipping redundant RESUME_SCHEDULE zone_%s: already in schedule",
+                zone_id,
+            )
+        elif (
+            zone_data is None
+            and not _is_resume_redundant(zone_id, zone_states, suppress_buttons)
+        ) or (
+            zone_data is not None
+            and not _is_overlay_redundant(zone_id, zone_data, zone_states)
+        ):
             filtered_zones[zone_id_str] = zone_data
-
-        merged["zones"] = filtered_zones
+        else:
+            setting = zone_data.get("setting", {})
+            _LOGGER.debug(
+                "Skipping redundant zone_%s overlay: power=%s, temp=%s",
+                zone_id,
+                setting.get("power"),
+                (setting.get("temperature") or {}).get("celsius"),
+            )
+    merged["zones"] = filtered_zones
     return merged
 
 
 def _filter_simple_attributes(
     merged: dict[str, Any],
-    optimistic: OptimisticState,
     attribute_name: str,
-    cache_getter: Callable[[Any], Any],
+    rollback_key: str,
     log_name: str,
 ) -> dict[str, Any]:
-    """Filter redundant simple attributes (child_lock, offsets, etc.)."""
+    """Filter redundant simple attributes using pre-patch rollback values."""
+    rollback = merged.get(rollback_key, {})
     if attributes := merged.get(attribute_name, {}):
         filtered = {}
         for key, value in attributes.items():
-            cache_value = cache_getter(key)
-            if cache_value is None or cache_value != value:
+            old_value = rollback.get(key)
+            if old_value is None or old_value != value:
                 filtered[key] = value
             else:
                 _LOGGER.debug(
@@ -585,14 +618,11 @@ def _filter_simple_attributes(
     return merged
 
 
-def _filter_presence(
-    merged: dict[str, Any],
-    optimistic: OptimisticState,
-) -> dict[str, Any]:
+def _filter_presence(merged: dict[str, Any]) -> dict[str, Any]:
     """Filter redundant presence updates."""
     if presence := merged.get("presence"):
-        cache_presence = optimistic.get_presence()
-        if cache_presence is not None and cache_presence == presence:
+        old_presence = merged.get("old_presence")
+        if old_presence is not None and old_presence == presence:
             _LOGGER.debug("Skipping redundant presence: already %s", presence)
             merged.pop("presence", None)
     return merged
@@ -601,8 +631,8 @@ def _filter_presence(
 def filter_redundant_merged_data(
     merged: dict[str, Any],
     zone_states: dict[str, Any],
-    optimistic: OptimisticState,
     suppress_enabled: bool,
+    suppress_buttons: bool = False,
 ) -> dict[str, Any]:
     """Filter redundant operations from merged batch data.
 
@@ -612,7 +642,6 @@ def filter_redundant_merged_data(
     Args:
         merged: Merged command data from CommandMerger
         zone_states: Pre-patch states from cmd.rollback_context (state before optimistic patch)
-        optimistic: Optimistic state manager for cache lookups
         suppress_enabled: Whether redundant call suppression is enabled
 
     Returns:
@@ -622,47 +651,22 @@ def filter_redundant_merged_data(
     if not suppress_enabled:
         return merged  # No filtering
 
+    _SIMPLE_FILTERS = [
+        ("child_lock", "rollback_child_locks", "child_lock"),
+        ("offsets", "rollback_offsets", "offset"),
+        ("away_temps", "rollback_away_temps", "away_temp zone"),
+        ("dazzle_modes", "rollback_dazzle_modes", "dazzle zone"),
+        ("early_starts", "rollback_early_starts", "early_start zone"),
+        ("open_windows", "rollback_open_windows", "open_window zone"),
+    ]
+
     try:
-        merged = _filter_zone_updates(merged, zone_states)
+        merged = _filter_zone_updates(merged, zone_states, suppress_buttons)
 
-        # Filter simple attributes
-        merged = _filter_simple_attributes(
-            merged, optimistic, "child_lock", optimistic.get_child_lock, "child_lock"
-        )
-        merged = _filter_simple_attributes(
-            merged, optimistic, "offsets", optimistic.get_offset, "offset"
-        )
-        merged = _filter_simple_attributes(
-            merged,
-            optimistic,
-            "away_temps",
-            lambda zid: optimistic.get_away_temp(int(zid)),
-            "away_temp zone",
-        )
-        merged = _filter_simple_attributes(
-            merged,
-            optimistic,
-            "dazzle_modes",
-            lambda zid: optimistic.get_dazzle(int(zid)),
-            "dazzle zone",
-        )
-        merged = _filter_simple_attributes(
-            merged,
-            optimistic,
-            "early_starts",
-            lambda zid: optimistic.get_early_start(int(zid)),
-            "early_start zone",
-        )
-        merged = _filter_simple_attributes(
-            merged,
-            optimistic,
-            "open_windows",
-            lambda zid: optimistic.get_open_window(int(zid)),
-            "open_window zone",
-        )
+        for attr, rollback_key, log_name in _SIMPLE_FILTERS:
+            merged = _filter_simple_attributes(merged, attr, rollback_key, log_name)
 
-        # Filter presence
-        merged = _filter_presence(merged, optimistic)
+        merged = _filter_presence(merged)
 
     except Exception as e:
         _LOGGER.warning("Error filtering redundant merged data: %s", e)

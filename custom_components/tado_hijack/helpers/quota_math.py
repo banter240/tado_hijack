@@ -8,7 +8,7 @@ from typing import Any
 from homeassistant.util import dt as dt_util
 
 from ..const import (
-    API_RESET_HOUR_START,
+    API_RESET_DEFAULT_UTC_HOUR,
     API_RESET_MIN_PERCENT,
     MIN_AUTO_QUOTA_INTERVAL_S,
     SECONDS_PER_DAY,
@@ -16,25 +16,28 @@ from ..const import (
 )
 
 
-def is_in_reset_safe_window(expected_hour: int | None = None) -> bool:
-    """Check if current time (Berlin) is in the reset safe window.
+def is_in_reset_safe_window(expected_utc_hour: int | None = None) -> bool:
+    """Check if current time is in the reset safe window.
 
     Args:
-        expected_hour: Expected reset hour (default: 12 from constants)
+        expected_utc_hour: Expected reset hour in UTC (default: API_RESET_DEFAULT_UTC_HOUR)
 
     Returns:
-        True if current hour matches expected reset hour (+/- 1h tolerance)
+        True if current UTC hour matches expected UTC reset hour (+/- 1h tolerance)
 
     """
-    berlin_tz = dt_util.get_time_zone("Europe/Berlin")
-    now_berlin = dt_util.now().astimezone(berlin_tz)
-    hour: int = now_berlin.hour
+    now_utc = dt_util.now().astimezone(dt_util.UTC)
+    hour: int = now_utc.hour
 
-    if expected_hour is None:
-        expected_hour = API_RESET_HOUR_START
+    if expected_utc_hour is None:
+        expected_utc_hour = API_RESET_DEFAULT_UTC_HOUR
 
-    # Allow +/- 1 hour tolerance (e.g., 11-13 for expected hour 12)
-    return hour >= (expected_hour - 1) and hour <= (expected_hour + 1)
+    # Allow +/- 1 hour tolerance, wrapping at day boundary (e.g. 23, 0, 1 for hour 0)
+    return hour in {
+        (expected_utc_hour - 1) % 24,
+        expected_utc_hour,
+        (expected_utc_hour + 1) % 24,
+    }
 
 
 def check_quota_reset(

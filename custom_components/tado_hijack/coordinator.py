@@ -101,6 +101,7 @@ from .helpers.reset_window_tracker import ResetWindowTracker
 from .helpers.state_patcher import patch_zone_overlay, patch_zone_resume
 from .helpers.storage import TadoStorage
 from .helpers.utils import apply_jitter
+from .helpers.zone_utils import get_zone_type
 from .lib.patches import get_handler
 from .models import CommandType, RateLimit, TadoCommand, TadoData
 
@@ -250,6 +251,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         self._last_quota_reset: datetime | None = None
         self._last_remaining: int | None = None
         self._force_next_update: bool = False
+        self._last_ac_swing: dict[int, str] = {}
 
         # Adaptive quota reset window learning
         self.reset_tracker = ResetWindowTracker()
@@ -277,14 +279,11 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         if timetable_data:
             restored = {int(k): v for k, v in timetable_data.items()}
             self.data_manager.timetable_cache.update(restored)
-            self._timetable_cache_initialized = True
             _LOGGER.debug(
                 "Restored timetable cache for %d zone(s): %s",
                 len(restored),
                 restored,
             )
-        else:
-            self._timetable_cache_initialized = False
 
     def _save_reset_tracker(self) -> None:
         """Persist reset tracker state to storage."""
@@ -390,9 +389,6 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             self.zones_meta = self.data_manager.zones_meta
             self.devices_meta = self.data_manager.devices_meta
             self.timetable_cache: dict[int, dict] = self.data_manager.timetable_cache
-
-            if self.generation == GEN_CLASSIC and not self._timetable_cache_initialized:
-                await self._async_init_timetable_cache()
 
             from .helpers.discovery import get_bridges
 
@@ -659,6 +655,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
 
             self.reset_tracker.record_reset(reset_time)
             self._save_reset_tracker()
+            self._schedule_reset_poll()
 
             expected = self.reset_tracker.get_expected_window()
             _LOGGER.info(
@@ -837,7 +834,6 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         self._execute_resume_command(zone_id)
 
         # Trigger refresh only for AC and Hot Water zones (TRVs are excluded)
-        from .helpers.zone_utils import get_zone_type
 
         zone = self.zones_meta.get(zone_id)
         ztype = get_zone_type(zone, None)
@@ -1128,41 +1124,9 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         self.hass.async_create_task(
             self.storage.async_update(
                 "timetable_cache",
-                {str(k): v for k, v in self.timetable_cache.items()},
+                {str(k): v for k, v in self.data_manager.timetable_cache.items()},
             )
         )
-
-    async def _async_init_timetable_cache(self) -> None:
-        """Fetch timetable type from API for all compatible zones on first boot."""
-        from .helpers.zone_utils import get_zone_type
-
-        zone_ids = [
-            zone_id
-            for zone_id, zone in self.zones_meta.items()
-            if get_zone_type(zone) in (ZONE_TYPE_HEATING, ZONE_TYPE_HOT_WATER)
-        ]
-
-        if not zone_ids:
-            self._timetable_cache_initialized = True
-            return
-
-        _LOGGER.info(
-            "Initializing timetable cache from API for %d zone(s): %s",
-            len(zone_ids), zone_ids,
-        )
-        for zone_id in zone_ids:
-            try:
-                entry = await self._tado.get_active_timetable(zone_id)
-                self.timetable_cache[zone_id] = entry
-                self.data_manager.timetable_cache[zone_id] = entry
-                _LOGGER.debug("Timetable initialized for zone %s: %s", zone_id, entry)
-            except Exception as err:
-                _LOGGER.warning(
-                    "Could not fetch timetable for zone %s: %s", zone_id, err
-                )
-
-        self._timetable_cache_initialized = True
-        self._save_timetable_cache()
 
     async def async_set_timetable(self, zone_id: int, timetable_type: str) -> None:
         """Set the active timetable schedule type for a zone.
@@ -1178,7 +1142,6 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
 
         # Optimistically update local cache for immediate UI feedback
         entry = {"id": timetable_id, "type": timetable_type}
-        self.timetable_cache[zone_id] = entry
         self.data_manager.timetable_cache[zone_id] = entry
         self.async_update_listeners()
         self._save_timetable_cache()
@@ -1197,7 +1160,6 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         _LOGGER.info("Refreshing timetable for zone %s", zone_id)
         try:
             entry = await self._tado.get_active_timetable(zone_id)
-            self.timetable_cache[zone_id] = entry
             self.data_manager.timetable_cache[zone_id] = entry
             self.async_update_listeners()
             self._save_timetable_cache()
@@ -1224,8 +1186,9 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             return
 
         _LOGGER.info("Refreshing timetables for %d zone(s): %s", len(zone_ids), zone_ids)
-        for zone_id in zone_ids:
-            await self.async_refresh_timetable(zone_id)
+        await asyncio.gather(
+            *(self.async_refresh_timetable(zone_id) for zone_id in zone_ids)
+        )
 
     async def async_set_timetable_all_zones(self, timetable_type: str) -> None:
         """Set the timetable type for all compatible zones (HEATING + HOT_WATER, GEN_CLASSIC only)."""
@@ -1249,8 +1212,9 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             "Setting timetable type '%s' for %d zone(s): %s",
             timetable_type, len(zone_ids), zone_ids,
         )
-        for zone_id in zone_ids:
-            await self.async_set_timetable(zone_id, timetable_type)
+        await asyncio.gather(
+            *(self.async_set_timetable(zone_id, timetable_type) for zone_id in zone_ids)
+        )
 
     async def async_set_open_window_detection(
         self, zone_id: int, enabled: bool, timeout_seconds: int | None = None
@@ -1332,8 +1296,6 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         if capabilities.temperatures exists. If the API later rejects with 422,
         that's a real error that should be logged.
         """
-        from .helpers.zone_utils import get_zone_type
-
         zone = self.zones_meta.get(zone_id)
         ztype = get_zone_type(zone)
 
@@ -1364,8 +1326,6 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             return None
 
         # Fallback to zone-type defaults for power ON
-        from .helpers.zone_utils import get_zone_type
-
         zone = self.zones_meta.get(zone_id)
         ztype = get_zone_type(zone)
 
@@ -1374,6 +1334,91 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         if ztype == ZONE_TYPE_AIR_CONDITIONING:
             return TEMP_DEFAULT_AC
         return TEMP_DEFAULT_HEATING
+
+    @staticmethod
+    def _build_ac_fan_fields(mode_caps: Any, setting: Any) -> dict[str, Any]:
+        """Return fanSpeed or fanLevel field for an AC overlay."""
+        if fan_speeds := getattr(mode_caps, "fan_speeds", None):
+            current = getattr(setting, "fan_speed", None)
+            value = current if current in fan_speeds else fan_speeds[0]
+            return {"fanSpeed": str(value).upper()}
+        if fan_levels := getattr(mode_caps, "fan_level", None):
+            current = getattr(setting, "fan_level", None)
+            value = current if current in fan_levels else fan_levels[0]
+            return {"fanLevel": str(value).upper()}
+        return {}
+
+    def _build_ac_swing_fields(
+        self, zone_id: int, mode_caps: Any, setting: Any
+    ) -> dict[str, Any]:
+        """Return swing fields for an AC overlay.
+
+        Prefers axis swing (verticalSwing/horizontalSwing) when exposed by capabilities.
+        Falls back to single-toggle swing — using the last cached value or "OFF" —
+        because tadoasync does not parse single-toggle swing from mode capabilities.
+        """
+        fields: dict[str, Any] = {}
+        has_axis_swing = False
+        for cap_attr, api_key, state_attr in [
+            ("vertical_swing", "verticalSwing", "vertical_swing"),
+            ("horizontal_swing", "horizontalSwing", "horizontal_swing"),
+        ]:
+            if swing_caps := getattr(mode_caps, cap_attr, None):
+                has_axis_swing = True
+                current = getattr(setting, state_attr, None)
+                value = (
+                    current
+                    if current in swing_caps
+                    else ("OFF" if "OFF" in swing_caps else swing_caps[0])
+                )
+                fields[api_key] = str(value).upper()
+
+        if not has_axis_swing:
+            swing_val = getattr(setting, "swing", None) or self._last_ac_swing.get(
+                zone_id
+            )
+            fields["swing"] = str(swing_val).upper() if swing_val else "OFF"
+
+        return fields
+
+    @staticmethod
+    def _build_ac_light_fields(mode_caps: Any) -> dict[str, Any]:
+        """Return light field for an AC overlay, defaulting to OFF."""
+        if light_caps := getattr(mode_caps, "light", None):
+            return {
+                "light": "OFF" if "OFF" in light_caps else str(light_caps[0]).upper()
+            }
+        return {}
+
+    async def _ensure_ac_setting_fields(
+        self, zone_id: int, ac_mode: str | None, power: str
+    ) -> dict[str, Any]:
+        """Return all AC-required fields for a power-on overlay."""
+        if power != POWER_ON:
+            return {}
+        if get_zone_type(self.zones_meta.get(zone_id)) != ZONE_TYPE_AIR_CONDITIONING:
+            return {}
+
+        capabilities = await self.async_get_capabilities(zone_id)
+        if not capabilities:
+            return {}
+
+        mode_key = (ac_mode or "HEAT").lower()
+        mode_caps = getattr(capabilities, mode_key, None)
+        if not mode_caps:
+            return {}
+
+        state = self.data.zone_states.get(str(zone_id))
+        setting = getattr(state, "setting", None) if state else None
+
+        if (swing_now := getattr(setting, "swing", None)) is not None:
+            self._last_ac_swing[zone_id] = swing_now
+
+        return (
+            self._build_ac_fan_fields(mode_caps, setting)
+            | self._build_ac_swing_fields(zone_id, mode_caps, setting)
+            | self._build_ac_light_fields(mode_caps)
+        )
 
     async def async_set_zone_overlay(
         self,
@@ -1390,6 +1435,11 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
     ) -> None:
         """Set a manual overlay with timer/duration support."""
         final_temp = self._resolve_zone_temperature(zone_id, temperature, power)
+
+        if additional_setting_fields is None:
+            ac_fields = await self._ensure_ac_setting_fields(zone_id, ac_mode, power)
+            if ac_fields:
+                additional_setting_fields = ac_fields
 
         data = build_overlay_data(
             zone_id=zone_id,
@@ -1462,6 +1512,14 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         for zone_id in zone_ids:
             zone_temp = self._resolve_zone_temperature(zone_id, temperature, power)
 
+            zone_additional = additional_setting_fields
+            if zone_additional is None:
+                ac_fields = await self._ensure_ac_setting_fields(
+                    zone_id, ac_mode, power
+                )
+                if ac_fields:
+                    zone_additional = ac_fields
+
             data = build_overlay_data(
                 zone_id=zone_id,
                 zones_meta=self.zones_meta,
@@ -1472,7 +1530,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
                 overlay_type=overlay_type,
                 ac_mode=ac_mode,
                 supports_temp=self.supports_temperature(zone_id),
-                additional_setting_fields=additional_setting_fields,
+                additional_setting_fields=zone_additional,
             )
 
             old_state = patch_zone_overlay(
