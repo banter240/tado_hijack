@@ -1335,48 +1335,29 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             return TEMP_DEFAULT_AC
         return TEMP_DEFAULT_HEATING
 
-    async def _ensure_ac_setting_fields(
-        self, zone_id: int, ac_mode: str | None, power: str
-    ) -> dict[str, Any]:
-        """Return fan/swing fields required for an AC power-on overlay.
-
-        tadoasync does not expose single-toggle swing in mode capabilities,
-        so for single-swing zones in standby we fall back to the last observed
-        value or "OFF" as a safe default.
-        """
-        if power != POWER_ON:
-            return {}
-
-        if get_zone_type(self.zones_meta.get(zone_id)) != ZONE_TYPE_AIR_CONDITIONING:
-            return {}
-
-        capabilities = await self.async_get_capabilities(zone_id)
-        if not capabilities:
-            return {}
-
-        mode_key = (ac_mode or "HEAT").lower()
-        mode_caps = getattr(capabilities, mode_key, None)
-        if not mode_caps:
-            return {}
-
-        state = self.data.zone_states.get(str(zone_id))
-        setting = getattr(state, "setting", None) if state else None
-
-        # Cache any swing value seen in current state
-        if (swing_now := getattr(setting, "swing", None)) is not None:
-            self._last_ac_swing[zone_id] = swing_now
-
-        fields: dict[str, Any] = {}
-
+    @staticmethod
+    def _build_ac_fan_fields(mode_caps: Any, setting: Any) -> dict[str, Any]:
+        """Return fanSpeed or fanLevel field for an AC overlay."""
         if fan_speeds := getattr(mode_caps, "fan_speeds", None):
             current = getattr(setting, "fan_speed", None)
             value = current if current in fan_speeds else fan_speeds[0]
-            fields["fanSpeed"] = str(value).upper()
-        elif fan_levels := getattr(mode_caps, "fan_level", None):
+            return {"fanSpeed": str(value).upper()}
+        if fan_levels := getattr(mode_caps, "fan_level", None):
             current = getattr(setting, "fan_level", None)
             value = current if current in fan_levels else fan_levels[0]
-            fields["fanLevel"] = str(value).upper()
+            return {"fanLevel": str(value).upper()}
+        return {}
 
+    def _build_ac_swing_fields(
+        self, zone_id: int, mode_caps: Any, setting: Any
+    ) -> dict[str, Any]:
+        """Return swing fields for an AC overlay.
+
+        Prefers axis swing (verticalSwing/horizontalSwing) when exposed by capabilities.
+        Falls back to single-toggle swing — using the last cached value or "OFF" —
+        because tadoasync does not parse single-toggle swing from mode capabilities.
+        """
+        fields: dict[str, Any] = {}
         has_axis_swing = False
         for cap_attr, api_key, state_attr in [
             ("vertical_swing", "verticalSwing", "vertical_swing"),
@@ -1393,14 +1374,51 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
                 fields[api_key] = str(value).upper()
 
         if not has_axis_swing:
-            # tadoasync does not expose single-toggle swing in mode capabilities;
-            # use cached/current value, or "OFF" for standby zones with no prior state.
             swing_val = getattr(setting, "swing", None) or self._last_ac_swing.get(
                 zone_id
             )
             fields["swing"] = str(swing_val).upper() if swing_val else "OFF"
 
         return fields
+
+    @staticmethod
+    def _build_ac_light_fields(mode_caps: Any) -> dict[str, Any]:
+        """Return light field for an AC overlay, defaulting to OFF."""
+        if light_caps := getattr(mode_caps, "light", None):
+            return {
+                "light": "OFF" if "OFF" in light_caps else str(light_caps[0]).upper()
+            }
+        return {}
+
+    async def _ensure_ac_setting_fields(
+        self, zone_id: int, ac_mode: str | None, power: str
+    ) -> dict[str, Any]:
+        """Return all AC-required fields for a power-on overlay."""
+        if power != POWER_ON:
+            return {}
+        if get_zone_type(self.zones_meta.get(zone_id)) != ZONE_TYPE_AIR_CONDITIONING:
+            return {}
+
+        capabilities = await self.async_get_capabilities(zone_id)
+        if not capabilities:
+            return {}
+
+        mode_key = (ac_mode or "HEAT").lower()
+        mode_caps = getattr(capabilities, mode_key, None)
+        if not mode_caps:
+            return {}
+
+        state = self.data.zone_states.get(str(zone_id))
+        setting = getattr(state, "setting", None) if state else None
+
+        if (swing_now := getattr(setting, "swing", None)) is not None:
+            self._last_ac_swing[zone_id] = swing_now
+
+        return (
+            self._build_ac_fan_fields(mode_caps, setting)
+            | self._build_ac_swing_fields(zone_id, mode_caps, setting)
+            | self._build_ac_light_fields(mode_caps)
+        )
 
     async def async_set_zone_overlay(
         self,

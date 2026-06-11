@@ -17,6 +17,13 @@ _device_cache: dict[str, set[tuple[str, str]] | None] = {}
 _cache_built = False
 
 
+def _is_tado_device(device: dr.DeviceEntry) -> bool:
+    """Return True if device.manufacturer identifies a Tado device."""
+    return (
+        isinstance(device.manufacturer, str) and "tado" in device.manufacturer.lower()
+    )
+
+
 def invalidate_cache() -> None:
     """Invalidate the device cache, forcing rebuild on next access."""
     global _cache_built
@@ -35,11 +42,7 @@ def _build_device_cache(hass: HomeAssistant, force: bool = False) -> None:
     _device_cache.clear()
 
     for device in registry.devices.values():
-        if (
-            device.manufacturer
-            and "tado" in device.manufacturer.lower()
-            and device.serial_number
-        ):
+        if _is_tado_device(device) and device.serial_number:
             _device_cache[device.serial_number] = cast(
                 set[tuple[str, str]], device.identifiers
             )
@@ -86,11 +89,7 @@ def get_climate_entity_id(hass: HomeAssistant, serial_no: str) -> str | None:
         (
             device
             for device in d_registry.devices.values()
-            if (
-                device.manufacturer
-                and "tado" in device.manufacturer.lower()
-                and device.serial_number == serial_no
-            )
+            if _is_tado_device(device) and device.serial_number == serial_no
         ),
         None,
     )
