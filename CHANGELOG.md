@@ -1,3 +1,150 @@
+## [5.7.0-dev.1](https://github.com/banter240/tado_hijack/compare/v5.6.1-dev.1...v5.7.0-dev.1) (2026-06-01)
+
+### ✨ New Features
+
+* feat(tadox): add Tado X hot water support (auto/off only via Hops) with central guards
+
+Adds support for the domesticHotWater programmer on Tado X devices using the Hops endpoints (resumeSchedule + boost for forced off).
+
+- Hot water exposed as virtual zone with reserved high ID (9001)
+- TadoHotWaterX entity limited to auto/off (no temperature control)
+- Safe fetching with 404 caching
+- Dedicated coordinator paths with optimistic updates
+- All set hot water operations correctly detect and route TadoX (9001 + test dummy 9997)
+- Central redundancy_checker for hot water (v3 + TadoX through same guards)
+- Central overlay_validator for TadoX hot water Hops calls
+- _is_tadox_hot_water_zone helper for consistent routing
+
+Hops programmer paths are fundamentally different from v3 overlays, so all operations go through the dedicated endpoints and central guard infrastructure.
+
+## [5.6.1-dev.1](https://github.com/banter240/tado_hijack/compare/v5.6.0...v5.6.1-dev.1) (2026-05-31)
+
+### 🐛 Bug Fixes
+
+* fix(ac): include required 'light' field for AIR_CONDITIONING overlays on supported devices
+
+Some V3 AC units declare a "light" capability per operating mode. Sending
+overlays without this field resulted in 422 "setting.notSupported" errors
+from the Tado API when changing fan speed, swing or mode.
+
+We now populate the light field from capabilities (when present) in
+TadoV3ActionProvider, following the same approach used for fan and swing
+fields. The FAN mode path in the climate entity is updated accordingly.
+
+Fixes #105.
+
+## [5.6.0](https://github.com/banter240/tado_hijack/compare/v5.5.0...v5.6.0) (2026-05-19)
+
+### ✨ New Features
+
+* feat(translations): add Czech (cs) translation
+
+## [5.5.0](https://github.com/banter240/tado_hijack/compare/v5.4.0...v5.5.0) (2026-05-15)
+
+### ✨ New Features
+
+* feat: zone/home mode sensors, AC overlay 422 fixes, quota reliability, and Tado X control
+
+Adds per-zone and home-level operating mode sensors, resolves AC overlay
+422 rejections for standby zones, fixes three separate quota reliability
+issues, corrects Tado X device mapping and timer overlays, and prevents
+a startup crash when HA stores device.manufacturer as int.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 ZONE MODE & HOME MODE SENSORS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- sensor.zone_mode per zone: reports schedule / manual / boost / off
+  for both Classic and Tado X; Classic boost detection uses the 25°C
+  heuristic consistent with action_provider.py
+- sensor.home_mode at home level: aggregates all zone modes; returns
+  "mixed" when zones differ — useful for automations reacting to
+  partial manual overrides
+- No additional API calls; reads from already-fetched zone_states
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+❄️ AC OVERLAY 422 FIXES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Resolves HTTP 422 rejections when overriding AC zones in standby (schedule
+"Off", fan_mode: null, no active overlay). Three separate gaps fixed:
+
+- _ensure_ac_setting_fields coordinator helper: auto-populates fanSpeed/Level,
+  swing, and light from cached capabilities when not provided by the caller;
+  called from async_set_zone_overlay and per-zone from
+  async_set_multiple_zone_overlays
+- services.py _execute_set_mode: map operation_mode to ac_mode and forward to
+  async_set_multiple_zone_overlays; the mode field was never included for the
+  service path
+- Single-toggle swing fallback: current state → last-seen cache → "OFF"
+  (tadoasync does not expose single-toggle swing in mode capabilities)
+- light field: included when mode capabilities expose it, defaulting to OFF
+
+Refactored into _build_ac_fan_fields / _build_ac_swing_fields /
+_build_ac_light_fields for clarity.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📈 QUOTA RELIABILITY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Three separate issues fixed:
+
+DST drift (reset_window_tracker.py):
+- Reset history stored in Europe/Berlin local time; after CET→CEST the
+  learned reset hour shifted 1h in UTC, triggering conservation mode ~30
+  min early; normalize all history to UTC
+- _default_utc_window helper provides DST-aware UTC fallback across tracker
+  and quota_math; config entry v10 migration converts existing history to UTC
+
+Overconsumption:
+- get_next_reset_time() anchored on now.replace() instead of last observed
+  reset + 1 day, collapsing the adaptive interval to its 20s floor after
+  every reset observation
+- get_initial_target() cached a stale past timestamp; Tado X rate limit
+  counter stayed frozen because Hops API calls bypassed the V3 handler;
+  TadoXApi now captures rate limit headers directly
+
+Runaway loop:
+- schedule_reset_poll used max(1s, delay) as floor; stale initial_target
+  produced a tight poll loop burning quota; replaced with an explicit 24h
+  fallback; reset poll rescheduled immediately on detected reset to stay
+  in sync without waiting for the next scheduled fire
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔧 TADO X FIXES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- _resolve_device_to_zone() used zone.id which doesn't exist on
+  HopsRoomSnapshot; iterate zones_meta.items() and use the dict key as
+  zone_id instead
+- TadoXExecutor ignored the termination dict from merged overlay data;
+  extract termination_type and duration_seconds and pass to
+  async_set_manual_control so TIMER overlays via set_mode duration
+  actually expire as intended
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🐛 REDUNDANCY FILTER FIXES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- _filter_presence and _filter_simple_attributes compared against the
+  optimistic already-patched state, silently dropping every command when
+  suppress_redundant_calls was enabled
+- Debounce replacements overwrote the rollback reference with the intermediate
+  optimistic state; preserve_rollback_state() now carries the original confirmed
+  API state forward through replacements
+- RESUME_SCHEDULE for zones already in schedule now filtered when
+  suppress_redundant_buttons is enabled
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔍 DIAGNOSTICS & DEVICE LINKER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Serial redaction suffix increased from 4 to 5 chars to prevent false
+  duplicate-device appearance when two serials share the same last 4 digits
+- _is_tado_device() helper in device_linker.py guards isinstance before
+  .lower(); HA device registry can store manufacturer as int, causing
+  AttributeError on startup
+
 ## [5.5.0-dev.5](https://github.com/banter240/tado_hijack/compare/v5.5.0-dev.4...v5.5.0-dev.5) (2026-05-15)
 
 ### 🐛 Bug Fixes

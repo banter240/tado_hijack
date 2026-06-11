@@ -227,3 +227,26 @@ class HopsRoomsAndDevicesResponse(BaseModel):
     rooms: list[HopsRoomSnapshot]
     other_devices: list[TadoXDevice] = Field(alias="otherDevices")
     home: HomePresence | None = None  # Presence information
+
+
+class _HotWaterSetting:
+    def __init__(self, power: str) -> None:
+        self.power = power
+
+
+class TadoXHotWaterState(BaseModel):
+    """State for the Tado X domestic hot water programmer (Hops)."""
+
+    state: str
+    next_state_change: str | None = Field(None, alias="nextStateChange")
+    setpoint: Any | None = None
+    setpoint_constraints: Any | None = Field(None, alias="setpointConstraints")
+
+    @property
+    def overlay_active(self) -> bool:
+        return not self.state.startswith("SCHEDULE_")
+
+    @property
+    def setting(self) -> _HotWaterSetting:
+        power = "OFF" if self.overlay_active else "ON"
+        return _HotWaterSetting(power)
