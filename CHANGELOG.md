@@ -1,3 +1,23 @@
+## [5.7.0](https://github.com/banter240/tado_hijack/compare/v5.6.0...v5.7.0) (2026-06-30)
+* feat(tadox): add Tado X hot water support (auto/off only via Hops) with central guards
+
+Adds support for the domesticHotWater programmer on Tado X devices using the Hops endpoints (resumeSchedule + boost for forced off).
+
+The changes also address AIR_CONDITIONING overlays where some V3 AC units declare a "light" capability per operating mode. Sending overlays without this field resulted in 422 "setting.notSupported" errors from the Tado API when changing fan speed, swing or mode. The light field is now populated from capabilities (when present) in TadoV3ActionProvider, following the same approach used for fan and swing fields. The FAN mode path in the climate entity is updated accordingly.
+
+Fixes #105.
+
+- Hot water exposed as virtual zone with reserved high ID (9001) instead of magic 0 to avoid truthiness and collision issues
+- TadoHotWaterX entity limited to auto/off (no temperature control)
+- Safe fetching with 404 caching to prevent repeated API calls on devices without hot water hardware installed
+- Dedicated coordinator paths with optimistic updates for the Tado X specific operations
+- All set hot water operations (auto, off, heat) correctly detect and route for TadoX real (9001) and test dummy (9997)
+- Central redundancy_checker for hot water (v3 + TadoX through same guards)
+- Central overlay_validator for TadoX hot water Hops calls
+- _is_tadox_hot_water_zone helper for consistent detection
+
+Hops programmer paths are fundamentally different from v3 overlays, so all operations must use the dedicated endpoints and go through the central guard infrastructure.
+
 ## [5.6.0](https://github.com/banter240/tado_hijack/compare/v5.5.0...v5.6.0) (2026-05-19)
 
 ### ✨ New Features
