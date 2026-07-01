@@ -140,8 +140,6 @@ class TadoXApi:
 
                 self._capture_rate_limit_headers(response.headers)
 
-                self._capture_rate_limit_headers(response.headers)
-
                 # Parse JSON without Content-Type validation (Hops API omits it).
                 # quickActions POST endpoints return 200 with empty body → raises → success.
                 try:
