@@ -156,3 +156,31 @@ class TadoHijackClient(Tado):
             f"devices/{serial_no}/identify",
             method=HttpMethod.POST,
         )
+
+    async def get_active_timetable(self, zone_id: int) -> dict[str, Any]:
+        """Get the active timetable type for a zone.
+
+        Returns a dict with 'id' (int) and 'type' (str) fields.
+        Possible types:
+          - ONE_DAY   : same schedule every day (Mon-Sun)
+          - THREE_DAY : Mon-Fri / Sat / Sun
+          - SEVEN_DAY : one schedule per day of the week
+        """
+        response = await self._request(
+            f"homes/{self._home_id}/zones/{zone_id}/schedule/activeTimetable"
+        )
+        return cast(dict[str, Any], orjson.loads(response))
+
+    async def set_active_timetable(self, zone_id: int, timetable_id: int) -> None:
+        """Set the active timetable for a zone.
+
+        timetable_id values:
+          0 = ONE_DAY   (Mon-Sun)
+          1 = THREE_DAY (Mon-Fri / Sat / Sun)
+          2 = SEVEN_DAY (one per day)
+        """
+        await self._request(
+            f"homes/{self._home_id}/zones/{zone_id}/schedule/activeTimetable",
+            data={"id": timetable_id},
+            method=HttpMethod.PUT,
+        )
