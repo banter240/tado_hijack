@@ -12,7 +12,9 @@ from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
+    DUMMY_ZONE_ID_TADOX_HOT_WATER,
     GEN_X,
+    TADOX_VIRTUAL_HOT_WATER_ZONE_ID,
     TEMP_MAX_HOT_WATER,
     TEMP_MIN_HOT_WATER,
     TEMP_STEP_HOT_WATER,
@@ -35,13 +37,19 @@ OPERATION_MODE_HEAT = "heat"
 OPERATION_MODE_OFF = "off"
 
 OPERATION_MODES = [OPERATION_MODE_AUTO, OPERATION_MODE_HEAT, OPERATION_MODE_OFF]
+OPERATION_MODES_TADOX = [OPERATION_MODE_AUTO, OPERATION_MODE_OFF]
 
 
 def _setup_water_heater_entities_tadox(
     coordinator: TadoDataUpdateCoordinator,
 ) -> list[TadoHotWater]:
     """Set up hot water entities for Tado X."""
-    return []  # [TADO_X] Not yet supported
+    if coordinator.data.zone_states.get(str(TADOX_VIRTUAL_HOT_WATER_ZONE_ID)) is None:
+        _LOGGER.debug(
+            "No Tado X hot water found (programmer/domesticHotWater/state unavailable)"
+        )
+        return []
+    return [TadoHotWaterX(coordinator, TADOX_VIRTUAL_HOT_WATER_ZONE_ID, "Hot Water")]
 
 
 def _setup_water_heater_entities_v3(
@@ -65,11 +73,27 @@ async def async_setup_entry(
     """Set up Tado hot water based on a config entry."""
     coordinator: TadoDataUpdateCoordinator = entry.runtime_data
 
-    entities = (
-        _setup_water_heater_entities_tadox(coordinator)
-        if coordinator.generation == GEN_X
-        else _setup_water_heater_entities_v3(coordinator)
-    )
+    if coordinator.generation == GEN_X:
+        entities = _setup_water_heater_entities_tadox(coordinator)
+    else:
+        entities = _setup_water_heater_entities_v3(coordinator)
+
+    # Dedicated Tado X Hot Water test dummy (separate ID 9997)
+    # This lets you test the full TadoX Hops hot water paths locally in HA
+    # without touching the real 9001 synthetic zone.
+    if (
+        coordinator.dummy_handler
+        and coordinator.dummy_handler.is_tadox_hot_water_test_dummy(
+            DUMMY_ZONE_ID_TADOX_HOT_WATER
+        )
+    ):
+        entities.append(
+            TadoHotWaterX(
+                coordinator,
+                DUMMY_ZONE_ID_TADOX_HOT_WATER,
+                "DUMMY Tado X Hot Water",
+            )
+        )
     async_add_entities(entities)
 
 
@@ -258,3 +282,46 @@ class TadoHotWater(
             temperature=rounded_temp,
             overlay_type="HOT_WATER",
         )
+
+
+class TadoHotWaterX(TadoHotWater):
+    """Tado X hot water via Hops (synthetic ID, real hardware)."""
+
+    _attr_operation_list = OPERATION_MODES_TADOX
+    _attr_supported_features = WaterHeaterEntityFeature.OPERATION_MODE
+
+    @property
+    def target_temperature(self) -> float | None:
+        return None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        state = self.coordinator.data.zone_states.get(str(self._zone_id))
+        if state and (nsc := getattr(state, "next_state_change", None)):
+            return {"next_state_change": nsc}
+        return {}
+
+    def _get_actual_value(self) -> str:
+        state = self.coordinator.data.zone_states.get(str(self._zone_id))
+        if state is None:
+            return OPERATION_MODE_AUTO
+        return (
+            OPERATION_MODE_OFF
+            if getattr(state, "overlay_active", False)
+            else OPERATION_MODE_AUTO
+        )
+
+    async def async_set_temperature(self, **kwargs: Any) -> None:
+        pass
+
+    async def async_set_operation_mode(self, operation_mode: str) -> None:
+        if operation_mode == OPERATION_MODE_OFF:
+            await self.tado_coordinator.async_set_hot_water_off(self._zone_id)
+        elif operation_mode == OPERATION_MODE_AUTO:
+            await self.tado_coordinator.async_set_hot_water_auto(self._zone_id)
+        else:
+            _LOGGER.warning(
+                "Tado X hot water: unsupported operation mode '%s' (supported: %s)",
+                operation_mode,
+                OPERATION_MODES_TADOX,
+            )

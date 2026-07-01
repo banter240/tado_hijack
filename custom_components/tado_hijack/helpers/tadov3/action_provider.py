@@ -181,6 +181,7 @@ class TadoV3ActionProvider(TadoActionProvider):
             additional_fields |= self._build_ac_swing_settings(
                 mode_caps, key, value, state, zone_id
             )
+            additional_fields |= self._build_ac_light_settings(mode_caps, state)
 
         data = build_overlay_data(
             zone_id,
@@ -292,6 +293,21 @@ class TadoV3ActionProvider(TadoActionProvider):
                 fields[api_key] = str(val)
 
         return fields
+
+    def _build_ac_light_settings(self, mode_caps: Any, state: Any) -> dict[str, str]:
+        """Extract AC light setting based on capabilities and current state."""
+        if light_caps := getattr(mode_caps, "light", None):
+            current = (
+                getattr(state.setting, "light", None)
+                if getattr(state, "setting", None)
+                else None
+            )
+            if current and current in light_caps:
+                val = str(current).upper()
+            else:
+                val = "OFF" if "OFF" in light_caps else str(light_caps[0]).upper()
+            return {"light": val}
+        return {}
 
     async def async_set_temperature_offset(self, serial_no: str, offset: float) -> None:
         """Set temperature offset for a v3 device."""

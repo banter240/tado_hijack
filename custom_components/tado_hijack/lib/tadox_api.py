@@ -19,10 +19,15 @@ from typing import TYPE_CHECKING, Any, cast
 
 from aiohttp import ClientTimeout
 
+from ..const import HTTP_BAD_REQUEST
 from ..helpers.logging_utils import get_redacted_logger
 from ..helpers.parsers import parse_ratelimit_headers
 from ..helpers.tadox.const import HOPS_BASE_URL
-from .tadox_models import HopsRoomsAndDevicesResponse, TadoXZoneState
+from .tadox_models import (
+    HopsRoomsAndDevicesResponse,
+    TadoXHotWaterState,
+    TadoXZoneState,
+)
 
 if TYPE_CHECKING:
     from tadoasync import Tado
@@ -121,7 +126,19 @@ class TadoXApi:
                     if "roomsAndDevices" in endpoint:
                         return {"rooms": [], "devices": []}
                     return [] if "rooms" in endpoint else {}
-                response.raise_for_status()
+
+                if response.status >= HTTP_BAD_REQUEST:
+                    body = await response.text()
+                    _LOGGER.error(
+                        "Hops API Error %d: %s. Response: %s",
+                        response.status,
+                        endpoint,
+                        body,
+                    )
+                    # Re-raise with proper status (matches behavior of v2 error handler)
+                    response.raise_for_status()
+
+                self._capture_rate_limit_headers(response.headers)
 
                 self._capture_rate_limit_headers(response.headers)
 
@@ -227,6 +244,25 @@ class TadoXApi:
     async def async_turn_off_all_zones(self) -> Any:
         """Turn off all rooms (frost protection mode)."""
         return await self._request("POST", "quickActions/allOff")
+
+    async def async_get_hot_water_state(self) -> TadoXHotWaterState | None:
+        """Fetch current hot water programmer state."""
+        data = await self._request("GET", "programmer/domesticHotWater/state")
+        if not data:
+            return None  # 404 handled by _request as {}
+        return cast(TadoXHotWaterState, TadoXHotWaterState.model_validate(data))
+
+    async def async_resume_hot_water_schedule(self) -> Any:
+        """Resume hot water schedule (clear boost override)."""
+        return await self._request("POST", "programmer/domesticHotWater/resumeSchedule")
+
+    async def async_set_hot_water_off(self) -> Any:
+        """Force hot water OFF via boost override."""
+        return await self._request(
+            "POST",
+            "programmer/domesticHotWater/boost",
+            json_data={"boost": "OFF"},
+        )
 
     async def async_set_open_window_detection(self, room_id: int, enabled: bool) -> Any:
         """Enable or disable open window detection."""

@@ -69,3 +69,16 @@ def validate_overlay_payload(
             )
 
     return True, None
+
+
+def validate_tadox_hot_water_resume() -> tuple[bool, str | None]:
+    """Validate Tado X domesticHotWater resumeSchedule (Hops programmer endpoint)."""
+    # No request body - always structurally valid for current Hops API.
+    return True, None
+
+
+def validate_tadox_hot_water_boost_off() -> tuple[bool, str | None]:
+    """Validate Tado X domesticHotWater boost OFF payload (Hops)."""
+    # Fixed payload {"boost": "OFF"} for the current supported operation.
+    # Extend here when the programmer API gains more options or stricter rules.
+    return True, None

@@ -140,6 +140,21 @@ ZONE_TYPE_HEATING: Final = "HEATING"
 ZONE_TYPE_HOT_WATER: Final = "HOT_WATER"
 ZONE_TYPE_AIR_CONDITIONING: Final = "AIR_CONDITIONING"
 
+# Reserved IDs for things that aren't normal Tado rooms/zones.
+#
+# Tado X synthetic IDs (real hardware, just not exposed as zones by the API):
+#   9000-9099  single-instance features (hot water programmer etc.)
+#   9100-9199  multi-instance features (future ACs etc. if the API ever supports it)
+TADOX_VIRTUAL_HOT_WATER_ZONE_ID: Final = 9001
+
+# Pure test dummies. No real hardware.
+DUMMY_HOME_ID: Final = "DUMMY_HOME"
+DUMMY_ZONE_ID_HOT_WATER: Final = 9999
+DUMMY_ZONE_ID_AC: Final = 9998
+DUMMY_ZONE_ID_TADOX_HOT_WATER: Final = (
+    9997  # Dedicated test dummy for Tado X hot water (Hops behavior)
+)
+
 # Zone Mode States
 ZONE_MODE_SCHEDULE: Final = "schedule"
 ZONE_MODE_OFF: Final = "off"
@@ -207,7 +222,6 @@ SERVICE_ADD_METER_READING = "add_meter_reading"
 CAPABILITY_INSIDE_TEMP: Final = "INSIDE_TEMPERATURE_MEASUREMENT"
 TEMP_OFFSET_ATTR: Final = "temperatureOffset"
 
-# Device Type Mapping (Single Source of Truth)
 DEVICE_TYPE_MAP: Final[dict[str, str]] = {
     "GW": "Gateway (V2)",
     "IB01": "Internet Bridge",
