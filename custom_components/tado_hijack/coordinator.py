@@ -1228,7 +1228,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         if zone := self.zones_meta.get(zone_id):
             old_val = getattr(zone, "early_start_enabled", None)
             # tadoasync Zone model misses this field, so we set it dynamically
-            zone.early_start_enabled = enabled  # type: ignore[union-attr]
+            cast(Any, zone).early_start_enabled = enabled
 
         await self.property_manager.async_set_zone_property(
             zone_id,
