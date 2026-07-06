@@ -128,7 +128,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         # Migration: old values
         if self.generation in ("v2", "v3", "v2_v3", "classic"):
             self.generation = GEN_CLASSIC
-        elif self.generation == "x":
+        elif self.generation == GEN_X:
             self.generation = GEN_X
 
         self.full_cloud_mode = entry.data.get(CONF_FULL_CLOUD_MODE, False)
@@ -1281,15 +1281,19 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         """Add a meter reading to Tado Energy IQ."""
         if self.generation == GEN_X:
             _LOGGER.warning(
-                "Meter readings are not currently supported via Hops API in this integration"
+                "Meter readings via 'add_meter_reading' service are not supported for Tado X. "
+                "Tado X does not provide meter reading support via the Hops API used by this integration."
             )
-            # Tado X does not support set_meter_readings via the current Hops Api wrapper we have,
-            # or it requires EIQ API. We will just pass for now or throw error if user tries.
-        else:
-            try:
-                await self.client.set_meter_readings(reading=reading)
-            except Exception as e:
-                _LOGGER.error("Failed to add meter reading: %s", e)
+            return
+        try:
+            await self.client.set_meter_readings(reading=reading)
+        except Exception as e:
+            _LOGGER.error(
+                "Failed to add meter reading via 'add_meter_reading' service. "
+                "This feature typically requires a tado° Auto-Assist subscription and Energy IQ enabled in your Tado account. "
+                "The integration's token may not have permission to write meter readings."
+            )
+            _LOGGER.debug("Detailed Tado API error: %s", e)
 
     async def async_set_ac_setting(self, zone_id: int, key: str, value: str) -> None:
         """Set an AC specific setting (fan speed, swing, temperature, etc.)."""

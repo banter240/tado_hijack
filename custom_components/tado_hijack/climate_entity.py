@@ -84,18 +84,14 @@ class TadoClimateEntity(
 
     async def _async_update_capabilities(self) -> None:
         """Fetch and refresh capabilities."""
-        if self.tado_coordinator.generation == "x":
-            # Tado X (Static Defaults)
+        if self.tado_coordinator.generation == GEN_X:
             self._attr_min_temp = 5.0
             self._attr_max_temp = 30.0
             self._attr_target_temperature_step = 0.5
             if isinstance(self, TadoAirConditioning):
                 self._attr_hvac_modes = [
                     HVACMode.OFF,
-                    HVACMode.COOL,
                     HVACMode.HEAT,
-                    HVACMode.DRY,
-                    HVACMode.FAN_ONLY,
                     HVACMode.AUTO,
                 ]
             self.async_write_ha_state()
@@ -380,11 +376,17 @@ class TadoAirConditioning(TadoClimateEntity):
         self, coordinator: TadoDataUpdateCoordinator, zone_id: int, zone_name: str
     ) -> None:
         """Initialize air conditioning climate entity."""
-        # [TADO_X] Use heating-compatible defaults for Tado X (Unified entity)
         if coordinator.generation == GEN_X:
             default_temp, min_temp = self._get_defaults_tadox()
+            self._attr_supported_features = (
+                ClimateEntityFeature.TARGET_TEMPERATURE
+                | ClimateEntityFeature.TURN_ON
+                | ClimateEntityFeature.TURN_OFF
+            )
+            self._attr_hvac_modes = [HVACMode.OFF, HVACMode.HEAT, HVACMode.AUTO]
         else:
             default_temp, min_temp = self._get_defaults_v3()
+            self._attr_hvac_modes = [HVACMode.OFF, HVACMode.COOL, HVACMode.AUTO]
 
         super().__init__(
             coordinator,
@@ -397,14 +399,11 @@ class TadoAirConditioning(TadoClimateEntity):
         self._attr_unique_id = (
             f"{coordinator.config_entry.entry_id}_climate_ac_{zone_id}"
         )
-        self._attr_hvac_modes = [HVACMode.OFF, HVACMode.COOL, HVACMode.AUTO]
         self._store_last_state("vertical_swing", "OFF")
         self._store_last_state("horizontal_swing", "OFF")
 
     def _get_defaults_tadox(self) -> tuple[float, float]:
         """Get defaults for Tado X (Heating-compatible)."""
-        # Tado X zones act as heating zones by default (min 5.0)
-        # We use this entity for ALL Tado X rooms
         return 21.0, 5.0
 
     def _get_defaults_v3(self) -> tuple[float, float]:
@@ -413,18 +412,18 @@ class TadoAirConditioning(TadoClimateEntity):
 
     def _get_active_hvac_mode(self) -> HVACMode:
         """Return hvac mode when power is ON based on current state."""
+        if self.tado_coordinator.generation == GEN_X:
+            return HVACMode.HEAT
         if (
             opt_mode := self.tado_coordinator.optimistic.get_zone_ac_mode(self._zone_id)
         ) is not None:
             if hvac_mode := _ac_mode_to_hvac(opt_mode):
                 return hvac_mode
 
-        # v3 Classic: mode exists in Setting (Tado X does not expose it here)
-        if self.tado_coordinator.generation != GEN_X:
-            state = self._current_state
-            if state and state.setting:
-                if hvac_mode := _ac_mode_to_hvac(str(state.setting.mode)):
-                    return hvac_mode
+        state = self._current_state
+        if state and state.setting:
+            if hvac_mode := _ac_mode_to_hvac(str(state.setting.mode)):
+                return hvac_mode
 
         return HVACMode.COOL
 
@@ -498,10 +497,10 @@ class TadoAirConditioning(TadoClimateEntity):
     @property
     def fan_modes(self) -> list[str] | None:
         """Return supported fan modes (cached)."""
+        if self.tado_coordinator.generation == GEN_X:
+            return None
         capabilities = self.tado_coordinator.data.capabilities.get(self._zone_id)
         if not capabilities:
-            # We trigger an async update but return None for now
-            # HA will call this again when we call async_write_ha_state
             self.hass.async_create_task(self._async_update_capabilities())
             return None
 
@@ -605,6 +604,8 @@ class TadoAirConditioning(TadoClimateEntity):
     @property
     def swing_modes(self) -> list[str] | None:
         """Return supported swing modes (cached)."""
+        if self.tado_coordinator.generation == GEN_X:
+            return None
         capabilities = self.tado_coordinator.data.capabilities.get(self._zone_id)
         if not capabilities:
             self.hass.async_create_task(self._async_update_capabilities())

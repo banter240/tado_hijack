@@ -11,6 +11,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
+    GEN_X,
     ZONE_TYPE_HOT_WATER,
 )
 from .entity import (
@@ -91,7 +92,7 @@ class TadoGenericZoneSensor(TadoZoneEntity, TadoGenericEntityMixin, SensorEntity
         trans_key = cast(str, definition["translation_key"])
 
         # Special handling for heating_power label (v3 only)
-        if definition["key"] == "heating_power" and coordinator.generation != "x":
+        if definition["key"] == "heating_power" and coordinator.generation != GEN_X:
             zone = coordinator.zones_meta.get(zone_id)
             if zone and zone.type == ZONE_TYPE_HOT_WATER:
                 trans_key = "hot_water_power"

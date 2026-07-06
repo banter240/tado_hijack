@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .climate_entity import TadoAirConditioning, TadoHeating
-from .const import ZONE_TYPE_AIR_CONDITIONING, ZONE_TYPE_HEATING
+from .const import GEN_X, ZONE_TYPE_AIR_CONDITIONING, ZONE_TYPE_HEATING
 from .helpers.discovery import yield_zones
 
 if TYPE_CHECKING:
@@ -25,7 +25,7 @@ async def async_setup_entry(
     coordinator: TadoDataUpdateCoordinator = entry.runtime_data
     entities: list[TadoHeating | TadoAirConditioning] = []
 
-    if coordinator.generation == "x":
+    if coordinator.generation == GEN_X:
         if coordinator.full_cloud_mode:
             entities.extend(
                 TadoAirConditioning(coordinator, zone.id, zone.name)
