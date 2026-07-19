@@ -8,6 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from ..const import (
+    GEN_X,
     ZONE_TYPE_AIR_CONDITIONING,
     ZONE_TYPE_HEATING,
     ZONE_TYPE_HOT_WATER,
@@ -102,7 +103,7 @@ def _process_zone_scope(
     # Zone types not yet supported on Tado X
     supported_types = definition.get("supported_zone_types")
     if (
-        coordinator.generation == "x"
+        coordinator.generation == GEN_X
         and supported_types
         and supported_types.issubset(_TADOX_UNSUPPORTED_ZONE_TYPES)
     ):

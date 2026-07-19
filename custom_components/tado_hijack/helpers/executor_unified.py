@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from ..const import GEN_X
 from .tadov3.executor import TadoV3Executor
 from .tadox.executor import TadoXExecutor
 
@@ -27,7 +28,7 @@ class TadoUnifiedExecutor:
 
     async def execute_batch(self, merged_data: dict[str, Any]) -> None:
         """Execute command batch using appropriate executor."""
-        if self.coordinator.generation == "x":
+        if self.coordinator.generation == GEN_X:
             if self._x_executor:
                 await self._x_executor.execute_batch(merged_data)
             else:

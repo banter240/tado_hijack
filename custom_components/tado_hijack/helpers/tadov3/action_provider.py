@@ -33,7 +33,7 @@ class TadoV3ActionProvider(TadoActionProvider):
         active_zones = self.get_active_zone_ids(include_heating=True, include_ac=True)
 
         if not active_zones:
-            _LOGGER.warning("No active zones to resume")
+            _LOGGER.warning("No active zones to resume (service: resume_all_schedules)")
             return
 
         _LOGGER.info("Queued resume schedules for %d active zones", len(active_zones))
@@ -82,7 +82,9 @@ class TadoV3ActionProvider(TadoActionProvider):
         zone_ids = self.get_active_zone_ids(include_heating=True, include_ac=True)
 
         if not zone_ids:
-            _LOGGER.warning("No active zones to %s", action_name)
+            _LOGGER.warning(
+                "No active zones to %s (service: %s)", action_name, command_key
+            )
             return
 
         _LOGGER.info("Queued %s for %d active zones", action_name, len(zone_ids))
@@ -157,7 +159,10 @@ class TadoV3ActionProvider(TadoActionProvider):
         """Set an AC specific setting (v3) respecting hardware capabilities."""
         state = self.coordinator.data.zone_states.get(str(zone_id))
         if not state or not getattr(state, "setting", None):
-            _LOGGER.error("Cannot set AC setting: No state for zone %d", zone_id)
+            _LOGGER.error(
+                "Cannot set AC setting: No state for zone %d (from AC service or entity)",
+                zone_id,
+            )
             return
 
         from .parsers import get_overlay_type, resolve_ac_mode

@@ -117,6 +117,7 @@ class ResetWindowTracker:
             target_utc += timedelta(days=1)
 
         self._initial_target = target_utc.astimezone(berlin_tz)
+        assert self._initial_target is not None
         return self._initial_target
 
     def record_reset(self, reset_time: datetime) -> None:

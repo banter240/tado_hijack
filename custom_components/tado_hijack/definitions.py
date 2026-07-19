@@ -141,11 +141,11 @@ def _read_climate_or_sensor_value(
         if val is not None:
             try:
                 return float(val)
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 pass
         try:
             return float(state.state)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             pass
     return None
 
