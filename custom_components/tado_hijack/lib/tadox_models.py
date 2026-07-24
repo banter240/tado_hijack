@@ -236,6 +236,11 @@ class TadoXHotWaterState(BaseModel):
     setpoint_constraints: Any | None = Field(None, alias="setpointConstraints")
 
     @property
+    def is_controllable(self) -> bool:
+        """True when state is a real programmer mode (not empty / NONE)."""
+        return (self.state or "").strip().upper() not in ("", "NONE")
+
+    @property
     def overlay_active(self) -> bool:
         return not self.state.startswith("SCHEDULE_")
 
