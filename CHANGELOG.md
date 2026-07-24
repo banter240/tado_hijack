@@ -1,3 +1,19 @@
+## [5.7.1](https://github.com/banter240/tado_hijack/compare/v5.7.0...v5.7.1) (2026-07-24)
+* fix(core): Tado X full-cloud climate guards, presence via v2, and Python 3.14
+
+Guards Full Cloud climate entities on Tado X, fixes Home/Away reading for
+Tado X, and aligns the toolchain with Home Assistant's Python 3.14 runtime.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🌡️ FULL CLOUD / TADO X CLIMATE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- TadoAirConditioning on GEN_X: hvac_modes limited to OFF/HEAT/AUTO
+- fan_modes and swing_modes return None for GEN_X (no capabilities endpoint)
+- _get_active_hvac_mode returns HEAT for GEN_X (all X rooms are heating)
+- supported_features limited to temperature + on/off for GEN_X
+- Prevents setup crashes and incorrect "cooling" action on heating zones
+
 ## [5.7.0](https://github.com/banter240/tado_hijack/compare/v5.6.0...v5.7.0) (2026-06-30)
 * feat(tadox): add Tado X hot water support (auto/off only via Hops) with central guards
 
