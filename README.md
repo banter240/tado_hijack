@@ -264,16 +264,19 @@ Tado's API limits are restrictive. That's why Tado Hijack uses a **Zero-Waste Po
 
 | Action              |  Cost  | Frequency     | Description                              | Detailed API Calls                                                                     |
 | :------------------ | :----: | :------------ | :--------------------------------------- | :------------------------------------------------------------------------------------- |
-| **Zone Poll**       | **1**  | Adaptive      | HVAC, Valve %, Humidity.                 | `GET /homes/{id}/zoneStates`                                                           |
-| **Presence Poll**   | **1**  | 12h (Default) | Home/Away presence state.                | `GET /homes/{id}/state`                                                                |
-| **Hardware Sync**   | **2+** | 24h (Default) | Syncs battery, firmware and device list. | `GET /homes/{id}/zones`<br>`GET /homes/{id}/devices`<br>`GET /zones/{id}/capabilities` |
-| **Refresh Zones**   | **2**  | On Demand     | Updates zone/device metadata.            | `GET /homes/{id}/zones`<br>`GET /homes/{id}/devices`                                   |
-| **Refresh Offsets** | **1–N**  | On Demand  | Fetches device offsets. 1 call with `entity_id`, N without. | `GET /devices/{s}/temperatureOffset` (×1 or ×N)                                  |
-| **Refresh Away**    | **1–M**  | On Demand  | Fetches zone away temps. 1 call with `entity_id`, M without. | `GET /zones/{z}/awayConfiguration` (×1 or ×M)                                   |
-| **Zone Overlay**    | **1**  | On Demand     | **Fused:** All zone changes in 1 call.   | `POST /homes/{id}/overlay`                                                             |
-| **Presence**        | **1**  | On Demand     | Force presence lock (home/away=PUT, auto=DELETE). | `PUT /homes/{id}/presenceLock`<br>`DELETE /homes/{id}/presenceLock`              |
+| **Zone Poll**       | **1**  | Adaptive      | HVAC, Valve %, Humidity.                 | v3: `GET /homes/{id}/zoneStates`<br>X: `GET hops…/rooms` (+ DHW if installed)          |
+| **Presence Poll**   | **1**  | 12h (Default) | Home/Away presence state.                | **Both gens:** `GET my.tado.com/api/v2/homes/{id}/state` (not Hops)                    |
+| **Hardware Sync**   | **1–2+** | 24h (Default) | Syncs battery, firmware and device list. | v3: `GET /zones` + `GET /devices` (+ caps)<br>X: `GET hops…/roomsAndDevices` (**1**) |
+| **Refresh Zones**   | **1–2**  | On Demand     | Updates zone/device metadata.            | v3: zones + devices<br>X: `roomsAndDevices`                                            |
+| **Refresh Offsets** | **1–N**  | On Demand  | Fetches device offsets. 1 call with `entity_id`, N without. | v3: `GET /devices/{s}/temperatureOffset`<br>X: usually in metadata snapshot        |
+| **Refresh Away**    | **1–M**  | On Demand  | Fetches zone away temps. 1 call with `entity_id`, M without. | v3 only (`awayConfiguration`). Tado X: not available via API                     |
+| **Zone Overlay**    | **1**  | On Demand     | **Fused:** All zone changes in 1 call.   | v3: `POST /homes/{id}/overlay`<br>X: per-room `manualControl` (or quickActions)        |
+| **Presence**        | **1**  | On Demand     | Force presence lock (home/away=PUT, auto=DELETE). | **Both gens:** `PUT/DELETE …/presenceLock` on my.tado.com (v2)                  |
 
-_Note: Endpoints shown are v3 API. Tado X uses different endpoints (Hops API) but similar polling logic. See [Generation Support](#generation-support-v3-classic--tado-x) for differences._
+_Notes:_
+- **Presence is always the classic v2 API** for both v3 Classic and Tado X (`/state`, `/presenceLock`). Hops `roomsAndDevices` does **not** include home/away.
+- Room/device control for Tado X uses the Hops API (`hops.tado.com`). See [Generation Support](#generation-support-v3-classic--tado-x).
+- Default presence poll is 12h → **~2 calls/day**. Manual refresh / set still costs 1 call each.
 
 <br>
 

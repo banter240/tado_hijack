@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import sys
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 from ..const import TADO_VERSION_PATCH
 from ..helpers.logging_utils import get_redacted_logger
@@ -96,7 +96,9 @@ def patch_set_meter_readings() -> None:
                     f"Error setting meter reading: {data['message']}"
                 )
 
-        tadoasync.tadoasync.Tado.set_meter_readings = patched_set_meter_readings  # type: ignore[method-assign]
+        cast(
+            Any, tadoasync.tadoasync.Tado
+        ).set_meter_readings = patched_set_meter_readings
         _LOGGER.debug("Successfully patched tadoasync Tado.set_meter_readings")
     except Exception as e:
         _LOGGER.error("Failed to patch set_meter_readings: %s", e)
@@ -173,7 +175,7 @@ def patch_zone_state_deserialization() -> None:
 
             return d
 
-        tadoasync.models.ZoneState.__pre_deserialize__ = classmethod(  # type: ignore[method-assign, assignment]
+        cast(Any, tadoasync.models.ZoneState).__pre_deserialize__ = classmethod(
             patched_pre_deserialize
         )
         _LOGGER.debug("Successfully patched ZoneState.__pre_deserialize__")

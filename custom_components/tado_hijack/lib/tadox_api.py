@@ -214,6 +214,10 @@ class TadoXApi:
         """Delete manual control and resume schedule."""
         return await self._request("DELETE", f"rooms/{room_id}/manualControl")
 
+    async def async_get_home_state(self) -> Any:
+        """Get home presence state."""
+        return await self._tado.get_home_state()
+
     async def async_set_presence(self, presence: str) -> None:
         """Set home presence via v2 API (shared endpoint)."""
         await self._request_external(

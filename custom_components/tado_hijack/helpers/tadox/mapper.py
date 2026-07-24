@@ -22,7 +22,6 @@ class TadoXMapper:
     def __init__(self, bridge: TadoXApi) -> None:
         """Initialize the Tado X mapper."""
         self.bridge = bridge
-        self._last_presence: str = "HOME"
         # None = not probed; True = installed; False = not installed (skip future calls)
         self._hot_water_available: bool | None = None
 
@@ -30,7 +29,6 @@ class TadoXMapper:
         """Fetch all relevant Tado X data and return a UnifiedTadoData container."""
         _LOGGER.debug("Fetching unified Tado X data from Hops")
 
-        # 1. Fetch data from both Hops entry points
         try:
             room_states = await self.bridge.async_get_room_states()
             snapshot = await self.bridge.async_get_rooms_and_devices()
@@ -44,21 +42,10 @@ class TadoXMapper:
             room_states = []
             snapshot = None
 
-        # 2. Initialize the unified container with defaults
-        presence = "HOME"
-        rooms = []
-        other_devices = []
-        if snapshot:
-            # Extract presence from home field
-            # Tado X API should always provide home.presence
-            if snapshot.home:
-                presence = snapshot.home.presence
-            else:
-                _LOGGER.warning(
-                    "Tado X API returned snapshot without home field - using default presence"
-                )
-            rooms = snapshot.rooms
-            other_devices = snapshot.other_devices
+        home_state = await self.async_fetch_home_state()
+        presence = getattr(home_state, "presence", "HOME")
+        rooms = snapshot.rooms if snapshot else []
+        other_devices = snapshot.other_devices if snapshot else []
 
         unified_data = UnifiedTadoData(
             home_state=type("HomeState", (), {"presence": presence}),
@@ -69,13 +56,11 @@ class TadoXMapper:
             generation=GEN_X,
         )
 
-        # 3. Map Rooms (Operational State)
         for state in room_states:
             unified_data.zone_states[str(state.room_id)] = state
 
         await self._augment_with_hot_water(unified_data.zone_states)
 
-        # 4. Map Devices (Hardware Metadata)
         all_hops_devices = other_devices + [
             dev for room in rooms for dev in room.devices
         ]
@@ -101,7 +86,7 @@ class TadoXMapper:
         return result
 
     async def async_fetch_metadata(self) -> tuple[dict[int, Any], dict[str, Any]]:
-        """Fetch Tado X metadata (slow poll): rooms, devices, and presence."""
+        """Fetch Tado X metadata (slow poll): rooms and devices."""
         try:
             snapshot = await self.bridge.async_get_rooms_and_devices()
         except Exception as e:
@@ -113,13 +98,6 @@ class TadoXMapper:
             )
             return {}, {}
 
-        if snapshot and snapshot.home:
-            self._last_presence = snapshot.home.presence
-        else:
-            _LOGGER.warning(
-                "Tado X API returned snapshot without home field - using default presence"
-            )
-
         rooms = snapshot.rooms if snapshot else []
         other_devices = snapshot.other_devices if snapshot else []
 
@@ -128,10 +106,6 @@ class TadoXMapper:
         devices_meta: dict[str, Any] = {dev.serial_no: dev for dev in all_devices}
 
         return zones_meta, devices_meta
-
-    def get_last_presence(self) -> str:
-        """Return presence from last metadata fetch."""
-        return self._last_presence
 
     def is_feature_supported(self, feature: str) -> bool:
         """Check if a specific Hijack feature is supported by Tado X hardware."""
@@ -158,8 +132,8 @@ class TadoXMapper:
         return self.bridge
 
     async def async_fetch_home_state(self) -> Any:
-        """Not used for Tado X — presence is embedded in metadata."""
-        return None
+        """Fetch presence/home state."""
+        return await self.bridge.async_get_home_state()
 
     async def async_fetch_capabilities(self, zone_id: int) -> Any:
         """Not used for Tado X — no separate capabilities endpoint."""

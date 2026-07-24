@@ -1,6 +1,6 @@
 [tool.mypy]
 platform = "linux"
-python_version = "3.13"
+python_version = "3.14"
 follow_imports = "normal"
 ignore_missing_imports = true
 explicit_package_bases = true
@@ -22,7 +22,7 @@ warn_unused_ignores = true
 exclude = ["testing_config/", "dev/"]
 
 [tool.ruff]
-target-version = "py313"
+target-version = "py314"
 line-length = 88
 
 [tool.ruff.lint]
@@ -66,18 +66,18 @@ license = "GPL-3.0"
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.13"
-homeassistant = ">=2026.3.4"
+python = "^3.14"
+homeassistant = ">=2026.3"
 
 [tool.poetry.group.dev.dependencies]
-pytest = "9.0.0"
-pytest-cov = "7.0.0"
-pytest-homeassistant-custom-component = "0.13.320"
+pytest = "9.1.1"
+pytest-cov = "7.1.0"
+pytest-homeassistant-custom-component = "0.13.345"
 
 # Recommended development tools:
-ruff = "0.15.8"
-mypy = "1.19.1"
-pre-commit = "4.5.1"
+ruff = "0.15.20"
+mypy = "2.1.0"
+pre-commit = "4.6.0"
 yamllint = "1.38.0"
 
 [build-system]

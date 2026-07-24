@@ -62,7 +62,7 @@ class UnifiedDataProvider(Protocol):
         ...
 
     async def async_fetch_home_state(self) -> Any:
-        """Fetch presence/home state (v3 only; Tado X embeds it in metadata)."""
+        """Fetch presence/home state."""
         ...
 
     async def async_fetch_capabilities(self, zone_id: int) -> Any:

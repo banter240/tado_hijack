@@ -157,7 +157,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:  # noqa: C901
                     )
                     await coord.async_targeted_fetch(refresh_type, entity_id)
                     return
-            _LOGGER.warning("Could not resolve Tado zone for entity %s", entity_id)
+            _LOGGER.warning(
+                "Could not resolve Tado zone for entity %s (service: manual_poll)",
+                entity_id,
+            )
         else:
             _LOGGER.debug("Service call: manual_poll (type: %s)", refresh_type)
             for coord in _get_coordinators_for_call(hass, call):
@@ -183,6 +186,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:  # noqa: C901
 
     async def handle_set_mode(call: ServiceCall) -> None:
         """Service to set a manual mode (batched)."""
+        _LOGGER.debug("Service call: set_mode")
         entity_ids = call.data.get("entity_id")
         if not entity_ids:
             return
@@ -203,7 +207,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:  # noqa: C901
                     resolved = True
                     break
             if not resolved:
-                _LOGGER.warning("Could not resolve Tado zone for entity %s", entity_id)
+                _LOGGER.warning(
+                    "Could not resolve Tado zone for entity %s (service: set_mode)",
+                    entity_id,
+                )
 
         for coord, zone_ids in coord_map.items():
             if zone_ids:
@@ -211,6 +218,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:  # noqa: C901
 
     async def handle_set_mode_all(call: ServiceCall) -> None:
         """Service to set a manual overlay for all heating/AC zones (batched)."""
+        _LOGGER.debug("Service call: set_mode_all_zones")
         params = _parse_service_call_data(call)
         for coord in _get_coordinators_for_call(hass, call):
             zone_ids = coord.get_active_zones(
@@ -226,6 +234,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:  # noqa: C901
 
     async def handle_set_water_heater_mode(call: ServiceCall) -> None:
         """Service to set a mode for water heater entities."""
+        _LOGGER.debug("Service call: set_water_heater_mode")
         entity_ids = call.data.get("entity_id")
         if not entity_ids:
             return
@@ -255,7 +264,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:  # noqa: C901
                     resolved = True
                     break
             if not resolved:
-                _LOGGER.warning("Could not resolve Tado zone for entity %s", entity_id)
+                _LOGGER.warning(
+                    "Could not resolve Tado zone for entity %s (service: set_water_heater_mode)",
+                    entity_id,
+                )
 
         for coord, zone_ids in coord_map.items():
             for zone_id in zone_ids:
