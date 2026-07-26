@@ -1,12 +1,11 @@
 """Data Update Coordinator for Tado Hijack."""
 
-import asyncio
-
 from __future__ import annotations
 
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, cast
 
+import asyncio
 import aiohttp
 from homeassistant.core import (
     HomeAssistant,
