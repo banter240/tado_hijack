@@ -44,9 +44,11 @@ def _setup_water_heater_entities_tadox(
     coordinator: TadoDataUpdateCoordinator,
 ) -> list[TadoHotWater]:
     """Set up hot water entities for Tado X."""
-    if coordinator.data.zone_states.get(str(TADOX_VIRTUAL_HOT_WATER_ZONE_ID)) is None:
+    state = coordinator.data.zone_states.get(str(TADOX_VIRTUAL_HOT_WATER_ZONE_ID))
+    if state is None or not getattr(state, "is_controllable", True):
         _LOGGER.debug(
-            "No Tado X hot water found (programmer/domesticHotWater/state unavailable)"
+            "No controllable Tado X hot water found "
+            "(programmer/domesticHotWater unavailable or state=NONE)"
         )
         return []
     return [TadoHotWaterX(coordinator, TADOX_VIRTUAL_HOT_WATER_ZONE_ID, "Hot Water")]

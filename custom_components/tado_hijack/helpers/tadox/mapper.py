@@ -148,7 +148,7 @@ class TadoXMapper:
         await self.bridge.async_set_temperature_offset(serial_no, offset)
 
     async def _fetch_hot_water_state_safe(self) -> TadoXHotWaterState | None:
-        """Fetch hot water state with caching for 'not installed'."""
+        """Fetch hot water state with caching for unavailable/uncontrollable."""
         if self._hot_water_available is False:
             return None
 
@@ -158,9 +158,19 @@ class TadoXMapper:
             _LOGGER.debug("Tado X hot water state fetch failed (transient): %s", e)
             return None
 
-        if result is None:
-            if self._hot_water_available is None:
-                _LOGGER.debug("Tado X hot water programmer not detected (no hardware)")
+        if result is None or not result.is_controllable:
+            if self._hot_water_available is not False:
+                if result is None:
+                    _LOGGER.debug(
+                        "Tado X hot water programmer not detected (no hardware)"
+                    )
+                else:
+                    _LOGGER.info(
+                        "Tado X hot water not controllable via "
+                        "programmer/domesticHotWater (state=%s); "
+                        "skipping water_heater entity",
+                        result.state,
+                    )
                 self._hot_water_available = False
             return None
 

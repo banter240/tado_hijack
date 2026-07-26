@@ -1,3 +1,15 @@
+## [5.7.2-dev.1](https://github.com/banter240/tado_hijack/compare/v5.7.1...v5.7.2-dev.1) (2026-07-24)
+* fix(tadox): skip water_heater when domesticHotWater state is NONE
+
+Hops can return a programmer/domesticHotWater/state payload with state=NONE
+(e.g. Heat Pump Optimizer X setups) which is not controllable via the
+classic resumeSchedule/boost endpoints. Creating a water_heater entity in
+that case led to 404s and a permanently stuck off state.
+
+- TadoXHotWaterState.is_controllable rejects empty/NONE states
+- Mapper does not inject zone 9001 unless controllable
+- water_heater setup requires a controllable state
+
 ## [5.7.1](https://github.com/banter240/tado_hijack/compare/v5.7.0...v5.7.1) (2026-07-24)
 * fix(core): Tado X full-cloud climate guards, presence via v2, and Python 3.14
 
