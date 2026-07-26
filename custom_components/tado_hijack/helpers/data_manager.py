@@ -132,9 +132,6 @@ class TadoDataManager:
 
     def _add_presence_track_to_plan(self, plan: list[PollTask], now: float) -> None:
         """Add presence/home state polling."""
-        if self.coordinator.generation == GEN_X:
-            return
-
         elapsed = now - self._last_presence_poll
         interval = float(self._presence_poll_seconds)
         if not self._presence_init or (
@@ -268,9 +265,6 @@ class TadoDataManager:
                 home_state = await task.coroutine(now)
             elif task.coroutine == self._fetch_metadata:
                 await task.coroutine(now)
-                # For Tado X, presence might have been updated during metadata fetch
-                if self.coordinator.generation == GEN_X and self.coordinator.data:
-                    home_state = self.coordinator.data.home_state
             elif task.coroutine == self._fetch_away_config:
                 await task.coroutine()
                 self._last_away_poll = now
@@ -316,14 +310,14 @@ class TadoDataManager:
         )
 
     async def _fetch_presence(self, now: float) -> Any:
-        """Fetch presence state (V3 only)."""
+        """Fetch presence state."""
         if not self.provider:
             return None
 
         state = await self.provider.async_fetch_home_state()
         self._last_presence_poll = now
         self._presence_init = True
-        if self.coordinator.data:
+        if self.coordinator.data and state is not None:
             from .api_manager import TadoApiManager
 
             pending_keys = self.coordinator.api_manager.pending_keys
@@ -406,16 +400,6 @@ class TadoDataManager:
                     await self._fetch_capabilities(z.id)
 
         self._metadata_init = True
-
-        # Tado X Presence Handling (embedded in metadata snapshot)
-        if self.coordinator.generation == GEN_X:
-            from .tadox.mapper import TadoXMapper
-
-            presence = cast(TadoXMapper, self.provider).get_last_presence()
-            if self.coordinator.data and self.coordinator.data.home_state:
-                self.coordinator.data.home_state.presence = presence
-            self._presence_init = True
-            self._last_presence_poll = now
 
         # Update bridges for discovery
         from .discovery import get_bridges

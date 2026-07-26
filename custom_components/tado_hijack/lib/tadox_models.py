@@ -215,18 +215,11 @@ class HopsRoomSnapshot(BaseModel):
     devices: list[TadoXDevice]
 
 
-class HomePresence(BaseModel):
-    """Model for home presence information."""
-
-    presence: str  # "HOME", "AWAY", etc.
-
-
 class HopsRoomsAndDevicesResponse(BaseModel):
     """Model for full roomsAndDevices response."""
 
     rooms: list[HopsRoomSnapshot]
     other_devices: list[TadoXDevice] = Field(alias="otherDevices")
-    home: HomePresence | None = None  # Presence information
 
 
 class _HotWaterSetting:

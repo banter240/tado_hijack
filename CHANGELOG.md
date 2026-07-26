@@ -1,36 +1,18 @@
-## [5.7.1-dev.1](https://github.com/banter240/tado_hijack/compare/v5.7.0...v5.7.1-dev.1) (2026-07-10)
-* fix(full_cloud): guard Tado X in TadoAirConditioning for fan/swing and hvac_mode
+## [5.7.1](https://github.com/banter240/tado_hijack/compare/v5.7.0...v5.7.1) (2026-07-24)
+* fix(core): Tado X full-cloud climate guards, presence via v2, and Python 3.14
 
-In Full Cloud Mode on Tado X, TadoAirConditioning is the unified entity for all zones.
+Guards Full Cloud climate entities on Tado X, fixes Home/Away reading for
+Tado X, and aligns the toolchain with Home Assistant's Python 3.14 runtime.
 
-- fan_modes/swing_modes return None for GEN_X (no capabilities endpoint)
-- _get_active_hvac_mode returns HEAT for GEN_X (all zones are heating)
-- supported_features limited for GEN_X (no FAN/SWING)
-- hvac_modes set to [OFF, HEAT, AUTO] for GEN_X (matching TadoHeating)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🌡️ FULL CLOUD / TADO X CLIMATE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Prevents event loop crash during setup and incorrect 'cooling' action on heating zones.
-
-Also improves service call diagnostics:
-- Added debug logs when entering service handlers (manual_poll, set_mode, set_mode_all_zones, set_water_heater_mode).
-- Warnings now include the service name (e.g. "(service: manual_poll)").
-- Better messages in async_add_meter_reading for Tado X and general failures (permission/subscription hints).
-
-See https://github.com/banter240/tado_hijack/discussions/113
-
-* chore: target Python 3.14 across the board
-
-Align the integration with Home Assistant's current Python 3.14 requirement.
-
-- pyproject.toml: python = "^3.14", mypy python_version = "3.14", ruff target-version = "py314"
-- .github/workflows/lint.yml: python-version 3.14
-- Updated and pinned dev tooling: mypy==2.1.0 (native PEP 695 support, no more --enable-incomplete-feature), ruff==0.15.20, pre-commit==4.6.0, updated pytest stack
-- .pre-commit-config.yaml: updated hook revisions, mypy hook now pins exact mypy==2.1.0 + tadoasync==0.2.2; removed --disable-error-code and --no-warn-unused-ignores
-- hacs.json + pyproject: minimum homeassistant pinned to "2026.3"
-- requirements.txt synced with dev dependencies
-- Replaced remaining # type: ignore[method-assign] / [union-attr] etc. with cast(Any, ...) for monkey-patches (lib/patches.py) and dynamic attributes (coordinator.py + related)
-- Minor ruff-driven cleanups (logging, exception syntax, etc.)
-
-All local on ai/dev.
+- TadoAirConditioning on GEN_X: hvac_modes limited to OFF/HEAT/AUTO
+- fan_modes and swing_modes return None for GEN_X (no capabilities endpoint)
+- _get_active_hvac_mode returns HEAT for GEN_X (all X rooms are heating)
+- supported_features limited to temperature + on/off for GEN_X
+- Prevents setup crashes and incorrect "cooling" action on heating zones
 
 ## [5.7.0](https://github.com/banter240/tado_hijack/compare/v5.6.0...v5.7.0) (2026-06-30)
 * feat(tadox): add Tado X hot water support (auto/off only via Hops) with central guards

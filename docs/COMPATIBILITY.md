@@ -33,4 +33,5 @@ Located in `lib/tadox_api.py`, this component utilizes the existing authenticate
 
 - **Data Mapping:** Room states from Hops are transformed into the `UnifiedTadoData` model.
 - **Duck Typing:** Handles the shift from Classic's `.celsius` keys to Hops' `.value` keys.
+- **Presence (Home/Away):** Not part of Hops. Read via classic v2 `GET /homes/{id}/state`, write via `presenceLock` - same as v3.
 - **Matter Synchronization:** Optimized to work alongside Matter push updates while providing cloud-only features (Schedules, Presence Lock) that Matter cannot access.
