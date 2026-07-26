@@ -1,0 +1,35 @@
+name: Ruff Autofix
+
+on:
+  pull_request:
+  push:
+    branches:
+      - dev
+
+jobs:
+  autofix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Fix lint issues
+        run: ruff check --fix .
+
+      - name: Format code
+        run: ruff format .
+
+      - name: Commit changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "style: auto-fix with ruff"
