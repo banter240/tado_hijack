@@ -391,7 +391,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
 
             self.zones_meta = self.data_manager.zones_meta
             self.devices_meta = self.data_manager.devices_meta
-            self.timetable_cache: dict[int, dict] = self.data_manager.timetable_cache
+            self.timetable_cache: dict[int, dict[str, Any]] = self.data_manager.timetable_cache
 
             from .helpers.discovery import get_bridges
 
@@ -1291,7 +1291,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         """Refresh the active timetable for a zone from the API."""
         _LOGGER.info("Refreshing timetable for zone %s", zone_id)
         try:
-            entry = await self._tado.get_active_timetable(zone_id)
+            entry = await self.client.get_active_timetable(zone_id)
             self.data_manager.timetable_cache[zone_id] = entry
             self.async_update_listeners()
             self._save_timetable_cache()
