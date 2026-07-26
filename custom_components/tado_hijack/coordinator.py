@@ -1317,7 +1317,9 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             _LOGGER.debug("async_refresh_all_timetables: no compatible zones found")
             return
 
-        _LOGGER.info("Refreshing timetables for %d zone(s): %s", len(zone_ids), zone_ids)
+        _LOGGER.info(
+            "Refreshing timetables for %d zone(s): %s", len(zone_ids), zone_ids
+        )
         await asyncio.gather(
             *(self.async_refresh_timetable(zone_id) for zone_id in zone_ids)
         )
@@ -1342,7 +1344,9 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
 
         _LOGGER.info(
             "Setting timetable type '%s' for %d zone(s): %s",
-            timetable_type, len(zone_ids), zone_ids,
+            timetable_type,
+            len(zone_ids),
+            zone_ids,
         )
         await asyncio.gather(
             *(self.async_set_timetable(zone_id, timetable_type) for zone_id in zone_ids)

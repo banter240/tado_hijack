@@ -1902,7 +1902,9 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     create_home_select(
         key="timetable_type_all_zones",
         value_fn=lambda c: (
-            next(iter(c.data_manager.timetable_cache.values()), {}).get("type", "ONE_DAY").lower()
+            next(iter(c.data_manager.timetable_cache.values()), {})
+            .get("type", "ONE_DAY")
+            .lower()
             if c.data_manager.timetable_cache
             else "one_day"
         ),
@@ -1928,9 +1930,7 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
             else None
         ),
         options_fn=lambda c, zid: ["one_day", "three_day", "seven_day"],
-        select_option_fn=lambda c, zid, val: c.async_set_timetable(
-            zid, val.upper()
-        ),
+        select_option_fn=lambda c, zid, val: c.async_set_timetable(zid, val.upper()),
         icon="mdi:calendar-week",
         entity_category=EntityCategory.CONFIG,
         supported_zone_types={ZONE_TYPE_HEATING, ZONE_TYPE_HOT_WATER},
