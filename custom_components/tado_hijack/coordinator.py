@@ -391,7 +391,9 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
 
             self.zones_meta = self.data_manager.zones_meta
             self.devices_meta = self.data_manager.devices_meta
-            self.timetable_cache: dict[int, dict[str, Any]] = self.data_manager.timetable_cache
+            self.timetable_cache: dict[int, dict[str, Any]] = (
+                self.data_manager.timetable_cache
+            )
 
             from .helpers.discovery import get_bridges
 
