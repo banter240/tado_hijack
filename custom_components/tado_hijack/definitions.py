@@ -1902,7 +1902,9 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     create_home_select(
         key="timetable_type_all_zones",
         value_fn=lambda c: (
-            next(iter(c.data_manager.timetable_cache.values()), cast(dict[str, Any], {}))
+            next(
+                iter(c.data_manager.timetable_cache.values()), cast(dict[str, Any], {})
+            )
             .get("type", "ONE_DAY")
             .lower()
             if c.data_manager.timetable_cache
