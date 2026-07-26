@@ -1,5 +1,7 @@
 """Data Update Coordinator for Tado Hijack."""
 
+import asyncio
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta
