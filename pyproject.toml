@@ -35,7 +35,6 @@ ignore = [
     "PLR0915", # Too many statements (complex setup/service functions)
     "PLW0603", # Using the global statement (module-level flags for patches and log level)
     "TID252",  # Relative imports are HA integration convention (..const, ..models etc.)
-    "PLR0917",  # too-many-positional-arguments — acceptable pour les factory functions
 ]
 
 [tool.ruff.lint.per-file-ignores]
