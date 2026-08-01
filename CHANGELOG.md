@@ -1,3 +1,16 @@
+## [5.8.0-dev.1](https://github.com/banter240/tado_hijack/compare/v5.7.2-dev.1...v5.8.0-dev.1) (2026-08-01)
+* feat(core): add home heating_demand binary sensor and GitHub funding
+
+Expose a home-level binary sensor that is on when any heating zone reports
+heating power above zero. Uses the existing generation-specific power
+parsers (v3/X) so classic and Tado X stay separated.
+
+Also adds .github/FUNDING.yml for Buy Me a Coffee (banter240).
+
+- definitions: _parse_zone_heating_power / _parse_home_heating_demand
+- merge classic+X heating_power zone sensors onto one definition
+- translations en/de/cs for heating_demand
+
 ## [5.7.2-dev.1](https://github.com/banter240/tado_hijack/compare/v5.7.1...v5.7.2-dev.1) (2026-07-24)
 * fix(tadox): skip water_heater when domesticHotWater state is NONE
 
