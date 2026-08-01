@@ -1,3 +1,19 @@
+## [5.8.0-dev.2](https://github.com/banter240/tado_hijack/compare/v5.8.0-dev.1...v5.8.0-dev.2) (2026-08-01)
+* feat(core): Matter/HomeKit device linking by serial and diagnostics improvements
+
+Link cloud entities onto local Matter devices when HA exposes the same
+serial as the Tado cloud (same path as HomeKit for classic). Build the
+local climate map for every generation outside full cloud mode, surface
+linking status in diagnostics, and tighten redaction so dumps stay useful.
+
+- device_linker: drop GEN_X early-return; match via device.serial_number
+- coordinator: _update_climate_map via yield_devices for all generations
+- diagnostics: device_linking section (domains, climate map, per-serial)
+- diagnostics: exact/suffix secret keys (no substring over-redact of
+  pending_actions_keys or *token entity entries)
+- diagnostics: safe TadoData summary instead of broken asdict dump
+- README: Matter serial linking and temp-source guidance
+
 ## [5.8.0-dev.1](https://github.com/banter240/tado_hijack/compare/v5.7.2-dev.1...v5.8.0-dev.1) (2026-08-01)
 * feat(core): add home heating_demand binary sensor and GitHub funding
 
