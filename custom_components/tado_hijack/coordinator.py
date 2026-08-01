@@ -284,16 +284,13 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         )
 
     def _update_climate_map(self) -> None:
-        """Map HomeKit climate entities to Tado zones (v3 only).
+        """Map local climate entities (HomeKit / Matter) to Tado zones by serial."""
+        from .helpers.discovery import yield_devices
 
-        Should only be called for v3 Classic generation.
-        """
-        for zone in self.zones_meta.values():
-            if zone.type != ZONE_TYPE_HEATING:
-                continue
-            for device in zone.devices:
-                if climate_id := get_climate_entity_id(self.hass, device.serial_no):
-                    self._climate_to_zone[climate_id] = zone.id
+        self._climate_to_zone.clear()
+        for device, zone_id in yield_devices(self, {ZONE_TYPE_HEATING}):
+            if climate_id := get_climate_entity_id(self.hass, device.serial_no):
+                self._climate_to_zone[climate_id] = zone_id
 
     @property
     def client(self) -> TadoHijackClient:
@@ -385,7 +382,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
 
             self.bridges = get_bridges(self.devices_meta, self.generation)
 
-            if self.generation == GEN_CLASSIC and not self.full_cloud_mode:
+            if not self.full_cloud_mode:
                 self._update_climate_map()
 
             self.auth_manager.check_and_update_token()

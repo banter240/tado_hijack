@@ -60,7 +60,7 @@ It is designed to work **alongside** your local HomeKit (v3) or Matter (Tado X) 
 - **Auto API Quota:** Dynamically adjusts polling intervals based on your remaining daily API calls and detects your account's specific reset time.
 - **Command Batching:** Fuses multiple concurrent commands into a single API call.
 - **Multi-Generation Support:** Full support for V2 (GW bridges), V3 Classic (HomeKit), and Tado X (Matter) within a unified architecture.
-- **Device Unification:** Injects cloud features into existing HomeKit devices (V3 only).
+- **Device Unification:** Injects cloud features into existing local devices (HomeKit for v3, Matter for Tado X when serial numbers are exposed).
 - **Indoor Climate Sensors:** Calculates dew point, absolute humidity, and mold risk per zone.
 - **Night-Savings (Economy Window):** Slows down polling during the night to save API calls for daytime use.
 
@@ -86,7 +86,7 @@ It is designed to work **alongside** your local HomeKit (v3) or Matter (Tado X) 
 | **Local Control (v3)**             |      ❌       |      ✅      |    ✅ (via HK Link)     |
 | **Tado X Support**                 |      ❌       |  ✅ (Matter) |  ✅ **Local + Cloud**   |
 | **Multi-Generation Support**       |      ❌       |   v3 only    |   ✅ **v3 / X / v2**    |
-| **Device Unification**             |      ❌       |      ❌      |    ✅ **V3 only**    |
+| **Device Unification**             |      ❌       |      ❌      |  ✅ **HK / Matter**  |
 | **Dynamic Presence-Aware Overlay** |      ❌       |      ❌      |    ✅ **Exclusive**     |
 | **Auto Quota (Weighted)**          |      ❌       |     N/A      |       ✅ **Yes**        |
 | **Economy Window (Night Mode)**    |      ❌       |     N/A      |       ✅ **Yes**        |
@@ -173,7 +173,7 @@ While other integrations waste your precious API quota for every tiny interactio
 
 **For V3 (HomeKit):** Tado Hijack detects your existing HomeKit devices and **injects** cloud-only features directly into them — creating one unified device with both local control and cloud power-features.
 
-**For Tado X (Matter):** Matter doesn't expose serial numbers for device linking, so Tado Hijack features appear as separate entities alongside your Matter climate entities.
+**For Tado X (Matter):** When Matter exposes the device serial (same `VA…` as the Tado cloud), Hijack links cloud entities onto the existing Matter device. If no serial is available, features stay on separate Hijack devices (manual temp-source linking still works).
 
 <br>
 
@@ -184,7 +184,7 @@ While other integrations waste your precious API quota for every tiny interactio
 > - **Tado v3 Classic:** Works with HomeKit Device integration (provides `climate` entity for local temperature control)
 > - **Tado X:** Works with Matter integration (provides `climate` entity for local temperature control)
 > - **Tado Hijack:** Provides the "Missing Links" for **both generations** (Schedules, Hot Water, AC Modes, Hardware Settings)
->   - **V3 Bonus:** Device Unification (features injected into HomeKit devices)
+>   - **Device Unification:** Cloud features inject into HomeKit (v3) or Matter (Tado X) devices when serial numbers match
 >
 > _Note: **Full Cloud Mode** provides climate entities via API polling but consumes API quota for temperature changes. See [Full Cloud Mode](#full-cloud-mode-all-generations) for details._
 
@@ -360,9 +360,9 @@ Not all API calls are created equal. Tado Hijack optimizes everything, but physi
 
 Unlike other integrations that group everything by "Zone", Tado Hijack maps entities to their **physical devices** (Valves/Thermostats).
 
-- **Matched via Serial Number:** Automatic injection into existing HomeKit devices.
-- **EntityResolver:** A specialized engine that deep-scans the Home Assistant registry to perfectly link HomeKit climate entities with Tado's cloud logical zones.
-- **No HomeKit?** We create dedicated devices containing **only** the cloud features (Battery, Offset, Child Lock, etc.), but **no** temperature control.
+- **Matched via Serial Number:** Automatic injection into existing HomeKit (v3) or Matter (Tado X) devices when HA exposes the same serial as the cloud.
+- **EntityResolver:** Deep-scans the Home Assistant registry to link local climate entities with Tado's cloud zones.
+- **No local match?** We create dedicated devices containing **only** the cloud features (Battery, Offset, Child Lock, etc.), but **no** temperature control.
 
 <br>
 
@@ -479,7 +479,7 @@ Each zone device exposes two optional source selectors that override the data us
 | **3. Cloud API** | `sensor_data_points.inside_temperature` (All Gens) | `sensor_data_points.humidity` (All Gens) |
 
 > [!TIP]
-> **For Tado X:** The integration falls back to cloud temperature data out-of-the-box. However, because Matter devices hide their serial numbers in Home Assistant, they cannot be auto-linked like v3 HomeKit devices. We **highly recommend** manually linking your Matter `climate` entity (e.g., `climate.living_room`) via the `select.zone_temp_source`. This ensures your indoor climate sensors update in real-time via local Matter push updates, rather than waiting for slower API polling.
+> **For Tado X:** Prefer a linked Matter `climate` (automatic when serial numbers match, or via `select.zone_temp_source`). That gives real-time local temps for indoor climate sensors instead of slower cloud polling.
 
 > [!NOTE]
 > For **v3 Classic**, linking sources is **optional**. The built-in HomeKit linkage and zone state provides both temperature and humidity automatically. Link an external sensor only if you want higher precision or a different measurement point.
@@ -648,7 +648,7 @@ Cloud-only features that HomeKit does not support.
 
 <br>
 
-Hardware-specific entities. _These entities are **injected** into your existing HomeKit devices (V3 only). For Tado X, they appear as separate entities (Matter lacks serial numbers for linking)._
+Hardware-specific entities. _Injected into existing HomeKit (v3) or Matter (Tado X) devices when serial numbers match. Without a match they appear as separate Hijack devices._
 
 <br>
 
@@ -901,15 +901,16 @@ In the **default mode**, Tado Hijack does **not** create `climate` entities for 
 | **HomeKit/Matter** | ✅ (`climate` entities, current temp) | ❌ | 0 |
 | **Tado Hijack** | ❌ | ✅ (Schedules, Hot Water, AC Pro, Hardware) | Optimized |
 
-**Setup:** Install HomeKit/Matter first → then Tado Hijack → **V3:** Features get injected into HomeKit devices | **Tado X:** Features appear as separate entities (Matter limitation).
+**Setup:** Install HomeKit/Matter first → then Tado Hijack. Features inject into local devices when serial numbers match (HomeKit always; Matter when SN is exposed, e.g. recent firmware).
 
 <br>
 
 ### Why are my Tado X dew point / mold risk sensors unavailable?
 
-For Tado X (without Full Cloud Mode), the cloud API does not deliver room temperature because the TRV measures it locally and reports it directly via Matter. Since Matter devices do not expose serial numbers in Home Assistant, Tado Hijack cannot auto-link them.
+For Tado X (without Full Cloud Mode), the cloud API often does not deliver a useful room temperature for climate math (TRV reports it locally via Matter).
 
-You **must** use the **Temperature Source** selector (`select.zone_temp_source`) on your Tado X zone device and select the corresponding Matter `climate` entity or a temperature sensor (e.g. `climate.living_room_tado`). Once set, the dew point, mold risk, and absolute humidity sensors activate for that zone immediately.
+- **If Matter exposes the device serial** (same `VA…` as the cloud): Hijack can link to the Matter device and may resolve the climate entity automatically for indoor climate sensors.
+- **If not linked yet:** use the **Temperature Source** selector (`select.zone_temp_source`) on the zone device and pick the Matter `climate` entity or a temperature sensor. Once set, dew point, mold risk, and absolute humidity activate for that zone.
 
 See [Zone Temperature & Humidity Sources](#zone-temperature--humidity-sources-all-generations) for details.
 
