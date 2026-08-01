@@ -164,6 +164,9 @@
       }
     },
     "binary_sensor": {
+      "heating_demand": {
+        "name": "Heizbedarf"
+      },
       "battery_state": {
         "name": "Batteriezustand"
       },

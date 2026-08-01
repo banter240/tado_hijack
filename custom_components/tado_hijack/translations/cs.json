@@ -164,6 +164,9 @@
       }
     },
     "binary_sensor": {
+      "heating_demand": {
+        "name": "Požadavek na topení"
+      },
       "battery_state": {
         "name": "Baterie"
       },
