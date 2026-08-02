@@ -162,6 +162,8 @@ class OptimisticManager:
         vertical_swing: str | None = None,
         horizontal_swing: str | None = None,
         grace_period: float | None = None,
+        fan_speed: str | None = None,
+        fan_level: str | None = None,
     ) -> None:
         """Apply a comprehensive optimistic state to a zone (DRY Orchestrator)."""
         if not overlay:
@@ -201,6 +203,14 @@ class OptimisticManager:
         if horizontal_swing is not None:
             self.set_optimistic(
                 "zone", zone_id, "horizontal_swing", horizontal_swing, grace_period
+            )
+        if fan_speed is not None:
+            self.set_optimistic(
+                "zone", zone_id, "fan_speed", fan_speed, grace_period
+            )
+        if fan_level is not None:
+            self.set_optimistic(
+                "zone", zone_id, "fan_level", fan_level, grace_period
             )
 
     def set_away_temp(
