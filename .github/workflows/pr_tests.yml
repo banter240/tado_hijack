@@ -3,7 +3,10 @@ name: PR Tests
 on:
   pull_request:
     branches: ['dev', 'main']
-    paths: ['custom_components/tado_hijack/**']
+    paths:
+      - 'custom_components/tado_hijack/**'
+      - 'scripts/validate_translations.py'
+      - '.github/workflows/pr_tests.yml'
 
 jobs:
   # Job 1: Call the reusable linting workflow.
@@ -15,3 +18,17 @@ jobs:
   validation:
     name: "Run Validation"
     uses: ./.github/workflows/validate.yml
+
+  # Job 3: Ensure action and selector translations match services.yaml.
+  translation-validation:
+    name: "Validate Translations"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout the repository"
+        uses: actions/checkout@v5
+      - name: "Set up Python"
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: "Validate translation schema"
+        run: python scripts/validate_translations.py
