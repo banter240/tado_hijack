@@ -167,7 +167,7 @@ def _validate_selectors(
                     f"{language}: unexpected selector.{selector}.options.{option}"
                 )
             for option in sorted(expected_options & actual_options):
-                if not options[option]:
+                if not options[option].strip():
                     errors.append(
                         f"{language}: empty selector.{selector}.options.{option}"
                     )
