@@ -27,8 +27,6 @@ class RateLimitManager:
         self._internal_remaining: int = INITIAL_RATE_LIMIT_GUESS
         self._data_source = data_source
 
-        # Real cost tracking: store the measured cost of polling cycles.
-        # We start with a conservative estimate.
         self._last_poll_cost: float = 2.0
 
     @property
