@@ -86,7 +86,7 @@ from .helpers.device_linker import get_climate_entity_id
 from .helpers.entity_resolver import EntityResolver
 from .helpers.event_handlers import TadoEventHandler
 from .helpers.logging_utils import get_redacted_logger
-from .helpers.optimistic_manager import OptimisticManager
+from .helpers.optimistic_manager import OptimisticManager, ZoneOverlayFields
 from .helpers.overlay_builder import build_overlay_data
 from .helpers.poll_scheduler import PollScheduler
 from .helpers.property_manager import PropertyManager
@@ -779,9 +779,11 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         self.optimistic.apply_zone_state(
             zone_id,
             overlay=True,
-            power=power,
-            temperature=temperature,
-            operation_mode=operation_mode,
+            fields=ZoneOverlayFields(
+                power=power,
+                temperature=temperature,
+                operation_mode=operation_mode,
+            ),
         )
         self.async_update_listeners()
         self.api_manager.queue_command(
@@ -800,7 +802,9 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         """Apply optimistic resume state and queue the RESUME_SCHEDULE command."""
         old_state = patch_zone_resume(self.data.zone_states.get(str(zone_id)))
         self.optimistic.apply_zone_state(
-            zone_id, overlay=False, operation_mode=operation_mode
+            zone_id,
+            overlay=False,
+            fields=ZoneOverlayFields(operation_mode=operation_mode),
         )
         self.async_update_listeners()
         self.api_manager.queue_command(
@@ -991,7 +995,10 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         ):
             self.dummy_handler.set_tadox_hot_water_off(zid)
             self.optimistic.apply_zone_state(
-                zid, overlay=True, power="OFF", grace_period=10.0
+                zid,
+                overlay=True,
+                fields=ZoneOverlayFields(power="OFF"),
+                grace_period=10.0,
             )
             self.async_update_listeners()
             _LOGGER.debug("TadoX hot water dummy: boost OFF handled for zone %s", zid)
@@ -999,7 +1006,10 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             return
 
         self.optimistic.apply_zone_state(
-            zid, overlay=True, power="OFF", grace_period=10.0
+            zid,
+            overlay=True,
+            fields=ZoneOverlayFields(power="OFF"),
+            grace_period=10.0,
         )
         self.async_update_listeners()
 
@@ -1488,9 +1498,11 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         self.optimistic.apply_zone_state(
             zone_id,
             optimistic_value,
-            power=power,
-            temperature=final_temp,
-            ac_mode=ac_mode,
+            fields=ZoneOverlayFields(
+                power=power,
+                temperature=final_temp,
+                ac_mode=ac_mode,
+            ),
         )
         self.async_update_listeners()
 
@@ -1532,9 +1544,11 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             self.optimistic.apply_zone_state(
                 zone_id,
                 overlay=True,
-                power=power,
-                temperature=temperature,
-                ac_mode=ac_mode,
+                fields=ZoneOverlayFields(
+                    power=power,
+                    temperature=temperature,
+                    ac_mode=ac_mode,
+                ),
             )
         self.async_update_listeners()
 

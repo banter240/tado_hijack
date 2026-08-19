@@ -2,11 +2,27 @@
 
 from __future__ import annotations
 
+import dataclasses
 import time
 from typing import Any, cast
 
 from ..const import OPTIMISTIC_GRACE_PERIOD_S
 from .logging_utils import get_redacted_logger
+
+
+@dataclasses.dataclass
+class ZoneOverlayFields:
+    """Optional AC and heating zone fields for apply_zone_state."""
+
+    power: str | None = None
+    temperature: float | None = None
+    operation_mode: str | None = None
+    ac_mode: str | None = None
+    vertical_swing: str | None = None
+    horizontal_swing: str | None = None
+    fan_speed: str | None = None
+    fan_level: str | None = None
+
 
 _LOGGER = get_redacted_logger(__name__)
 
@@ -155,12 +171,7 @@ class OptimisticManager:
         self,
         zone_id: int,
         overlay: bool,
-        power: str | None = None,
-        temperature: float | None = None,
-        operation_mode: str | None = None,
-        ac_mode: str | None = None,
-        vertical_swing: str | None = None,
-        horizontal_swing: str | None = None,
+        fields: ZoneOverlayFields | None = None,
         grace_period: float | None = None,
     ) -> None:
         """Apply a comprehensive optimistic state to a zone (DRY Orchestrator)."""
@@ -169,9 +180,12 @@ class OptimisticManager:
 
         self.set_optimistic("zone", zone_id, "overlay", overlay, grace_period)
 
+        if fields is None:
+            return
+
         if overlay:
-            final_power = power
-            final_op_mode = operation_mode
+            final_power = fields.power
+            final_op_mode = fields.operation_mode
 
             if final_power is None and final_op_mode:
                 final_power = "OFF" if final_op_mode == "off" else "ON"
@@ -188,19 +202,33 @@ class OptimisticManager:
                     "zone", zone_id, "operation_mode", final_op_mode, grace_period
                 )
 
-        if ac_mode is not None:
-            self.set_optimistic("zone", zone_id, "ac_mode", ac_mode, grace_period)
-        if temperature is not None:
+        if fields.ac_mode is not None:
             self.set_optimistic(
-                "zone", zone_id, "temperature", temperature, grace_period
+                "zone", zone_id, "ac_mode", fields.ac_mode, grace_period
             )
-        if vertical_swing is not None:
+        if fields.temperature is not None:
             self.set_optimistic(
-                "zone", zone_id, "vertical_swing", vertical_swing, grace_period
+                "zone", zone_id, "temperature", fields.temperature, grace_period
             )
-        if horizontal_swing is not None:
+        if fields.vertical_swing is not None:
             self.set_optimistic(
-                "zone", zone_id, "horizontal_swing", horizontal_swing, grace_period
+                "zone", zone_id, "vertical_swing", fields.vertical_swing, grace_period
+            )
+        if fields.horizontal_swing is not None:
+            self.set_optimistic(
+                "zone",
+                zone_id,
+                "horizontal_swing",
+                fields.horizontal_swing,
+                grace_period,
+            )
+        if fields.fan_speed is not None:
+            self.set_optimistic(
+                "zone", zone_id, "fan_speed", fields.fan_speed, grace_period
+            )
+        if fields.fan_level is not None:
+            self.set_optimistic(
+                "zone", zone_id, "fan_level", fields.fan_level, grace_period
             )
 
     def set_away_temp(

@@ -9,6 +9,7 @@ from ...models import CommandType, TadoCommand
 from ..action_provider_base import TadoActionProvider
 from ..discovery import yield_zones
 from ..logging_utils import get_redacted_logger
+from ..optimistic_manager import ZoneOverlayFields
 from ..overlay_builder import build_overlay_data
 from ..state_patcher import patch_zone_overlay, patch_zone_resume
 
@@ -106,8 +107,10 @@ class TadoV3ActionProvider(TadoActionProvider):
             self.coordinator.optimistic.apply_zone_state(
                 zone_id,
                 overlay=True,
-                power=setting.get("power", POWER_ON),
-                temperature=setting.get("temperature", {}).get("celsius"),
+                fields=ZoneOverlayFields(
+                    power=setting.get("power", POWER_ON),
+                    temperature=setting.get("temperature", {}).get("celsius"),
+                ),
             )
 
             self.coordinator.api_manager.queue_command(
@@ -181,7 +184,11 @@ class TadoV3ActionProvider(TadoActionProvider):
         if mode_caps:
             temperature = self._build_ac_temperature(mode_caps, key, value, state)
             additional_fields |= self._build_ac_fan_settings(
-                mode_caps, key, value, state
+                mode_caps,
+                key,
+                value,
+                state,
+                zone_id,
             )
             additional_fields |= self._build_ac_swing_settings(
                 mode_caps, key, value, state, zone_id
@@ -206,10 +213,14 @@ class TadoV3ActionProvider(TadoActionProvider):
         self.coordinator.optimistic.apply_zone_state(
             zone_id,
             overlay=True,
-            power=POWER_ON,
-            ac_mode=current_mode,
-            vertical_swing=value if key == "vertical_swing" else None,
-            horizontal_swing=value if key == "horizontal_swing" else None,
+            fields=ZoneOverlayFields(
+                power=POWER_ON,
+                ac_mode=current_mode,
+                fan_speed=value if key == "fan_speed" else None,
+                fan_level=value if key == "fan_level" else None,
+                vertical_swing=value if key == "vertical_swing" else None,
+                horizontal_swing=value if key == "horizontal_swing" else None,
+            ),
         )
         self.coordinator.async_update_listeners()
 
@@ -236,7 +247,12 @@ class TadoV3ActionProvider(TadoActionProvider):
         return None
 
     def _build_ac_fan_settings(
-        self, mode_caps: Any, key: str, value: str, state: Any
+        self,
+        mode_caps: Any,
+        key: str,
+        value: str,
+        state: Any,
+        zone_id: int,
     ) -> dict[str, str]:
         """Extract AC fan settings based on capabilities and input."""
         fields: dict[str, str] = {}
@@ -245,7 +261,14 @@ class TadoV3ActionProvider(TadoActionProvider):
             val = (
                 value
                 if key == "fan_speed"
-                else getattr(state.setting, "fan_speed", None)
+                else (
+                    self.coordinator.optimistic.get_optimistic(
+                        "zone",
+                        zone_id,
+                        "fan_speed",
+                    )
+                    or getattr(state.setting, "fan_speed", None)
+                )
             )
             if val:
                 val = val.upper()
