@@ -605,51 +605,81 @@
         "entity_id": {
           "name": "Entity (optional)",
           "description": "Restrict the refresh to a single entity. Supported for: offsets, away, capabilities. Other types fall back to a full refresh."
+        },
+        "config_entry": {
+          "name": "Tado home (optional)",
+          "description": "Target a specific Tado home. If omitted and no entity is selected, all configured homes are refreshed."
         }
       }
     },
     "resume_all_schedules": {
       "name": "Resume All Schedules",
-      "description": "Remove all manual overlays in all zones and return to Smart Schedule."
-    },
-    "turn_off_all_zones": {
-      "name": "Turn Off All Zones",
-      "description": "Turn off heating in all zones."
-    },
-    "boost_all_zones": {
-      "name": "Boost All Zones",
-      "description": "Boost heating in all zones to 25°C."
-    },
-    "set_timer": {
-      "name": "Set Timer",
-      "description": "Set a manual overlay with timer duration or auto-return to schedule.",
+      "description": "Remove all manual overlays in all zones and return to Smart Schedule.",
       "fields": {
-        "entity_id": {
-          "name": "Entity",
-          "description": "Any zone entity from Tado Hijack."
-        },
-        "duration": {
-          "name": "Duration (Minutes)",
-          "description": "Duration in minutes."
-        },
-        "overlay": {
-          "name": "Overlay Mode",
-          "description": "Termination mode: 'manual' (indefinite), 'next_block' (return to next schedule block), or 'presence' (until presence change)."
-        },
-        "power": {
-          "name": "Power",
-          "description": "Power state (ON/OFF)."
-        },
-        "temperature": {
-          "name": "Temperature",
-          "description": "Target temperature (optional)."
+        "config_entry": {
+          "name": "Tado home (optional)",
+          "description": "Target a specific Tado home. If omitted, the action applies to all configured homes."
         }
       }
     },
-    "set_timer_all_zones": {
-      "name": "Set Timer for All Zones",
-      "description": "Set a manual overlay for all heating and/or AC zones at once.",
+    "turn_off_all_zones": {
+      "name": "Turn Off All Zones",
+      "description": "Turn off heating in all zones.",
       "fields": {
+        "config_entry": {
+          "name": "Tado home (optional)",
+          "description": "Target a specific Tado home. If omitted, the action applies to all configured homes."
+        }
+      }
+    },
+    "boost_all_zones": {
+      "name": "Boost All Zones",
+      "description": "Boost heating in all zones to 25°C.",
+      "fields": {
+        "config_entry": {
+          "name": "Tado home (optional)",
+          "description": "Target a specific Tado home. If omitted, the action applies to all configured homes."
+        }
+      }
+    },
+    "set_mode": {
+      "name": "Set zone mode",
+      "description": "Set a manual mode with an optional timer for a heating or air-conditioning zone.",
+      "fields": {
+        "entity_id": {
+          "name": "Zone entity",
+          "description": "Any Tado Hijack zone entity. Device entities are resolved to their zone automatically."
+        },
+        "hvac_mode": {
+          "name": "Operation mode",
+          "description": "Resume the schedule, start a manual heating or cooling mode, or turn the zone off."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "Duration in minutes after which the manual mode ends."
+        },
+        "overlay": {
+          "name": "End mode",
+          "description": "Choose whether the manual change is permanent, ends at the next schedule block, or ends when presence changes."
+        },
+        "temperature": {
+          "name": "Target temperature",
+          "description": "Optional target temperature from 5 to 30°C."
+        },
+        "refresh_after": {
+          "name": "Refresh after completion",
+          "description": "Refresh immediately for permanent changes and schedule resume, or after a timed mode expires."
+        }
+      }
+    },
+    "set_mode_all_zones": {
+      "name": "Set mode for all zones",
+      "description": "Set a manual mode for all heating and/or air-conditioning zones at once.",
+      "fields": {
+        "config_entry": {
+          "name": "Tado home (optional)",
+          "description": "Target a specific Tado home. If omitted, the action applies to all configured homes."
+        },
         "include_heating": {
           "name": "Include Heating",
           "description": "Include all heating zones."
@@ -658,21 +688,55 @@
           "name": "Include AC",
           "description": "Include all air conditioning zones."
         },
+        "hvac_mode": {
+          "name": "Operation mode",
+          "description": "Resume the schedule, start a manual heating or cooling mode, or turn the zones off."
+        },
         "duration": {
-          "name": "Duration (Minutes)",
-          "description": "Duration in minutes."
+          "name": "Duration",
+          "description": "Duration in minutes after which the manual mode ends."
         },
         "overlay": {
-          "name": "Overlay Mode",
-          "description": "Termination mode: 'manual' (indefinite), 'timer' (with duration), 'next_block' (return to schedule at next time block), or 'presence' (until presence change)."
-        },
-        "power": {
-          "name": "Power",
-          "description": "Power state (ON/OFF)."
+          "name": "End mode",
+          "description": "Choose whether the manual change is permanent, ends at the next schedule block, or ends when presence changes."
         },
         "temperature": {
-          "name": "Temperature",
-          "description": "Target temperature (will be capped based on zone type)."
+          "name": "Target temperature",
+          "description": "Target temperature, automatically limited according to each zone type."
+        },
+        "refresh_after": {
+          "name": "Refresh after completion",
+          "description": "Refresh immediately for permanent changes and schedule resume, or after a timed mode expires."
+        }
+      }
+    },
+    "set_water_heater_mode": {
+      "name": "Set hot water mode",
+      "description": "Set a manual hot water mode with an optional timer.",
+      "fields": {
+        "entity_id": {
+          "name": "Water heater entity",
+          "description": "A Tado Hijack water heater entity."
+        },
+        "operation_mode": {
+          "name": "Operation mode",
+          "description": "Resume the schedule, turn hot water on, or turn it off."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "Duration in minutes after which the manual mode ends."
+        },
+        "overlay": {
+          "name": "End mode",
+          "description": "Choose whether the manual change is permanent, ends at the next schedule block, or ends when presence changes."
+        },
+        "temperature": {
+          "name": "Target temperature",
+          "description": "Optional hot water target temperature from 30 to 65°C."
+        },
+        "refresh_after": {
+          "name": "Refresh after completion",
+          "description": "Refresh immediately for permanent changes and schedule resume, or after a timed mode expires."
         }
       }
     },
@@ -692,6 +756,38 @@
     }
   },
   "selector": {
+    "refresh_type": {
+      "options": {
+        "all": "All data",
+        "zone": "Zone",
+        "metadata": "Metadata",
+        "offsets": "Temperature offsets",
+        "away": "Away temperatures",
+        "capabilities": "Device capabilities",
+        "presence": "Presence"
+      }
+    },
+    "hvac_mode": {
+      "options": {
+        "off": "Off",
+        "heat": "Heating or cooling",
+        "auto": "Follow schedule"
+      }
+    },
+    "overlay_mode": {
+      "options": {
+        "manual": "Permanent",
+        "next_block": "Until the next schedule block",
+        "presence": "Until presence changes"
+      }
+    },
+    "water_heater_operation_mode": {
+      "options": {
+        "off": "Off",
+        "heat": "On",
+        "auto": "Follow schedule"
+      }
+    },
     "generation": {
       "options": {
         "classic": "Tado V2/V3 (Classic API)",

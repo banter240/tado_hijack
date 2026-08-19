@@ -34,15 +34,15 @@
         "name": "Stav API",
         "state": {
           "connected": "Připojeno",
-          "throttled": "Omezeno (Throttled)",
-          "rate_limited": "Limit vyčerpán (Rate Limited)"
+          "throttled": "Dočasně omezeno",
+          "rate_limited": "Dosažen limit požadavků"
         }
       },
       "proxy_url": {
-        "name": "API Proxy URL"
+        "name": "Adresa proxy API"
       },
       "proxy_token": {
-        "name": "API Proxy Token"
+        "name": "Token proxy API"
       },
       "current_zone_interval": {
         "name": "Aktuální interval dotazování zón"
@@ -57,7 +57,7 @@
         "name": "Snížený interval dotazování"
       },
       "debounce_time": {
-        "name": "Čas seskupení (Debounce)"
+        "name": "Prodleva slučování požadavků"
       },
       "presence_poll_interval": {
         "name": "Interval dotazování přítomnosti"
@@ -117,7 +117,7 @@
         "name": "Práh omezení"
       },
       "jitter_percent": {
-        "name": "Procento odchylky (Jitter)"
+        "name": "Náhodné rozptýlení intervalů"
       },
       "reduced_polling_start": {
         "name": "Začátek omezeného dotazování"
@@ -148,7 +148,7 @@
         "state": {
           "schedule": "Podle plánu",
           "off": "Vypnuto",
-          "boost": "Zvýšený výkon (Boost)",
+          "boost": "Zvýšený výkon",
           "manual": "Manuálně"
         }
       },
@@ -157,7 +157,7 @@
         "state": {
           "schedule": "Podle plánu",
           "off": "Vypnuto",
-          "boost": "Zvýšený výkon (Boost)",
+          "boost": "Zvýšený výkon",
           "manual": "Manuálně",
           "mixed": "Smíšený"
         }
@@ -180,7 +180,7 @@
         "name": "Připojení Bridge ke cloudu"
       },
       "overlay": {
-        "name": "Manuální zásah (Overlay)"
+        "name": "Ruční změna"
       },
       "power": {
         "name": "Napájení"
@@ -202,7 +202,7 @@
         "name": "Omezené dotazování aktivní"
       },
       "call_jitter_enabled": {
-        "name": "Odchylka dotazů (Jitter) povolena"
+        "name": "Náhodné rozptýlení intervalů povoleno"
       },
       "disable_polling_when_throttled": {
         "name": "Zakázat dotazování při omezení"
@@ -275,7 +275,7 @@
         "name": "Vypnout všechny zóny"
       },
       "boost_all_zones": {
-        "name": "Zvýšit výkon všech zón (Boost)"
+        "name": "Zvýšit výkon všech zón"
       },
       "resume_schedule": {
         "name": "Obnovit plán"
@@ -356,11 +356,11 @@
   },
   "config": {
     "progress": {
-      "wait_for_device": "Pro ověření otevřete následující URL adresu a přihlaste se k Tado:\n\n{url}\n\nPokud se kód nezkopíroval automaticky, vložte následující kód pro autorizaci integrace:\n\n### {code}\n\nPokus o přihlášení vyprší za pět minut."
+      "wait_for_device": "Pro ověření otevřete následující odkaz a přihlaste se k Tado:\n\n{url}\n\nPokud se kód nezkopíroval automaticky, vložte následující kód pro autorizaci integrace:\n\n### {code}\n\nPokus o přihlášení vyprší za pět minut."
     },
     "abort": {
       "already_configured": "Účet je již nakonfigurován.",
-      "could_not_authenticate": "Nepodařilo se ověřit s Tado.",
+      "could_not_authenticate": "Nepodařilo se ověřit účet Tado.",
       "no_homes_returned": "Ověření selhalo: Tado API nevrátilo žádné 'domácnosti' spojené s vaším účtem. Otevřete oficiální aplikaci Tado a zkontrolujte, zda nemusíte přijmout nové podmínky nebo dokončit nastavení domácnosti. Pokud problém přetrvává, nahlaste to na GitHubu.",
       "no_homes": "S tímto Tado účtem nejsou spojeny žádné domácnosti.",
       "cannot_connect": "Připojení selhalo.",
@@ -372,7 +372,7 @@
       "user": {
         "title": "Propojit Tado Hijack",
         "data": {
-          "generation": "Tado hardwarová generace",
+          "generation": "Generace hardwaru Tado",
           "full_cloud_mode": "Plný cloudový režim",
           "fetch_extended_data": "Stáhnout rozšířená data"
         },
@@ -396,10 +396,10 @@
           "general_polling": {
             "name": "Obecné intervaly dotazování",
             "data": {
-              "scan_interval": "Interval dotazování stavu (Vteřiny)",
-              "presence_poll_interval": "Interval dotazování přítomnosti (Vteřiny)",
-              "slow_poll_interval": "Interval synchronizace hardwaru (Vteřiny)",
-              "offset_poll_interval": "Interval aktualizace teplotní odchylky (Vteřiny)"
+              "scan_interval": "Interval aktualizace zón (sekundy)",
+              "presence_poll_interval": "Interval aktualizace přítomnosti (sekundy)",
+              "slow_poll_interval": "Interval synchronizace hardwaru (sekundy)",
+              "offset_poll_interval": "Interval aktualizace teplotní odchylky (sekundy)"
             },
             "data_description": {
               "scan_interval": "Interval pro data místnosti (teplota, vlhkost, výkon topení). DŮLEŽITÉ: Dynamicky přepisováno 'Automatickou API kvótou', pokud je povolena; slouží jako záloha při vyčerpání vypočteného rozpočtu.",
@@ -409,21 +409,21 @@
             }
           },
           "api_quota": {
-            "name": "Auto API kvóta a bezpečnost",
+            "name": "Automatické řízení kvóty API a zabezpečení",
             "data": {
-              "auto_api_quota_percent": "Automatická API kvóta (%)",
+              "auto_api_quota_percent": "Automaticky využitá kvóta API (%)",
               "throttle_threshold": "Práh omezení (Bezpečnostní rezerva)",
               "quota_safety_reserve": "Bezpečnostní rezerva kvóty API",
-              "min_auto_quota_interval_s": "Minimální interval Auto kvóty",
+              "min_auto_quota_interval_s": "Minimální interval automatické kvóty",
               "disable_polling_when_throttled": "Zakázat dotazování při omezení",
               "refresh_after_resume": "Obnovit stav po zrušení manuální změny",
               "suppress_redundant_calls": "Potlačit nadbytečné dotazy",
               "suppress_redundant_buttons": "Potlačit nadbytečná tlačítka"
             },
             "data_description": {
-              "auto_api_quota_percent": "Využít X% VOLNÉ denní kvóty pro zjišťování stavu (0 = vypnuto). VOLNÉ = Limit - Rezerva na pozadí (Synch) - Externí aktivita (Automatizace, ruční použití). Hybridní strategie: Používá MAX(Denní rozpočet - Použito, Zbývající * X%) → Systém VŽDY pokračuje v dotazování i po překročení denního rozpočtu.",
-              "throttle_threshold": "Rezervovat N dotazů pro VŠECHNO mimo pravidelné dotazování Hijacku na pozadí (Automatizace, Skripty, Manuální použití aplikace). Dotazování se na této hranici zastaví, aby se vaše automatizace nikdy nezasekly. Doporučeno: 20.",
-              "quota_safety_reserve": "API dotazy vyhrazené pro okno samo-učícího se resetu. Systém se automaticky učí čas resetu a adaptivně rozděluje tuto rezervu k překlenutí cloudových výkyvů. 0 = vypnuto (nedoporučeno). Výchozí: 2.",
+              "auto_api_quota_percent": "Využít X % volné denní kvóty pro zjišťování stavu (0 = vypnuto). Volná kvóta = limit − rezerva na pozadí (synchronizace) − externí aktivita (automatizace, ruční použití). Hybridní strategie používá vyšší hodnotu z denního rozpočtu po odečtení již využitých požadavků a ze zbývající kvóty vynásobené X %. Systém proto pokračuje v dotazování i po překročení denního rozpočtu.",
+              "throttle_threshold": "Rezervuje N požadavků pro vše kromě pravidelného dotazování integrace na pozadí (automatizace, skripty a ruční použití aplikace). Po dosažení této hranice se pravidelné dotazování zastaví, aby zůstala kvóta pro ostatní požadavky. Doporučeno: 20.",
+              "quota_safety_reserve": "Počet požadavků API vyhrazených pro období samoučícího resetu. Systém se automaticky učí čas resetu a přizpůsobuje čerpání této rezervy výkyvům cloudové služby. Hodnota 0 funkci vypne (nedoporučuje se). Výchozí hodnota: 2.",
               "min_auto_quota_interval_s": "Minimální interval dotazování ve vteřinách (5-43200 = 12h max). Standardní API: minimum 5s. Proxy: vynuceno minimum 120s. Nižší = rychlejší aktualizace, ale vyšší využití API. Výchozí 20s.",
               "disable_polling_when_throttled": "Zcela zastavit pravidelné dotazování, když zbývající kvóta narazí na bezpečnostní rezervu.",
               "refresh_after_resume": "Automaticky stáhnout cílovou teplotu/stav po obnovení plánu (HVAC AUTO). Nutné, protože plány jsou spravovány na straně Tado cloudu. Stojí 1 API dotaz.",
@@ -437,7 +437,7 @@
               "reduced_polling_active": "Omezené dotazování aktivní",
               "reduced_polling_start": "Čas začátku okna",
               "reduced_polling_end": "Čas konce okna",
-              "reduced_polling_interval": "Ekonomický interval (Vteřiny)"
+              "reduced_polling_interval": "Ekonomický interval (sekundy)"
             },
             "data_description": {
               "reduced_polling_active": "Povolit profil váženého dotazování na základě času.",
@@ -462,13 +462,13 @@
             }
           },
           "advanced": {
-            "name": "API Proxy & Pokročilé",
+            "name": "Proxy API a pokročilá nastavení",
             "data": {
-              "api_proxy_url": "API Proxy URL (Volitelné)",
-              "proxy_token": "API Proxy Token (Volitelné)",
-              "call_jitter_enabled": "Povolit Call Jitter (Proxy)",
-              "jitter_percent": "Síla Jitteru (+/- %)",
-              "debounce_time": "Čas seskupení / Debounce (Vteřiny)",
+              "api_proxy_url": "Adresa proxy API (volitelné)",
+              "proxy_token": "Token proxy API (volitelné)",
+              "call_jitter_enabled": "Povolit náhodné rozptýlení požadavků",
+              "jitter_percent": "Rozsah náhodného rozptýlení (± %)",
+              "debounce_time": "Prodleva slučování požadavků (sekundy)",
               "log_level": "Úroveň logování",
               "log_version_prefix": "Zobrazit verzi v lozích"
             },
@@ -503,10 +503,10 @@
           "general_polling": {
             "name": "Obecné intervaly dotazování",
             "data": {
-              "scan_interval": "Interval dotazování stavu (Vteřiny)",
-              "presence_poll_interval": "Interval dotazování přítomnosti (Vteřiny)",
-              "slow_poll_interval": "Interval synchronizace hardwaru (Vteřiny)",
-              "offset_poll_interval": "Interval aktualizace teplotní odchylky (Vteřiny)"
+              "scan_interval": "Interval aktualizace zón (sekundy)",
+              "presence_poll_interval": "Interval aktualizace přítomnosti (sekundy)",
+              "slow_poll_interval": "Interval synchronizace hardwaru (sekundy)",
+              "offset_poll_interval": "Interval aktualizace teplotní odchylky (sekundy)"
             },
             "data_description": {
               "scan_interval": "Interval pro data místnosti (teplota, vlhkost, výkon topení). DŮLEŽITÉ: Dynamicky přepisováno 'Automatickou API kvótou', pokud je povolena; slouží jako záloha při vyčerpání vypočteného rozpočtu.",
@@ -516,21 +516,21 @@
             }
           },
           "api_quota": {
-            "name": "Auto API kvóta a bezpečnost",
+            "name": "Automatické řízení kvóty API a zabezpečení",
             "data": {
-              "auto_api_quota_percent": "Automatická API kvóta (%)",
+              "auto_api_quota_percent": "Automaticky využitá kvóta API (%)",
               "throttle_threshold": "Práh omezení (Bezpečnostní rezerva)",
               "quota_safety_reserve": "Bezpečnostní rezerva kvóty API",
-              "min_auto_quota_interval_s": "Minimální interval Auto kvóty",
+              "min_auto_quota_interval_s": "Minimální interval automatické kvóty",
               "disable_polling_when_throttled": "Zakázat dotazování při omezení",
               "refresh_after_resume": "Obnovit stav po zrušení manuální změny",
               "suppress_redundant_calls": "Potlačit nadbytečné dotazy",
               "suppress_redundant_buttons": "Potlačit nadbytečná tlačítka"
             },
             "data_description": {
-              "auto_api_quota_percent": "Využít X% VOLNÉ denní kvóty pro zjišťování stavu (0 = vypnuto). VOLNÉ = Limit - Rezerva na pozadí (Synch) - Externí aktivita (Automatizace, ruční použití). Hybridní strategie: Používá MAX(Denní rozpočet - Použito, Zbývající * X%) → Systém VŽDY pokračuje v dotazování i po překročení denního rozpočtu.",
-              "throttle_threshold": "Rezervovat N dotazů pro VŠECHNO mimo pravidelné dotazování Hijacku na pozadí (Automatizace, Skripty, Manuální použití aplikace). Dotazování se na této hranici zastaví, aby se vaše automatizace nikdy nezasekly. Doporučeno: 20.",
-              "quota_safety_reserve": "API dotazy vyhrazené pro okno samo-učícího se resetu. Systém se automaticky učí čas resetu a adaptivně rozděluje tuto rezervu k překlenutí cloudových výkyvů. 0 = vypnuto (nedoporučeno). Výchozí: 2.",
+              "auto_api_quota_percent": "Využít X % volné denní kvóty pro zjišťování stavu (0 = vypnuto). Volná kvóta = limit − rezerva na pozadí (synchronizace) − externí aktivita (automatizace, ruční použití). Hybridní strategie používá vyšší hodnotu z denního rozpočtu po odečtení již využitých požadavků a ze zbývající kvóty vynásobené X %. Systém proto pokračuje v dotazování i po překročení denního rozpočtu.",
+              "throttle_threshold": "Rezervuje N požadavků pro vše kromě pravidelného dotazování integrace na pozadí (automatizace, skripty a ruční použití aplikace). Po dosažení této hranice se pravidelné dotazování zastaví, aby zůstala kvóta pro ostatní požadavky. Doporučeno: 20.",
+              "quota_safety_reserve": "Počet požadavků API vyhrazených pro období samoučícího resetu. Systém se automaticky učí čas resetu a přizpůsobuje čerpání této rezervy výkyvům cloudové služby. Hodnota 0 funkci vypne (nedoporučuje se). Výchozí hodnota: 2.",
               "min_auto_quota_interval_s": "Minimální interval dotazování ve vteřinách (5-43200 = 12h max). Standardní API: minimum 5s. Proxy: vynuceno minimum 120s. Nižší = rychlejší aktualizace, ale vyšší využití API. Výchozí 20s.",
               "disable_polling_when_throttled": "Zcela zastavit pravidelné dotazování, když zbývající kvóta narazí na bezpečnostní rezervu.",
               "refresh_after_resume": "Automaticky stáhnout cílovou teplotu/stav po obnovení plánu (HVAC AUTO). Nutné, protože plány jsou spravovány na straně Tado cloudu. Stojí 1 API dotaz.",
@@ -544,7 +544,7 @@
               "reduced_polling_active": "Omezené dotazování aktivní",
               "reduced_polling_start": "Čas začátku okna",
               "reduced_polling_end": "Čas konce okna",
-              "reduced_polling_interval": "Ekonomický interval (Vteřiny)"
+              "reduced_polling_interval": "Ekonomický interval (sekundy)"
             },
             "data_description": {
               "reduced_polling_active": "Povolit profil váženého dotazování na základě času.",
@@ -569,13 +569,13 @@
             }
           },
           "advanced": {
-            "name": "API Proxy & Pokročilé",
+            "name": "Proxy API a pokročilá nastavení",
             "data": {
-              "api_proxy_url": "API Proxy URL (Volitelné)",
-              "proxy_token": "API Proxy Token (Volitelné)",
-              "call_jitter_enabled": "Povolit Call Jitter (Proxy)",
-              "jitter_percent": "Síla Jitteru (+/- %)",
-              "debounce_time": "Čas seskupení / Debounce (Vteřiny)",
+              "api_proxy_url": "Adresa proxy API (volitelné)",
+              "proxy_token": "Token proxy API (volitelné)",
+              "call_jitter_enabled": "Povolit náhodné rozptýlení požadavků",
+              "jitter_percent": "Rozsah náhodného rozptýlení (± %)",
+              "debounce_time": "Prodleva slučování požadavků (sekundy)",
               "log_level": "Úroveň logování",
               "log_version_prefix": "Zobrazit verzi v lozích"
             },
@@ -598,6 +598,10 @@
       "name": "Manuální načtení",
       "description": "Vynutí okamžitou aktualizaci z Tado API. S použitím entity_id provede cílené načtení pro jedinou entitu (šetří API kvótu).",
       "fields": {
+        "config_entry": {
+          "name": "Domácnost Tado (volitelné)",
+          "description": "Vybere konkrétní domácnost Tado. Bez výběru domácnosti a entity se aktualizují všechny nakonfigurované domácnosti."
+        },
         "refresh_type": {
           "name": "Typ obnovení",
           "description": "Která data se mají obnovit. Cílené typy (offsets, away, capabilities) podporují entity_id pro levnější stažení jediné entity."
@@ -610,69 +614,129 @@
     },
     "resume_all_schedules": {
       "name": "Obnovit všechny plány",
-      "description": "Zruší všechny manuální změny teploty ve všech zónách a vrátí se k Chytrému plánu (Smart Schedule)."
-    },
-    "turn_off_all_zones": {
-      "name": "Vypnout všechny zóny",
-      "description": "Vypne topení ve všech zónách."
-    },
-    "boost_all_zones": {
-      "name": "Zvýšit výkon všech zón (Boost)",
-      "description": "Zvýší topení ve všech zónách na 25 °C."
-    },
-    "set_timer": {
-      "name": "Nastavit časovač",
-      "description": "Nastaví manuální změnu teploty s časovým limitem nebo s automatickým návratem k plánu.",
+      "description": "Zruší všechny ruční změny teploty ve všech zónách a obnoví chytrý plán.",
       "fields": {
-        "entity_id": {
-          "name": "Entita",
-          "description": "Jakákoliv entita zóny z integrace Tado Hijack."
-        },
-        "duration": {
-          "name": "Trvání (Minuty)",
-          "description": "Doba trvání v minutách."
-        },
-        "overlay": {
-          "name": "Režim změny",
-          "description": "Režim ukončení: 'manual' (napořád), 'next_block' (návrat k plánu při dalším časovém bloku), nebo 'presence' (do změny přítomnosti)."
-        },
-        "power": {
-          "name": "Napájení",
-          "description": "Stav napájení (ON/OFF)."
-        },
-        "temperature": {
-          "name": "Teplota",
-          "description": "Cílová teplota (volitelné)."
+        "config_entry": {
+          "name": "Domácnost Tado (volitelné)",
+          "description": "Vybere konkrétní domácnost Tado. Bez výběru se akce provede ve všech nakonfigurovaných domácnostech."
         }
       }
     },
-    "set_timer_all_zones": {
-      "name": "Nastavit časovač pro všechny zóny",
-      "description": "Nastaví manuální změnu pro všechny topné a/nebo klimatizační zóny najednou.",
+    "turn_off_all_zones": {
+      "name": "Vypnout všechny zóny",
+      "description": "Vypne topení ve všech zónách.",
       "fields": {
+        "config_entry": {
+          "name": "Domácnost Tado (volitelné)",
+          "description": "Vybere konkrétní domácnost Tado. Bez výběru se akce provede ve všech nakonfigurovaných domácnostech."
+        }
+      }
+    },
+    "boost_all_zones": {
+      "name": "Zvýšit výkon všech zón",
+      "description": "Nastaví ve všech topných zónách cílovou teplotu na 25 °C.",
+      "fields": {
+        "config_entry": {
+          "name": "Domácnost Tado (volitelné)",
+          "description": "Vybere konkrétní domácnost Tado. Bez výběru se akce provede ve všech nakonfigurovaných domácnostech."
+        }
+      }
+    },
+    "set_mode": {
+      "name": "Nastavit režim zóny",
+      "description": "Nastaví ruční režim s volitelným časovačem pro topnou zónu nebo klimatizaci.",
+      "fields": {
+        "entity_id": {
+          "name": "Entita",
+          "description": "Topná zóna nebo klimatizace z integrace Tado Hijack."
+        },
+        "hvac_mode": {
+          "name": "Režim vytápění nebo chlazení",
+          "description": "Požadovaný režim zóny."
+        },
+        "duration": {
+          "name": "Doba trvání (minuty)",
+          "description": "Doba trvání časovače. Použije se pouze pro ruční režim."
+        },
+        "overlay": {
+          "name": "Ukončení ruční změny",
+          "description": "Určuje, kdy se zóna vrátí k plánu."
+        },
+        "temperature": {
+          "name": "Cílová teplota",
+          "description": "Cílová teplota v °C. Pro režim vypnuto není potřeba."
+        },
+        "refresh_after": {
+          "name": "Aktualizovat po změně",
+          "description": "Po provedení akce ihned načte aktuální stav z Tado API."
+        }
+      }
+    },
+    "set_mode_all_zones": {
+      "name": "Nastavit režim všech zón",
+      "description": "Nastaví stejný režim ve všech vybraných topných a klimatizačních zónách.",
+      "fields": {
+        "config_entry": {
+          "name": "Domácnost Tado (volitelné)",
+          "description": "Vybere konkrétní domácnost Tado. Bez výběru se akce provede ve všech nakonfigurovaných domácnostech."
+        },
         "include_heating": {
           "name": "Zahrnout topení",
           "description": "Zahrne všechny topné zóny."
         },
         "include_ac": {
-          "name": "Zahrnout AC",
-          "description": "Zahrne všechny zóny klimatizace."
+          "name": "Zahrnout klimatizaci",
+          "description": "Zahrne všechny klimatizační zóny."
+        },
+        "hvac_mode": {
+          "name": "Režim vytápění nebo chlazení",
+          "description": "Požadovaný režim všech vybraných zón."
         },
         "duration": {
-          "name": "Trvání (Minuty)",
-          "description": "Doba trvání v minutách."
+          "name": "Doba trvání (minuty)",
+          "description": "Doba trvání časovače. Použije se pouze pro ruční režim."
         },
         "overlay": {
-          "name": "Režim změny",
-          "description": "Režim ukončení: 'manual' (napořád), 'timer' (s určitou dobou trvání), 'next_block' (návrat k plánu při dalším časovém bloku), nebo 'presence' (do změny přítomnosti)."
-        },
-        "power": {
-          "name": "Napájení",
-          "description": "Stav napájení (ON/OFF)."
+          "name": "Ukončení ruční změny",
+          "description": "Určuje, kdy se zóny vrátí k plánu."
         },
         "temperature": {
-          "name": "Teplota",
-          "description": "Cílová teplota (bude omezena na základě typu zóny)."
+          "name": "Cílová teplota",
+          "description": "Cílová teplota v °C. Pro režim vypnuto není potřeba."
+        },
+        "refresh_after": {
+          "name": "Aktualizovat po změně",
+          "description": "Po provedení akce ihned načte aktuální stav z Tado API."
+        }
+      }
+    },
+    "set_water_heater_mode": {
+      "name": "Nastavit režim ohřevu vody",
+      "description": "Nastaví režim ohřevu vody s volitelným časovačem a cílovou teplotou.",
+      "fields": {
+        "entity_id": {
+          "name": "Ohřev vody",
+          "description": "Entita ohřevu vody z integrace Tado Hijack."
+        },
+        "operation_mode": {
+          "name": "Provozní režim",
+          "description": "Požadovaný režim ohřevu vody."
+        },
+        "duration": {
+          "name": "Doba trvání (minuty)",
+          "description": "Doba trvání časovače. Použije se pouze pro ruční režim."
+        },
+        "overlay": {
+          "name": "Ukončení ruční změny",
+          "description": "Určuje, kdy se ohřev vody vrátí k plánu."
+        },
+        "temperature": {
+          "name": "Cílová teplota",
+          "description": "Cílová teplota vody v °C, pokud ji zařízení podporuje."
+        },
+        "refresh_after": {
+          "name": "Aktualizovat po změně",
+          "description": "Po provedení akce ihned načte aktuální stav z Tado API."
         }
       }
     },
@@ -681,7 +745,7 @@
       "description": "Nahraje hodnotu odečtu na měřiči do Tado Energy IQ.",
       "fields": {
         "config_entry": {
-          "name": "Config Entry",
+          "name": "Konfigurační záznam",
           "description": "Konfigurační záznam Tado Hijack, ke kterému se má odečet přidat."
         },
         "reading": {
@@ -692,6 +756,38 @@
     }
   },
   "selector": {
+    "refresh_type": {
+      "options": {
+        "all": "Všechna data",
+        "zone": "Zóna",
+        "metadata": "Metadata",
+        "offsets": "Teplotní odchylky",
+        "away": "Teploty mimo domov",
+        "capabilities": "Možnosti zařízení",
+        "presence": "Přítomnost"
+      }
+    },
+    "hvac_mode": {
+      "options": {
+        "off": "Vypnuto",
+        "heat": "Vytápění nebo chlazení",
+        "auto": "Podle plánu"
+      }
+    },
+    "overlay_mode": {
+      "options": {
+        "manual": "Trvale",
+        "next_block": "Do dalšího časového bloku",
+        "presence": "Do změny přítomnosti"
+      }
+    },
+    "water_heater_operation_mode": {
+      "options": {
+        "off": "Vypnuto",
+        "heat": "Zapnuto",
+        "auto": "Podle plánu"
+      }
+    },
     "generation": {
       "options": {
         "classic": "Tado V2/V3 (Classic API)",
