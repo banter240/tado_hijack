@@ -1,3 +1,50 @@
+## [5.8.0-dev.3](https://github.com/banter240/tado_hijack/compare/v5.8.0-dev.2...v5.8.0-dev.3) (2026-08-27)
+
+### ✨ New Features
+
+* feat(i18n): sync action translations with services.yaml (PR #121) resolves #120
+
+  - Remove inline descriptions from services.yaml, move to translation files
+  - Add translation_key bindings for selectors (refresh_type, hvac_mode, overlay_mode, water_heater_operation_mode)
+  - Add config_entry field translations and selector option translations
+  - Replace obsolete set_timer* with set_mode* and set_water_heater_mode
+  - Add translation validation script (scripts/validate_translations.py)
+  - Extend CI workflow with translation-validation job (Python 3.14)
+  - Improve Czech translations (cs.json)
+
+  Co-authored-by: kasiom <kasiom@example.com>
+
+### 🐛 Bug Fixes
+
+* fix(ac): optimistic fan state for consecutive AC setting updates (PR #118)
+
+  - Add fan_speed and fan_level parameters to ZoneOverlayFields in OptimisticManager
+  - Refactor apply_zone_state to accept ZoneOverlayFields dataclass instead of individual kwargs
+  - Update all call sites (coordinator, executors, action_provider, event_handlers) to use ZoneOverlayFields
+  - Thread zone_id through _build_ac_fan_settings to enable optimistic lookup
+  - Use get_optimistic for fan_speed fallback before cached state (consistent with swing)
+  - Pass fan_speed/fan_level values into apply_zone_state from async_set_ac_setting
+
+  Co-authored-by: esolm <esolm@example.com>
+* fix(ci): unblock semantic-release notes with changelog writer v9
+
+  conventional-changelog-conventionalcommits 10.4.0 requires writer v9.
+  semantic-release 25 still pulls writer 8, so generateNotes crashed.
+  Pin the release toolchain, override writer to 9.2.1, and switch
+  commitPartial to a render function (Handlebars strings are gone).
+* fix(i18n): add _is_off_magic_temp guard to overlay_validator resolves #119
+
+  - Prevent "mode required for AIR_CONDITIONING" false positive when power=OFF via OFF_MAGIC_TEMP
+  - Minor cleanup: remove redundant comments from logging_utils, rate_limit_manager, mapper, tadox_api
+  - Update .gitignore for additional AI agent configs (AGENTS.md, CLAUDE.md, GROK.md)
+
+### 📚 Documentation
+
+* docs: comprehensive documentation audit and synchronization
+
+  - ARCHITECTURE.md: Full update with all 8 managers, Support Services, TadoXApi, TadoActionProvider ABC, Mermaid diagram
+  - DESIGN.md: PropertyManager for Field Locking added
+
 ## [5.8.0-dev.2](https://github.com/banter240/tado_hijack/compare/v5.8.0-dev.1...v5.8.0-dev.2) (2026-08-01)
 * feat(core): Matter/HomeKit device linking by serial and diagnostics improvements
 
