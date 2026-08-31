@@ -1,3 +1,50 @@
+## [5.8.1](https://github.com/banter240/tado_hijack/compare/v5.8.0...v5.8.1) (2026-08-31)
+
+### 🐛 Bug Fixes
+
+* fix(core): attach Hijack entities to HomeKit/Matter on HA 2026.8+
+
+  HA 2026.8+ owns one device per config entry and no longer merges
+  HomeKit/Matter identifiers stuffed into DeviceInfo. Child lock and
+  offset looked "linked" but stayed on a separate Hijack TRV.
+
+  When the cloud serial matches a local device, set entity.device_entry
+  and return device_info None so entity_platform uses that registry
+  entry. If HomeKit/Matter is missing, entities live on the Hijack
+  device again. Leave leftover Hijack device pages; do not delete them.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  📟 DEVICE REGISTRY (HA 2026.8)
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - iterate DeviceRegistry.devices; resolve ids with async_get
+  - via_device_id via async_get_device_id_by_identifier (not via_device)
+  - minimum Home Assistant 2026.8 (hacs.json, pyproject.toml)
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🔗 DEVICE ENTRY ATTACH
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - gateway in device_linker; matchers in tadov3 (HomeKit) and tadox (Matter)
+  - HomeKit: serial_number, identifier domain homekit_controller:accessory-id
+  - Matter: serial_number, serial_<SN> identifiers, or name
+  - shared helpers: identifier_root, has_local_domain, serial_equals
+  - empty serial never links; skip our own config entry
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  📚 DOCS
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - README: attach vs merge, two device pages, do not delete Hijack fallback
+
+### 📚 Documentation
+
+* docs(changelog): restore truncated notes for 5.8.0 through 5.2.0
+
+  Semantic-release treated mid-body Fixes/issue refs as footers, so several
+  stable entries were cut off. Restore the missing sections from the original
+  squash commits. No version bump.
+
 ## [5.8.0](https://github.com/banter240/tado_hijack/compare/v5.7.1...v5.8.0) (2026-08-31)
 
 ### ✨ New Features
