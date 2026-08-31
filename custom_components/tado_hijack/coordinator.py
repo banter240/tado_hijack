@@ -79,6 +79,7 @@ from .const import (
     ZONE_TYPE_HOT_WATER,
 )
 from .dummy.dummy_handler import TadoDummyHandler  # [DUMMY_HOOK]
+from .helpers.ac_overlay import pick_cap_value, resolve_ac_attr
 from .helpers.api_manager import TadoApiManager
 from .helpers.auth_manager import AuthManager
 from .helpers.data_manager import TadoDataManager, UnifiedDataProvider
@@ -86,7 +87,7 @@ from .helpers.device_linker import get_climate_entity_id
 from .helpers.entity_resolver import EntityResolver
 from .helpers.event_handlers import TadoEventHandler
 from .helpers.logging_utils import get_redacted_logger
-from .helpers.optimistic_manager import OptimisticManager
+from .helpers.optimistic_manager import OptimisticManager, ZoneOverlayFields
 from .helpers.overlay_builder import build_overlay_data
 from .helpers.poll_scheduler import PollScheduler
 from .helpers.property_manager import PropertyManager
@@ -284,16 +285,13 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         )
 
     def _update_climate_map(self) -> None:
-        """Map HomeKit climate entities to Tado zones (v3 only).
+        """Map local climate entities (HomeKit / Matter) to Tado zones by serial."""
+        from .helpers.discovery import yield_devices
 
-        Should only be called for v3 Classic generation.
-        """
-        for zone in self.zones_meta.values():
-            if zone.type != ZONE_TYPE_HEATING:
-                continue
-            for device in zone.devices:
-                if climate_id := get_climate_entity_id(self.hass, device.serial_no):
-                    self._climate_to_zone[climate_id] = zone.id
+        self._climate_to_zone.clear()
+        for device, zone_id in yield_devices(self, {ZONE_TYPE_HEATING}):
+            if climate_id := get_climate_entity_id(self.hass, device.serial_no):
+                self._climate_to_zone[climate_id] = zone_id
 
     @property
     def client(self) -> TadoHijackClient:
@@ -385,7 +383,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
 
             self.bridges = get_bridges(self.devices_meta, self.generation)
 
-            if self.generation == GEN_CLASSIC and not self.full_cloud_mode:
+            if not self.full_cloud_mode:
                 self._update_climate_map()
 
             self.auth_manager.check_and_update_token()
@@ -782,9 +780,11 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         self.optimistic.apply_zone_state(
             zone_id,
             overlay=True,
-            power=power,
-            temperature=temperature,
-            operation_mode=operation_mode,
+            fields=ZoneOverlayFields(
+                power=power,
+                temperature=temperature,
+                operation_mode=operation_mode,
+            ),
         )
         self.async_update_listeners()
         self.api_manager.queue_command(
@@ -803,7 +803,9 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         """Apply optimistic resume state and queue the RESUME_SCHEDULE command."""
         old_state = patch_zone_resume(self.data.zone_states.get(str(zone_id)))
         self.optimistic.apply_zone_state(
-            zone_id, overlay=False, operation_mode=operation_mode
+            zone_id,
+            overlay=False,
+            fields=ZoneOverlayFields(operation_mode=operation_mode),
         )
         self.async_update_listeners()
         self.api_manager.queue_command(
@@ -994,7 +996,10 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         ):
             self.dummy_handler.set_tadox_hot_water_off(zid)
             self.optimistic.apply_zone_state(
-                zid, overlay=True, power="OFF", grace_period=10.0
+                zid,
+                overlay=True,
+                fields=ZoneOverlayFields(power="OFF"),
+                grace_period=10.0,
             )
             self.async_update_listeners()
             _LOGGER.debug("TadoX hot water dummy: boost OFF handled for zone %s", zid)
@@ -1002,7 +1007,10 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             return
 
         self.optimistic.apply_zone_state(
-            zid, overlay=True, power="OFF", grace_period=10.0
+            zid,
+            overlay=True,
+            fields=ZoneOverlayFields(power="OFF"),
+            grace_period=10.0,
         )
         self.async_update_listeners()
 
@@ -1367,17 +1375,16 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             return TEMP_DEFAULT_AC
         return TEMP_DEFAULT_HEATING
 
-    @staticmethod
-    def _build_ac_fan_fields(mode_caps: Any, setting: Any) -> dict[str, Any]:
+    def _build_ac_fan_fields(
+        self, zone_id: int, mode_caps: Any, setting: Any
+    ) -> dict[str, Any]:
         """Return fanSpeed or fanLevel field for an AC overlay."""
         if fan_speeds := getattr(mode_caps, "fan_speeds", None):
-            current = getattr(setting, "fan_speed", None)
-            value = current if current in fan_speeds else fan_speeds[0]
-            return {"fanSpeed": str(value).upper()}
+            current = resolve_ac_attr(self.optimistic, zone_id, setting, "fan_speed")
+            return {"fanSpeed": pick_cap_value(current, fan_speeds)}
         if fan_levels := getattr(mode_caps, "fan_level", None):
-            current = getattr(setting, "fan_level", None)
-            value = current if current in fan_levels else fan_levels[0]
-            return {"fanLevel": str(value).upper()}
+            current = resolve_ac_attr(self.optimistic, zone_id, setting, "fan_level")
+            return {"fanLevel": pick_cap_value(current, fan_levels)}
         return {}
 
     def _build_ac_swing_fields(
@@ -1386,29 +1393,24 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         """Return swing fields for an AC overlay.
 
         Prefers axis swing (verticalSwing/horizontalSwing) when exposed by capabilities.
-        Falls back to single-toggle swing — using the last cached value or "OFF" —
+        Falls back to single-toggle swing - last cached value or "OFF" -
         because tadoasync does not parse single-toggle swing from mode capabilities.
         """
         fields: dict[str, Any] = {}
         has_axis_swing = False
-        for cap_attr, api_key, state_attr in [
+        for cap_attr, api_key, state_attr in (
             ("vertical_swing", "verticalSwing", "vertical_swing"),
             ("horizontal_swing", "horizontalSwing", "horizontal_swing"),
-        ]:
+        ):
             if swing_caps := getattr(mode_caps, cap_attr, None):
                 has_axis_swing = True
-                current = getattr(setting, state_attr, None)
-                value = (
-                    current
-                    if current in swing_caps
-                    else ("OFF" if "OFF" in swing_caps else swing_caps[0])
-                )
-                fields[api_key] = str(value).upper()
+                current = resolve_ac_attr(self.optimistic, zone_id, setting, state_attr)
+                fields[api_key] = pick_cap_value(current, swing_caps, prefer_off=True)
 
         if not has_axis_swing:
-            swing_val = getattr(setting, "swing", None) or self._last_ac_swing.get(
-                zone_id
-            )
+            swing_val = resolve_ac_attr(
+                self.optimistic, zone_id, setting, "swing"
+            ) or self._last_ac_swing.get(zone_id)
             fields["swing"] = str(swing_val).upper() if swing_val else "OFF"
 
         return fields
@@ -1417,9 +1419,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
     def _build_ac_light_fields(mode_caps: Any) -> dict[str, Any]:
         """Return light field for an AC overlay, defaulting to OFF."""
         if light_caps := getattr(mode_caps, "light", None):
-            return {
-                "light": "OFF" if "OFF" in light_caps else str(light_caps[0]).upper()
-            }
+            return {"light": pick_cap_value(None, light_caps, prefer_off=True)}
         return {}
 
     async def _ensure_ac_setting_fields(
@@ -1447,7 +1447,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             self._last_ac_swing[zone_id] = swing_now
 
         return (
-            self._build_ac_fan_fields(mode_caps, setting)
+            self._build_ac_fan_fields(zone_id, mode_caps, setting)
             | self._build_ac_swing_fields(zone_id, mode_caps, setting)
             | self._build_ac_light_fields(mode_caps)
         )
@@ -1491,9 +1491,11 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         self.optimistic.apply_zone_state(
             zone_id,
             optimistic_value,
-            power=power,
-            temperature=final_temp,
-            ac_mode=ac_mode,
+            fields=ZoneOverlayFields(
+                power=power,
+                temperature=final_temp,
+                ac_mode=ac_mode,
+            ),
         )
         self.async_update_listeners()
 
@@ -1535,9 +1537,11 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             self.optimistic.apply_zone_state(
                 zone_id,
                 overlay=True,
-                power=power,
-                temperature=temperature,
-                ac_mode=ac_mode,
+                fields=ZoneOverlayFields(
+                    power=power,
+                    temperature=temperature,
+                    ac_mode=ac_mode,
+                ),
             )
         self.async_update_listeners()
 

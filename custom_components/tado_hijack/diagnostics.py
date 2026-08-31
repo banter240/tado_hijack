@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import dataclasses
 import hashlib
 import re
 import time
@@ -25,35 +24,78 @@ from .helpers.logging_utils import redact
 
 __all__ = ["async_get_config_entry_diagnostics"]
 
+_HARD_REDACT_KEYS = frozenset(
+    {
+        "homeid",
+        "home_id",
+        "userid",
+        "user_id",
+        "token",
+        "refresh_token",
+        "access_token",
+        "proxy_token",
+        "secret",
+        "password",
+        "email",
+        "username",
+        "latitude",
+        "longitude",
+        "auth",
+        "authorization",
+        "api_key",
+        "serialno",
+        "shortserialno",
+        "macaddress",
+    }
+)
+_HARD_REDACT_SUFFIXES = ("_token", "_secret", "_password", "_api_key")
+_ENTITY_ID_DOMAINS = (
+    "sensor",
+    "binary_sensor",
+    "switch",
+    "number",
+    "select",
+    "button",
+    "climate",
+    "water_heater",
+    "device_tracker",
+    "person",
+)
+_KEEP_NAME_PREFIXES = ("Zone ", "Unknown")
+
+
+def _is_entity_id_key(key: str) -> bool:
+    """Return True if key looks like a Home Assistant entity_id."""
+    return "." in key and key.startswith(_ENTITY_ID_DOMAINS)
+
+
+def _should_hard_redact_key(key: str) -> bool:
+    """Return True for secret field names (exact match or known suffix)."""
+    if _is_entity_id_key(key):
+        return False
+
+    k_lower = key.lower()
+    if k_lower in _HARD_REDACT_KEYS:
+        return True
+    return any(k_lower.endswith(suffix) for suffix in _HARD_REDACT_SUFFIXES)
+
 
 def _mask_string(text: str) -> str:
     """Mask serial numbers and sensitive patterns in strings."""
-    # 1. Serial numbers and home IDs in URLs - delegated to shared redact()
     text = redact(text)
 
-    # 2. Pattern for Emails
     email_pattern = r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"
     text = re.sub(email_pattern, "**EMAIL-REDACTED**", text)
 
-    # 3. Pattern for entity names in keys (Home Assistant Domains)
-    if "." in text and all(x not in text for x in ("T", "Z", "+")):
-        domains = (
-            "sensor",
-            "binary_sensor",
-            "switch",
-            "number",
-            "select",
-            "button",
-            "climate",
-            "water_heater",
-            "device_tracker",
-            "person",
-        )
-        if text.startswith(domains):
-            parts = text.split(".")
-            domain = parts[0]
-            name_hash = hashlib.shake_128(parts[1].encode()).hexdigest(2)
-            text = f"{domain}.entity_{name_hash}"
+    if (
+        "." in text
+        and all(x not in text for x in ("T", "Z", "+"))
+        and text.startswith(_ENTITY_ID_DOMAINS)
+    ):
+        parts = text.split(".")
+        domain = parts[0]
+        name_hash = hashlib.shake_128(parts[1].encode()).hexdigest(2)
+        text = f"{domain}.entity_{name_hash}"
 
     return text
 
@@ -65,35 +107,19 @@ def _redact_pii(data: Any, coordinator: TadoDataUpdateCoordinator | None = None)
         for k, v in data.items():
             k_str = str(k)
             k_lower = k_str.lower()
-
-            # 1. Mask the Key itself
             new_key = _mask_string(k_str)
 
-            # 2. Redact technical values based on key name
-            if any(
-                x in k_lower
-                for x in (
-                    "homeid",
-                    "userid",
-                    "token",
-                    "secret",
-                    "auth",
-                    "key",
-                    "password",
-                    "email",
-                    "username",
-                    "latitude",
-                    "longitude",
-                )
-            ):
-                # Hard redaction for these specific fields
+            if _should_hard_redact_key(k_str):
                 new_data[new_key] = "**REDACTED**"
             elif any(
                 x in k_lower
                 for x in ("name", "title", "assigned_to", "firstname", "lastname")
             ) and isinstance(v, str):
-                # If it's already a technical ID (like "Zone 30"), keep it
-                new_data[new_key] = v if v.startswith("Zone ") else "Anonymized Name"
+                new_data[new_key] = (
+                    v
+                    if any(v.startswith(p) for p in _KEEP_NAME_PREFIXES)
+                    else "Anonymized Name"
+                )
             else:
                 new_data[new_key] = _redact_pii(v, coordinator)
         return new_data
@@ -102,6 +128,38 @@ def _redact_pii(data: Any, coordinator: TadoDataUpdateCoordinator | None = None)
         return [_redact_pii(item, coordinator) for item in data]
 
     return _mask_string(data) if isinstance(data, str) else data
+
+
+def _serialize_tado_data(data: Any) -> dict[str, Any]:
+    """Return counts and keys for coordinator TadoData (no nested API models)."""
+    rate = getattr(data, "rate_limit", None)
+    devices = getattr(data, "devices", None) or {}
+    offsets = getattr(data, "offsets", None) or {}
+    zone_states = getattr(data, "zone_states", None) or {}
+    zones = getattr(data, "zones", None) or {}
+    capabilities = getattr(data, "capabilities", None) or {}
+    away = getattr(data, "away_config", None) or {}
+
+    return {
+        "api_status": getattr(data, "api_status", "unknown"),
+        "home_state_present": getattr(data, "home_state", None) is not None,
+        "zone_states_count": len(zone_states),
+        "zone_state_keys": sorted(str(k) for k in zone_states),
+        "zones_count": len(zones),
+        "zone_ids": sorted(zones),
+        "devices_count": len(devices),
+        "device_serials": sorted(str(s) for s in devices),
+        "capabilities_count": len(capabilities),
+        "capability_zone_ids": sorted(capabilities),
+        "offsets_count": len(offsets),
+        "offset_device_serials": sorted(str(s) for s in offsets),
+        "away_config_count": len(away),
+        "away_zone_ids": sorted(away),
+        "rate_limit": {
+            "limit": getattr(rate, "limit", None),
+            "remaining": getattr(rate, "remaining", None),
+        },
+    }
 
 
 async def async_get_config_entry_diagnostics(
@@ -121,7 +179,7 @@ async def async_get_config_entry_diagnostics(
     # Main components
     diag_data["coordinator"] = _get_coordinator_diagnostics(coordinator)
     diag_data["quota_status"] = _get_quota_diagnostics(coordinator)
-    diag_data["internal_state"] = _get_internal_state_diagnostics(coordinator)
+    diag_data["internal_state"] = _get_internal_state_diagnostics(hass, coordinator)
 
     diag_data["entity_mappings"] = _get_entity_mappings(
         hass, entry.entry_id, coordinator
@@ -171,7 +229,7 @@ def _get_coordinator_diagnostics(
 
     if data:
         try:
-            coordinator_diag["data"] = dataclasses.asdict(data)
+            coordinator_diag["data"] = _serialize_tado_data(data)
         except Exception as e:
             coordinator_diag["data_error"] = f"Failed to serialize TadoData: {e}"
 
@@ -226,7 +284,52 @@ def _get_quota_diagnostics(coordinator: TadoDataUpdateCoordinator) -> dict[str, 
     }
 
 
+def _get_device_linking_diagnostics(
+    hass: HomeAssistant,
+    coordinator: TadoDataUpdateCoordinator,
+) -> dict[str, Any]:
+    """Report local device linking status per cloud serial."""
+    from .helpers.device_linker import (
+        get_climate_entity_id,
+        get_linked_device_identifiers,
+    )
+    from .helpers.discovery import yield_devices
+
+    devices: dict[str, Any] = {}
+    for device, zone_id in yield_devices(coordinator):
+        serial = device.serial_no
+        linked_ids = get_linked_device_identifiers(hass, serial, coordinator.generation)
+        climate_id = get_climate_entity_id(hass, serial)
+        devices[_mask_string(str(serial))] = {
+            "device_type": getattr(device, "device_type", None),
+            "zone_id": zone_id,
+            "linked": bool(linked_ids),
+            "local_identifier_domains": sorted({dom for dom, _ in linked_ids}),
+            "climate_entity": (
+                _mask_string(climate_id) if climate_id is not None else None
+            ),
+        }
+
+    climate_map = getattr(coordinator, "_climate_to_zone", {})
+    climate_to_zone = {
+        _mask_string(str(entity_id)): zone_id
+        for entity_id, zone_id in climate_map.items()
+    }
+
+    linked_count = sum(bool(d["linked"]) for d in devices.values())
+    return {
+        "generation": coordinator.generation,
+        "full_cloud_mode": bool(coordinator.full_cloud_mode),
+        "linked_count": linked_count,
+        "device_count": len(devices),
+        "climate_map_size": len(climate_map),
+        "climate_to_zone": climate_to_zone,
+        "devices": devices,
+    }
+
+
 def _get_internal_state_diagnostics(
+    hass: HomeAssistant,
     coordinator: TadoDataUpdateCoordinator,
 ) -> dict[str, Any]:
     """Return internal component status."""
@@ -235,7 +338,6 @@ def _get_internal_state_diagnostics(
     opt = coordinator.optimistic
 
     now = time.monotonic()
-    home_kit_map = getattr(coordinator, "_climate_to_zone", {})
 
     return {
         "optimistic": {
@@ -259,10 +361,7 @@ def _get_internal_state_diagnostics(
                 "away_dirty": dm._away_invalidated_at > dm._last_away_poll,
             },
         },
-        "home_kit": {
-            "active": len(home_kit_map) > 0,
-            "mapping": home_kit_map,
-        },
+        "device_linking": _get_device_linking_diagnostics(hass, coordinator),
     }
 
 

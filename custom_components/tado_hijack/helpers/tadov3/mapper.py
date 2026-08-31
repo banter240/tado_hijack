@@ -31,8 +31,6 @@ class TadoV3Mapper:
 
         Not used in the new granular polling architecture, but kept for protocol completeness.
         """
-        # This would require fetching everything.
-        # We rely on DataManager to call granular methods.
         raise NotImplementedError("Use granular fetch methods for V3")
 
     async def async_fetch_zones(self) -> dict[str, Any]:

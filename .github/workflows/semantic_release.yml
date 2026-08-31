@@ -44,16 +44,10 @@ jobs:
         uses: "actions/setup-node@v5"
         with:
           node-version: "22"
+          cache: npm
 
       - name: "Install semantic-release and required plugins"
-        run: |
-            npm install --save-dev \
-              semantic-release \
-              @semantic-release/changelog \
-              @semantic-release/exec \
-              @semantic-release/git \
-              @semantic-release/github \
-              conventional-changelog-conventionalcommits
+        run: npm ci
 
       - name: "Execute Semantic Release"
         id: semantic

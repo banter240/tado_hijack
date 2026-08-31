@@ -26,6 +26,7 @@ from .const import (
     TEMP_STEP_AC,
 )
 from .entity import TadoOptimisticMixin, TadoStateMemoryMixin, TadoZoneEntity
+from .helpers.ac_overlay import pick_cap_value, resolve_ac_attr
 from .helpers.logging_utils import get_redacted_logger
 from .helpers.parsers import (
     get_ac_capabilities,
@@ -527,41 +528,40 @@ class TadoAirConditioning(TadoClimateEntity):
             return
 
         additional_fields: dict[str, Any] = {}
+        setting = getattr(state, "setting", None) if state else None
+        optimistic = self.tado_coordinator.optimistic
+        zone_id = self._zone_id
 
         if fan_speeds := getattr(fan_mode_caps, "fan_speeds", None):
-            current = getattr(state.setting, "fan_speed", None) if state else None
-            fan_value = current if current in fan_speeds else fan_speeds[0]
-            additional_fields["fanSpeed"] = str(fan_value).upper()
+            additional_fields["fanSpeed"] = pick_cap_value(
+                resolve_ac_attr(optimistic, zone_id, setting, "fan_speed"),
+                fan_speeds,
+            )
 
         if fan_levels := getattr(fan_mode_caps, "fan_level", None):
-            current = getattr(state.setting, "fan_level", None) if state else None
-            fan_value = current if current in fan_levels else fan_levels[0]
-            additional_fields["fanLevel"] = str(fan_value).upper()
+            additional_fields["fanLevel"] = pick_cap_value(
+                resolve_ac_attr(optimistic, zone_id, setting, "fan_level"),
+                fan_levels,
+            )
 
-        # Build swing settings (carry over from current state or use defaults)
-        for cap_attr, api_key, state_attr in [
+        for cap_attr, api_key, state_attr in (
             ("vertical_swing", "verticalSwing", "vertical_swing"),
             ("horizontal_swing", "horizontalSwing", "horizontal_swing"),
             ("swing", "swing", "swing"),
-        ]:
+        ):
             if swing_caps := getattr(fan_mode_caps, cap_attr, None):
-                current = getattr(state.setting, state_attr, None) if state else None
-                swing_value = (
-                    current
-                    if current in swing_caps
-                    else ("OFF" if "OFF" in swing_caps else swing_caps[0])
+                additional_fields[api_key] = pick_cap_value(
+                    resolve_ac_attr(optimistic, zone_id, setting, state_attr),
+                    swing_caps,
+                    prefer_off=True,
                 )
-                additional_fields[api_key] = str(swing_value).upper()
 
-        # Build light setting when supported (carry over from current state)
         if light_caps := getattr(fan_mode_caps, "light", None):
-            current = getattr(state.setting, "light", None) if state else None
-            if current and current in light_caps:
-                additional_fields["light"] = str(current).upper()
-            else:
-                additional_fields["light"] = (
-                    "OFF" if "OFF" in light_caps else str(light_caps[0]).upper()
-                )
+            additional_fields["light"] = pick_cap_value(
+                getattr(setting, "light", None) if setting else None,
+                light_caps,
+                prefer_off=True,
+            )
 
         await self.tado_coordinator.async_set_zone_overlay(
             zone_id=self._zone_id,

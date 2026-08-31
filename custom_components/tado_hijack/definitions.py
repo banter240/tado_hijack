@@ -938,6 +938,26 @@ def _parse_home_zone_mode(c: Any) -> str | None:
         return None
 
 
+def _parse_zone_heating_power(c: Any, zid: int) -> float:
+    """Heating power % for a zone via the generation-specific parser."""
+    state = c.data.zone_states.get(str(zid))
+    if c.generation == GEN_X:
+        return tadox_parsers.parse_heating_power(state)
+    ztype = getattr(c.zones_meta.get(zid), "type", None) if c.zones_meta else None
+    return v3_parsers.parse_heating_power(state, ztype)
+
+
+def _parse_home_heating_demand(c: Any) -> bool:
+    """True if any heating zone reports heating power greater than zero."""
+    if not getattr(c, "data", None) or not c.data.zone_states or not c.zones_meta:
+        return False
+    return any(
+        getattr(zmeta, "type", ZONE_TYPE_HEATING) == ZONE_TYPE_HEATING
+        and _parse_zone_heating_power(c, zid) > 0
+        for zid, zmeta in c.zones_meta.items()
+    )
+
+
 ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     create_diagnostic_sensor(
         key="api_status",
@@ -949,6 +969,11 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         value_fn=_parse_home_zone_mode,
         device_class=SensorDeviceClass.ENUM,
         icon="mdi:home-thermometer",
+    ),
+    create_home_binary_sensor(
+        key="heating_demand",
+        value_fn=_parse_home_heating_demand,
+        icon="mdi:radiator",
     ),
     create_diagnostic_sensor(
         key="tado_generation",
@@ -1168,24 +1193,11 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     ),
     create_zone_sensor(
         key="heating_power",
-        supported_generations={GEN_CLASSIC},
-        value_fn=lambda c, zid: v3_parsers.parse_heating_power(
-            c.data.zone_states.get(str(zid)),
-            c.zones_meta[zid].type if c.zones_meta.get(zid) else None,
-        ),
+        supported_generations={GEN_CLASSIC, GEN_X},
+        value_fn=_parse_zone_heating_power,
         unit="%",
         state_class=SensorStateClass.MEASUREMENT,
         supported_zone_types={ZONE_TYPE_HEATING},
-        unique_id_suffix="pwr",
-    ),
-    create_zone_sensor(
-        key="heating_power",
-        supported_generations={GEN_X},
-        value_fn=lambda c, zid: tadox_parsers.parse_heating_power(
-            c.data.zone_states.get(str(zid))
-        ),
-        unit="%",
-        state_class=SensorStateClass.MEASUREMENT,
         unique_id_suffix="pwr",
     ),
     create_zone_sensor(

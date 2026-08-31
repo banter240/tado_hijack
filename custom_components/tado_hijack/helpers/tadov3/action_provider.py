@@ -6,9 +6,16 @@ from typing import TYPE_CHECKING, Any
 
 from ...const import BOOST_MODE_TEMP, POWER_OFF, POWER_ON
 from ...models import CommandType, TadoCommand
+from ..ac_overlay import (
+    FAN_LEVEL_ALIASES,
+    apply_capped_attr,
+    pick_cap_value,
+    resolve_ac_attr,
+)
 from ..action_provider_base import TadoActionProvider
 from ..discovery import yield_zones
 from ..logging_utils import get_redacted_logger
+from ..optimistic_manager import ZoneOverlayFields
 from ..overlay_builder import build_overlay_data
 from ..state_patcher import patch_zone_overlay, patch_zone_resume
 
@@ -106,8 +113,10 @@ class TadoV3ActionProvider(TadoActionProvider):
             self.coordinator.optimistic.apply_zone_state(
                 zone_id,
                 overlay=True,
-                power=setting.get("power", POWER_ON),
-                temperature=setting.get("temperature", {}).get("celsius"),
+                fields=ZoneOverlayFields(
+                    power=setting.get("power", POWER_ON),
+                    temperature=setting.get("temperature", {}).get("celsius"),
+                ),
             )
 
             self.coordinator.api_manager.queue_command(
@@ -181,7 +190,11 @@ class TadoV3ActionProvider(TadoActionProvider):
         if mode_caps:
             temperature = self._build_ac_temperature(mode_caps, key, value, state)
             additional_fields |= self._build_ac_fan_settings(
-                mode_caps, key, value, state
+                mode_caps,
+                key,
+                value,
+                state,
+                zone_id,
             )
             additional_fields |= self._build_ac_swing_settings(
                 mode_caps, key, value, state, zone_id
@@ -206,10 +219,16 @@ class TadoV3ActionProvider(TadoActionProvider):
         self.coordinator.optimistic.apply_zone_state(
             zone_id,
             overlay=True,
-            power=POWER_ON,
-            ac_mode=current_mode,
-            vertical_swing=value if key == "vertical_swing" else None,
-            horizontal_swing=value if key == "horizontal_swing" else None,
+            fields=ZoneOverlayFields(
+                power=POWER_ON,
+                ac_mode=current_mode,
+                fan_speed=value if key == "fan_speed" else None,
+                fan_level=(
+                    value if key == "fan_level" or key in FAN_LEVEL_ALIASES else None
+                ),
+                vertical_swing=value if key == "vertical_swing" else None,
+                horizontal_swing=value if key == "horizontal_swing" else None,
+            ),
         )
         self.coordinator.async_update_listeners()
 
@@ -236,34 +255,44 @@ class TadoV3ActionProvider(TadoActionProvider):
         return None
 
     def _build_ac_fan_settings(
-        self, mode_caps: Any, key: str, value: str, state: Any
+        self,
+        mode_caps: Any,
+        key: str,
+        value: str,
+        state: Any,
+        zone_id: int,
     ) -> dict[str, str]:
         """Extract AC fan settings based on capabilities and input."""
         fields: dict[str, str] = {}
-
-        if fan_caps := getattr(mode_caps, "fan_speeds", None):
-            val = (
-                value
-                if key == "fan_speed"
-                else getattr(state.setting, "fan_speed", None)
-            )
-            if val:
-                val = val.upper()
-            fields["fanSpeed"] = str(val if val in fan_caps else fan_caps[0])
-
-        if lvl_caps := getattr(mode_caps, "fan_level", None):
-            val = (
-                value
-                if key in {"fan_level", "fan_speed"}
-                else getattr(state.setting, "fan_level", None)
-            )
-            if val:
-                val = val.upper()
-            fields["fanLevel"] = str(val if val in lvl_caps else lvl_caps[0])
-        elif val := getattr(state.setting, "fan_level", None):
-            val = val.upper()
-            fields["fanLevel"] = str(val)
-
+        setting = getattr(state, "setting", None)
+        optimistic = self.coordinator.optimistic
+        apply_capped_attr(
+            fields,
+            "fanSpeed",
+            resolve_ac_attr(
+                optimistic,
+                zone_id,
+                setting,
+                "fan_speed",
+                requested_key=key,
+                requested_value=value,
+            ),
+            getattr(mode_caps, "fan_speeds", None),
+        )
+        apply_capped_attr(
+            fields,
+            "fanLevel",
+            resolve_ac_attr(
+                optimistic,
+                zone_id,
+                setting,
+                "fan_level",
+                requested_key=key,
+                requested_value=value,
+            ),
+            getattr(mode_caps, "fan_level", None),
+            include_without_caps=True,
+        )
         return fields
 
     def _build_ac_swing_settings(
@@ -271,47 +300,41 @@ class TadoV3ActionProvider(TadoActionProvider):
     ) -> dict[str, str]:
         """Extract AC swing settings based on capabilities and input."""
         fields: dict[str, str] = {}
-        swing_mappings = [
+        setting = getattr(state, "setting", None)
+        optimistic = self.coordinator.optimistic
+        for cap_name, api_key, attr_name in (
             ("vertical_swing", "verticalSwing", "vertical_swing"),
             ("horizontal_swing", "horizontalSwing", "horizontal_swing"),
             ("swing", "swing", "swing"),
-        ]
-
-        for cap_name, api_key, attr_name in swing_mappings:
-            if cap_values := getattr(mode_caps, cap_name, None):
-                opt_val = self.coordinator.optimistic.get_optimistic(
-                    "zone", zone_id, attr_name
-                ) or getattr(state.setting, attr_name, None)
-
-                val = value if key == attr_name else opt_val
-                if val:
-                    val = val.upper()
-                fields[api_key] = str(
-                    val
-                    if val in cap_values
-                    else ("OFF" if "OFF" in cap_values else cap_values[0])
-                )
-            elif opt_val := self.coordinator.optimistic.get_optimistic(
-                "zone", zone_id, attr_name
-            ) or getattr(state.setting, attr_name, None):
-                val = opt_val.upper()
-                fields[api_key] = str(val)
-
+        ):
+            apply_capped_attr(
+                fields,
+                api_key,
+                resolve_ac_attr(
+                    optimistic,
+                    zone_id,
+                    setting,
+                    attr_name,
+                    requested_key=key,
+                    requested_value=value,
+                ),
+                getattr(mode_caps, cap_name, None),
+                prefer_off=True,
+                include_without_caps=True,
+            )
         return fields
 
     def _build_ac_light_settings(self, mode_caps: Any, state: Any) -> dict[str, str]:
         """Extract AC light setting based on capabilities and current state."""
         if light_caps := getattr(mode_caps, "light", None):
-            current = (
-                getattr(state.setting, "light", None)
-                if getattr(state, "setting", None)
-                else None
-            )
-            if current and current in light_caps:
-                val = str(current).upper()
-            else:
-                val = "OFF" if "OFF" in light_caps else str(light_caps[0]).upper()
-            return {"light": val}
+            setting = getattr(state, "setting", None)
+            return {
+                "light": pick_cap_value(
+                    getattr(setting, "light", None) if setting else None,
+                    light_caps,
+                    prefer_off=True,
+                )
+            }
         return {}
 
     async def async_set_temperature_offset(self, serial_no: str, offset: float) -> None:

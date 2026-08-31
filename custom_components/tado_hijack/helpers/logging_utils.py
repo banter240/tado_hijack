@@ -41,8 +41,6 @@ def redact(data: Any) -> Any:
     This preserves type information for logging format strings (%d, %f, etc.)
 
     """
-    # Pass through non-string types unchanged
-    # This allows logging with %d, %f, etc. to work correctly
     if isinstance(data, Exception):
         return redact(str(data))
 

@@ -1,4 +1,4 @@
-"""Helper to link Tado Hijack entities to existing HomeKit devices."""
+"""Helper to link Tado Hijack entities to existing local devices (HomeKit / Matter)."""
 
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ from .logging_utils import get_redacted_logger
 
 _LOGGER = get_redacted_logger(__name__)
 
-# Cache for device lookups (serial_no -> identifiers)
 _device_cache: dict[str, set[tuple[str, str]] | None] = {}
 _cache_built = False
 
@@ -33,7 +32,7 @@ def invalidate_cache() -> None:
 
 
 def _build_device_cache(hass: HomeAssistant, force: bool = False) -> None:
-    """Build device cache from registry."""
+    """Build device cache from registry by serial_number."""
     global _cache_built
     if _cache_built and not force:
         return
@@ -54,34 +53,26 @@ def _build_device_cache(hass: HomeAssistant, force: bool = False) -> None:
 def get_linked_device_identifiers(
     hass: HomeAssistant,
     serial_no: str,
-    generation: str,
+    _generation: str,
 ) -> set[tuple[str, str]]:
-    """Get linked device identifiers for v3 (HomeKit) only.
-
-    Tado X uses Matter which does not expose serial numbers — linking is not possible.
-    """
-    from ..const import GEN_X
-
-    if generation == GEN_X:
-        return set()
-
-    ids = get_homekit_identifiers(hass, serial_no)
+    """Return HA device identifiers matching a cloud serial, or empty set."""
+    ids = get_local_device_identifiers(hass, serial_no)
     return ids if ids is not None else set()
 
 
-def get_homekit_identifiers(
+def get_local_device_identifiers(
     hass: HomeAssistant, serial_no: str
 ) -> set[tuple[str, str]] | None:
-    """Find a HomeKit device in the registry matching the serial number.
-
-    Uses a cache to avoid O(n*m) complexity during setup.
-    """
+    """Find a local Tado device in the registry matching the serial number."""
     _build_device_cache(hass)
     return _device_cache.get(serial_no)
 
 
+get_homekit_identifiers = get_local_device_identifiers
+
+
 def get_climate_entity_id(hass: HomeAssistant, serial_no: str) -> str | None:
-    """Find the climate entity ID associated with a Tado device serial via HomeKit."""
+    """Find a climate entity ID for a Tado device serial."""
     d_registry = dr.async_get(hass)
     e_registry = er.async_get(hass)
 

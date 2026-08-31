@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..executor_base import TadoExecutorBase, map_magic_temp_to_power
 from ..logging_utils import get_redacted_logger
+from ..optimistic_manager import ZoneOverlayFields
 
 if TYPE_CHECKING:
     from ...coordinator import TadoDataUpdateCoordinator
@@ -262,8 +263,10 @@ class TadoV3Executor(TadoExecutorBase):
                     self.coordinator.optimistic.apply_zone_state(
                         zone_id,
                         overlay=True,
-                        power=setting.get("power"),
-                        temperature=setting.get("temperature", {}).get("celsius"),
+                        fields=ZoneOverlayFields(
+                            power=setting.get("power"),
+                            temperature=setting.get("temperature", {}).get("celsius"),
+                        ),
                         grace_period=2.0,
                     )
 
