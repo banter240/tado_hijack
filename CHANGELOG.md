@@ -30,6 +30,61 @@
   - merge classic + X heating_power zone sensors onto one definition
   - translations en/de/cs for heating_demand
 
+  Fixes #117
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🚿 TADO X HOT WATER
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Hops can return programmer/domesticHotWater/state with state=NONE (e.g. Heat
+  Pump Optimizer X). Creating a water_heater then 404s and sticks on off.
+
+  - TadoXHotWaterState.is_controllable rejects empty / NONE states
+  - mapper does not inject zone 9001 unless controllable
+  - water_heater setup requires a controllable state
+
+  Fixes #115
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ❄️ AC OVERLAY
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - optimistic fan_speed / fan_level so consecutive AC setting updates keep
+    the last fan value (same pattern as swing)
+  - climate fan_mode always sends fan_speed; also persist that as fan_level
+  - shared ac_overlay helpers for action_provider, coordinator, and climate
+  - apply_zone_state takes ZoneOverlayFields instead of a long kwargs list
+  - overlay_validator: _is_off_magic_temp skips the "mode required" check when
+    power=OFF is encoded via OFF_MAGIC_TEMP
+
+  Fixes #118
+  Fixes #119
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🌐 I18N / SERVICES
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - move service descriptions out of services.yaml into en/de/cs translations
+  - translation_key bindings for selectors (refresh_type, hvac_mode,
+    overlay_mode, water_heater_operation_mode)
+  - config_entry field translations and selector option translations
+  - replace leftover set_timer* strings with set_mode* / set_water_heater_mode
+  - scripts/validate_translations.py plus a PR CI job on Python 3.14
+  - Czech translation coverage improvements (PR #121)
+
+  Fixes #120
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🛠️ TOOLCHAIN & DOCS
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - pin semantic-release in package.json; override changelog writer to v9.2.1
+  - commitPartial as a render function (Handlebars strings are gone in writer v9)
+  - npm ci in the release workflow; .releaserc replaced by release.config.js
+  - releasedLabels: status:released / status:released-dev / status:released-rc
+  - .github/FUNDING.yml (Buy Me a Coffee: banter240)
+  - docs audit: ARCHITECTURE, DESIGN, COMPATIBILITY, FEATURES, README
+
 ## [5.7.1](https://github.com/banter240/tado_hijack/compare/v5.7.0...v5.7.1) (2026-07-24)
 * fix(core): Tado X full-cloud climate guards, presence via v2, and Python 3.14
 
@@ -45,6 +100,37 @@ Tado X, and aligns the toolchain with Home Assistant's Python 3.14 runtime.
 - _get_active_hvac_mode returns HEAT for GEN_X (all X rooms are heating)
 - supported_features limited to temperature + on/off for GEN_X
 - Prevents setup crashes and incorrect "cooling" action on heating zones
+
+Fixes #111
+Fixes #112
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🏠 PRESENCE (TADO X)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Read presence via classic v2 GET /homes/{id}/state (TadoXApi + TadoXMapper)
+- Presence poll track runs through the unified provider for all generations
+- Removed fake Hops roomsAndDevices "home" field + warning on every restart
+- Removed phantom HomePresence model
+
+Fixes #114
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔧 SERVICES & DIAGNOSTICS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Debug entry logs for set_mode / set_mode_all_zones / set_water_heater_mode
+- Warnings include service name (manual_poll, set_mode, resume_all_schedules, …)
+- Clearer add_meter_reading messages for Tado X and permission failures
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🛠️ TOOLCHAIN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Target Python 3.14 (pyproject, ruff, mypy, lint workflow)
+- Minimum Home Assistant 2026.3 (hacs.json + pyproject)
+- Bump ruff 0.15.20, mypy 2.1.0, pre-commit 4.6.0, gitleaks 8.30.1
+- Replace remaining type: ignore patches with cast(Any, …)
 
 ## [5.7.0](https://github.com/banter240/tado_hijack/compare/v5.6.0...v5.7.0) (2026-06-30)
 * feat(tadox): add Tado X hot water support (auto/off only via Hops) with central guards
@@ -401,6 +487,65 @@ Note: restoring AUTO presence requires a Tado Auto-Assist subscription.
 A persistent notification with the home name is shown if the API returns
 HTTP 422 (Auto-Assist not available).
 
+Inspired by PR #85 by laurensdehoorne.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🐛 REDUNDANCY CHECKER FIX
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Two-part fix for false-positive redundancy drops that silently blocked
+hot water commands and zone overlay changes:
+
+Part 1: Switch comparison source from optimistic cache to zone_states
+(last polled device state). _execute_overlay_command sets optimistic
+before queuing, so by batch time the optimistic cache already reflected
+the target — every command was marked redundant and dropped.
+- Add None guard for RESUME_SCHEDULE entries (zone_data=None).
+- Fix (setting.get("temperature") or {}) to handle explicit
+  temperature:null in HOT_WATER API responses.
+
+Part 2: state_patcher mutates coordinator.data.zone_states in-place
+before the command is queued, so zone_states also already reflected the
+target by batch time. Use cmd.rollback_context (deep copy captured by
+patch_zone_overlay before the optimistic patch) as comparison baseline.
+A None rollback_context is treated as non-redundant so no commands are
+silently dropped on patch failure.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔍 VERSION LOGGING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Adds TadoVersionFilter to logging_utils.py, applied via get_redacted_logger.
+Every log line carries [vX.Y.Z] as prefix, making the running version
+immediately visible in any log snippet.
+
+Toggleable via Show Version in Logs in the advanced options section
+(default: enabled). The startup log always includes the version explicitly
+regardless of the toggle setting. Translations added for en and de.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🌡️ CLIMATE & SENSOR FIXES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Restore auto_target_temperature attribute for heating zones: attribute
+  was only present on TadoAirConditioning since TadoHeating was split off
+  as its own class. Moved to TadoClimateEntity base so all zone types with
+  AUTO mode expose it.
+- Add missing sensor and binary_sensor translations (scan_interval,
+  fetch_extended_data, and others).
+- Remove duplicate sensor definitions that caused unique ID conflicts.
+- Enhance log redaction: redact inline email addresses and Home IDs in
+  text messages (e.g. "home 12345").
+- Replace magic HTTP status code numbers with named constants.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔧 CI & TOOLING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Upgrade GitHub Actions to Node.js 24 compatible versions:
+  checkout@v5, setup-node@v5 (Node 22 LTS), codeql-action@v4, stale@v10.
+- Fix lock workflow permissions.
+
 ## [5.3.0](https://github.com/banter240/tado_hijack/compare/v5.2.0...v5.3.0) (2026-04-03)
 
 ### ✨ New Features
@@ -413,6 +558,15 @@ This commit consolidates multiple critical fixes and feature expansions across t
    - Fixed missing temperature fallback by allowing Tado X to read
      `sensor_data_points.inside_temperature.value` from the cloud state via duck-typing.
    - Fixed heating power sensor displaying an `unknown` state by correctly reading
+     the top-level `heatingPower` attribute from the Hops API response (Fixes #83).
+   - Updated climate entity `current_temperature` property to support the same logic.
+
+2. **Diagnostics Expansion:**
+   - Exposed ALL configuration flow values as diagnostic sensors on the
+     Internet Bridge device to ensure complete transparency of the active config
+     (quota_safety_reserve, full_cloud_mode, fetch_extended_data, scan_interval,
+     feature_dew_point, feature_mold_detection, outdoor_weather_entity,
+     ventilation_ah_threshold, and call_jitter_enabled).
 
 ## [5.2.0](https://github.com/banter240/tado_hijack/compare/v5.1.0...v5.2.0) (2026-04-01)
 
@@ -484,6 +638,17 @@ Coordinator & API:
 
 Tado X:
 - Infer INSIDE_TEMPERATURE_MEASUREMENT capability from device data when not
+  explicitly set in API response, mirroring ha-tado-x behavior. (Fixes #79)
+
+Entity IDs:
+- Prevent double underscore in entity IDs (e.g. tado__refresh_presence) when
+  the home name slugifies to an empty string. (Fixes #80)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔧 TOOLING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Aligned CI, ruff target-version, and pyproject.toml with Python 3.13 (matches HA runtime).
 
 ## [5.1.0](https://github.com/banter240/tado_hijack/compare/v5.0.2...v5.1.0) (2026-03-13)
 
