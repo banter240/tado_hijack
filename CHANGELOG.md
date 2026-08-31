@@ -1,3 +1,35 @@
+## [5.8.0](https://github.com/banter240/tado_hijack/compare/v5.7.1...v5.8.0) (2026-08-31)
+
+### ✨ New Features
+
+* feat(core): Matter serial linking, heating_demand, i18n, and Tado X hot water guard
+
+  Links Tado X cloud entities onto local Matter devices when HA exposes the
+  same serial as the cloud, adds a home-level heating_demand binary sensor,
+  moves service strings into translations, and skips a dead water_heater
+  entity when Hops reports domesticHotWater state NONE.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🔗 DEVICE LINKING (MATTER / HOMEKIT)
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - device_linker: drop GEN_X early-return; match local devices via serial_number
+  - coordinator: build the climate map for every generation outside full cloud
+  - diagnostics: device_linking section (domains, climate map, per-serial status)
+  - diagnostics: exact/suffix secret keys (no substring over-redact of
+    pending_actions_keys or *token entity entries)
+  - diagnostics: safe TadoData summary instead of a broken asdict dump
+  - README: Matter serial linking and temp-source guidance
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🔥 HEATING DEMAND
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - binary_sensor.tado_{home}_heating_demand: ON when any heating zone reports
+    heating power above 0% (classic + Tado X parsers, no extra API calls)
+  - merge classic + X heating_power zone sensors onto one definition
+  - translations en/de/cs for heating_demand
+
 ## [5.7.1](https://github.com/banter240/tado_hijack/compare/v5.7.0...v5.7.1) (2026-07-24)
 * fix(core): Tado X full-cloud climate guards, presence via v2, and Python 3.14
 
