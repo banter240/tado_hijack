@@ -60,7 +60,7 @@ It is designed to work **alongside** your local HomeKit (v3) or Matter (Tado X) 
 - **Auto API Quota:** Dynamically adjusts polling intervals based on your remaining daily API calls and detects your account's specific reset time.
 - **Command Batching:** Fuses multiple concurrent commands into a single API call.
 - **Multi-Generation Support:** Full support for V2 (GW bridges), V3 Classic (HomeKit), and Tado X (Matter) within a unified architecture.
-- **Device Unification:** Injects cloud features into existing local devices (HomeKit for v3, Matter for Tado X when serial numbers are exposed).
+- **Device Unification:** Attaches cloud features (child lock, offset, battery, …) onto the existing HomeKit (v3) or Matter (Tado X) device when the cloud serial matches. Home Assistant 2026.8+ no longer merges two integrations into one registry device; the entities still show on the local device page.
 - **Indoor Climate Sensors:** Calculates dew point, absolute humidity, and mold risk per zone.
 - **Night-Savings (Economy Window):** Slows down polling during the night to save API calls for daytime use.
 
@@ -171,9 +171,11 @@ While other integrations waste your precious API quota for every tiny interactio
 
 **We don't replace local control. We enhance it.**
 
-**For V3 (HomeKit):** Tado Hijack detects your existing HomeKit devices and **injects** cloud-only features directly into them — creating one unified device with both local control and cloud power-features.
+**For V3 (HomeKit):** Tado Hijack matches the cloud serial (`VA…`) to your HomeKit device and **attaches** cloud-only entities (child lock, offset, battery, connection) onto that HomeKit device. Local `climate` stays HomeKit; Hijack features appear on the same device page.
 
-**For Tado X (Matter):** When Matter exposes the device serial (same `VA…` as the Tado cloud), Hijack links cloud entities onto the existing Matter device. If no serial is available, features stay on separate Hijack devices (manual temp-source linking still works).
+**For Tado X (Matter):** Same attach when Matter exposes the cloud serial (`serial_number` or `serial_VA…`). If Matter does not expose the serial, features stay on the Hijack device (manual temp-source linking still works).
+
+Home Assistant 2026.8+ keeps **one registry device per integration**, so you may still see a Hijack TRV and a HomeKit/Matter TRV as “linked devices”. That is expected. **Do not delete the Hijack device** — if HomeKit/Matter is missing later, cloud features land on Hijack again automatically.
 
 <br>
 
@@ -184,7 +186,7 @@ While other integrations waste your precious API quota for every tiny interactio
 > - **Tado v3 Classic:** Works with HomeKit Device integration (provides `climate` entity for local temperature control)
 > - **Tado X:** Works with Matter integration (provides `climate` entity for local temperature control)
 > - **Tado Hijack:** Provides the "Missing Links" for **both generations** (Schedules, Hot Water, AC Modes, Hardware Settings)
->   - **Device Unification:** Cloud features inject into HomeKit (v3) or Matter (Tado X) devices when serial numbers match
+>   - **Device Unification:** Cloud entities attach to the HomeKit (v3) or Matter (Tado X) device when serial numbers match. Leave the Hijack device in place; it is the fallback when the local protocol is gone.
 >
 > _Note: **Full Cloud Mode** provides climate entities via API polling but consumes API quota for temperature changes. See [Full Cloud Mode](#full-cloud-mode-all-generations) for details._
 
@@ -360,9 +362,9 @@ Not all API calls are created equal. Tado Hijack optimizes everything, but physi
 
 Unlike other integrations that group everything by "Zone", Tado Hijack maps entities to their **physical devices** (Valves/Thermostats).
 
-- **Matched via Serial Number:** Automatic injection into existing HomeKit (v3) or Matter (Tado X) devices when HA exposes the same serial as the cloud.
+- **Matched via Serial Number:** Cloud entities attach to the existing HomeKit (v3) or Matter (Tado X) device when HA exposes the same serial as the cloud. HA 2026.8+ does not merge registry devices across integrations.
 - **EntityResolver:** Deep-scans the Home Assistant registry to link local climate entities with Tado's cloud zones.
-- **No local match?** We create dedicated devices containing **only** the cloud features (Battery, Offset, Child Lock, etc.), but **no** temperature control.
+- **No local match?** Entities live on a dedicated Hijack device with **only** the cloud features (Battery, Offset, Child Lock, etc.), **no** temperature control. If HomeKit/Matter comes back, they attach there again. Leave leftover Hijack device pages — do not delete them.
 
 <br>
 
@@ -657,7 +659,7 @@ Cloud-only features that HomeKit does not support.
 
 <br>
 
-Hardware-specific entities. _Injected into existing HomeKit (v3) or Matter (Tado X) devices when serial numbers match. Without a match they appear as separate Hijack devices._
+Hardware-specific entities. _Attached to the existing HomeKit (v3) or Matter (Tado X) device when serial numbers match. Without a match they appear on the Hijack device. Do not delete leftover Hijack TRVs — they are the fallback if the local protocol is missing._
 
 <br>
 
@@ -912,7 +914,17 @@ In the **default mode**, Tado Hijack does **not** create `climate` entities for 
 | **HomeKit/Matter** | ✅ (`climate` entities, current temp) | ❌ | 0 |
 | **Tado Hijack** | ❌ | ✅ (Schedules, Hot Water, AC Pro, Hardware) | Optimized |
 
-**Setup:** Install HomeKit/Matter first → then Tado Hijack. Features inject into local devices when serial numbers match (HomeKit always; Matter when SN is exposed, e.g. recent firmware).
+**Setup:** Install HomeKit/Matter first → then Tado Hijack. Cloud features attach to the local device when serial numbers match (HomeKit via `serial_number`; Matter when the same `VA…` is on `serial_number` or a `serial_VA…` identifier). You may still see a separate Hijack device page — leave it. If HomeKit/Matter is not found, features stay on Hijack.
+
+<br>
+
+### Why do I still see a Hijack TRV and a HomeKit/Matter TRV?
+
+Home Assistant 2026.8+ no longer merges devices from two integrations into one registry entry. Hijack **attaches** child lock / offset / battery onto the HomeKit or Matter device when the serial matches, but the Hijack device page can remain.
+
+**Do not delete the Hijack device.** If HomeKit or Matter is missing later (bridge offline, integration removed), those cloud entities are created on the Hijack device again. Deleting the leftover page only creates churn.
+
+Zone-level entities (schedules, indoor climate, source selectors) always stay on Hijack zone devices.
 
 <br>
 

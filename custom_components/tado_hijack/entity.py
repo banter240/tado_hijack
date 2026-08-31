@@ -5,13 +5,14 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING, cast
 
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import slugify
 
 from .const import DEVICE_TYPE_MAP, DOMAIN, GEN_X, ZONE_TYPE_HOT_WATER
-from .helpers.device_linker import get_linked_device_identifiers
+from .helpers.device_linker import get_local_device
 from .models import TadoEntityDefinition
 
 if TYPE_CHECKING:
@@ -277,6 +278,20 @@ class TadoEntity(CoordinatorEntity):
         """Return the Tado context ID (Zone ID, Serial, or None)."""
         return None
 
+    def _attach_local_device(self, serial_no: str) -> None:
+        """Attach this entity to a local device when the cloud serial matches."""
+        coordinator = self.tado_coordinator
+        if coordinator.full_cloud_mode or coordinator.config_entry is None:
+            return
+        linked = get_local_device(
+            coordinator.hass,
+            serial_no,
+            coordinator.generation,
+            exclude_entry_id=coordinator.config_entry.entry_id,
+        )
+        if linked is not None:
+            self.device_entry = linked
+
 
 class TadoHomeEntity(TadoEntity):
     """Entity belonging to the Tado Home device."""
@@ -306,12 +321,6 @@ class TadoHomeEntity(TadoEntity):
         # Link to Bridges if found
         for bridge in self.coordinator.bridges:
             identifiers.add((DOMAIN, bridge.serial_no))
-            # Link external devices (HomeKit/Matter) - skip if full_cloud_mode
-            if not self.coordinator.full_cloud_mode:
-                if linked_ids := get_linked_device_identifiers(
-                    self.coordinator.hass, bridge.serial_no, self.coordinator.generation
-                ):
-                    identifiers.update(linked_ids)
 
             # Use first bridge for metadata
             if sw_version is None:
@@ -349,6 +358,12 @@ class TadoBridgeEntity(TadoHomeEntity):
         """Initialize Tado bridge entity."""
         super().__init__(coordinator, translation_key)
         self._serial_no = serial_no
+        self._attach_local_device(serial_no)
+
+    @property
+    def device_info(self) -> DeviceInfo | None:
+        """Return device info, or None when attached to a local bridge."""
+        return None if self.device_entry is not None else super().device_info
 
     @property
     def _tado_entity_id(self) -> str:
@@ -461,36 +476,40 @@ class TadoDeviceEntity(TadoEntity):
         self._device_type = device_type
         self._zone_id = zone_id
         self._fw_version = fw_version
-
-        # Link external devices (HomeKit/Matter) - skip if full_cloud_mode
-        if not coordinator.full_cloud_mode:
-            self._linked_identifiers = get_linked_device_identifiers(
-                coordinator.hass, serial_no, coordinator.generation
-            )
-        else:
-            self._linked_identifiers = set()
+        self._attach_local_device(serial_no)
 
     @property
-    def device_info(self) -> DeviceInfo:
-        """Return device info for the physical device."""
-        identifiers = {(DOMAIN, self._serial_no)}
-        if self._linked_identifiers:
-            identifiers.update(self._linked_identifiers)
+    def device_info(self) -> DeviceInfo | None:
+        """Return device info, or None when attached to a local device."""
+        if self.device_entry is not None:
+            return None
+        if self.coordinator.config_entry is None:
+            raise RuntimeError("Config entry not available")
 
         model_name = DEVICE_TYPE_MAP.get(self._device_type, self._device_type)
+        try:
+            via_device_id = dr.async_get_device_id_by_identifier(
+                self.coordinator.hass,
+                (
+                    DOMAIN,
+                    f"{self.coordinator.config_entry.entry_id}_zone_{self._zone_id}",
+                ),
+                config_entry_id=self.coordinator.config_entry.entry_id,
+            )
+        except ValueError:
+            via_device_id = None
 
-        return DeviceInfo(
-            identifiers=identifiers,
+        info = DeviceInfo(
+            identifiers={(DOMAIN, self._serial_no)},
             name=f"tado {model_name} {self._short_serial}",
             manufacturer="Tado",
             model=model_name,
-            via_device=(
-                DOMAIN,
-                f"{self.coordinator.config_entry.entry_id}_zone_{self._zone_id}",
-            ),
             sw_version=self._fw_version,
             serial_number=self._serial_no,
         )
+        if via_device_id is not None:
+            info["via_device_id"] = via_device_id
+        return info
 
     @property
     def _tado_entity_id(self) -> str:

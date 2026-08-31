@@ -298,8 +298,13 @@ def _get_device_linking_diagnostics(
     devices: dict[str, Any] = {}
     for device, zone_id in yield_devices(coordinator):
         serial = device.serial_no
-        linked_ids = get_linked_device_identifiers(hass, serial, coordinator.generation)
-        climate_id = get_climate_entity_id(hass, serial)
+        linked_ids = get_linked_device_identifiers(
+            hass,
+            serial,
+            coordinator.generation,
+            exclude_entry_id=coordinator.config_entry.entry_id,
+        )
+        climate_id = get_climate_entity_id(hass, serial, coordinator.generation)
         devices[_mask_string(str(serial))] = {
             "device_type": getattr(device, "device_type", None),
             "zone_id": zone_id,

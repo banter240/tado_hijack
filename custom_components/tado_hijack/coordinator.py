@@ -290,7 +290,9 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
 
         self._climate_to_zone.clear()
         for device, zone_id in yield_devices(self, {ZONE_TYPE_HEATING}):
-            if climate_id := get_climate_entity_id(self.hass, device.serial_no):
+            if climate_id := get_climate_entity_id(
+                self.hass, device.serial_no, self.generation
+            ):
                 self._climate_to_zone[climate_id] = zone_id
 
     @property
