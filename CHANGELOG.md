@@ -1,3 +1,39 @@
+## [5.8.2](https://github.com/banter240/tado_hijack/compare/v5.8.1...v5.8.2) (2026-09-01)
+
+### 🐛 Bug Fixes
+
+* fix(core): parse 2- and 3-field device identifiers in the linker
+
+  The climate map walks the whole device registry for classic and
+  Tado X. Identifiers were unpacked as (namespace, value). A 3-field
+  tuple crashed setup on 5.8.1 for both generations and looked like
+  a reauth loop.
+
+  Matter IDs are 2-tuples (matter, serial_… / deviceid_…). The 3-field
+  shape is HomeKit Controller legacy (domain, kind, value), including
+  non-Tado HomeKit accessories on the same HA. GEN_X still hits it
+  because every registry device is parsed.
+
+  parse_identifier maps 2-field HA tuples as-is and 3-field tuples to
+  (domain:kind, value). Other lengths are skipped with a debug log.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🪪 IDENTIFIER PARSER
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - 2 fields: HA (namespace, value) — Matter and migrated HomeKit
+  - 3 fields: (domain, kind, value) → domain:kind
+  - tadov3 and tadox both use has_local_domain / identifier_pairs
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🏷️ GITHUB
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - issue templates: type:bug / type:feature
+  - Dependabot: rename dendabot.yml → dependabot.yml; npm + github-actions;
+    skip pip until a poetry.lock exists; label type:chore
+  - remove unused stale workflow
+
 ## [5.8.1](https://github.com/banter240/tado_hijack/compare/v5.8.0...v5.8.1) (2026-08-31)
 
 ### 🐛 Bug Fixes
