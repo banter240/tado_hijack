@@ -41,7 +41,7 @@ jobs:
           token: ${{ secrets.SEMANTIC_RELEASE_TOKEN }}
 
       - name: "Setup Node.js environment"
-        uses: "actions/setup-node@v5"
+        uses: "actions/setup-node@v7"
         with:
           node-version: "22"
           cache: npm
