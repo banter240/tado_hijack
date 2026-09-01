@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator
-from typing import cast
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
 from ..const import GEN_X
+from .device_link import identifier_pairs
 from .logging_utils import get_redacted_logger
 from .tadov3.device_link import matches_serial as matches_homekit
 from .tadox.device_link import matches_serial as matches_matter
@@ -110,9 +110,7 @@ def get_linked_device_identifiers(
     device = get_local_device(
         hass, serial_no, generation, exclude_entry_id=exclude_entry_id
     )
-    if device is None:
-        return set()
-    return cast(set[tuple[str, str]], set(device.identifiers))
+    return set() if device is None else set(identifier_pairs(device.identifiers))
 
 
 def get_local_device_identifiers(
@@ -120,9 +118,7 @@ def get_local_device_identifiers(
 ) -> set[tuple[str, str]] | None:
     """Find identifiers of a local Tado device matching the serial number."""
     device = get_local_device(hass, serial_no, generation)
-    if device is None:
-        return None
-    return cast(set[tuple[str, str]], set(device.identifiers))
+    return None if device is None else set(identifier_pairs(device.identifiers))
 
 
 get_homekit_identifiers = get_local_device_identifiers
