@@ -1,3 +1,16 @@
+## [5.9.0-dev.1](https://github.com/banter240/tado_hijack/compare/v5.8.2...v5.9.0-dev.1) (2026-09-03)
+
+### ✨ New Features
+
+* feat(tadox): allow add_meter_reading via Energy IQ
+
+  The GEN_X early return treated meter readings as a Hops limitation.
+  Energy IQ is home-scoped: POST homes/{home_id}/meterReadings on
+  energy-insights.tado.com, using the same tadoasync client as classic.
+
+  Drop the guard so Tado X uses the existing patched set_meter_readings
+  path. API errors still log the Auto-Assist / token message.
+
 ## [5.8.2](https://github.com/banter240/tado_hijack/compare/v5.8.1...v5.8.2) (2026-09-01)
 
 ### 🐛 Bug Fixes
