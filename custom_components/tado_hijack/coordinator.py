@@ -1289,12 +1289,6 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
 
     async def async_add_meter_reading(self, reading: int) -> None:
         """Add a meter reading to Tado Energy IQ."""
-        if self.generation == GEN_X:
-            _LOGGER.warning(
-                "Meter readings via 'add_meter_reading' service are not supported for Tado X. "
-                "Tado X does not provide meter reading support via the Hops API used by this integration."
-            )
-            return
         try:
             await self.client.set_meter_readings(reading=reading)
         except Exception as e:

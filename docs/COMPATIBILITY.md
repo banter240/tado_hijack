@@ -42,4 +42,5 @@ Located in `lib/tadox_api.py`, this component utilizes the existing authenticate
 - **Hot Water (Tado X):** Uses `programmer/domesticHotWater/` endpoints (boost, resumeSchedule) — a separate API path from v3 hot water.
 - **QuickActions:** Bulk operations (boost all, resume all, all off) use `POST /quickActions/*` endpoints — single API call for all rooms.
 - **Presence (Home/Away):** Not part of Hops. Read via classic v2 `GET /homes/{id}/state`, write via `presenceLock` on `my.tado.com` - same as v3.
+- **Energy IQ (meter readings):** Not part of Hops. POST `homes/{home_id}/meterReadings` on `energy-insights.tado.com` - same as v3.
 - **Matter Synchronization:** Optimized to work alongside Matter push updates while providing cloud-only features (Schedules, Presence Lock) that Matter cannot access.
