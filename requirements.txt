@@ -1,8 +1,8 @@
 # Core Dependencies
-tadoasync==0.2.2
+tadoasync==0.2.3
 
 # CI/CD & Dev Tools
-ruff==0.15.20
-pre-commit==4.6.0
-mypy==2.1.0
+ruff==0.16.5
+pre-commit==4.6.2
+mypy==2.3.1
 yamllint==1.38.0

@@ -10,7 +10,7 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/banter240/tado_hijack/issues",
   "requirements": [
-    "tadoasync==0.2.2"
+    "tadoasync==0.2.3"
   ],
   "version": "5.8.2"
 }

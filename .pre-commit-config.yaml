@@ -18,14 +18,14 @@ repos:
 
   # Ruff hook for fast linting and formatting.
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.20
+    rev: v0.16.5
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
       - id: ruff-format
 
   # mypy hook for static type checking.
-  # Uses Python 3.14 (tadoasync requires >=3.12) with tadoasync==0.2.2 pinned,
+  # Uses Python 3.14 (tadoasync requires >=3.12) with tadoasync==0.2.3 pinned,
   # as the patching layer requires exactly this version.
   - repo: local
     hooks:
@@ -37,12 +37,12 @@ repos:
         types: [python]
         args: [--ignore-missing-imports, --explicit-package-bases]
         additional_dependencies:
-          - "mypy==2.1.0"
-          - "tadoasync==0.2.2"
+          - "mypy==2.3.1"
+          - "tadoasync==0.2.3"
 
   # Sourcery hook for AI-powered refactoring.
   - repo: https://github.com/sourcery-ai/sourcery
-    rev: "v1.43.0"
+    rev: "v1.45.0"
     hooks:
       - id: sourcery
         # Automatically apply fixes suggested by Sourcery
