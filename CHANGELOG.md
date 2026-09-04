@@ -1,3 +1,17 @@
+## [5.9.0-dev.2](https://github.com/banter240/tado_hijack/compare/v5.9.0-dev.1...v5.9.0-dev.2) (2026-09-04)
+
+### ✨ New Features
+
+* feat(core): fail add_meter_reading on API errors and accept a date
+
+  API failures were logged and the service still returned success, so
+  automations recorded a clean run. Re-raise HomeAssistantError after
+  the log so the caller sees the failure.
+
+  set_meter_readings already accepts a date, but the service always
+  sent today. Expose an optional date field so historic readings can
+  be backfilled from a supplier export.
+
 ## [5.9.0-dev.1](https://github.com/banter240/tado_hijack/compare/v5.8.2...v5.9.0-dev.1) (2026-09-03)
 
 ### ✨ New Features
