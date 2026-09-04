@@ -173,3 +173,7 @@ add_meter_reading:
           min: 0
           max: 9999999
           mode: box
+    date:
+      required: false
+      selector:
+        date:

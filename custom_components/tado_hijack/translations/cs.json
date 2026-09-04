@@ -751,6 +751,10 @@
         "reading": {
           "name": "Odečet",
           "description": "Hodnota na měřiči (celé číslo)."
+        },
+        "date": {
+          "name": "Datum",
+          "description": "Datum odečtu. Výchozí je dnešek."
         }
       }
     }

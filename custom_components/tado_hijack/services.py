@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -105,6 +106,26 @@ def _validate_service_params(
     # 3. 'heat' validation
     # No mandatory temperature check here because the coordinator handles fallbacks.
     return
+
+
+def _parse_meter_reading_date(value: Any) -> datetime | None:
+    """Parse an optional Energy IQ reading date from a service call."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, date):
+        return datetime(value.year, value.month, value.day)
+    if isinstance(value, str):
+        try:
+            return datetime.strptime(value, "%Y-%m-%d")
+        except ValueError as err:
+            raise ServiceValidationError(
+                f"Invalid meter reading date '{value}'. Use YYYY-MM-DD."
+            ) from err
+    raise ServiceValidationError(
+        f"Invalid meter reading date '{value}'. Use YYYY-MM-DD."
+    )
 
 
 def _get_all_coordinators(hass: HomeAssistant) -> list[TadoDataUpdateCoordinator]:
@@ -334,9 +355,12 @@ async def async_setup_services(hass: HomeAssistant) -> None:  # noqa: C901
             _LOGGER.warning("No Tado config entry specified for add_meter_reading")
             return
 
-        _LOGGER.debug("Service call: add_meter_reading (%s)", reading)
+        reading_date = _parse_meter_reading_date(call.data.get("date"))
+        _LOGGER.debug(
+            "Service call: add_meter_reading (%s, date=%s)", reading, reading_date
+        )
         for coord in coordinators:
-            await coord.async_add_meter_reading(reading)
+            await coord.async_add_meter_reading(reading, reading_date)
 
     hass.services.async_register(DOMAIN, SERVICE_MANUAL_POLL, handle_manual_poll)
     hass.services.async_register(

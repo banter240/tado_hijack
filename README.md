@@ -695,7 +695,7 @@ For advanced automation, use these services. All manual control services feature
 | `tado_hijack.set_mode`              | Set mode, temperature, and termination. Supports `hvac_mode` (auto, heat, off) and `overlay` (manual, next_block, presence). | **1 call** (batched) | **1 call** (batched) |
 | `tado_hijack.set_mode_all_zones`    | Targets all HEATING and/or AC zones at once using `hvac_mode`.                                                               | **1 call** (bulk)    | **N calls** (per-zone sequential) |
 | `tado_hijack.set_water_heater_mode` | Set `operation_mode` and temperature for hot water.                                                                      | **1 call** (v3)      | **1 call** (X)       |
-| `tado_hijack.add_meter_reading`     | Upload a meter reading (integer) to Tado Energy IQ.                                                                          | **1 call**           | **1 call**           |
+| `tado_hijack.add_meter_reading`     | Upload a meter reading (integer) to Tado Energy IQ. Optional `date` backfills a historic reading; defaults to today.         | **1 call**           | **1 call**           |
 | `tado_hijack.manual_poll`           | Force immediate data refresh. Use `refresh_type` to control scope. Add `entity_id` for a targeted single-entity fetch (saves quota). | **1-N** (depends)    | **1-N** (depends)    |
 
 <br>
