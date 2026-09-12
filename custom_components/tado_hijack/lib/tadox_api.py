@@ -52,7 +52,6 @@ class TadoXApi:
 
         """
         self._tado = tado_client
-        # Private attribute access - could be public in future tadoasync
         self._session = tado_client._ensure_session()
         self._home_id = tado_client._home_id
         self.rate_limit_data: dict[str, int] = {"limit": 0, "remaining": 0}
@@ -87,14 +86,12 @@ class TadoXApi:
             - _headers: Get User-Agent
 
         """
-        # Private method access - should be public for multi-API support
         await self._tado._refresh_auth()
 
         url = f"{HOPS_BASE_URL}/homes/{self._home_id}/{endpoint}"
         _LOGGER.debug(
             "TadoX API Request: %s %s (home_id=%s)", method, url, self._home_id
         )
-        # Private attribute access - should be public
         headers = {
             "Authorization": f"Bearer {self._tado._access_token}",
             "Content-Type": "application/json",

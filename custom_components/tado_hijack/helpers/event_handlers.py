@@ -15,6 +15,7 @@ from homeassistant.const import (
 from homeassistant.core import CALLBACK_TYPE, Event, callback
 
 from .logging_utils import get_redacted_logger
+from .optimistic_manager import ZoneOverlayFields
 
 if TYPE_CHECKING:
     from ..coordinator import TadoDataUpdateCoordinator
@@ -77,7 +78,9 @@ class TadoEventHandler:
                             zone_id,
                         )
                         self.coordinator.optimistic.apply_zone_state(
-                            zone_id, overlay=True
+                            zone_id,
+                            overlay=True,
+                            fields=ZoneOverlayFields(),
                         )
                         self.coordinator.async_update_listeners()
 

@@ -67,7 +67,7 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.14"
-homeassistant = ">=2026.3"
+homeassistant = ">=2026.8"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "9.1.1"

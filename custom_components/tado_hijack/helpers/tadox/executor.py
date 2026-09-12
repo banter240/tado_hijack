@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 from ...lib.tadox_api import TadoXApi
 from ..executor_base import TadoExecutorBase, map_magic_temp_to_power
 from ..logging_utils import get_redacted_logger
+from ..optimistic_manager import ZoneOverlayFields
 
 if TYPE_CHECKING:
     from ...coordinator import TadoDataUpdateCoordinator
@@ -213,8 +214,10 @@ class TadoXExecutor(TadoExecutorBase):
                         self.coordinator.optimistic.apply_zone_state(
                             zid,
                             overlay=True,
-                            power=pwr,
-                            temperature=t,
+                            fields=ZoneOverlayFields(
+                                power=pwr,
+                                temperature=t,
+                            ),
                             grace_period=2.0,
                         )
                     ),

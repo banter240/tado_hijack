@@ -69,8 +69,10 @@ graph TD
 
 ## 🛡️ State Integrity & Safety
 
-### Field Locking
+### Field Locking & State Integrity
 To prevent race conditions, the integration "locks" entity attributes that are currently being changed by the user. If an incoming background poll contains "old" data from before the user's action, the integration discards that specific field until the user's action is confirmed by the server.
+
+This is handled by the `PropertyManager` which manages field-level locks and rollback contexts. Combined with the `OptimisticManager`'s scoped optimistic state store (home/zone/device), it ensures atomic updates without ghost states.
 
 ### Threshold Throttling
 The `RateLimitManager` enforces a "Throttle Threshold" (default: 20 calls). If your quota drops to this level, all background polling stops instantly. This ensures that your manual actions and critical automations (like turning off the heating when you leave) still have enough quota to execute.

@@ -75,6 +75,12 @@ HTTP_TOO_MANY_REQUESTS: Final = 429
 GEN_CLASSIC: Final = "classic"  # V2/V3 (GW/IB01/GW01) - Classic API
 GEN_X: Final = "x"  # Tado X (IB02) - Hops API
 
+# Device registry identifier field counts.
+IDENTIFIER_NS_VALUE: Final = 2  # HA (namespace, value)
+IDENTIFIER_DOMAIN_KIND_VALUE: Final = (
+    3  # HomeKit Controller legacy (domain, kind, value)
+)
+
 # Default Intervals
 DEFAULT_SCAN_INTERVAL: Final = 1800  # 30 minutes (Zone States)
 DEFAULT_PRESENCE_POLL_INTERVAL: Final = 43200  # 12 hours

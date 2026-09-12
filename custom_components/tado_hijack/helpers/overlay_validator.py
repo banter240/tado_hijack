@@ -9,6 +9,17 @@ from __future__ import annotations
 from typing import Any
 
 
+def _is_off_magic_temp(setting: dict[str, Any]) -> bool:
+    """Check if setting uses OFF_MAGIC_TEMP (executor converts to power=OFF)."""
+    from ..const import OFF_MAGIC_TEMP
+
+    temp_dict = setting.get("temperature")
+    if temp_dict is None:
+        return False
+    celsius = temp_dict.get("celsius")
+    return celsius is not None and celsius == OFF_MAGIC_TEMP
+
+
 def validate_overlay_payload(
     data: dict[str, Any], zone_type: str, supports_temp: bool = True
 ) -> tuple[bool, str | None]:
@@ -29,6 +40,9 @@ def validate_overlay_payload(
     temp_dict = setting.get("temperature")
     has_temp = temp_dict is not None and temp_dict.get("celsius") is not None
     mode = setting.get("mode")
+
+    if _is_off_magic_temp(setting):
+        return True, None
 
     # Rule 1: AIR_CONDITIONING with power=ON requires mode. Temperature depends on mode.
     if zone_type == "AIR_CONDITIONING":
