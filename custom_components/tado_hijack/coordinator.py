@@ -10,6 +10,7 @@ import aiohttp
 from homeassistant.core import (
     HomeAssistant,
 )
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 from tadoasync import Tado, TadoError
@@ -1402,23 +1403,15 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             ),
         )
 
-    async def async_add_meter_reading(self, reading: int) -> None:
+    async def async_add_meter_reading(
+        self, reading: int, reading_date: datetime | None = None
+    ) -> None:
         """Add a meter reading to Tado Energy IQ."""
-        if self.generation == GEN_X:
-            _LOGGER.warning(
-                "Meter readings via 'add_meter_reading' service are not supported for Tado X. "
-                "Tado X does not provide meter reading support via the Hops API used by this integration."
-            )
-            return
         try:
-            await self.client.set_meter_readings(reading=reading)
+            await self.client.set_meter_readings(reading=reading, date=reading_date)
         except Exception as e:
-            _LOGGER.error(
-                "Failed to add meter reading via 'add_meter_reading' service. "
-                "This feature typically requires a tado° Auto-Assist subscription and Energy IQ enabled in your Tado account. "
-                "The integration's token may not have permission to write meter readings."
-            )
-            _LOGGER.debug("Detailed Tado API error: %s", e)
+            _LOGGER.error("Failed to add meter reading: %s", e)
+            raise HomeAssistantError(f"Failed to add meter reading: {e}") from e
 
     async def async_set_ac_setting(self, zone_id: int, key: str, value: str) -> None:
         """Set an AC specific setting (fan speed, swing, temperature, etc.)."""

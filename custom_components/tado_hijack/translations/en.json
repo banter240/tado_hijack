@@ -773,6 +773,10 @@
         "reading": {
           "name": "Reading",
           "description": "Meter reading value (integer)."
+        },
+        "date": {
+          "name": "Date",
+          "description": "Reading date. Defaults to today."
         }
       }
     }

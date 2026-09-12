@@ -39,7 +39,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "custom_components/tado_hijack/**/*.py" = ["PLC0415"]  # Conditional/lazy imports by design in HA
-"custom_components/tado_hijack/definitions.py" = ["PLR0913"]  # Entity factory functions have many kwargs by design
+"custom_components/tado_hijack/definitions.py" = ["PLR0913", "PLR0917"]  # Entity factory functions have many args by design
 
 [tool.ruff.lint.pylint]
 max-args = 10
@@ -72,12 +72,12 @@ homeassistant = ">=2026.8"
 [tool.poetry.group.dev.dependencies]
 pytest = "9.1.1"
 pytest-cov = "7.1.0"
-pytest-homeassistant-custom-component = "0.13.345"
+pytest-homeassistant-custom-component = "0.13.361"
 
 # Recommended development tools:
-ruff = "0.15.20"
-mypy = "2.1.0"
-pre-commit = "4.6.0"
+ruff = "0.16.5"
+mypy = "2.3.1"
+pre-commit = "4.6.2"
 yamllint = "1.38.0"
 
 [build-system]
