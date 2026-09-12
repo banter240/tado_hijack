@@ -66,6 +66,7 @@ class TadoDataManager:
         self.capabilities_cache: dict[int, Any] = {}
         self.offsets_cache: dict[str, TemperatureOffset] = {}
         self.away_cache: dict[int, float] = {}
+        self.timetable_cache: dict[int, dict[str, Any]] = {}  # zone_id -> {id, type}
         self._capability_locks: dict[int, asyncio.Lock] = {}
         self._last_slow_poll: float = 0
         self._last_offset_poll: float = 0

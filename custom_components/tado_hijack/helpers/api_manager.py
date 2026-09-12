@@ -302,6 +302,7 @@ class TadoApiManager:
                     merged.get("dazzle_modes"),
                     merged.get("early_starts"),
                     merged.get("open_windows"),
+                    merged.get("timetables"),
                     merged.get("identifies"),
                 ]
             )

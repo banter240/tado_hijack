@@ -170,6 +170,16 @@ class TadoV3Executor(TadoExecutorBase):
                 },
             )
 
+        for zid, timetable_id in merged.get("timetables", {}).items():
+            if self._should_skip_zone(zid):  # [DUMMY_HOOK]
+                continue
+
+            await self._safe_execute(
+                f"timetable_{zid}",
+                self.client.set_active_timetable(zid, timetable_id),
+                context={"zone_id": zid, "timetable_id": timetable_id},
+            )
+
     async def _execute_zone_actions(self, merged: dict[str, Any]) -> None:
         """Execute overlays and resumes using v3 bulk endpoints."""
         zones = merged["zones"]

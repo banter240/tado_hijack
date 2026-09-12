@@ -282,6 +282,12 @@
       },
       "identify_device": {
         "name": "Gerät identifizieren"
+      },
+      "refresh_timetable": {
+        "name": "Zeitplan aktualisieren"
+      },
+      "refresh_all_timetables": {
+        "name": "Alle Zeitpläne aktualisieren"
       }
     },
     "number": {
@@ -336,6 +342,22 @@
           "on": "An",
           "off": "Aus",
           "auto": "Automatisch"
+        }
+      },
+      "timetable_type": {
+        "name": "Wochenplan-Modus",
+        "state": {
+          "one_day": "Mo-So (gleich jeden Tag)",
+          "three_day": "Mo-Fr / Sa / So",
+          "seven_day": "Pro Wochentag"
+        }
+      },
+      "timetable_type_all_zones": {
+        "name": "Zeitplantyp (alle Zonen)",
+        "state": {
+          "one_day": "Mo-So (gleich jeden Tag)",
+          "three_day": "Mo-Fr / Sa / So",
+          "seven_day": "Pro Wochentag"
         }
       }
     },

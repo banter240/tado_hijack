@@ -23,6 +23,7 @@ class CommandMerger:
         self.dazzle_modes: dict[int, bool] = {}
         self.early_starts: dict[int, bool] = {}
         self.open_windows: dict[int, Any] = {}
+        self.timetables: dict[int, int] = {}  # zone_id -> timetable_id
         self.identifies: set[str] = set()
         self.presence: str | None = None
         self.old_presence: str | None = None
@@ -46,6 +47,7 @@ class CommandMerger:
             CommandType.SET_DAZZLE: self._merge_dazzle,
             CommandType.SET_EARLY_START: self._merge_early_start,
             CommandType.SET_OPEN_WINDOW: self._merge_open_window,
+            CommandType.SET_TIMETABLE: self._merge_timetable,
             CommandType.IDENTIFY: self._merge_identify,
             CommandType.SET_PRESENCE: self._merge_presence,
             CommandType.RESUME_SCHEDULE: self._merge_resume,
@@ -130,6 +132,11 @@ class CommandMerger:
             store_full_data=True,
         )
 
+    def _merge_timetable(self, cmd: TadoCommand) -> None:
+        """Merge timetable command — last write wins per zone."""
+        if cmd.data and "zone_id" in cmd.data and "timetable_id" in cmd.data:
+            self.timetables[int(cmd.data["zone_id"])] = int(cmd.data["timetable_id"])
+
     def _merge_identify(self, cmd: TadoCommand) -> None:
         if cmd.data and "serial" in cmd.data:
             self.identifies.add(str(cmd.data["serial"]))
@@ -192,6 +199,7 @@ class CommandMerger:
             "dazzle_modes": self.dazzle_modes,
             "early_starts": self.early_starts,
             "open_windows": self.open_windows,
+            "timetables": self.timetables,
             "identifies": self.identifies,
             "presence": self.presence,
             "old_presence": self.old_presence,
