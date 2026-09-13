@@ -751,6 +751,10 @@
         "reading": {
           "name": "Zählerstand",
           "description": "Zählerstand (ganze Zahl)."
+        },
+        "date": {
+          "name": "Datum",
+          "description": "Datum des Zählerstands. Standard ist heute."
         }
       }
     }
