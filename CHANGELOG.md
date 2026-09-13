@@ -1,3 +1,19 @@
+## [5.10.0-dev.2](https://github.com/banter240/tado_hijack/compare/v5.10.0-dev.1...v5.10.0-dev.2) (2026-09-13)
+
+### 🐛 Bug Fixes
+
+* fix(core): debounce timetable refresh and include it in full poll
+
+  Refresh buttons called the classic GET immediately, bypassing the
+  command queue. Filebox v2 OpenAPI only documents per-zone
+  activeTimetable (no bulk GET/PUT), so a merged batch is still one
+  call per zone. Queue refreshes through debounce and linger, union
+  unique zone ids, PUT then GET in the same executor step.
+
+  full_manual_poll / manual_poll type all now fetches timetable types
+  (same invalidation pattern as away). Writes were already last-write
+  wins per zone then N sequential PUTs.
+
 ## [5.10.0-dev.1](https://github.com/banter240/tado_hijack/compare/v5.9.0...v5.10.0-dev.1) (2026-09-13)
 
 ### ✨ New Features
