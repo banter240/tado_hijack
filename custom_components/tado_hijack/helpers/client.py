@@ -156,3 +156,54 @@ class TadoHijackClient(Tado):
             f"devices/{serial_no}/identify",
             method=HttpMethod.POST,
         )
+
+    def _active_timetable_uri(self, zone_id: int) -> str:
+        """Classic v2 activeTimetable path for a zone."""
+        return f"homes/{self._home_id}/zones/{zone_id}/schedule/activeTimetable"
+
+    async def get_active_timetable(self, zone_id: int) -> dict[str, Any]:
+        """Get the active timetable for a classic zone."""
+        response = await self._request(self._active_timetable_uri(zone_id))
+        return cast(dict[str, Any], orjson.loads(response))
+
+    async def set_active_timetable(self, zone_id: int, timetable_id: int) -> None:
+        """Set the active timetable id for a classic zone (0/1/2)."""
+        await self._request(
+            self._active_timetable_uri(zone_id),
+            data={"id": timetable_id},
+            method=HttpMethod.PUT,
+        )
+
+    def _timetable_blocks_uri(
+        self, zone_id: int, timetable_id: int, day_type: str
+    ) -> str:
+        """Classic v2 timetable blocks path for one dayType."""
+        return (
+            f"homes/{self._home_id}/zones/{zone_id}/schedule/"
+            f"timetables/{timetable_id}/blocks/{day_type}"
+        )
+
+    async def set_timetable_blocks(
+        self,
+        zone_id: int,
+        timetable_id: int,
+        day_type: str,
+        blocks: list[dict[str, Any]],
+    ) -> None:
+        """Replace all blocks for one zone/timetable/dayType (classic v2 PUT)."""
+        await self._request(
+            self._timetable_blocks_uri(zone_id, timetable_id, day_type),
+            data=cast(Any, blocks),
+            method=HttpMethod.PUT,
+        )
+
+    async def get_timetable_blocks(
+        self, zone_id: int, timetable_id: int
+    ) -> list[dict[str, Any]]:
+        """GET all blocks for one timetable type (all dayTypes in one call)."""
+        response = await self._request(
+            f"homes/{self._home_id}/zones/{zone_id}/schedule/"
+            f"timetables/{timetable_id}/blocks"
+        )
+        parsed = orjson.loads(response)
+        return parsed if isinstance(parsed, list) else []

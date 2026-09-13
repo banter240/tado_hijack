@@ -282,6 +282,18 @@
       },
       "identify_device": {
         "name": "Identify Device"
+      },
+      "refresh_timetable": {
+        "name": "Refresh timetable"
+      },
+      "refresh_all_timetables": {
+        "name": "Refresh all timetables"
+      },
+      "refresh_zone_plan": {
+        "name": "Fetch weekly plan"
+      },
+      "refresh_all_zone_plans": {
+        "name": "Fetch all weekly plans"
       }
     },
     "number": {
@@ -337,6 +349,29 @@
           "off": "Off",
           "auto": "Auto"
         }
+      },
+      "timetable_type": {
+        "name": "Schedule mode",
+        "state": {
+          "one_day": "Mon-Sun (same every day)",
+          "three_day": "Mon-Fri / Sat / Sun",
+          "seven_day": "Per day of the week"
+        }
+      },
+      "offset_cal_interval": {
+        "name": "Offset auto-calibrate",
+        "state": {
+          "off": "Off",
+          "3h": "Every 3 hours (from 00:00)",
+          "6h": "Every 6 hours (from 00:00)",
+          "9h": "Every 9 hours (from 00:00)",
+          "12h": "Every 12 hours (from 00:00)",
+          "15h": "Every 15 hours (from 00:00)",
+          "18h": "Every 18 hours (from 00:00)",
+          "21h": "Every 21 hours (from 00:00)",
+          "24h": "Once a day (00:00)",
+          "on_reset": "Once per quota reset"
+        }
       }
     },
     "climate": {
@@ -349,6 +384,28 @@
               "heat": "Manual",
               "off": "Off"
             }
+          }
+        }
+      }
+    },
+    "calendar": {
+      "zone_plan": {
+        "name": "Tado {zone} Weekly Plan",
+        "state_attributes": {
+          "timetable": {
+            "name": "Timetable"
+          },
+          "day": {
+            "name": "Day"
+          },
+          "blocks": {
+            "name": "Blocks"
+          },
+          "plan": {
+            "name": "Plan"
+          },
+          "updated_at": {
+            "name": "Updated"
           }
         }
       }
@@ -600,11 +657,11 @@
       "fields": {
         "refresh_type": {
           "name": "Refresh Type",
-          "description": "Which data to refresh. Targeted types (offsets, away, capabilities) support entity_id for a cheaper single-entity fetch."
+          "description": "Which data to refresh. Targeted types (offsets, away, capabilities, timetable, schedule) support entity_id for a cheaper single-entity fetch."
         },
         "entity_id": {
           "name": "Entity (optional)",
-          "description": "Restrict the refresh to a single entity. Supported for: offsets, away, capabilities. Other types fall back to a full refresh."
+          "description": "Restrict the refresh to a single entity. Supported for: offsets, away, capabilities, timetable, schedule. Other types fall back to a full refresh."
         },
         "config_entry": {
           "name": "Tado home (optional)",
@@ -757,6 +814,44 @@
           "description": "Reading date. Defaults to today."
         }
       }
+    },
+    "set_schedule": {
+      "name": "Set schedule",
+      "description": "Write Tado Smart Schedule time blocks for a zone. Replaces the whole day. Use all_days for every day in the timetable, or days for specific days. Provide blocks or a Home Assistant schedule helper.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity",
+          "description": "Climate or water heater zone to update."
+        },
+        "all_days": {
+          "name": "All days",
+          "description": "Write every slot of the timetable. Ignored for one_day (that plan has no day picker)."
+        },
+        "days": {
+          "name": "Days",
+          "description": "Slots of the selected timetable only. one_day: omit. three_day: Mon-Fri, Saturday, Sunday. seven_day: Mon..Sun (e.g. Tue+Wed). Tuesday on one_day fails."
+        },
+        "timetable": {
+          "name": "Timetable",
+          "description": "Which plan to write. Defaults to the zone's currently active timetable."
+        },
+        "activate": {
+          "name": "Activate timetable",
+          "description": "After writing, switch the zone to this timetable type."
+        },
+        "blocks": {
+          "name": "Blocks",
+          "description": "List of start, end, temperature, and power. Must cover 00:00-24:00; gaps are filled as OFF."
+        },
+        "schedule_entity": {
+          "name": "Schedule helper",
+          "description": "Home Assistant schedule entity used instead of blocks. Extra data: temperature, power."
+        },
+        "geolocation_override": {
+          "name": "Ignore away mode",
+          "description": "When on, these blocks stay active even if the home is Away."
+        }
+      }
     }
   },
   "selector": {
@@ -768,7 +863,29 @@
         "offsets": "Temperature offsets",
         "away": "Away temperatures",
         "capabilities": "Device capabilities",
-        "presence": "Presence"
+        "presence": "Presence",
+        "timetable": "Timetable type",
+        "schedule": "Weekly plan"
+      }
+    },
+    "schedule_day": {
+      "options": {
+        "monday_to_sunday": "Every day",
+        "monday_to_friday": "Monday to Friday",
+        "monday": "Monday",
+        "tuesday": "Tuesday",
+        "wednesday": "Wednesday",
+        "thursday": "Thursday",
+        "friday": "Friday",
+        "saturday": "Saturday",
+        "sunday": "Sunday"
+      }
+    },
+    "schedule_timetable": {
+      "options": {
+        "one_day": "Same every day",
+        "three_day": "Weekdays / Saturday / Sunday",
+        "seven_day": "Per weekday"
       }
     },
     "hvac_mode": {

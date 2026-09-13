@@ -15,6 +15,7 @@ from tadoasync.models import TemperatureOffset
 from ..const import (
     CONF_API_PROXY_URL,
     CONF_CALL_JITTER_ENABLED,
+    GEN_X,
     HTTP_UNPROCESSABLE_ENTITY,
     OFF_MAGIC_TEMP,
 )
@@ -185,7 +186,75 @@ class TadoExecutorBase(ABC):
             return True
         return False
 
-    # Centralized Rollback Helpers (DRY)
+    async def _execute_schedules(self, merged: dict[str, Any]) -> None:
+        """Write timetable blocks, then GET weekly plans queued in this batch."""
+        for slot in merged.get("schedules", {}).values():
+            zid = int(slot["zone_id"])
+            if self._should_skip_zone(zid):  # [DUMMY_HOOK]
+                continue
+            day_type = str(slot["day_type"])
+            payload = slot["payload"]
+            if self.coordinator.generation == GEN_X:
+                bridge = getattr(self.coordinator, "tadox_bridge", None)
+                if bridge is None:
+                    _LOGGER.error("Tado X schedule write skipped: no Hops bridge")
+                    continue
+                coro = bridge.async_set_room_schedule(zid, payload)
+            else:
+                coro = self.coordinator.client.set_timetable_blocks(
+                    zid, int(slot["timetable_id"]), day_type, payload
+                )
+            await self._safe_execute(
+                f"schedule_{zid}_{day_type}",
+                coro,
+                success_fn=lambda data=slot: (
+                    self.coordinator.apply_successful_schedule_write(data)
+                ),
+                context={
+                    "generation": self.coordinator.generation,
+                    "zone_id": zid,
+                    "timetable_id": slot.get("timetable_id"),
+                    "day_type": day_type,
+                },
+            )
+
+        if merged.get("manual_poll") in {"all", "schedule"}:
+            return
+        written = {
+            int(slot["zone_id"])
+            for slot in merged.get("schedules", {}).values()
+            if "zone_id" in slot
+        }
+        await self.coordinator._execute_zone_plan_refreshes(
+            merged.get("refresh_schedules") or (),
+            skip_zone_ids=written,
+        )
+
+    async def _execute_timetables(self, merged: dict[str, Any]) -> None:
+        """PUT classic v2 activeTimetable (v3 plus experimental Tado X)."""
+        rollback_timetables = merged.get("rollback_timetables", {})
+        for zid, timetable_id in merged.get("timetables", {}).items():
+            if self._should_skip_zone(zid):  # [DUMMY_HOOK]
+                continue
+
+            await self._safe_execute(
+                f"timetable_{zid}",
+                self.coordinator.client.set_active_timetable(zid, timetable_id),
+                rollback_fn=self._create_timetable_rollback(
+                    zid, rollback_timetables.get(zid)
+                ),
+                context={
+                    "generation": self.coordinator.generation,
+                    "zone_id": zid,
+                    "timetable_id": timetable_id,
+                },
+            )
+
+        # PUT first; skip GET for zones this batch just wrote.
+        await self.coordinator._execute_timetable_refreshes(
+            merged.get("refresh_timetables") or (),
+            skip_zone_ids=merged.get("timetables", {}).keys(),
+        )
 
     def _rollback_optimistic(
         self,
@@ -293,6 +362,28 @@ class TadoExecutorBase(ABC):
                 _LOGGER.info("Rolled back early start for zone %d", zone_id)
 
         return self._rollback_optimistic("zone", zone_id, "early_start", restore)
+
+    def _create_timetable_rollback(
+        self, zone_id: int, old_id: int | None
+    ) -> Callable[[], Coroutine[Any, Any, None]]:
+        """Create rollback function for active timetable cache."""
+
+        def restore() -> None:
+            from .timetable import entry_for_id
+
+            cache = self.coordinator.data_manager.timetable_cache
+            restored = entry_for_id(old_id)
+            if restored is None:
+                cache.pop(zone_id, None)
+            else:
+                cache[zone_id] = restored
+            _LOGGER.info(
+                "Rolled back timetable for zone %d (generation=%s)",
+                zone_id,
+                self.coordinator.generation,
+            )
+
+        return self._rollback_optimistic("zone", zone_id, "timetable", restore)
 
     def _create_open_window_rollback(
         self, zone_id: int, old_val: Any

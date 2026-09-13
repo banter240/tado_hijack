@@ -5,9 +5,35 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from ..models import CommandType, TadoCommand
+from .schedule import refresh_schedule_zone_ids_from_command, schedule_slot_key
+from .timetable import refresh_zone_ids_from_command
 
 if TYPE_CHECKING:
     from tadoasync.models import Zone
+
+# Merger control fields: not sent to execute_batch as work items.
+_MERGED_CONTROL_KEYS = frozenset({"old_presence", "manual_poll"})
+
+
+def executor_payload(merged: dict[str, Any]) -> dict[str, Any]:
+    """Return merger keys the executor consumes (no rollbacks or control)."""
+    return {
+        key: value
+        for key, value in merged.items()
+        if not key.startswith("rollback_") and key not in _MERGED_CONTROL_KEYS
+    }
+
+
+def merged_has_executor_work(merged: dict[str, Any]) -> bool:
+    """True if the merged batch still has work for execute_batch."""
+    return any(executor_payload(merged).values())
+
+
+def format_executor_payload(merged: dict[str, Any]) -> str:
+    """Readable key=value line for every executor payload field."""
+    return ", ".join(
+        f"{key}={value!s}" for key, value in executor_payload(merged).items()
+    )
 
 
 class CommandMerger:
@@ -23,6 +49,10 @@ class CommandMerger:
         self.dazzle_modes: dict[int, bool] = {}
         self.early_starts: dict[int, bool] = {}
         self.open_windows: dict[int, Any] = {}
+        self.timetables: dict[int, int] = {}
+        self.refresh_timetables: set[int] = set()
+        self.refresh_schedules: set[int] = set()
+        self.schedules: dict[str, dict[str, Any]] = {}
         self.identifies: set[str] = set()
         self.presence: str | None = None
         self.old_presence: str | None = None
@@ -34,6 +64,7 @@ class CommandMerger:
         self.rollback_dazzle_modes: dict[int, bool] = {}
         self.rollback_early_starts: dict[int, bool] = {}
         self.rollback_open_windows: dict[int, bool] = {}
+        self.rollback_timetables: dict[int, Any] = {}
 
     def add(self, cmd: TadoCommand) -> None:
         """Add a command to the merger."""
@@ -46,6 +77,10 @@ class CommandMerger:
             CommandType.SET_DAZZLE: self._merge_dazzle,
             CommandType.SET_EARLY_START: self._merge_early_start,
             CommandType.SET_OPEN_WINDOW: self._merge_open_window,
+            CommandType.SET_TIMETABLE: self._merge_timetable,
+            CommandType.SET_SCHEDULE: self._merge_schedule,
+            CommandType.REFRESH_TIMETABLE: self._merge_refresh_timetable,
+            CommandType.REFRESH_SCHEDULE: self._merge_refresh_schedule,
             CommandType.IDENTIFY: self._merge_identify,
             CommandType.SET_PRESENCE: self._merge_presence,
             CommandType.RESUME_SCHEDULE: self._merge_resume,
@@ -130,6 +165,36 @@ class CommandMerger:
             store_full_data=True,
         )
 
+    def _merge_timetable(self, cmd: TadoCommand) -> None:
+        """Last write wins per zone; executor gets the integer id."""
+        self._merge_keyed(
+            cmd,
+            "zone_id",
+            "timetable_id",
+            self.timetables,
+            self.rollback_timetables,
+            int,
+        )
+
+    def _merge_refresh_timetable(self, cmd: TadoCommand) -> None:
+        """Union zone ids from per-zone and refresh-all commands."""
+        self.refresh_timetables.update(refresh_zone_ids_from_command(cmd))
+
+    def _merge_refresh_schedule(self, cmd: TadoCommand) -> None:
+        """Union zone ids from per-zone and fetch-all weekly plan commands."""
+        self.refresh_schedules.update(refresh_schedule_zone_ids_from_command(cmd))
+
+    def _merge_schedule(self, cmd: TadoCommand) -> None:
+        """Last write wins per zone + timetable + dayType."""
+        if not cmd.data:
+            return
+        key = schedule_slot_key(
+            int(cmd.data["zone_id"]),
+            int(cmd.data["timetable_id"]),
+            str(cmd.data["day_type"]),
+        )
+        self.schedules[key] = cmd.data
+
     def _merge_identify(self, cmd: TadoCommand) -> None:
         if cmd.data and "serial" in cmd.data:
             self.identifies.add(str(cmd.data["serial"]))
@@ -192,6 +257,10 @@ class CommandMerger:
             "dazzle_modes": self.dazzle_modes,
             "early_starts": self.early_starts,
             "open_windows": self.open_windows,
+            "timetables": self.timetables,
+            "refresh_timetables": self.refresh_timetables,
+            "refresh_schedules": self.refresh_schedules,
+            "schedules": self.schedules,
             "identifies": self.identifies,
             "presence": self.presence,
             "old_presence": self.old_presence,
@@ -203,4 +272,5 @@ class CommandMerger:
             "rollback_dazzle_modes": self.rollback_dazzle_modes,
             "rollback_early_starts": self.rollback_early_starts,
             "rollback_open_windows": self.rollback_open_windows,
+            "rollback_timetables": self.rollback_timetables,
         }

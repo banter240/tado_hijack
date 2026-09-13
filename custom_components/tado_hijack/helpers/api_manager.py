@@ -17,9 +17,15 @@ from ..const import (
     DEFAULT_JITTER_PERCENT,
 )
 from ..models import CommandType, TadoCommand
-from .command_merger import CommandMerger
+from .command_merger import (
+    CommandMerger,
+    format_executor_payload,
+    merged_has_executor_work,
+)
 from .executor_unified import TadoUnifiedExecutor
 from .logging_utils import get_redacted_logger
+from .schedule import schedule_queue_key_for_command
+from .timetable import queue_key_for_command
 from .utils import apply_jitter
 
 if TYPE_CHECKING:
@@ -69,38 +75,50 @@ class TadoApiManager:
 
     def _describe_command(self, command: TadoCommand) -> str:
         """Return a human-readable description of the command action."""
+        data = command.data or {}
         if command.cmd_type == CommandType.SET_OVERLAY:
-            if command.zone_id and command.data:
-                setting = command.data.get("setting", {})
-                power = setting.get("power", "?")
-                temp = setting.get("temperature", {}).get("celsius", "?")
-                return f"(zone={command.zone_id}, power={power}, temp={temp}°C)"
-            return f"(zone={command.zone_id})"
-        elif command.cmd_type == CommandType.RESUME_SCHEDULE:
-            return f"(zone={command.zone_id})"
-        elif command.cmd_type == CommandType.SET_PRESENCE:
-            presence = command.data.get("presence") if command.data else "?"
-            return f"(presence={presence})"
-        elif command.cmd_type in (CommandType.SET_CHILD_LOCK, CommandType.SET_OFFSET):
-            serial = command.data.get("serial", "?") if command.data else "?"
-            value = (
-                (
-                    command.data.get("child_lock")
-                    if command.cmd_type == CommandType.SET_CHILD_LOCK
-                    else command.data.get("offset")
-                )
-                if command.data
-                else "?"
+            return self._describe_overlay(command, data)
+        if command.cmd_type in (CommandType.SET_CHILD_LOCK, CommandType.SET_OFFSET):
+            field = (
+                "child_lock"
+                if command.cmd_type == CommandType.SET_CHILD_LOCK
+                else "offset"
             )
-            return f"(serial={serial}, value={value})"
-        elif command.cmd_type == CommandType.IDENTIFY:
-            serial = command.data.get("serial", "?") if command.data else "?"
-            return f"(serial={serial})"
-        elif command.cmd_type == CommandType.MANUAL_POLL:
-            poll_type = command.data.get("type", "all") if command.data else "all"
-            return f"(type={poll_type})"
-        else:
-            return f"(zone={command.zone_id})" if command.zone_id else ""
+            return f"(serial={data.get('serial', '?')}, value={data.get(field, '?')})"
+        if command.cmd_type in (
+            CommandType.REFRESH_TIMETABLE,
+            CommandType.REFRESH_SCHEDULE,
+        ):
+            if command.zone_id is not None:
+                return f"(zone={command.zone_id})"
+            return f"(zones={data.get('zone_ids', [])})"
+
+        descriptions = {
+            CommandType.RESUME_SCHEDULE: f"(zone={command.zone_id})",
+            CommandType.SET_PRESENCE: f"(presence={data.get('presence', '?')})",
+            CommandType.IDENTIFY: f"(serial={data.get('serial', '?')})",
+            CommandType.MANUAL_POLL: f"(type={data.get('type', 'all')})",
+            CommandType.SET_TIMETABLE: (
+                f"(zone={command.zone_id}, timetable_id={data.get('timetable_id', '?')})"
+            ),
+            CommandType.SET_SCHEDULE: (
+                f"(zone={command.zone_id}, day={data.get('day_type', '?')}, "
+                f"timetable_id={data.get('timetable_id', '?')})"
+            ),
+        }
+        if command.cmd_type in descriptions:
+            return descriptions[command.cmd_type]
+        return f"(zone={command.zone_id})" if command.zone_id else ""
+
+    @staticmethod
+    def _describe_overlay(command: TadoCommand, data: dict[str, Any]) -> str:
+        """Describe a SET_OVERLAY command."""
+        if command.zone_id and data:
+            setting = data.get("setting", {})
+            power = setting.get("power", "?")
+            temp = setting.get("temperature", {}).get("celsius", "?")
+            return f"(zone={command.zone_id}, power={power}, temp={temp}°C)"
+        return f"(zone={command.zone_id})"
 
     def _get_command_key(self, command: TadoCommand) -> str:
         """Reconstruct the key for a command (reverse of queue_command key logic)."""
@@ -112,6 +130,10 @@ class TadoApiManager:
         if command.cmd_type == CommandType.IDENTIFY:
             serial = command.data.get("serial", "") if command.data else ""
             return f"identify_{serial}"
+        if key := queue_key_for_command(command):
+            return key
+        if key := schedule_queue_key_for_command(command):
+            return key
         if command.cmd_type in (
             CommandType.SET_CHILD_LOCK,
             CommandType.SET_OFFSET,
@@ -254,20 +276,9 @@ class TadoApiManager:
             merger.add(cmd)
         merged = merger.result
 
-        # Log merged result with full payloads for debugging
-        _LOGGER.debug(
-            "Merged batch payloads: presence=%s, zones=%s, child_lock=%s, offsets=%s, "
-            "away_temps=%s, dazzle=%s, early_start=%s, open_window=%s, identifies=%s",
-            merged.get("presence"),
-            merged.get("zones", {}),
-            merged.get("child_lock", {}),
-            merged.get("offsets", {}),
-            merged.get("away_temps", {}),
-            merged.get("dazzle_modes", {}),
-            merged.get("early_starts", {}),
-            merged.get("open_windows", {}),
-            merged.get("identifies", []),
-        )
+        # Named fields, generated from merger payload keys so a new command
+        # type cannot drop out of the debug line.
+        _LOGGER.debug("Merged batch payloads: %s", format_executor_payload(merged))
 
         # Filter redundant operations BEFORE sending (Toggle 1 - State Changes)
         from .redundancy_checker import filter_redundant_merged_data
@@ -292,26 +303,17 @@ class TadoApiManager:
             )
 
             # Check if payload is empty after filtering - if so, skip sending
-            is_empty = not any(
-                [
-                    merged.get("presence"),
-                    merged.get("zones"),
-                    merged.get("child_lock"),
-                    merged.get("offsets"),
-                    merged.get("away_temps"),
-                    merged.get("dazzle_modes"),
-                    merged.get("early_starts"),
-                    merged.get("open_windows"),
-                    merged.get("identifies"),
-                ]
-            )
-            if is_empty:
+            if not merged_has_executor_work(merged):
                 _LOGGER.info(
                     "Skipping API call: all %d command(s) redundant after filtering (%s)",
                     len(commands),
                     [cmd.cmd_type.value for cmd in commands],
                 )
                 return
+            _LOGGER.debug(
+                "Merged batch payloads after redundancy filter: %s",
+                format_executor_payload(merged),
+            )
 
         # Delegate execution to the Unified Executor
         await self._executor.execute_batch(merged)

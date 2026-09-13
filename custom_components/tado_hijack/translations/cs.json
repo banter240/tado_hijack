@@ -282,6 +282,18 @@
       },
       "identify_device": {
         "name": "Identifikovat zařízení"
+      },
+      "refresh_timetable": {
+        "name": "Aktualizovat týdenní plán"
+      },
+      "refresh_all_timetables": {
+        "name": "Aktualizovat všechny týdenní plány"
+      },
+      "refresh_zone_plan": {
+        "name": "Načíst týdenní plán"
+      },
+      "refresh_all_zone_plans": {
+        "name": "Načíst všechny týdenní plány"
       }
     },
     "number": {
@@ -337,6 +349,29 @@
           "off": "Vypnuto",
           "auto": "Automaticky"
         }
+      },
+      "timetable_type": {
+        "name": "Režim týdenního plánu",
+        "state": {
+          "one_day": "Po-Ne (stejně každý den)",
+          "three_day": "Po-Pá / So / Ne",
+          "seven_day": "Podle dne v týdnu"
+        }
+      },
+      "offset_cal_interval": {
+        "name": "Automatická kalibrace offsetu",
+        "state": {
+          "off": "Vypnuto",
+          "3h": "Každé 3 hodiny (od 00:00)",
+          "6h": "Každých 6 hodin (od 00:00)",
+          "9h": "Každých 9 hodin (od 00:00)",
+          "12h": "Každých 12 hodin (od 00:00)",
+          "15h": "Každých 15 hodin (od 00:00)",
+          "18h": "Každých 18 hodin (od 00:00)",
+          "21h": "Každých 21 hodin (od 00:00)",
+          "24h": "Jednou denně (00:00)",
+          "on_reset": "Jednou po resetu kvóty"
+        }
       }
     },
     "climate": {
@@ -349,6 +384,28 @@
               "heat": "Manuálně",
               "off": "Vypnuto"
             }
+          }
+        }
+      }
+    },
+    "calendar": {
+      "zone_plan": {
+        "name": "Tado {zone} týdenní plán",
+        "state_attributes": {
+          "timetable": {
+            "name": "Rozvrh"
+          },
+          "day": {
+            "name": "Den"
+          },
+          "blocks": {
+            "name": "Bloky"
+          },
+          "plan": {
+            "name": "Plán"
+          },
+          "updated_at": {
+            "name": "Aktualizováno"
           }
         }
       }
@@ -604,11 +661,11 @@
         },
         "refresh_type": {
           "name": "Typ obnovení",
-          "description": "Která data se mají obnovit. Cílené typy (offsets, away, capabilities) podporují entity_id pro levnější stažení jediné entity."
+          "description": "Která data se mají obnovit. Cílené typy (offsets, away, capabilities, timetable, schedule) podporují entity_id pro levnější stažení jediné entity."
         },
         "entity_id": {
           "name": "Entita (volitelné)",
-          "description": "Omezit obnovení na jedinou entitu. Podporováno pro: offsets, away, capabilities. Ostatní typy provedou kompletní obnovu."
+          "description": "Omezit obnovení na jedinou entitu. Podporováno pro: offsets, away, capabilities, timetable, schedule. Ostatní typy provedou kompletní obnovu."
         }
       }
     },
@@ -757,6 +814,44 @@
           "description": "Datum odečtu. Výchozí je dnešek."
         }
       }
+    },
+    "set_schedule": {
+      "name": "Nastavit rozvrh",
+      "description": "Zapíše časové bloky Tado Smart Schedule pro zónu. Nahradí celý den. all_days zapíše všechny dny typu rozvrhu, days jen vybrané dny. Zadejte blocks nebo HA schedule helper.",
+      "fields": {
+        "entity_id": {
+          "name": "Entita",
+          "description": "Zóna climate nebo ohřevu vody."
+        },
+        "all_days": {
+          "name": "Všechny dny",
+          "description": "Zapsat každý slot typu rozvrhu. U one_day se ignoruje (žádný výběr dne)."
+        },
+        "days": {
+          "name": "Dny",
+          "description": "Jen sloty zvoleného typu. one_day: vynechat. three_day: Po-Pá, sobota, neděle. seven_day: Po..Ne (např. Út+St). Úterý u one_day je chyba."
+        },
+        "timetable": {
+          "name": "Typ rozvrhu",
+          "description": "Který plán se zapisuje. Výchozí je právě aktivní typ zóny."
+        },
+        "activate": {
+          "name": "Aktivovat typ rozvrhu",
+          "description": "Po zápisu přepne zónu na tento typ rozvrhu."
+        },
+        "blocks": {
+          "name": "Bloky",
+          "description": "Seznam start, end, temperature a power. Musí pokrýt 00:00-24:00; mezery se vyplní jako VYP."
+        },
+        "schedule_entity": {
+          "name": "Schedule helper",
+          "description": "Entita rozvrhu Home Assistant místo blocks. Extra data: temperature, power."
+        },
+        "geolocation_override": {
+          "name": "Ignorovat režim pryč",
+          "description": "Když je zapnuto, bloky platí i v režimu Away."
+        }
+      }
     }
   },
   "selector": {
@@ -768,7 +863,29 @@
         "offsets": "Teplotní odchylky",
         "away": "Teploty mimo domov",
         "capabilities": "Možnosti zařízení",
-        "presence": "Přítomnost"
+        "presence": "Přítomnost",
+        "timetable": "Typ rozvrhu",
+        "schedule": "Týdenní plán"
+      }
+    },
+    "schedule_day": {
+      "options": {
+        "monday_to_sunday": "Každý den",
+        "monday_to_friday": "Pondělí až pátek",
+        "monday": "Pondělí",
+        "tuesday": "Úterý",
+        "wednesday": "Středa",
+        "thursday": "Čtvrtek",
+        "friday": "Pátek",
+        "saturday": "Sobota",
+        "sunday": "Neděle"
+      }
+    },
+    "schedule_timetable": {
+      "options": {
+        "one_day": "Každý den stejně",
+        "three_day": "Pracovní dny / sobota / neděle",
+        "seven_day": "Podle dne v týdnu"
       }
     },
     "hvac_mode": {

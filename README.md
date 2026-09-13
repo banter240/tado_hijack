@@ -542,10 +542,11 @@ Global controls and elite transparency for your home. _Linked to your Internet B
 | `select.tado_{home}_presence_mode`         | Select | Presence lock: `home` / `away` = manual override, `auto` = hand control back to Tado's own geofencing. |
 | `switch.tado_{home}_polling_active`        | Switch | **Master Switch:** Instantly stop/start all periodic API polls.   |
 | `switch.tado_{home}_reduced_polling_logic` | Switch | **Logic Switch:** Toggle the timed "Economy" profile.             |
+| `select.tado_{home}_offset_cal_interval`   | Select | Auto-calibrate TRV offset against a linked `zone_temp_source` (third-party thermostat). Slots from local 00:00 in 3h steps (`3h`..`24h`), or `on_reset` (once when quota remaining jumps up). Off by default. 1 PUT per measuring device, no bulk. Skips zones without a linked thermostat. |
 | `button.tado_{home}_resume_all_schedules`  | Button | Restore Smart Schedule across all zones (1 bulk call).            |
 | `button.tado_{home}_turn_off_all_zones`    | Button | Turn off all zones instantly (1 bulk call).                       |
 | `button.tado_{home}_boost_all_zones`       | Button | Boost all zones to 25°C (1 bulk call).                            |
-| `button.tado_{home}_full_manual_poll`      | Button | **Expensive:** Forced synchronization of all metadata and states. |
+| `button.tado_{home}_full_manual_poll`      | Button | **Expensive:** Forced sync of metadata, states, offsets, away temps, active timetable types, and weekly plans (1 GET per compatible zone for each of those; no bulk timetable/plan endpoint). |
 | `sensor.tado_{home}_api_limit`             | Sensor | Total daily API quota limit (1000 standard, 3000 with proxy).     |
 | `sensor.tado_{home}_api_remaining`         | Sensor | **API Gold:** Your remaining daily call budget.                   |
 | `sensor.tado_{home}_api_status`            | Sensor | Real-time health (`connected`, `throttled`, `rate_limited`).      |
@@ -603,6 +604,7 @@ Advanced monitoring sensors available under the Internet Bridge device diagnosti
 - `button.refresh_offsets` - Force offset sync
 - `button.refresh_away` - Force away config sync
 - `button.refresh_presence` - Force presence sync
+- `button.refresh_all_zone_plans` - Fetch every room's weekly plan (calendar cache)
 
 <br>
 
@@ -623,6 +625,13 @@ Cloud-only features that HomeKit does not support.
 | `binary_sensor.overlay`   | Binary Sensor | **HW Only:** Manual override active status.                                                     |
 | `binary_sensor.connectivity` | Binary Sensor | **HW Only:** Zone connectivity based on device connections.                                  |
 | `switch.early_start`                | Switch        | **v3 Only:** Toggle pre-heating before schedule block.                                          |
+| `select.timetable_type`             | Select        | Active timetable: same every day, Mon-Fri/Sat/Sun, or per weekday. Writes debounce then merge (1 PUT per zone; API has no bulk). **v3:** heating and hot water. **Tado X:** heating rooms, experimental (classic v2 URI). |
+| `select.timetable_type_all_zones`   | Select        | Same options for all compatible zones at once. Unknown if zones differ or nothing is cached. **Tado X experimental.** |
+| `button.refresh_timetable`          | Button        | Queue a debounced GET of the active timetable for one zone (same zone mashed = 1 call). **Tado X experimental.** |
+| `button.refresh_all_timetables`     | Button        | Queue a debounced GET for all compatible zones (coalesced with per-zone refreshes in the same window; still 1 GET per zone). **Tado X experimental.** |
+| `button.refresh_zone_plan`          | Button        | Fetch this room's weekly plan from Tado (1 GET when timetable type is cached, otherwise 2). Debounced; mashed button = 1 call. Does **not** run when you open the calendar. |
+| `button.refresh_all_zone_plans`     | Button        | Fetch every capable zone's weekly plan (1-2 GET per zone, coalesced with per-room fetches in the same window). Cheaper than a full poll. |
+| `calendar.zone_plan`                | Calendar      | Read-only week view of ON heat windows (`Tado <room> Weekly Plan`). **Cache only** - opening the calendar never hits Tado. Fetch with `refresh_zone_plan`, `refresh_all_zone_plans`, or `full_manual_poll` / `manual_poll` type `all` or `schedule`. `set_schedule` updates the cache only after Tado accepts the write; a failed write leaves the previous plan. Not part of periodic poll. Attributes `timetable`, `day`, `blocks`, `plan` match `set_schedule`. |
 | `number.open_window_timeout`        | Number        | **Config:** Open window timeout (0=OFF, 5-1439min=ON). Requires Tado subscription for detection. |
 | `number.target_temperature`         | Number        | **HW & AC:** Set target temperature for hot water (manual mode) or AC zones.                                            |
 | `number.away_temperature`           | Number        | **v3 Only:** Set away mode temperature.                                                         |
@@ -696,6 +705,7 @@ For advanced automation, use these services. All manual control services feature
 | `tado_hijack.set_mode_all_zones`    | Targets all HEATING and/or AC zones at once using `hvac_mode`.                                                               | **1 call** (bulk)    | **N calls** (per-zone sequential) |
 | `tado_hijack.set_water_heater_mode` | Set `operation_mode` and temperature for hot water.                                                                      | **1 call** (v3)      | **1 call** (X)       |
 | `tado_hijack.add_meter_reading`     | Upload a meter reading (integer) to Tado Energy IQ. Optional `date` backfills a historic reading; defaults to today.         | **1 call**           | **1 call**           |
+| `tado_hijack.set_schedule`          | Write Smart Schedule time blocks (`blocks` or a `schedule` helper). `one_day` has no day picker. `three_day` = Mon-Fri/Sat/Sun. `seven_day` = any weekdays (e.g. Tue+Wed). Tuesday on one_day errors. | **1-7** | **1-7** |
 | `tado_hijack.manual_poll`           | Force immediate data refresh. Use `refresh_type` to control scope. Add `entity_id` for a targeted single-entity fetch (saves quota). | **1-N** (depends)    | **1-N** (depends)    |
 
 <br>
@@ -713,7 +723,7 @@ For advanced automation, use these services. All manual control services feature
 > [!TIP]
 > **Targeting Rooms:** You can use **any** Tado zone entity (climate, switch, sensor) or even **device entities** (battery, connection, child_lock) as the `entity_id`. Device entities automatically resolve to their zone via serial number lookup. This includes your existing **HomeKit climate** entities (e.g. `climate.living_room`).
 >
-> **Targeted Fetch:** When using `manual_poll` with an `entity_id`, the refresh is limited to that single entity — `offsets` costs 1 API call instead of N, `away` costs 1 instead of M. `capabilities` uses the lazy cache and only drops that zone's entry. Bulk types (`zone`, `metadata`, `presence`, `all`) always fall back to a full refresh.
+> **Targeted Fetch:** When using `manual_poll` with an `entity_id`, the refresh is limited to that single entity — `offsets` costs 1 API call instead of N, `away` / `timetable` / `schedule` cost 1 instead of M. `capabilities` uses the lazy cache and only drops that zone's entry. Bulk types (`zone`, `metadata`, `presence`, `all`) always fall back to a full refresh. `all` (and `button.full_manual_poll`) also fetches active timetable types and weekly plans (1 GET per compatible zone each, 2 per zone when the timetable type is not cached). Type `schedule` fetches only weekly plans.
 
 <br>
 
@@ -760,6 +770,57 @@ data:
 ```
 
 <br>
+
+### `set_schedule` Examples (YAML)
+
+Tuesday and Wednesday (seven_day only):
+
+```yaml
+service: tado_hijack.set_schedule
+data:
+  entity_id: climate.living_room
+  all_days: false
+  days:
+    - tuesday
+    - wednesday
+  timetable: seven_day
+  activate: true
+  blocks:
+    - {start: "00:00", end: "06:30", temperature: 16}
+    - {start: "06:30", end: "22:00", temperature: 21}
+    - {start: "22:00", end: "00:00", temperature: 16}
+```
+
+Same plan every day (`one_day` has no day picker; do not pass `days`):
+
+```yaml
+service: tado_hijack.set_schedule
+data:
+  entity_id: climate.living_room
+  timetable: one_day
+  activate: true
+  blocks:
+    - {start: "00:00", end: "07:00", temperature: 16}
+    - {start: "07:00", end: "22:00", temperature: 21}
+    - {start: "22:00", end: "00:00", temperature: 16}
+```
+
+Copy today's plan from the zone calendar (fetch the plan first with the room button or `refresh_all_zone_plans`):
+
+```yaml
+service: tado_hijack.set_schedule
+data:
+  entity_id: calendar.tado_home_1_zone_plan
+  timetable: "{{ state_attr('calendar.tado_home_1_zone_plan', 'timetable') }}"
+  days:
+    - "{{ state_attr('calendar.tado_home_1_zone_plan', 'day') }}"
+  blocks: "{{ state_attr('calendar.tado_home_1_zone_plan', 'blocks') }}"
+```
+
+`plan` is the same blocks keyed by day (`monday`, `monday_to_friday`, ...). Event description in the calendar UI is that day's JSON.
+
+<br>
+
 
 **Manual Override (Indefinite):**
 

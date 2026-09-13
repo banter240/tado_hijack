@@ -684,6 +684,7 @@ def filter_redundant_merged_data(
         ("dazzle_modes", "rollback_dazzle_modes", "dazzle zone"),
         ("early_starts", "rollback_early_starts", "early_start zone"),
         ("open_windows", "rollback_open_windows", "open_window zone"),
+        ("timetables", "rollback_timetables", "timetable zone"),
     ]
 
     try:

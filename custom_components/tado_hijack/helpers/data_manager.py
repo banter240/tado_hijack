@@ -66,14 +66,20 @@ class TadoDataManager:
         self.capabilities_cache: dict[int, Any] = {}
         self.offsets_cache: dict[str, TemperatureOffset] = {}
         self.away_cache: dict[int, float] = {}
+        self.timetable_cache: dict[int, dict[str, Any]] = {}
+        self.schedule_blocks_cache: dict[int, dict[str, Any]] = {}
         self._capability_locks: dict[int, asyncio.Lock] = {}
         self._last_slow_poll: float = 0
         self._last_offset_poll: float = 0
         self._last_away_poll: float = 0
+        self._last_timetable_poll: float = 0
+        self._last_schedule_poll: float = 0
         self._last_presence_poll: float = 0
         self._last_zones_poll: float = 0
         self._offset_invalidated_at: float = 0
         self._away_invalidated_at: float = 0
+        self._timetable_invalidated_at: float = 0
+        self._schedule_invalidated_at: float = 0
         self._presence_invalidated_at: float = 0
         self._zones_invalidated_at: float = 0
 
@@ -106,6 +112,8 @@ class TadoDataManager:
         self._add_slow_track_to_plan(plan, current_time)
         self._add_medium_track_to_plan(plan, current_time)
         self._add_away_track_to_plan(plan, current_time)
+        self._add_timetable_track_to_plan(plan)
+        self._add_schedule_track_to_plan(plan)
         return plan
 
     def _add_fast_track_to_plan(self, plan: list[PollTask], now: float) -> None:
@@ -191,6 +199,16 @@ class TadoDataManager:
         if self._away_invalidated_at > self._last_away_poll:
             plan.append(PollTask(1, self._fetch_away_config))
 
+    def _add_timetable_track_to_plan(self, plan: list[PollTask]) -> None:
+        """Fetch active timetable types only when a full/timetable poll invalidates."""
+        if self._timetable_invalidated_at > self._last_timetable_poll:
+            plan.append(PollTask(1, self._fetch_timetables))
+
+    def _add_schedule_track_to_plan(self, plan: list[PollTask]) -> None:
+        """Fetch weekly plans only when a full/schedule poll invalidates."""
+        if self._schedule_invalidated_at > self._last_schedule_poll:
+            plan.append(PollTask(1, self._fetch_zone_plans))
+
     def _measure_presence_poll_cost(self) -> int:
         """Measure cost of home_state poll."""
         return 1
@@ -229,6 +247,8 @@ class TadoDataManager:
             for d in self.devices_meta.values()
         )
 
+        from .offset_calibrate import daily_offset_cal_puts
+
         breakdown = {
             "presence_poll_total": int(p_cost * (sec_day / self._presence_poll_seconds))
             if self._presence_poll_seconds > 0
@@ -239,12 +259,14 @@ class TadoDataManager:
             "offset_poll_total": int(o_cost * (sec_day / self._offset_poll_seconds))
             if self._offset_poll_seconds > 0
             else 0,
+            "offset_cal_total": daily_offset_cal_puts(self.coordinator),
             "zones_poll_cost": 1,
         }
         total = (
             breakdown["presence_poll_total"]
             + breakdown["slow_poll_total"]
             + breakdown["offset_poll_total"]
+            + breakdown["offset_cal_total"]
         )
         return total, breakdown
 
@@ -270,6 +292,12 @@ class TadoDataManager:
             elif task.coroutine == self._fetch_offsets:
                 await task.coroutine()
                 self._last_offset_poll = now
+            elif task.coroutine == self._fetch_timetables:
+                await task.coroutine()
+                self._last_timetable_poll = now
+            elif task.coroutine == self._fetch_zone_plans:
+                await task.coroutine()
+                self._last_schedule_poll = now
 
         if self.coordinator.generation != GEN_X:
             return TadoData(
@@ -463,6 +491,10 @@ class TadoDataManager:
             self._offset_invalidated_at = now
         if refresh_type in {"all", "away"}:
             self._away_invalidated_at = now
+        if refresh_type in {"all", "timetable"}:
+            self._timetable_invalidated_at = now
+        if refresh_type in {"all", "schedule"}:
+            self._schedule_invalidated_at = now
         if refresh_type in {"all", "presence"}:
             self._presence_invalidated_at = now
             self._presence_init = False
@@ -545,6 +577,34 @@ class TadoDataManager:
         for z in active:
             await self._fetch_away_config_for(z.id)
 
+    async def _fetch_timetables(self) -> None:
+        """Fetch active timetable types for every compatible zone."""
+        from .timetable import compatible_zone_ids
+
+        zone_ids = compatible_zone_ids(self.coordinator)
+        if not zone_ids:
+            return
+
+        _LOGGER.info(
+            "DataManager: Fetching timetables for %d zone(s)",
+            len(zone_ids),
+        )
+        await self.coordinator._execute_timetable_refreshes(zone_ids, notify=False)
+
+    async def _fetch_zone_plans(self) -> None:
+        """Fetch weekly heating plans for every capable zone."""
+        from .schedule import schedule_capable_zone_ids
+
+        zone_ids = schedule_capable_zone_ids(self.coordinator)
+        if not zone_ids:
+            return
+
+        _LOGGER.info(
+            "DataManager: Fetching weekly plans for %d zone(s)",
+            len(zone_ids),
+        )
+        await self.coordinator._execute_zone_plan_refreshes(zone_ids, notify=False)
+
     async def _fetch_away_config_for(self, zone_id: int) -> None:
         """Fetch away configuration for a single zone (V3 only)."""
         if not self.provider or self.coordinator.generation == GEN_X:
@@ -610,6 +670,31 @@ class TadoDataManager:
                 entity_id,
             )
             self.capabilities_cache.clear()
+            return False
+
+        if refresh_type == "timetable":
+            zone_id = self.coordinator.get_zone_id_from_entity(entity_id)
+            if zone_id is not None:
+                await self.coordinator._execute_timetable_refresh(zone_id)
+                return True
+            _LOGGER.warning(
+                "Targeted timetable fetch: could not resolve zone for %s, falling back",
+                entity_id,
+            )
+            self.invalidate_cache("timetable")
+            return False
+
+        if refresh_type == "schedule":
+            zone_id = self.coordinator.get_zone_id_from_entity(entity_id)
+            if zone_id is not None:
+                await self.coordinator._fetch_zone_plan(zone_id)
+                self.coordinator.async_update_listeners()
+                return True
+            _LOGGER.warning(
+                "Targeted schedule fetch: could not resolve zone for %s, falling back",
+                entity_id,
+            )
+            self.invalidate_cache("schedule")
             return False
 
         # Bulk-only types (zone, metadata, presence, all): invalidate and signal full refresh
