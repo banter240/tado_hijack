@@ -1323,13 +1323,25 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         canonical = normalize_timetable_type(timetable_type)
         entry = entry_for_type(canonical) if canonical else None
         if entry is None:
-            _LOGGER.error("Invalid timetable type: %s", timetable_type)
+            _LOGGER.error(
+                "Invalid timetable type %s for zone %s (generation=%s)",
+                timetable_type,
+                zone_id,
+                self.generation,
+            )
             return
 
         old_entry = self._apply_timetable_cache(zone_id, entry)
         self.async_update_listeners()
         old_id = old_entry.get("id") if old_entry else None
 
+        _LOGGER.info(
+            "Setting timetable for zone %s to %s (id=%s, generation=%s)",
+            zone_id,
+            canonical,
+            entry["id"],
+            self.generation,
+        )
         self.api_manager.queue_command(
             f"{CommandType.SET_TIMETABLE.value}_{zone_id}",
             TadoCommand(
@@ -1342,15 +1354,31 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
 
     async def async_refresh_timetable(self, zone_id: int) -> None:
         """Refresh the active timetable from classic v2 (experimental on Tado X)."""
-        _LOGGER.info("Refreshing timetable for zone %s", zone_id)
+        _LOGGER.info(
+            "Refreshing timetable for zone %s (generation=%s)",
+            zone_id,
+            self.generation,
+        )
         try:
             raw = await self.client.get_active_timetable(zone_id)
             entry = normalize_api_entry(raw)
+            if not entry.get("type"):
+                _LOGGER.warning(
+                    "Unexpected activeTimetable payload for zone %s "
+                    "(generation=%s): %s",
+                    zone_id,
+                    self.generation,
+                    raw,
+                )
             self._apply_timetable_cache(zone_id, entry)
             self.async_update_listeners()
             _LOGGER.debug("Timetable refreshed for zone %s: %s", zone_id, entry)
         except Exception:
-            _LOGGER.exception("Failed to refresh timetable for zone %s", zone_id)
+            _LOGGER.exception(
+                "Failed to refresh timetable for zone %s (generation=%s)",
+                zone_id,
+                self.generation,
+            )
 
     async def _async_for_timetable_zones(
         self, action: Callable[[int], Any], label: str
@@ -1361,7 +1389,13 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             _LOGGER.debug("%s: no compatible zones found", label)
             return
 
-        _LOGGER.info("%s for %d zone(s): %s", label, len(zone_ids), zone_ids)
+        _LOGGER.info(
+            "%s for %d zone(s) (generation=%s): %s",
+            label,
+            len(zone_ids),
+            self.generation,
+            zone_ids,
+        )
         await asyncio.gather(*(action(zone_id) for zone_id in zone_ids))
 
     async def async_refresh_all_timetables(self) -> None:

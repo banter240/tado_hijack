@@ -198,7 +198,11 @@ class TadoExecutorBase(ABC):
                 rollback_fn=self._create_timetable_rollback(
                     zid, rollback_timetables.get(zid)
                 ),
-                context={"zone_id": zid, "timetable_id": timetable_id},
+                context={
+                    "generation": self.coordinator.generation,
+                    "zone_id": zid,
+                    "timetable_id": timetable_id,
+                },
             )
 
     # Centralized Rollback Helpers (DRY)
@@ -324,7 +328,11 @@ class TadoExecutorBase(ABC):
                 cache.pop(zone_id, None)
             else:
                 cache[zone_id] = restored
-            _LOGGER.info("Rolled back timetable for zone %d", zone_id)
+            _LOGGER.info(
+                "Rolled back timetable for zone %d (generation=%s)",
+                zone_id,
+                self.coordinator.generation,
+            )
 
         return self._rollback_optimistic("zone", zone_id, "timetable", restore)
 
