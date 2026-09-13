@@ -107,10 +107,16 @@ from .helpers.reset_window_tracker import ResetWindowTracker
 from .helpers.state_patcher import patch_zone_overlay, patch_zone_resume
 from .helpers.storage import TadoStorage
 from .helpers.timetable import (
+    build_refresh_all_command,
+    build_refresh_command,
+    build_set_command,
     compatible_zone_ids,
     entry_for_type,
     normalize_api_entry,
     normalize_timetable_type,
+    refresh_queue_key,
+    set_queue_key,
+    unique_zone_ids,
 )
 from .helpers.utils import apply_jitter
 from .helpers.zone_utils import get_zone_type
@@ -1343,13 +1349,8 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             self.generation,
         )
         self.api_manager.queue_command(
-            f"{CommandType.SET_TIMETABLE.value}_{zone_id}",
-            TadoCommand(
-                CommandType.SET_TIMETABLE,
-                zone_id=zone_id,
-                data={"zone_id": zone_id, "timetable_id": entry["id"]},
-                rollback_context=old_id,
-            ),
+            set_queue_key(zone_id),
+            build_set_command(zone_id, entry["id"], old_id),
         )
 
     async def async_refresh_timetable(self, zone_id: int) -> None:
@@ -1360,20 +1361,15 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             self.generation,
         )
         self.api_manager.queue_command(
-            f"{CommandType.REFRESH_TIMETABLE.value}_{zone_id}",
-            TadoCommand(
-                CommandType.REFRESH_TIMETABLE,
-                zone_id=zone_id,
-                data={"zone_id": zone_id},
-            ),
+            refresh_queue_key(zone_id),
+            build_refresh_command(zone_id),
         )
 
     async def _execute_timetable_refresh(self, zone_id: int) -> None:
         """GET one zone's activeTimetable and update the cache (no listener notify)."""
         if self.dummy_handler and self.dummy_handler.is_dummy_zone(zone_id):
             return
-        set_key = f"{CommandType.SET_TIMETABLE.value}_{zone_id}"
-        if set_key in self.api_manager.pending_keys:
+        if set_queue_key(zone_id) in self.api_manager.pending_keys:
             _LOGGER.debug(
                 "Skipping timetable GET for zone %s (SET pending, generation=%s)",
                 zone_id,
@@ -1414,16 +1410,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         notify: bool = True,
     ) -> None:
         """GET unique zones after debounce; skip dummy, pending SET, and just-written."""
-        skip = {int(zid) for zid in skip_zone_ids}
-        to_fetch: list[int] = []
-        seen: set[int] = set()
-        for raw_id in zone_ids:
-            zid = int(raw_id)
-            if zid in seen or zid in skip:
-                continue
-            seen.add(zid)
-            to_fetch.append(zid)
-
+        to_fetch = unique_zone_ids(zone_ids, skip_zone_ids)
         if not to_fetch:
             return
 
@@ -1439,13 +1426,21 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         if notify:
             self.async_update_listeners()
 
+    def _compatible_timetable_zones(self, empty_log: str) -> list[int]:
+        """Compatible zone ids, or [] after a debug log when none exist."""
+        zone_ids = compatible_zone_ids(self)
+        if not zone_ids:
+            _LOGGER.debug("%s", empty_log)
+        return zone_ids
+
     async def _async_for_timetable_zones(
         self, action: Callable[[int], Any], label: str
     ) -> None:
         """Run an async action on every timetable-compatible zone."""
-        zone_ids = compatible_zone_ids(self)
+        zone_ids = self._compatible_timetable_zones(
+            f"{label}: no compatible zones found"
+        )
         if not zone_ids:
-            _LOGGER.debug("%s: no compatible zones found", label)
             return
 
         _LOGGER.info(
@@ -1459,9 +1454,10 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
 
     async def async_refresh_all_timetables(self) -> None:
         """Queue a debounced activeTimetable GET for every compatible zone."""
-        zone_ids = compatible_zone_ids(self)
+        zone_ids = self._compatible_timetable_zones(
+            "Queued timetable refresh: no compatible zones found"
+        )
         if not zone_ids:
-            _LOGGER.debug("Queued timetable refresh: no compatible zones found")
             return
 
         _LOGGER.info(
@@ -1471,11 +1467,8 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             zone_ids,
         )
         self.api_manager.queue_command(
-            f"{CommandType.REFRESH_TIMETABLE.value}_all",
-            TadoCommand(
-                CommandType.REFRESH_TIMETABLE,
-                data={"zone_ids": zone_ids},
-            ),
+            refresh_queue_key(),
+            build_refresh_all_command(zone_ids),
         )
 
     async def async_set_timetable_all_zones(self, timetable_type: str) -> None:

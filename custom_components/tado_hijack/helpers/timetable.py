@@ -7,6 +7,7 @@ with room ids (experimental).
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
 
 from ..const import (
@@ -17,12 +18,15 @@ from ..const import (
     TIMETABLE_ZONE_TYPES,
     ZONE_TYPE_HEATING,
 )
+from ..models import CommandType, TadoCommand
 from .zone_utils import get_zone_type
 
 if TYPE_CHECKING:
     from ..coordinator import TadoDataUpdateCoordinator
 
 TimetableEntry = dict[str, Any]
+
+_REFRESH_ALL_KEY = "all"
 
 
 def normalize_timetable_type(value: str) -> str | None:
@@ -92,3 +96,76 @@ def compatible_zone_ids(coordinator: TadoDataUpdateCoordinator) -> list[int]:
         for zone_id, zone in coordinator.zones_meta.items()
         if get_zone_type(zone) in allowed and zone_id != TADOX_VIRTUAL_HOT_WATER_ZONE_ID
     ]
+
+
+def unique_zone_ids(zone_ids: Iterable[Any], skip: Iterable[Any] = ()) -> list[int]:
+    """Stable unique int zone ids, dropping anything in skip."""
+    skip_set = {int(zid) for zid in skip}
+    result: list[int] = []
+    seen: set[int] = set()
+    for raw in zone_ids:
+        zid = int(raw)
+        if zid in seen or zid in skip_set:
+            continue
+        seen.add(zid)
+        result.append(zid)
+    return result
+
+
+def set_queue_key(zone_id: int) -> str:
+    """Debounce key for SET_TIMETABLE on one zone."""
+    return f"{CommandType.SET_TIMETABLE.value}_{zone_id}"
+
+
+def refresh_queue_key(zone_id: int | None = None) -> str:
+    """Debounce key for one zone refresh, or the home-wide refresh_all command."""
+    suffix = _REFRESH_ALL_KEY if zone_id is None else zone_id
+    return f"{CommandType.REFRESH_TIMETABLE.value}_{suffix}"
+
+
+def queue_key_for_command(cmd: TadoCommand) -> str | None:
+    """Debounce key for a timetable command, or None if cmd is another type."""
+    if cmd.cmd_type == CommandType.SET_TIMETABLE and cmd.zone_id is not None:
+        return set_queue_key(cmd.zone_id)
+    if cmd.cmd_type == CommandType.REFRESH_TIMETABLE:
+        return refresh_queue_key(cmd.zone_id)
+    return None
+
+
+def refresh_zone_ids_from_command(cmd: TadoCommand) -> list[int]:
+    """Zone ids carried by a REFRESH_TIMETABLE command (one zone or a list)."""
+    if cmd.data and cmd.data.get("zone_ids"):
+        return unique_zone_ids(cmd.data["zone_ids"])
+    zid = cmd.zone_id
+    if zid is None and cmd.data and "zone_id" in cmd.data:
+        zid = cmd.data["zone_id"]
+    return unique_zone_ids((zid,) if zid is not None else ())
+
+
+def build_set_command(
+    zone_id: int, timetable_id: int, rollback_id: int | None
+) -> TadoCommand:
+    """Queue payload for PUT activeTimetable on one zone."""
+    return TadoCommand(
+        CommandType.SET_TIMETABLE,
+        zone_id=zone_id,
+        data={"zone_id": zone_id, "timetable_id": timetable_id},
+        rollback_context=rollback_id,
+    )
+
+
+def build_refresh_command(zone_id: int) -> TadoCommand:
+    """Queue payload for GET activeTimetable on one zone."""
+    return TadoCommand(
+        CommandType.REFRESH_TIMETABLE,
+        zone_id=zone_id,
+        data={"zone_id": zone_id},
+    )
+
+
+def build_refresh_all_command(zone_ids: list[int]) -> TadoCommand:
+    """Queue payload for GET activeTimetable on every compatible zone."""
+    return TadoCommand(
+        CommandType.REFRESH_TIMETABLE,
+        data={"zone_ids": zone_ids},
+    )

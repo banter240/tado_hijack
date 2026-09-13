@@ -717,7 +717,7 @@ For advanced automation, use these services. All manual control services feature
 > [!TIP]
 > **Targeting Rooms:** You can use **any** Tado zone entity (climate, switch, sensor) or even **device entities** (battery, connection, child_lock) as the `entity_id`. Device entities automatically resolve to their zone via serial number lookup. This includes your existing **HomeKit climate** entities (e.g. `climate.living_room`).
 >
-> **Targeted Fetch:** When using `manual_poll` with an `entity_id`, the refresh is limited to that single entity — `offsets` costs 1 API call instead of N, `away` / `timetable` cost 1 instead of M. `capabilities` uses the lazy cache and only drops that zone's entry. Bulk types (`zone`, `metadata`, `presence`, `all`) always fall back to a full refresh. `all` (and `button.full_manual_poll`) also fetches active timetable types (1 GET per compatible zone; OpenAPI has no bulk `activeTimetable` endpoint).
+> **Targeted Fetch:** When using `manual_poll` with an `entity_id`, the refresh is limited to that single entity — `offsets` costs 1 API call instead of N, `away` / `timetable` cost 1 instead of M. `capabilities` uses the lazy cache and only drops that zone's entry. Bulk types (`zone`, `metadata`, `presence`, `all`) always fall back to a full refresh. `all` (and `button.full_manual_poll`) also fetches active timetable types (1 GET per compatible zone).
 
 <br>
 

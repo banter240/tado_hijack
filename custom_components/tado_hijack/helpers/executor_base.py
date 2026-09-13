@@ -205,8 +205,7 @@ class TadoExecutorBase(ABC):
                 },
             )
 
-        # GETs after PUTs so a same-batch refresh confirms writes; skip
-        # zones just written (optimistic cache already matches the PUT).
+        # PUT first; skip GET for zones this batch just wrote.
         await self.coordinator._execute_timetable_refreshes(
             merged.get("refresh_timetables") or (),
             skip_zone_ids=merged.get("timetables", {}).keys(),

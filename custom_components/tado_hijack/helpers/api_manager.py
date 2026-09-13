@@ -24,6 +24,7 @@ from .command_merger import (
 )
 from .executor_unified import TadoUnifiedExecutor
 from .logging_utils import get_redacted_logger
+from .timetable import queue_key_for_command
 from .utils import apply_jitter
 
 if TYPE_CHECKING:
@@ -121,6 +122,8 @@ class TadoApiManager:
         if command.cmd_type == CommandType.IDENTIFY:
             serial = command.data.get("serial", "") if command.data else ""
             return f"identify_{serial}"
+        if key := queue_key_for_command(command):
+            return key
         if command.cmd_type in (
             CommandType.SET_CHILD_LOCK,
             CommandType.SET_OFFSET,
@@ -128,16 +131,11 @@ class TadoApiManager:
             # Device properties use serial from data
             serial = command.data.get("serial", "") if command.data else ""
             return f"{command.cmd_type.value}_{serial}"
-        if command.cmd_type == CommandType.REFRESH_TIMETABLE:
-            if command.zone_id is not None:
-                return f"{command.cmd_type.value}_{command.zone_id}"
-            return f"{command.cmd_type.value}_all"
         if command.cmd_type in (
             CommandType.SET_AWAY_TEMP,
             CommandType.SET_DAZZLE,
             CommandType.SET_EARLY_START,
             CommandType.SET_OPEN_WINDOW,
-            CommandType.SET_TIMETABLE,
         ):
             # Zone properties
             return f"{command.cmd_type.value}_{command.zone_id}"

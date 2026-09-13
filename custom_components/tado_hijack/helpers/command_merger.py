@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from ..models import CommandType, TadoCommand
+from .timetable import refresh_zone_ids_from_command
 
 if TYPE_CHECKING:
     from tadoasync.models import Zone
@@ -171,15 +172,8 @@ class CommandMerger:
         )
 
     def _merge_refresh_timetable(self, cmd: TadoCommand) -> None:
-        """Union zone ids; OpenAPI has no bulk activeTimetable GET."""
-        if cmd.data and cmd.data.get("zone_ids"):
-            self.refresh_timetables.update(int(zid) for zid in cmd.data["zone_ids"])
-            return
-        zid = cmd.zone_id
-        if zid is None and cmd.data and "zone_id" in cmd.data:
-            zid = cmd.data["zone_id"]
-        if zid is not None:
-            self.refresh_timetables.add(int(zid))
+        """Union zone ids from per-zone and refresh-all commands."""
+        self.refresh_timetables.update(refresh_zone_ids_from_command(cmd))
 
     def _merge_identify(self, cmd: TadoCommand) -> None:
         if cmd.data and "serial" in cmd.data:
