@@ -618,11 +618,11 @@
         },
         "refresh_type": {
           "name": "Typ obnovení",
-          "description": "Která data se mají obnovit. Cílené typy (offsets, away, capabilities) podporují entity_id pro levnější stažení jediné entity."
+          "description": "Která data se mají obnovit. Cílené typy (offsets, away, capabilities, timetable) podporují entity_id pro levnější stažení jediné entity."
         },
         "entity_id": {
           "name": "Entita (volitelné)",
-          "description": "Omezit obnovení na jedinou entitu. Podporováno pro: offsets, away, capabilities. Ostatní typy provedou kompletní obnovu."
+          "description": "Omezit obnovení na jedinou entitu. Podporováno pro: offsets, away, capabilities, timetable. Ostatní typy provedou kompletní obnovu."
         }
       }
     },
@@ -782,7 +782,8 @@
         "offsets": "Teplotní odchylky",
         "away": "Teploty mimo domov",
         "capabilities": "Možnosti zařízení",
-        "presence": "Přítomnost"
+        "presence": "Přítomnost",
+        "timetable": "Typ rozvrhu"
       }
     },
     "hvac_mode": {

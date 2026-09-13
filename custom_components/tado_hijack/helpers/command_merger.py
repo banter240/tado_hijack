@@ -48,6 +48,7 @@ class CommandMerger:
         self.early_starts: dict[int, bool] = {}
         self.open_windows: dict[int, Any] = {}
         self.timetables: dict[int, int] = {}
+        self.refresh_timetables: set[int] = set()
         self.identifies: set[str] = set()
         self.presence: str | None = None
         self.old_presence: str | None = None
@@ -73,6 +74,7 @@ class CommandMerger:
             CommandType.SET_EARLY_START: self._merge_early_start,
             CommandType.SET_OPEN_WINDOW: self._merge_open_window,
             CommandType.SET_TIMETABLE: self._merge_timetable,
+            CommandType.REFRESH_TIMETABLE: self._merge_refresh_timetable,
             CommandType.IDENTIFY: self._merge_identify,
             CommandType.SET_PRESENCE: self._merge_presence,
             CommandType.RESUME_SCHEDULE: self._merge_resume,
@@ -168,6 +170,17 @@ class CommandMerger:
             int,
         )
 
+    def _merge_refresh_timetable(self, cmd: TadoCommand) -> None:
+        """Union zone ids; OpenAPI has no bulk activeTimetable GET."""
+        if cmd.data and cmd.data.get("zone_ids"):
+            self.refresh_timetables.update(int(zid) for zid in cmd.data["zone_ids"])
+            return
+        zid = cmd.zone_id
+        if zid is None and cmd.data and "zone_id" in cmd.data:
+            zid = cmd.data["zone_id"]
+        if zid is not None:
+            self.refresh_timetables.add(int(zid))
+
     def _merge_identify(self, cmd: TadoCommand) -> None:
         if cmd.data and "serial" in cmd.data:
             self.identifies.add(str(cmd.data["serial"]))
@@ -231,6 +244,7 @@ class CommandMerger:
             "early_starts": self.early_starts,
             "open_windows": self.open_windows,
             "timetables": self.timetables,
+            "refresh_timetables": self.refresh_timetables,
             "identifies": self.identifies,
             "presence": self.presence,
             "old_presence": self.old_presence,

@@ -71,10 +71,12 @@ class TadoDataManager:
         self._last_slow_poll: float = 0
         self._last_offset_poll: float = 0
         self._last_away_poll: float = 0
+        self._last_timetable_poll: float = 0
         self._last_presence_poll: float = 0
         self._last_zones_poll: float = 0
         self._offset_invalidated_at: float = 0
         self._away_invalidated_at: float = 0
+        self._timetable_invalidated_at: float = 0
         self._presence_invalidated_at: float = 0
         self._zones_invalidated_at: float = 0
 
@@ -107,6 +109,7 @@ class TadoDataManager:
         self._add_slow_track_to_plan(plan, current_time)
         self._add_medium_track_to_plan(plan, current_time)
         self._add_away_track_to_plan(plan, current_time)
+        self._add_timetable_track_to_plan(plan)
         return plan
 
     def _add_fast_track_to_plan(self, plan: list[PollTask], now: float) -> None:
@@ -192,6 +195,11 @@ class TadoDataManager:
         if self._away_invalidated_at > self._last_away_poll:
             plan.append(PollTask(1, self._fetch_away_config))
 
+    def _add_timetable_track_to_plan(self, plan: list[PollTask]) -> None:
+        """Fetch active timetable types only when a full/timetable poll invalidates."""
+        if self._timetable_invalidated_at > self._last_timetable_poll:
+            plan.append(PollTask(1, self._fetch_timetables))
+
     def _measure_presence_poll_cost(self) -> int:
         """Measure cost of home_state poll."""
         return 1
@@ -271,6 +279,9 @@ class TadoDataManager:
             elif task.coroutine == self._fetch_offsets:
                 await task.coroutine()
                 self._last_offset_poll = now
+            elif task.coroutine == self._fetch_timetables:
+                await task.coroutine()
+                self._last_timetable_poll = now
 
         if self.coordinator.generation != GEN_X:
             return TadoData(
@@ -464,6 +475,8 @@ class TadoDataManager:
             self._offset_invalidated_at = now
         if refresh_type in {"all", "away"}:
             self._away_invalidated_at = now
+        if refresh_type in {"all", "timetable"}:
+            self._timetable_invalidated_at = now
         if refresh_type in {"all", "presence"}:
             self._presence_invalidated_at = now
             self._presence_init = False
@@ -546,6 +559,20 @@ class TadoDataManager:
         for z in active:
             await self._fetch_away_config_for(z.id)
 
+    async def _fetch_timetables(self) -> None:
+        """Fetch active timetable types for every compatible zone."""
+        from .timetable import compatible_zone_ids
+
+        zone_ids = compatible_zone_ids(self.coordinator)
+        if not zone_ids:
+            return
+
+        _LOGGER.info(
+            "DataManager: Fetching timetables for %d zone(s)",
+            len(zone_ids),
+        )
+        await self.coordinator._execute_timetable_refreshes(zone_ids, notify=False)
+
     async def _fetch_away_config_for(self, zone_id: int) -> None:
         """Fetch away configuration for a single zone (V3 only)."""
         if not self.provider or self.coordinator.generation == GEN_X:
@@ -611,6 +638,18 @@ class TadoDataManager:
                 entity_id,
             )
             self.capabilities_cache.clear()
+            return False
+
+        if refresh_type == "timetable":
+            zone_id = self.coordinator.get_zone_id_from_entity(entity_id)
+            if zone_id is not None:
+                await self.coordinator._execute_timetable_refresh(zone_id)
+                return True
+            _LOGGER.warning(
+                "Targeted timetable fetch: could not resolve zone for %s, falling back",
+                entity_id,
+            )
+            self.invalidate_cache("timetable")
             return False
 
         # Bulk-only types (zone, metadata, presence, all): invalidate and signal full refresh

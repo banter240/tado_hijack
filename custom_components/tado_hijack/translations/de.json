@@ -614,11 +614,11 @@
       "fields": {
         "refresh_type": {
           "name": "Abruf-Typ",
-          "description": "Welche Daten aktualisiert werden sollen. Gezielte Typen (offsets, away, capabilities) unterstützen entity_id für einen günstigeren Einzelabruf."
+          "description": "Welche Daten aktualisiert werden sollen. Gezielte Typen (offsets, away, capabilities, timetable) unterstützen entity_id für einen günstigeren Einzelabruf."
         },
         "entity_id": {
           "name": "Entity (optional)",
-          "description": "Schränkt den Abruf auf eine einzelne Entity ein. Unterstützt für: offsets, away, capabilities. Andere Typen fallen auf einen vollständigen Refresh zurück."
+          "description": "Schränkt den Abruf auf eine einzelne Entity ein. Unterstützt für: offsets, away, capabilities, timetable. Andere Typen fallen auf einen vollständigen Refresh zurück."
         },
         "config_entry": {
           "name": "Tado-Zuhause (optional)",
@@ -782,7 +782,8 @@
         "offsets": "Temperaturoffsets",
         "away": "Abwesenheitstemperaturen",
         "capabilities": "Gerätefunktionen",
-        "presence": "Anwesenheit"
+        "presence": "Anwesenheit",
+        "timetable": "Zeitplan-Typ"
       }
     },
     "hvac_mode": {

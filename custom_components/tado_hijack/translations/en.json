@@ -614,11 +614,11 @@
       "fields": {
         "refresh_type": {
           "name": "Refresh Type",
-          "description": "Which data to refresh. Targeted types (offsets, away, capabilities) support entity_id for a cheaper single-entity fetch."
+          "description": "Which data to refresh. Targeted types (offsets, away, capabilities, timetable) support entity_id for a cheaper single-entity fetch."
         },
         "entity_id": {
           "name": "Entity (optional)",
-          "description": "Restrict the refresh to a single entity. Supported for: offsets, away, capabilities. Other types fall back to a full refresh."
+          "description": "Restrict the refresh to a single entity. Supported for: offsets, away, capabilities, timetable. Other types fall back to a full refresh."
         },
         "config_entry": {
           "name": "Tado home (optional)",
@@ -782,7 +782,8 @@
         "offsets": "Temperature offsets",
         "away": "Away temperatures",
         "capabilities": "Device capabilities",
-        "presence": "Presence"
+        "presence": "Presence",
+        "timetable": "Timetable type"
       }
     },
     "hvac_mode": {

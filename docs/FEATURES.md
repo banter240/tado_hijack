@@ -39,7 +39,7 @@ Tado Hijack features a self-regulating polling engine that ensures 24/7 continui
 
 - **AC Pro Control:** Unlocks Fan Speed and Horizontal/Vertical Swing controls for v3 AC controllers that are often missing in standard integrations.
 - **Professional Hot Water:** A dedicated `water_heater` platform with `boost` functionality and schedule synchronization. v3 uses the Classic API overlay endpoint; Tado X uses `programmer/domesticHotWater/` endpoints (boost, resumeSchedule).
-- **Timetable type:** Per-zone and home-wide select for ONE_DAY / THREE_DAY / SEVEN_DAY via classic `zones/{id}/schedule/activeTimetable`. Classic heating and hot water; Tado X heating rooms experimental (same v2 URI, not Hops). Refresh buttons fetch the current type; writes go through the command queue.
+- **Timetable type:** Per-zone and home-wide select for ONE_DAY / THREE_DAY / SEVEN_DAY via classic `zones/{id}/schedule/activeTimetable`. Classic heating and hot water; Tado X heating rooms experimental (same v2 URI, not Hops). Writes and refresh buttons go through the command debounce/batch window. There is no bulk timetable endpoint (OpenAPI is per-zone only), so a merged batch is still 1 GET/PUT per zone. `full_manual_poll` / `manual_poll` type `all` also fetches timetable types.
 - **Presence Lock:** Force the home into "Home" or "Away" mode via a simple switch, overriding Tado's own geolocation engine when needed.
 - **Presence-Aware Overlays:** Set a temperature that is tied to the current presence state. If the home transitions from Home -> Away, the overlay automatically cancels.
 

@@ -545,7 +545,7 @@ Global controls and elite transparency for your home. _Linked to your Internet B
 | `button.tado_{home}_resume_all_schedules`  | Button | Restore Smart Schedule across all zones (1 bulk call).            |
 | `button.tado_{home}_turn_off_all_zones`    | Button | Turn off all zones instantly (1 bulk call).                       |
 | `button.tado_{home}_boost_all_zones`       | Button | Boost all zones to 25°C (1 bulk call).                            |
-| `button.tado_{home}_full_manual_poll`      | Button | **Expensive:** Forced synchronization of all metadata and states. |
+| `button.tado_{home}_full_manual_poll`      | Button | **Expensive:** Forced sync of metadata, states, offsets, away temps, and active timetable types (1 GET per compatible zone; no bulk timetable endpoint). |
 | `sensor.tado_{home}_api_limit`             | Sensor | Total daily API quota limit (1000 standard, 3000 with proxy).     |
 | `sensor.tado_{home}_api_remaining`         | Sensor | **API Gold:** Your remaining daily call budget.                   |
 | `sensor.tado_{home}_api_status`            | Sensor | Real-time health (`connected`, `throttled`, `rate_limited`).      |
@@ -623,10 +623,10 @@ Cloud-only features that HomeKit does not support.
 | `binary_sensor.overlay`   | Binary Sensor | **HW Only:** Manual override active status.                                                     |
 | `binary_sensor.connectivity` | Binary Sensor | **HW Only:** Zone connectivity based on device connections.                                  |
 | `switch.early_start`                | Switch        | **v3 Only:** Toggle pre-heating before schedule block.                                          |
-| `select.timetable_type`             | Select        | Active timetable: same every day, Mon-Fri/Sat/Sun, or per weekday. **v3:** heating and hot water. **Tado X:** heating rooms, experimental (classic v2 URI). |
+| `select.timetable_type`             | Select        | Active timetable: same every day, Mon-Fri/Sat/Sun, or per weekday. Writes debounce then merge (1 PUT per zone; API has no bulk). **v3:** heating and hot water. **Tado X:** heating rooms, experimental (classic v2 URI). |
 | `select.timetable_type_all_zones`   | Select        | Same options for all compatible zones at once. Unknown if zones differ or nothing is cached. **Tado X experimental.** |
-| `button.refresh_timetable`          | Button        | Fetch the active timetable for one zone (1 API call). **Tado X experimental.** |
-| `button.refresh_all_timetables`     | Button        | Fetch active timetables for all compatible zones. **Tado X experimental.** |
+| `button.refresh_timetable`          | Button        | Queue a debounced GET of the active timetable for one zone (same zone mashed = 1 call). **Tado X experimental.** |
+| `button.refresh_all_timetables`     | Button        | Queue a debounced GET for all compatible zones (coalesced with per-zone refreshes in the same window; still 1 GET per zone). **Tado X experimental.** |
 | `number.open_window_timeout`        | Number        | **Config:** Open window timeout (0=OFF, 5-1439min=ON). Requires Tado subscription for detection. |
 | `number.target_temperature`         | Number        | **HW & AC:** Set target temperature for hot water (manual mode) or AC zones.                                            |
 | `number.away_temperature`           | Number        | **v3 Only:** Set away mode temperature.                                                         |
@@ -717,7 +717,7 @@ For advanced automation, use these services. All manual control services feature
 > [!TIP]
 > **Targeting Rooms:** You can use **any** Tado zone entity (climate, switch, sensor) or even **device entities** (battery, connection, child_lock) as the `entity_id`. Device entities automatically resolve to their zone via serial number lookup. This includes your existing **HomeKit climate** entities (e.g. `climate.living_room`).
 >
-> **Targeted Fetch:** When using `manual_poll` with an `entity_id`, the refresh is limited to that single entity — `offsets` costs 1 API call instead of N, `away` costs 1 instead of M. `capabilities` uses the lazy cache and only drops that zone's entry. Bulk types (`zone`, `metadata`, `presence`, `all`) always fall back to a full refresh.
+> **Targeted Fetch:** When using `manual_poll` with an `entity_id`, the refresh is limited to that single entity — `offsets` costs 1 API call instead of N, `away` / `timetable` cost 1 instead of M. `capabilities` uses the lazy cache and only drops that zone's entry. Bulk types (`zone`, `metadata`, `presence`, `all`) always fall back to a full refresh. `all` (and `button.full_manual_poll`) also fetches active timetable types (1 GET per compatible zone; OpenAPI has no bulk `activeTimetable` endpoint).
 
 <br>
 

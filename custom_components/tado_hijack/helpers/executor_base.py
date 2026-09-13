@@ -205,7 +205,12 @@ class TadoExecutorBase(ABC):
                 },
             )
 
-    # Centralized Rollback Helpers (DRY)
+        # GETs after PUTs so a same-batch refresh confirms writes; skip
+        # zones just written (optimistic cache already matches the PUT).
+        await self.coordinator._execute_timetable_refreshes(
+            merged.get("refresh_timetables") or (),
+            skip_zone_ids=merged.get("timetables", {}).keys(),
+        )
 
     def _rollback_optimistic(
         self,

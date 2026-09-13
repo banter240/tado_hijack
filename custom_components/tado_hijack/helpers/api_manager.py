@@ -73,38 +73,43 @@ class TadoApiManager:
 
     def _describe_command(self, command: TadoCommand) -> str:
         """Return a human-readable description of the command action."""
+        data = command.data or {}
         if command.cmd_type == CommandType.SET_OVERLAY:
-            if command.zone_id and command.data:
-                setting = command.data.get("setting", {})
-                power = setting.get("power", "?")
-                temp = setting.get("temperature", {}).get("celsius", "?")
-                return f"(zone={command.zone_id}, power={power}, temp={temp}°C)"
-            return f"(zone={command.zone_id})"
-        elif command.cmd_type == CommandType.RESUME_SCHEDULE:
-            return f"(zone={command.zone_id})"
-        elif command.cmd_type == CommandType.SET_PRESENCE:
-            presence = command.data.get("presence") if command.data else "?"
-            return f"(presence={presence})"
-        elif command.cmd_type in (CommandType.SET_CHILD_LOCK, CommandType.SET_OFFSET):
-            serial = command.data.get("serial", "?") if command.data else "?"
-            value = (
-                (
-                    command.data.get("child_lock")
-                    if command.cmd_type == CommandType.SET_CHILD_LOCK
-                    else command.data.get("offset")
-                )
-                if command.data
-                else "?"
+            return self._describe_overlay(command, data)
+        if command.cmd_type in (CommandType.SET_CHILD_LOCK, CommandType.SET_OFFSET):
+            field = (
+                "child_lock"
+                if command.cmd_type == CommandType.SET_CHILD_LOCK
+                else "offset"
             )
-            return f"(serial={serial}, value={value})"
-        elif command.cmd_type == CommandType.IDENTIFY:
-            serial = command.data.get("serial", "?") if command.data else "?"
-            return f"(serial={serial})"
-        elif command.cmd_type == CommandType.MANUAL_POLL:
-            poll_type = command.data.get("type", "all") if command.data else "all"
-            return f"(type={poll_type})"
-        else:
-            return f"(zone={command.zone_id})" if command.zone_id else ""
+            return f"(serial={data.get('serial', '?')}, value={data.get(field, '?')})"
+        if command.cmd_type == CommandType.REFRESH_TIMETABLE:
+            if command.zone_id is not None:
+                return f"(zone={command.zone_id})"
+            return f"(zones={data.get('zone_ids', [])})"
+
+        descriptions = {
+            CommandType.RESUME_SCHEDULE: f"(zone={command.zone_id})",
+            CommandType.SET_PRESENCE: f"(presence={data.get('presence', '?')})",
+            CommandType.IDENTIFY: f"(serial={data.get('serial', '?')})",
+            CommandType.MANUAL_POLL: f"(type={data.get('type', 'all')})",
+            CommandType.SET_TIMETABLE: (
+                f"(zone={command.zone_id}, timetable_id={data.get('timetable_id', '?')})"
+            ),
+        }
+        if command.cmd_type in descriptions:
+            return descriptions[command.cmd_type]
+        return f"(zone={command.zone_id})" if command.zone_id else ""
+
+    @staticmethod
+    def _describe_overlay(command: TadoCommand, data: dict[str, Any]) -> str:
+        """Describe a SET_OVERLAY command."""
+        if command.zone_id and data:
+            setting = data.get("setting", {})
+            power = setting.get("power", "?")
+            temp = setting.get("temperature", {}).get("celsius", "?")
+            return f"(zone={command.zone_id}, power={power}, temp={temp}°C)"
+        return f"(zone={command.zone_id})"
 
     def _get_command_key(self, command: TadoCommand) -> str:
         """Reconstruct the key for a command (reverse of queue_command key logic)."""
@@ -123,11 +128,16 @@ class TadoApiManager:
             # Device properties use serial from data
             serial = command.data.get("serial", "") if command.data else ""
             return f"{command.cmd_type.value}_{serial}"
+        if command.cmd_type == CommandType.REFRESH_TIMETABLE:
+            if command.zone_id is not None:
+                return f"{command.cmd_type.value}_{command.zone_id}"
+            return f"{command.cmd_type.value}_all"
         if command.cmd_type in (
             CommandType.SET_AWAY_TEMP,
             CommandType.SET_DAZZLE,
             CommandType.SET_EARLY_START,
             CommandType.SET_OPEN_WINDOW,
+            CommandType.SET_TIMETABLE,
         ):
             # Zone properties
             return f"{command.cmd_type.value}_{command.zone_id}"
