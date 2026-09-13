@@ -1,3 +1,13 @@
+## [5.10.0-dev.3](https://github.com/banter240/tado_hijack/compare/v5.10.0-dev.2...v5.10.0-dev.3) (2026-09-13)
+
+### 🐛 Bug Fixes
+
+* fix(core): share timetable queue keys and command builders
+
+  Move debounce keys, command payloads, and unique zone-id collection
+  into helpers/timetable.py. Coordinator, api_manager, and CommandMerger
+  use the same helpers.
+
 ## [5.10.0-dev.2](https://github.com/banter240/tado_hijack/compare/v5.10.0-dev.1...v5.10.0-dev.2) (2026-09-13)
 
 ### 🐛 Bug Fixes
