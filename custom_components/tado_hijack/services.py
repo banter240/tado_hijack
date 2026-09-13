@@ -24,12 +24,14 @@ from .const import (
     SERVICE_RESUME_ALL_SCHEDULES,
     SERVICE_SET_MODE,
     SERVICE_SET_MODE_ALL,
+    SERVICE_SET_SCHEDULE,
     SERVICE_SET_WATER_HEATER_MODE,
     SERVICE_TURN_OFF_ALL_ZONES,
     TADOX_VIRTUAL_HOT_WATER_ZONE_ID,
     ZONE_TYPE_HOT_WATER,
 )
 from .helpers.logging_utils import get_redacted_logger
+from .helpers.schedule import as_day_list
 
 if TYPE_CHECKING:
     from .coordinator import TadoDataUpdateCoordinator
@@ -128,6 +130,29 @@ def _parse_meter_reading_date(value: Any) -> datetime | None:
     )
 
 
+def _coord_zones_for_entities(
+    hass: HomeAssistant, entity_ids: Any, service_name: str
+) -> dict[TadoDataUpdateCoordinator, list[int]]:
+    """Map entity ids to coordinators and zone ids."""
+    if isinstance(entity_ids, str):
+        entity_ids = [entity_ids]
+    coord_map: dict[TadoDataUpdateCoordinator, list[int]] = {}
+    for entity_id in entity_ids or []:
+        resolved = False
+        for coord in _get_all_coordinators(hass):
+            if (zone_id := coord.get_zone_id_from_entity(str(entity_id))) is not None:
+                coord_map.setdefault(coord, []).append(zone_id)
+                resolved = True
+                break
+        if not resolved:
+            _LOGGER.warning(
+                "Could not resolve Tado zone for entity %s (service: %s)",
+                entity_id,
+                service_name,
+            )
+    return coord_map
+
+
 def _get_all_coordinators(hass: HomeAssistant) -> list[TadoDataUpdateCoordinator]:
     """Return all active TadoDataUpdateCoordinators."""
     return [
@@ -212,26 +237,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:  # noqa: C901
         if not entity_ids:
             return
 
-        if isinstance(entity_ids, str):
-            entity_ids = [entity_ids]
-
         params = _parse_service_call_data(call)
-
-        coord_map: dict[TadoDataUpdateCoordinator, list[int]] = {}
-        for entity_id in entity_ids:
-            resolved = False
-            for coord in _get_all_coordinators(hass):
-                if (zone_id := coord.get_zone_id_from_entity(entity_id)) is not None:
-                    if coord not in coord_map:
-                        coord_map[coord] = []
-                    coord_map[coord].append(zone_id)
-                    resolved = True
-                    break
-            if not resolved:
-                _LOGGER.warning(
-                    "Could not resolve Tado zone for entity %s (service: set_mode)",
-                    entity_id,
-                )
+        coord_map = _coord_zones_for_entities(hass, entity_ids, "set_mode")
 
         for coord, zone_ids in coord_map.items():
             if zone_ids:
@@ -260,9 +267,6 @@ async def async_setup_services(hass: HomeAssistant) -> None:  # noqa: C901
         if not entity_ids:
             return
 
-        if isinstance(entity_ids, str):
-            entity_ids = [entity_ids]
-
         params = _parse_service_call_data(call)
         operation_mode = params["operation_mode"]
         temperature = params["temperature"]
@@ -274,21 +278,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:  # noqa: C901
             operation_mode, temperature, duration, overlay_mode, is_water_heater=True
         )
 
-        coord_map: dict[TadoDataUpdateCoordinator, list[int]] = {}
-        for entity_id in entity_ids:
-            resolved = False
-            for coord in _get_all_coordinators(hass):
-                if (zone_id := coord.get_zone_id_from_entity(entity_id)) is not None:
-                    if coord not in coord_map:
-                        coord_map[coord] = []
-                    coord_map[coord].append(zone_id)
-                    resolved = True
-                    break
-            if not resolved:
-                _LOGGER.warning(
-                    "Could not resolve Tado zone for entity %s (service: set_water_heater_mode)",
-                    entity_id,
-                )
+        coord_map = _coord_zones_for_entities(hass, entity_ids, "set_water_heater_mode")
 
         for coord, zone_ids in coord_map.items():
             for zone_id in zone_ids:
@@ -362,6 +352,33 @@ async def async_setup_services(hass: HomeAssistant) -> None:  # noqa: C901
         for coord in coordinators:
             await coord.async_add_meter_reading(reading, reading_date)
 
+    async def handle_set_schedule(call: ServiceCall) -> None:
+        """Write Tado timetable blocks for targeted climate/water-heater zones."""
+        entity_ids = call.data.get("entity_id")
+        if not entity_ids:
+            raise ServiceValidationError("entity_id is required.")
+
+        coord_map = _coord_zones_for_entities(hass, entity_ids, "set_schedule")
+        if not coord_map:
+            raise ServiceValidationError("Could not resolve a Tado zone for entity_id.")
+
+        kwargs = {
+            "all_days": bool(call.data.get("all_days", False)),
+            "days": as_day_list(call.data.get("days")),
+            "timetable": call.data.get("timetable"),
+            "activate": bool(call.data.get("activate", False)),
+            "blocks": call.data.get("blocks"),
+            "schedule_entity": call.data.get("schedule_entity"),
+            "geolocation_override": bool(call.data.get("geolocation_override", False)),
+        }
+        _LOGGER.debug("Service call: set_schedule %s", kwargs)
+        try:
+            for coord, zone_ids in coord_map.items():
+                for zone_id in zone_ids:
+                    await coord.async_set_schedule(zone_id, **kwargs)
+        except ValueError as err:
+            raise ServiceValidationError(str(err)) from err
+
     hass.services.async_register(DOMAIN, SERVICE_MANUAL_POLL, handle_manual_poll)
     hass.services.async_register(
         DOMAIN, SERVICE_RESUME_ALL_SCHEDULES, handle_resume_schedules
@@ -378,6 +395,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:  # noqa: C901
     hass.services.async_register(
         DOMAIN, SERVICE_ADD_METER_READING, handle_add_meter_reading
     )
+    hass.services.async_register(DOMAIN, SERVICE_SET_SCHEDULE, handle_set_schedule)
 
 
 async def _execute_set_mode(

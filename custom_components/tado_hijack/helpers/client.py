@@ -173,3 +173,26 @@ class TadoHijackClient(Tado):
             data={"id": timetable_id},
             method=HttpMethod.PUT,
         )
+
+    def _timetable_blocks_uri(
+        self, zone_id: int, timetable_id: int, day_type: str
+    ) -> str:
+        """Classic v2 timetable blocks path for one dayType."""
+        return (
+            f"homes/{self._home_id}/zones/{zone_id}/schedule/"
+            f"timetables/{timetable_id}/blocks/{day_type}"
+        )
+
+    async def set_timetable_blocks(
+        self,
+        zone_id: int,
+        timetable_id: int,
+        day_type: str,
+        blocks: list[dict[str, Any]],
+    ) -> None:
+        """Replace all blocks for one zone/timetable/dayType (classic v2 PUT)."""
+        await self._request(
+            self._timetable_blocks_uri(zone_id, timetable_id, day_type),
+            data=cast(Any, blocks),
+            method=HttpMethod.PUT,
+        )

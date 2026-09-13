@@ -771,6 +771,44 @@
           "description": "Datum odečtu. Výchozí je dnešek."
         }
       }
+    },
+    "set_schedule": {
+      "name": "Nastavit rozvrh",
+      "description": "Zapíše časové bloky Tado Smart Schedule pro zónu. Nahradí celý den. all_days zapíše všechny dny typu rozvrhu, days jen vybrané dny. Zadejte blocks nebo HA schedule helper.",
+      "fields": {
+        "entity_id": {
+          "name": "Entita",
+          "description": "Zóna climate nebo ohřevu vody."
+        },
+        "all_days": {
+          "name": "Všechny dny",
+          "description": "Zapsat každý slot typu rozvrhu. U one_day se ignoruje (žádný výběr dne)."
+        },
+        "days": {
+          "name": "Dny",
+          "description": "Jen sloty zvoleného typu. one_day: vynechat. three_day: Po-Pá, sobota, neděle. seven_day: Po..Ne (např. Út+St). Úterý u one_day je chyba."
+        },
+        "timetable": {
+          "name": "Typ rozvrhu",
+          "description": "Který plán se zapisuje. Výchozí je právě aktivní typ zóny."
+        },
+        "activate": {
+          "name": "Aktivovat typ rozvrhu",
+          "description": "Po zápisu přepne zónu na tento typ rozvrhu."
+        },
+        "blocks": {
+          "name": "Bloky",
+          "description": "Seznam start, end, temperature a power. Musí pokrýt 00:00-24:00; mezery se vyplní jako VYP."
+        },
+        "schedule_entity": {
+          "name": "Schedule helper",
+          "description": "Entita rozvrhu Home Assistant místo blocks. Extra data: temperature, power."
+        },
+        "geolocation_override": {
+          "name": "Ignorovat režim pryč",
+          "description": "Když je zapnuto, bloky platí i v režimu Away."
+        }
+      }
     }
   },
   "selector": {
@@ -784,6 +822,26 @@
         "capabilities": "Možnosti zařízení",
         "presence": "Přítomnost",
         "timetable": "Typ rozvrhu"
+      }
+    },
+    "schedule_day": {
+      "options": {
+        "monday_to_sunday": "Každý den",
+        "monday_to_friday": "Pondělí až pátek",
+        "monday": "Pondělí",
+        "tuesday": "Úterý",
+        "wednesday": "Středa",
+        "thursday": "Čtvrtek",
+        "friday": "Pátek",
+        "saturday": "Sobota",
+        "sunday": "Neděle"
+      }
+    },
+    "schedule_timetable": {
+      "options": {
+        "one_day": "Každý den stejně",
+        "three_day": "Pracovní dny / sobota / neděle",
+        "seven_day": "Podle dne v týdnu"
       }
     },
     "hvac_mode": {

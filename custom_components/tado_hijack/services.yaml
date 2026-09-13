@@ -178,3 +178,53 @@ add_meter_reading:
       required: false
       selector:
         date:
+
+set_schedule:
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          integration: tado_hijack
+    all_days:
+      default: false
+      selector:
+        boolean: {}
+    days:
+      selector:
+        select:
+          multiple: true
+          translation_key: schedule_day
+          options:
+            - monday_to_sunday
+            - monday_to_friday
+            - monday
+            - tuesday
+            - wednesday
+            - thursday
+            - friday
+            - saturday
+            - sunday
+    timetable:
+      selector:
+        select:
+          translation_key: schedule_timetable
+          options:
+            - one_day
+            - three_day
+            - seven_day
+    activate:
+      default: false
+      selector:
+        boolean: {}
+    blocks:
+      selector:
+        object:
+    schedule_entity:
+      selector:
+        entity:
+          domain: schedule
+    geolocation_override:
+      default: false
+      selector:
+        boolean: {}

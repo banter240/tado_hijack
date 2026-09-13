@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from ..models import CommandType, TadoCommand
+from .schedule import schedule_slot_key
 from .timetable import refresh_zone_ids_from_command
 
 if TYPE_CHECKING:
@@ -50,6 +51,7 @@ class CommandMerger:
         self.open_windows: dict[int, Any] = {}
         self.timetables: dict[int, int] = {}
         self.refresh_timetables: set[int] = set()
+        self.schedules: dict[str, dict[str, Any]] = {}
         self.identifies: set[str] = set()
         self.presence: str | None = None
         self.old_presence: str | None = None
@@ -75,6 +77,7 @@ class CommandMerger:
             CommandType.SET_EARLY_START: self._merge_early_start,
             CommandType.SET_OPEN_WINDOW: self._merge_open_window,
             CommandType.SET_TIMETABLE: self._merge_timetable,
+            CommandType.SET_SCHEDULE: self._merge_schedule,
             CommandType.REFRESH_TIMETABLE: self._merge_refresh_timetable,
             CommandType.IDENTIFY: self._merge_identify,
             CommandType.SET_PRESENCE: self._merge_presence,
@@ -175,6 +178,17 @@ class CommandMerger:
         """Union zone ids from per-zone and refresh-all commands."""
         self.refresh_timetables.update(refresh_zone_ids_from_command(cmd))
 
+    def _merge_schedule(self, cmd: TadoCommand) -> None:
+        """Last write wins per zone + timetable + dayType."""
+        if not cmd.data:
+            return
+        key = schedule_slot_key(
+            int(cmd.data["zone_id"]),
+            int(cmd.data["timetable_id"]),
+            str(cmd.data["day_type"]),
+        )
+        self.schedules[key] = cmd.data
+
     def _merge_identify(self, cmd: TadoCommand) -> None:
         if cmd.data and "serial" in cmd.data:
             self.identifies.add(str(cmd.data["serial"]))
@@ -239,6 +253,7 @@ class CommandMerger:
             "open_windows": self.open_windows,
             "timetables": self.timetables,
             "refresh_timetables": self.refresh_timetables,
+            "schedules": self.schedules,
             "identifies": self.identifies,
             "presence": self.presence,
             "old_presence": self.old_presence,

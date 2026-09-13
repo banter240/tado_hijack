@@ -81,7 +81,8 @@ class TadoXExecutor(TadoExecutorBase):
                 ),
             )
 
-        # 6. Timetables via classic v2 (same Energy IQ pattern; Hops has no endpoint)
+        # 6. Schedule blocks (Hops POST) then activeTimetable (classic v2)
+        await self._execute_schedules(merged)
         await self._execute_timetables(merged)
 
     async def _execute_device_fusion(self, merged: dict[str, Any]) -> None:

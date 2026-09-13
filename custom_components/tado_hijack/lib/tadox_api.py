@@ -211,6 +211,14 @@ class TadoXApi:
         """Delete manual control and resume schedule."""
         return await self._request("DELETE", f"rooms/{room_id}/manualControl")
 
+    async def async_set_room_schedule(
+        self, room_id: int, payload: dict[str, Any]
+    ) -> Any:
+        """Replace one day's Smart Schedule for a Tado X room."""
+        return await self._request(
+            "POST", f"rooms/{room_id}/schedule", json_data=payload
+        )
+
     async def async_get_home_state(self) -> Any:
         """Get home presence state."""
         return await self._tado.get_home_state()

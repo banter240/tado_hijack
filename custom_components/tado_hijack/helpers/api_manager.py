@@ -24,6 +24,7 @@ from .command_merger import (
 )
 from .executor_unified import TadoUnifiedExecutor
 from .logging_utils import get_redacted_logger
+from .schedule import schedule_queue_key_for_command
 from .timetable import queue_key_for_command
 from .utils import apply_jitter
 
@@ -97,6 +98,10 @@ class TadoApiManager:
             CommandType.SET_TIMETABLE: (
                 f"(zone={command.zone_id}, timetable_id={data.get('timetable_id', '?')})"
             ),
+            CommandType.SET_SCHEDULE: (
+                f"(zone={command.zone_id}, day={data.get('day_type', '?')}, "
+                f"timetable_id={data.get('timetable_id', '?')})"
+            ),
         }
         if command.cmd_type in descriptions:
             return descriptions[command.cmd_type]
@@ -123,6 +128,8 @@ class TadoApiManager:
             serial = command.data.get("serial", "") if command.data else ""
             return f"identify_{serial}"
         if key := queue_key_for_command(command):
+            return key
+        if key := schedule_queue_key_for_command(command):
             return key
         if command.cmd_type in (
             CommandType.SET_CHILD_LOCK,

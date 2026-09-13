@@ -170,6 +170,7 @@ class TadoV3Executor(TadoExecutorBase):
                 },
             )
 
+        await self._execute_schedules(merged)
         await self._execute_timetables(merged)
 
     async def _execute_zone_actions(self, merged: dict[str, Any]) -> None:

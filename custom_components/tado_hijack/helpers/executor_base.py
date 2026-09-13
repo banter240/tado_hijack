@@ -15,6 +15,7 @@ from tadoasync.models import TemperatureOffset
 from ..const import (
     CONF_API_PROXY_URL,
     CONF_CALL_JITTER_ENABLED,
+    GEN_X,
     HTTP_UNPROCESSABLE_ENTITY,
     OFF_MAGIC_TEMP,
 )
@@ -184,6 +185,35 @@ class TadoExecutorBase(ABC):
             handler.intercept_command(zone_id, data)
             return True
         return False
+
+    async def _execute_schedules(self, merged: dict[str, Any]) -> None:
+        """Write timetable blocks (classic PUT or Tado X Hops POST)."""
+        for slot in merged.get("schedules", {}).values():
+            zid = int(slot["zone_id"])
+            if self._should_skip_zone(zid):  # [DUMMY_HOOK]
+                continue
+            day_type = str(slot["day_type"])
+            payload = slot["payload"]
+            if self.coordinator.generation == GEN_X:
+                bridge = getattr(self.coordinator, "tadox_bridge", None)
+                if bridge is None:
+                    _LOGGER.error("Tado X schedule write skipped: no Hops bridge")
+                    continue
+                coro = bridge.async_set_room_schedule(zid, payload)
+            else:
+                coro = self.coordinator.client.set_timetable_blocks(
+                    zid, int(slot["timetable_id"]), day_type, payload
+                )
+            await self._safe_execute(
+                f"schedule_{zid}_{day_type}",
+                coro,
+                context={
+                    "generation": self.coordinator.generation,
+                    "zone_id": zid,
+                    "timetable_id": slot.get("timetable_id"),
+                    "day_type": day_type,
+                },
+            )
 
     async def _execute_timetables(self, merged: dict[str, Any]) -> None:
         """PUT classic v2 activeTimetable (v3 plus experimental Tado X)."""

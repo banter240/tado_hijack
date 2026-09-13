@@ -700,6 +700,7 @@ For advanced automation, use these services. All manual control services feature
 | `tado_hijack.set_mode_all_zones`    | Targets all HEATING and/or AC zones at once using `hvac_mode`.                                                               | **1 call** (bulk)    | **N calls** (per-zone sequential) |
 | `tado_hijack.set_water_heater_mode` | Set `operation_mode` and temperature for hot water.                                                                      | **1 call** (v3)      | **1 call** (X)       |
 | `tado_hijack.add_meter_reading`     | Upload a meter reading (integer) to Tado Energy IQ. Optional `date` backfills a historic reading; defaults to today.         | **1 call**           | **1 call**           |
+| `tado_hijack.set_schedule`          | Write Smart Schedule time blocks (`blocks` or a `schedule` helper). `one_day` has no day picker. `three_day` = Mon-Fri/Sat/Sun. `seven_day` = any weekdays (e.g. Tue+Wed). Tuesday on one_day errors. | **1-7** | **1-7** |
 | `tado_hijack.manual_poll`           | Force immediate data refresh. Use `refresh_type` to control scope. Add `entity_id` for a targeted single-entity fetch (saves quota). | **1-N** (depends)    | **1-N** (depends)    |
 
 <br>
@@ -764,6 +765,43 @@ data:
 ```
 
 <br>
+
+### `set_schedule` Examples (YAML)
+
+Tuesday and Wednesday (seven_day only):
+
+```yaml
+service: tado_hijack.set_schedule
+data:
+  entity_id: climate.living_room
+  all_days: false
+  days:
+    - tuesday
+    - wednesday
+  timetable: seven_day
+  activate: true
+  blocks:
+    - {start: "00:00", end: "06:30", temperature: 16}
+    - {start: "06:30", end: "22:00", temperature: 21}
+    - {start: "22:00", end: "00:00", temperature: 16}
+```
+
+Same plan every day (`one_day` has no day picker; do not pass `days`):
+
+```yaml
+service: tado_hijack.set_schedule
+data:
+  entity_id: climate.living_room
+  timetable: one_day
+  activate: true
+  blocks:
+    - {start: "00:00", end: "07:00", temperature: 16}
+    - {start: "07:00", end: "22:00", temperature: 21}
+    - {start: "22:00", end: "00:00", temperature: 16}
+```
+
+<br>
+
 
 **Manual Override (Indefinite):**
 

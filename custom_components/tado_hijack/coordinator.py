@@ -104,6 +104,20 @@ from .helpers.quota_math import (
 )
 from .helpers.rate_limit_manager import RateLimitManager
 from .helpers.reset_window_tracker import ResetWindowTracker
+from .helpers.schedule import (
+    blocks_from_schedule_state,
+    build_classic_blocks,
+    build_set_schedule_command,
+    build_x_payload,
+    ensure_full_day,
+    ha_days_for_tado_day,
+    parse_blocks,
+    resolve_day_types,
+    resolve_timetable_type,
+    schedule_queue_key,
+    setting_type_for_zone,
+    zone_supports_schedule,
+)
 from .helpers.state_patcher import patch_zone_overlay, patch_zone_resume
 from .helpers.storage import TadoStorage
 from .helpers.timetable import (
@@ -1352,6 +1366,109 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             set_queue_key(zone_id),
             build_set_command(zone_id, entry["id"], old_id),
         )
+
+    def _canonical_schedule_blocks(
+        self,
+        *,
+        day_type: str,
+        blocks: list[Any] | None,
+        schedule_entity: str | None,
+        geolocation_override: bool,
+        reuse_blocks: list[dict[str, Any]] | None,
+    ) -> list[dict[str, Any]]:
+        """Resolve one day's canonical blocks from raw blocks or a schedule helper."""
+        if reuse_blocks is not None:
+            return reuse_blocks
+        if schedule_entity:
+            state = self.hass.states.get(schedule_entity)
+            if state is None or state.state in ("unknown", "unavailable"):
+                raise ValueError(f"Schedule entity {schedule_entity} is not available.")
+            ha_days = ha_days_for_tado_day(day_type)
+            source = [ha_days[0]] if ha_days else ["monday"]
+            return blocks_from_schedule_state(state, source, geolocation_override)
+        return ensure_full_day(parse_blocks(blocks or [], geolocation_override))
+
+    async def async_set_schedule(
+        self,
+        zone_id: int,
+        *,
+        all_days: bool = False,
+        days: list[str] | None = None,
+        timetable: str | None = None,
+        activate: bool = False,
+        blocks: list[Any] | None = None,
+        schedule_entity: str | None = None,
+        geolocation_override: bool = False,
+    ) -> None:
+        """Queue timetable-block writes for one zone (debounced per dayType)."""
+        if not zone_supports_schedule(self, zone_id):
+            raise HomeAssistantError(
+                f"Zone {zone_id} does not support schedule writes."
+            )
+        if bool(blocks) == bool(schedule_entity):
+            raise ValueError("Provide either blocks or schedule_entity.")
+
+        cached = self.data_manager.timetable_cache.get(zone_id)
+        cached_type = (cached or {}).get("type")
+        if timetable is None and not cached_type:
+            try:
+                raw = await self.client.get_active_timetable(zone_id)
+                fetched = normalize_api_entry(raw)
+                self._apply_timetable_cache(zone_id, fetched)
+                cached_type = fetched.get("type")
+            except Exception as err:
+                raise HomeAssistantError(
+                    f"Could not read active timetable for zone {zone_id}: {err}"
+                ) from err
+
+        timetable_type = resolve_timetable_type(timetable, cached_type)
+        type_entry = entry_for_type(timetable_type)
+        if type_entry is None:
+            raise ValueError(f"Unknown timetable '{timetable_type}'.")
+        timetable_id = int(type_entry["id"])
+        day_types = resolve_day_types(timetable_type, all_days, days)
+        setting_type = setting_type_for_zone(self, zone_id)
+        shared_blocks = None
+        if blocks is not None:
+            shared_blocks = ensure_full_day(parse_blocks(blocks, geolocation_override))
+        elif all_days and schedule_entity:
+            shared_blocks = self._canonical_schedule_blocks(
+                day_type=day_types[0],
+                blocks=None,
+                schedule_entity=schedule_entity,
+                geolocation_override=geolocation_override,
+                reuse_blocks=None,
+            )
+
+        for day_type in day_types:
+            canonical = self._canonical_schedule_blocks(
+                day_type=day_type,
+                blocks=blocks,
+                schedule_entity=schedule_entity,
+                geolocation_override=geolocation_override,
+                reuse_blocks=shared_blocks,
+            )
+            payload = (
+                build_x_payload(day_type, canonical)
+                if self.generation == GEN_X
+                else build_classic_blocks(day_type, setting_type, canonical)
+            )
+            _LOGGER.info(
+                "Queued schedule write for zone %s day %s "
+                "(%d blocks, timetable=%s, generation=%s)",
+                zone_id,
+                day_type,
+                len(canonical),
+                timetable_type,
+                self.generation,
+            )
+            self.api_manager.queue_command(
+                schedule_queue_key(zone_id, timetable_id, day_type),
+                build_set_schedule_command(zone_id, timetable_id, day_type, payload),
+            )
+
+        if activate:
+            await self.async_set_timetable(zone_id, timetable_type)
 
     async def async_refresh_timetable(self, zone_id: int) -> None:
         """Queue a debounced activeTimetable GET for one zone."""

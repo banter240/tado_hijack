@@ -771,6 +771,44 @@
           "description": "Datum des Zählerstands. Standard ist heute."
         }
       }
+    },
+    "set_schedule": {
+      "name": "Zeitplan setzen",
+      "description": "Schreibt Tado-Smart-Schedule-Zeitblöcke für eine Zone. Ersetzt den ganzen Tag. all_days schreibt alle Tage des Zeitplantyps, days nur bestimmte Tage. Entweder blocks oder ein HA-Schedule-Helfer.",
+      "fields": {
+        "entity_id": {
+          "name": "Entität",
+          "description": "Climate- oder Warmwasser-Zone."
+        },
+        "all_days": {
+          "name": "Alle Tage",
+          "description": "Jeden Slot des Zeitplantyps schreiben. Bei one_day ignoriert (keine Tagesauswahl)."
+        },
+        "days": {
+          "name": "Tage",
+          "description": "Nur Slots des gewählten Typs. one_day: weglassen. three_day: Mo-Fr, Samstag, Sonntag. seven_day: Mo..So (z. B. Di+Mi). Dienstag bei one_day ist ein Fehler."
+        },
+        "timetable": {
+          "name": "Zeitplantyp",
+          "description": "Welcher Plan beschrieben wird. Standard: der gerade aktive Typ der Zone."
+        },
+        "activate": {
+          "name": "Zeitplantyp aktivieren",
+          "description": "Nach dem Schreiben auf diesen Zeitplantyp umschalten."
+        },
+        "blocks": {
+          "name": "Blöcke",
+          "description": "Liste aus start, end, temperature und power. Muss 00:00-24:00 abdecken; Lücken werden als AUS gefüllt."
+        },
+        "schedule_entity": {
+          "name": "Schedule-Helfer",
+          "description": "Home-Assistant-Schedule statt blocks. Extra-Daten: temperature, power."
+        },
+        "geolocation_override": {
+          "name": "Abwesenheit ignorieren",
+          "description": "Wenn an, gelten die Blöcke auch im Away-Modus."
+        }
+      }
     }
   },
   "selector": {
@@ -784,6 +822,26 @@
         "capabilities": "Gerätefunktionen",
         "presence": "Anwesenheit",
         "timetable": "Zeitplan-Typ"
+      }
+    },
+    "schedule_day": {
+      "options": {
+        "monday_to_sunday": "Jeden Tag",
+        "monday_to_friday": "Montag bis Freitag",
+        "monday": "Montag",
+        "tuesday": "Dienstag",
+        "wednesday": "Mittwoch",
+        "thursday": "Donnerstag",
+        "friday": "Freitag",
+        "saturday": "Samstag",
+        "sunday": "Sonntag"
+      }
+    },
+    "schedule_timetable": {
+      "options": {
+        "one_day": "Jeden Tag gleich",
+        "three_day": "Wochentage / Samstag / Sonntag",
+        "seven_day": "Pro Wochentag"
       }
     },
     "hvac_mode": {

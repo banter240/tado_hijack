@@ -62,6 +62,7 @@ class CommandType(StrEnum):
     SET_EARLY_START = "set_early_start"
     SET_OPEN_WINDOW = "set_open_window"
     SET_TIMETABLE = "set_timetable"
+    SET_SCHEDULE = "set_schedule"
     REFRESH_TIMETABLE = "refresh_timetable"
     IDENTIFY = "identify"
 
