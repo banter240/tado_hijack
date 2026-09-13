@@ -43,4 +43,5 @@ Located in `lib/tadox_api.py`, this component utilizes the existing authenticate
 - **QuickActions:** Bulk operations (boost all, resume all, all off) use `POST /quickActions/*` endpoints — single API call for all rooms.
 - **Presence (Home/Away):** Not part of Hops. Read via classic v2 `GET /homes/{id}/state`, write via `presenceLock` on `my.tado.com` - same as v3.
 - **Energy IQ (meter readings):** Not part of Hops. POST `homes/{home_id}/meterReadings` on `energy-insights.tado.com` - same as v3.
+- **Active timetable (ONE_DAY / THREE_DAY / SEVEN_DAY):** Not part of Hops. GET/PUT `homes/{home_id}/zones/{zone_id}/schedule/activeTimetable` on the classic v2 API. Tado X has no equivalent; entities are GEN_CLASSIC only.
 - **Matter Synchronization:** Optimized to work alongside Matter push updates while providing cloud-only features (Schedules, Presence Lock) that Matter cannot access.

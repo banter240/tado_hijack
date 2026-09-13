@@ -146,6 +146,24 @@ ZONE_TYPE_HEATING: Final = "HEATING"
 ZONE_TYPE_HOT_WATER: Final = "HOT_WATER"
 ZONE_TYPE_AIR_CONDITIONING: Final = "AIR_CONDITIONING"
 
+# Classic v2 active timetable (GET/PUT zones/{id}/schedule/activeTimetable).
+# Tado X has no Hops equivalent; entities are GEN_CLASSIC only.
+TIMETABLE_ONE_DAY: Final = "ONE_DAY"
+TIMETABLE_THREE_DAY: Final = "THREE_DAY"
+TIMETABLE_SEVEN_DAY: Final = "SEVEN_DAY"
+TIMETABLE_TYPE_TO_ID: Final[dict[str, int]] = {
+    TIMETABLE_ONE_DAY: 0,
+    TIMETABLE_THREE_DAY: 1,
+    TIMETABLE_SEVEN_DAY: 2,
+}
+TIMETABLE_ID_TO_TYPE: Final[dict[int, str]] = {
+    value: key for key, value in TIMETABLE_TYPE_TO_ID.items()
+}
+TIMETABLE_SELECT_OPTIONS: Final[list[str]] = [
+    key.lower() for key in TIMETABLE_TYPE_TO_ID
+]
+TIMETABLE_ZONE_TYPES: Final[set[str]] = {ZONE_TYPE_HEATING, ZONE_TYPE_HOT_WATER}
+
 # Reserved IDs for things that aren't normal Tado rooms/zones.
 #
 # Tado X synthetic IDs (real hardware, just not exposed as zones by the API):

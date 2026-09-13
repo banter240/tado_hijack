@@ -156,3 +156,20 @@ class TadoHijackClient(Tado):
             f"devices/{serial_no}/identify",
             method=HttpMethod.POST,
         )
+
+    def _active_timetable_uri(self, zone_id: int) -> str:
+        """Classic v2 activeTimetable path for a zone."""
+        return f"homes/{self._home_id}/zones/{zone_id}/schedule/activeTimetable"
+
+    async def get_active_timetable(self, zone_id: int) -> dict[str, Any]:
+        """Get the active timetable for a classic zone."""
+        response = await self._request(self._active_timetable_uri(zone_id))
+        return cast(dict[str, Any], orjson.loads(response))
+
+    async def set_active_timetable(self, zone_id: int, timetable_id: int) -> None:
+        """Set the active timetable id for a classic zone (0/1/2)."""
+        await self._request(
+            self._active_timetable_uri(zone_id),
+            data={"id": timetable_id},
+            method=HttpMethod.PUT,
+        )

@@ -185,6 +185,22 @@ class TadoExecutorBase(ABC):
             return True
         return False
 
+    async def _execute_timetables(self, merged: dict[str, Any]) -> None:
+        """PUT classic v2 activeTimetable (v3 plus experimental Tado X)."""
+        rollback_timetables = merged.get("rollback_timetables", {})
+        for zid, timetable_id in merged.get("timetables", {}).items():
+            if self._should_skip_zone(zid):  # [DUMMY_HOOK]
+                continue
+
+            await self._safe_execute(
+                f"timetable_{zid}",
+                self.coordinator.client.set_active_timetable(zid, timetable_id),
+                rollback_fn=self._create_timetable_rollback(
+                    zid, rollback_timetables.get(zid)
+                ),
+                context={"zone_id": zid, "timetable_id": timetable_id},
+            )
+
     # Centralized Rollback Helpers (DRY)
 
     def _rollback_optimistic(
@@ -293,6 +309,24 @@ class TadoExecutorBase(ABC):
                 _LOGGER.info("Rolled back early start for zone %d", zone_id)
 
         return self._rollback_optimistic("zone", zone_id, "early_start", restore)
+
+    def _create_timetable_rollback(
+        self, zone_id: int, old_id: int | None
+    ) -> Callable[[], Coroutine[Any, Any, None]]:
+        """Create rollback function for active timetable cache."""
+
+        def restore() -> None:
+            from .timetable import entry_for_id
+
+            cache = self.coordinator.data_manager.timetable_cache
+            restored = entry_for_id(old_id)
+            if restored is None:
+                cache.pop(zone_id, None)
+            else:
+                cache[zone_id] = restored
+            _LOGGER.info("Rolled back timetable for zone %d", zone_id)
+
+        return self._rollback_optimistic("zone", zone_id, "timetable", restore)
 
     def _create_open_window_rollback(
         self, zone_id: int, old_val: Any

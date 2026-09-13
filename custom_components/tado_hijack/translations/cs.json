@@ -282,6 +282,12 @@
       },
       "identify_device": {
         "name": "Identifikovat zařízení"
+      },
+      "refresh_timetable": {
+        "name": "Aktualizovat týdenní plán"
+      },
+      "refresh_all_timetables": {
+        "name": "Aktualizovat všechny týdenní plány"
       }
     },
     "number": {
@@ -336,6 +342,14 @@
           "on": "Zapnuto",
           "off": "Vypnuto",
           "auto": "Automaticky"
+        }
+      },
+      "timetable_type": {
+        "name": "Režim týdenního plánu",
+        "state": {
+          "one_day": "Po-Ne (stejně každý den)",
+          "three_day": "Po-Pá / So / Ne",
+          "seven_day": "Podle dne v týdnu"
         }
       }
     },

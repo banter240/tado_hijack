@@ -17,7 +17,11 @@ from ..const import (
     DEFAULT_JITTER_PERCENT,
 )
 from ..models import CommandType, TadoCommand
-from .command_merger import CommandMerger
+from .command_merger import (
+    CommandMerger,
+    format_executor_payload,
+    merged_has_executor_work,
+)
 from .executor_unified import TadoUnifiedExecutor
 from .logging_utils import get_redacted_logger
 from .utils import apply_jitter
@@ -254,20 +258,9 @@ class TadoApiManager:
             merger.add(cmd)
         merged = merger.result
 
-        # Log merged result with full payloads for debugging
-        _LOGGER.debug(
-            "Merged batch payloads: presence=%s, zones=%s, child_lock=%s, offsets=%s, "
-            "away_temps=%s, dazzle=%s, early_start=%s, open_window=%s, identifies=%s",
-            merged.get("presence"),
-            merged.get("zones", {}),
-            merged.get("child_lock", {}),
-            merged.get("offsets", {}),
-            merged.get("away_temps", {}),
-            merged.get("dazzle_modes", {}),
-            merged.get("early_starts", {}),
-            merged.get("open_windows", {}),
-            merged.get("identifies", []),
-        )
+        # Named fields, generated from merger payload keys so a new command
+        # type cannot drop out of the debug line.
+        _LOGGER.debug("Merged batch payloads: %s", format_executor_payload(merged))
 
         # Filter redundant operations BEFORE sending (Toggle 1 - State Changes)
         from .redundancy_checker import filter_redundant_merged_data
@@ -292,26 +285,17 @@ class TadoApiManager:
             )
 
             # Check if payload is empty after filtering - if so, skip sending
-            is_empty = not any(
-                [
-                    merged.get("presence"),
-                    merged.get("zones"),
-                    merged.get("child_lock"),
-                    merged.get("offsets"),
-                    merged.get("away_temps"),
-                    merged.get("dazzle_modes"),
-                    merged.get("early_starts"),
-                    merged.get("open_windows"),
-                    merged.get("identifies"),
-                ]
-            )
-            if is_empty:
+            if not merged_has_executor_work(merged):
                 _LOGGER.info(
                     "Skipping API call: all %d command(s) redundant after filtering (%s)",
                     len(commands),
                     [cmd.cmd_type.value for cmd in commands],
                 )
                 return
+            _LOGGER.debug(
+                "Merged batch payloads after redundancy filter: %s",
+                format_executor_payload(merged),
+            )
 
         # Delegate execution to the Unified Executor
         await self._executor.execute_batch(merged)

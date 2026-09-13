@@ -623,6 +623,10 @@ Cloud-only features that HomeKit does not support.
 | `binary_sensor.overlay`   | Binary Sensor | **HW Only:** Manual override active status.                                                     |
 | `binary_sensor.connectivity` | Binary Sensor | **HW Only:** Zone connectivity based on device connections.                                  |
 | `switch.early_start`                | Switch        | **v3 Only:** Toggle pre-heating before schedule block.                                          |
+| `select.timetable_type`             | Select        | **v3 Only:** Active timetable for a heating or hot-water zone: same every day, Mon-Fri/Sat/Sun, or per weekday. |
+| `select.timetable_type_all_zones`   | Select        | **v3 Only:** Same options for all heating and hot-water zones at once. Unknown if zones differ or nothing is cached. |
+| `button.refresh_timetable`          | Button        | **v3 Only:** Fetch the active timetable for one zone (1 API call). |
+| `button.refresh_all_timetables`     | Button        | **v3 Only:** Fetch active timetables for all heating and hot-water zones. |
 | `number.open_window_timeout`        | Number        | **Config:** Open window timeout (0=OFF, 5-1439min=ON). Requires Tado subscription for detection. |
 | `number.target_temperature`         | Number        | **HW & AC:** Set target temperature for hot water (manual mode) or AC zones.                                            |
 | `number.away_temperature`           | Number        | **v3 Only:** Set away mode temperature.                                                         |

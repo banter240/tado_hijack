@@ -9,6 +9,30 @@ from ..models import CommandType, TadoCommand
 if TYPE_CHECKING:
     from tadoasync.models import Zone
 
+# Merger control fields: not sent to execute_batch as work items.
+_MERGED_CONTROL_KEYS = frozenset({"old_presence", "manual_poll"})
+
+
+def executor_payload(merged: dict[str, Any]) -> dict[str, Any]:
+    """Return merger keys the executor consumes (no rollbacks or control)."""
+    return {
+        key: value
+        for key, value in merged.items()
+        if not key.startswith("rollback_") and key not in _MERGED_CONTROL_KEYS
+    }
+
+
+def merged_has_executor_work(merged: dict[str, Any]) -> bool:
+    """True if the merged batch still has work for execute_batch."""
+    return any(executor_payload(merged).values())
+
+
+def format_executor_payload(merged: dict[str, Any]) -> str:
+    """Readable key=value line for every executor payload field."""
+    return ", ".join(
+        f"{key}={value!s}" for key, value in executor_payload(merged).items()
+    )
+
 
 class CommandMerger:
     """Merges a list of commands into a consolidated state."""
@@ -23,6 +47,7 @@ class CommandMerger:
         self.dazzle_modes: dict[int, bool] = {}
         self.early_starts: dict[int, bool] = {}
         self.open_windows: dict[int, Any] = {}
+        self.timetables: dict[int, int] = {}
         self.identifies: set[str] = set()
         self.presence: str | None = None
         self.old_presence: str | None = None
@@ -34,6 +59,7 @@ class CommandMerger:
         self.rollback_dazzle_modes: dict[int, bool] = {}
         self.rollback_early_starts: dict[int, bool] = {}
         self.rollback_open_windows: dict[int, bool] = {}
+        self.rollback_timetables: dict[int, Any] = {}
 
     def add(self, cmd: TadoCommand) -> None:
         """Add a command to the merger."""
@@ -46,6 +72,7 @@ class CommandMerger:
             CommandType.SET_DAZZLE: self._merge_dazzle,
             CommandType.SET_EARLY_START: self._merge_early_start,
             CommandType.SET_OPEN_WINDOW: self._merge_open_window,
+            CommandType.SET_TIMETABLE: self._merge_timetable,
             CommandType.IDENTIFY: self._merge_identify,
             CommandType.SET_PRESENCE: self._merge_presence,
             CommandType.RESUME_SCHEDULE: self._merge_resume,
@@ -130,6 +157,17 @@ class CommandMerger:
             store_full_data=True,
         )
 
+    def _merge_timetable(self, cmd: TadoCommand) -> None:
+        """Last write wins per zone; executor gets the integer id."""
+        self._merge_keyed(
+            cmd,
+            "zone_id",
+            "timetable_id",
+            self.timetables,
+            self.rollback_timetables,
+            int,
+        )
+
     def _merge_identify(self, cmd: TadoCommand) -> None:
         if cmd.data and "serial" in cmd.data:
             self.identifies.add(str(cmd.data["serial"]))
@@ -192,6 +230,7 @@ class CommandMerger:
             "dazzle_modes": self.dazzle_modes,
             "early_starts": self.early_starts,
             "open_windows": self.open_windows,
+            "timetables": self.timetables,
             "identifies": self.identifies,
             "presence": self.presence,
             "old_presence": self.old_presence,
@@ -203,4 +242,5 @@ class CommandMerger:
             "rollback_dazzle_modes": self.rollback_dazzle_modes,
             "rollback_early_starts": self.rollback_early_starts,
             "rollback_open_windows": self.rollback_open_windows,
+            "rollback_timetables": self.rollback_timetables,
         }
