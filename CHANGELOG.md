@@ -1,3 +1,39 @@
+## [5.9.0](https://github.com/banter240/tado_hijack/compare/v5.8.2...v5.9.0) (2026-09-13)
+
+### ✨ New Features
+
+* feat(core): Energy IQ meter readings for Tado X, errors, and a date
+
+  The GEN_X early return treated meter readings as a Hops limitation.
+  Energy IQ is home-scoped: POST homes/{home_id}/meterReadings on
+  energy-insights.tado.com, using the same tadoasync client as classic.
+  Drop the guard so Tado X uses the existing patched set_meter_readings
+  path. Confirmed on a live Tado X home (IB02, Full Cloud off).
+
+  API failures were logged and the service still returned success, so
+  automations recorded a clean run. Re-raise HomeAssistantError after
+  the log so the caller sees the failure.
+
+  set_meter_readings already accepts a date, but the service always
+  sent today. Expose an optional date field so historic readings can
+  be backfilled from a supplier export.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  📊 ENERGY IQ (TADO X)
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - drop the GEN_X early return in async_add_meter_reading
+  - Energy IQ is not Hops; same energy-insights.tado.com path as v3
+  - README / COMPATIBILITY: meter readings are 1 call for classic and X
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🛠️ SERVICE
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - re-raise HomeAssistantError after the log so automations fail honestly
+  - optional date on tado_hijack.add_meter_reading (YYYY-MM-DD, default today)
+  - translations en/de/cs for the date field
+
 ## [5.8.2](https://github.com/banter240/tado_hijack/compare/v5.8.1...v5.8.2) (2026-09-01)
 
 ### 🐛 Bug Fixes
