@@ -1,3 +1,59 @@
+## [5.10.0-dev.1](https://github.com/banter240/tado_hijack/compare/v5.9.0...v5.10.0-dev.1) (2026-09-13)
+
+### ✨ New Features
+
+* feat(tadov3): add classic timetable type selects and refresh buttons
+
+  Port of the timetable idea from PR #116. Per-zone and home-wide
+  selects for ONE_DAY / THREE_DAY / SEVEN_DAY, plus refresh buttons.
+
+  TEST / UNSTABLE: this is a dev test release. The happy path matches
+  the original PR, but it is untested by the maintainer. High chance it
+  has bugs. Use on a non-production Home Assistant and report issues.
+
+  Rebuild on current dev using existing gateways: TadoHijackClient owns
+  the classic activeTimetable endpoint, CommandMerger last-write-wins
+  per zone, TadoV3Executor receives integer ids only. Type mapping lives
+  in const.py and helpers/timetable.py. Tado X is not included here.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  📅 TIMETABLE (CLASSIC)
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - GET/PUT homes/{id}/zones/{zid}/schedule/activeTimetable
+  - queue SET_TIMETABLE like other zone properties; rollback stores the id
+  - persist timetable_cache across restarts
+  - home select shows a value only when all cached zones agree
+  - heating and hot-water zones; refresh is on-demand (quota)
+  - select options derived from TIMETABLE_TYPE_TO_ID
+  - home and zone selects share translation_key timetable_type
+  - empty-batch skip follows CommandMerger payload keys
+  - no-op writes filtered like early_start
+* feat(tadox): try classic activeTimetable on Tado X rooms
+
+  Experimental follow-up to the classic timetable selects. Tado X Smart
+  Schedule exists in the app, but Hops has no activeTimetable. This
+  reuses the classic v2 GET/PUT on rooms/{id} the same way Energy IQ
+  reuses a non-Hops URI.
+
+  TEST / UNSTABLE: untested on Tado X. High chance it has bugs or the
+  URI 404s. Own commit so `git revert` drops X without touching classic.
+
+  - GEN_X on home/zone timetable entities
+  - skip synthetic DHW zone 9001
+  - heating rooms only (no X hot water)
+  - TadoXExecutor calls _execute_timetables (otherwise writes would queue
+    and then be dropped)
+
+### 🐛 Bug Fixes
+
+* fix(core): include generation in timetable failure logs
+
+  GET/PUT already log HTTP status, path, and body via the request
+  handler. Timetable writes share executor_base, so v3 and X errors
+  looked the same. Log generation on set, refresh, executor context,
+  and rollback so a 404 on X is obvious next to a classic failure.
+
 ## [5.9.0](https://github.com/banter240/tado_hijack/compare/v5.8.2...v5.9.0) (2026-09-13)
 
 ### ✨ New Features
