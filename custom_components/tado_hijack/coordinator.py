@@ -1319,11 +1319,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         return previous
 
     async def async_set_timetable(self, zone_id: int, timetable_type: str) -> None:
-        """Set the active timetable for a classic heating or hot-water zone."""
-        if self.generation != GEN_CLASSIC:
-            _LOGGER.debug("async_set_timetable skipped (not GEN_CLASSIC)")
-            return
-
+        """Set the active timetable via classic v2 (experimental on Tado X)."""
         canonical = normalize_timetable_type(timetable_type)
         entry = entry_for_type(canonical) if canonical else None
         if entry is None:
@@ -1345,11 +1341,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         )
 
     async def async_refresh_timetable(self, zone_id: int) -> None:
-        """Refresh the active timetable for a zone from the classic API."""
-        if self.generation != GEN_CLASSIC:
-            _LOGGER.debug("async_refresh_timetable skipped (not GEN_CLASSIC)")
-            return
-
+        """Refresh the active timetable from classic v2 (experimental on Tado X)."""
         _LOGGER.info("Refreshing timetable for zone %s", zone_id)
         try:
             raw = await self.client.get_active_timetable(zone_id)
@@ -1363,11 +1355,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
     async def _async_for_timetable_zones(
         self, action: Callable[[int], Any], label: str
     ) -> None:
-        """Run an async action on every classic heating and hot-water zone."""
-        if self.generation != GEN_CLASSIC:
-            _LOGGER.debug("%s: skipped (not GEN_CLASSIC)", label)
-            return
-
+        """Run an async action on every timetable-compatible zone."""
         zone_ids = compatible_zone_ids(self)
         if not zone_ids:
             _LOGGER.debug("%s: no compatible zones found", label)
@@ -1377,13 +1365,13 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         await asyncio.gather(*(action(zone_id) for zone_id in zone_ids))
 
     async def async_refresh_all_timetables(self) -> None:
-        """Refresh active timetables for all classic heating and hot-water zones."""
+        """Refresh active timetables for all compatible zones."""
         await self._async_for_timetable_zones(
             self.async_refresh_timetable, "Refreshing timetables"
         )
 
     async def async_set_timetable_all_zones(self, timetable_type: str) -> None:
-        """Set the timetable type for all classic heating and hot-water zones."""
+        """Set the timetable type for all compatible zones."""
         await self._async_for_timetable_zones(
             lambda zone_id: self.async_set_timetable(zone_id, timetable_type),
             f"Setting timetable type '{timetable_type}'",

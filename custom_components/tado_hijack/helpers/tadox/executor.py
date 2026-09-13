@@ -81,6 +81,9 @@ class TadoXExecutor(TadoExecutorBase):
                 ),
             )
 
+        # 6. Timetables via classic v2 (same Energy IQ pattern; Hops has no endpoint)
+        await self._execute_timetables(merged)
+
     async def _execute_device_fusion(self, merged: dict[str, Any]) -> None:
         """Fuse multiple property changes for the same device into a single PATCH call."""
         device_changes: dict[str, dict[str, Any]] = {}

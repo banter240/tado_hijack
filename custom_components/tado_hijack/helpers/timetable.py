@@ -1,7 +1,8 @@
 """Classic v2 timetable helpers.
 
 Maps Tado activeTimetable type strings to API ids. Executors receive the
-integer id only; format mapping stays here.
+integer id only; format mapping stays here. Tado X uses the same URI
+with room ids (experimental).
 """
 
 from __future__ import annotations
@@ -9,9 +10,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from ..const import (
+    GEN_X,
+    TADOX_VIRTUAL_HOT_WATER_ZONE_ID,
     TIMETABLE_ID_TO_TYPE,
     TIMETABLE_TYPE_TO_ID,
     TIMETABLE_ZONE_TYPES,
+    ZONE_TYPE_HEATING,
 )
 from .zone_utils import get_zone_type
 
@@ -75,9 +79,16 @@ def home_select_value(cache: dict[int, TimetableEntry]) -> str | None:
 
 
 def compatible_zone_ids(coordinator: TadoDataUpdateCoordinator) -> list[int]:
-    """Heating and hot-water zone ids (classic timetable API)."""
+    """Zone ids that expose classic activeTimetable.
+
+    Classic: heating and hot water. Tado X: heating rooms only (skip synthetic
+    DHW 9001). Same v2 URI; X is experimental.
+    """
+    allowed = (
+        {ZONE_TYPE_HEATING} if coordinator.generation == GEN_X else TIMETABLE_ZONE_TYPES
+    )
     return [
         zone_id
         for zone_id, zone in coordinator.zones_meta.items()
-        if get_zone_type(zone) in TIMETABLE_ZONE_TYPES
+        if get_zone_type(zone) in allowed and zone_id != TADOX_VIRTUAL_HOT_WATER_ZONE_ID
     ]

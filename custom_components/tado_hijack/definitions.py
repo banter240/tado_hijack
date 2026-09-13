@@ -66,6 +66,7 @@ from .const import (
     MIN_OWD_TIMEOUT_MIN,
     MIN_OWD_TIMEOUT_S,
     PROTECTION_MODE_TEMP,
+    TADOX_VIRTUAL_HOT_WATER_ZONE_ID,
     TEMP_MAX_AC,
     TEMP_MAX_HOT_WATER_OVERRIDE,
     TEMP_MIN_AC,
@@ -1928,7 +1929,7 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         icon="mdi:calendar-week",
         entity_category=EntityCategory.CONFIG,
         unique_id_suffix="timetable_type_all",
-        supported_generations={GEN_CLASSIC},
+        supported_generations={GEN_CLASSIC, GEN_X},
         translation_key="timetable_type",
     ),
     create_home_button(
@@ -1936,7 +1937,7 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         press_fn=lambda c: c.async_refresh_all_timetables(),
         icon="mdi:calendar-refresh",
         entity_category=EntityCategory.CONFIG,
-        supported_generations={GEN_CLASSIC},
+        supported_generations={GEN_CLASSIC, GEN_X},
     ),
     create_zone_select(
         key="timetable_type",
@@ -1946,8 +1947,9 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         icon="mdi:calendar-week",
         entity_category=EntityCategory.CONFIG,
         supported_zone_types=TIMETABLE_ZONE_TYPES,
-        supported_generations={GEN_CLASSIC},
+        supported_generations={GEN_CLASSIC, GEN_X},
         unique_id_suffix="timetable_type",
+        is_supported_fn=lambda _c, zid: zid != TADOX_VIRTUAL_HOT_WATER_ZONE_ID,
     ),
     create_zone_button(
         key="refresh_timetable",
@@ -1955,7 +1957,8 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         icon="mdi:calendar-refresh",
         entity_category=EntityCategory.CONFIG,
         supported_zone_types=TIMETABLE_ZONE_TYPES,
-        supported_generations={GEN_CLASSIC},
+        supported_generations={GEN_CLASSIC, GEN_X},
         unique_id_suffix="refresh_timetable",
+        is_supported_fn=lambda _c, zid: zid != TADOX_VIRTUAL_HOT_WATER_ZONE_ID,
     ),
 ]
