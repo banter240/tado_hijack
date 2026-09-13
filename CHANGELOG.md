@@ -1,3 +1,20 @@
+## [5.10.0-dev.4](https://github.com/banter240/tado_hijack/compare/v5.10.0-dev.3...v5.10.0-dev.4) (2026-09-13)
+
+### ✨ New Features
+
+* feat(core): add set_schedule service for daily timetable blocks
+
+  Write Tado Smart Schedule time blocks from Home Assistant so the app
+  is not required. One service with all_days or a days list. Payload is
+  a block list or a schedule helper.
+
+  Day picker follows the timetable: one_day has no selection (tuesday
+  errors), three_day is monday_to_friday/saturday/sunday, seven_day is
+  any weekdays (tuesday+wednesday). No remapping between plans.
+
+  Classic PUT per dayType; Tado X POST Hops. Debounced per zone,
+  timetable, and day.
+
 ## [5.10.0-dev.3](https://github.com/banter240/tado_hijack/compare/v5.10.0-dev.2...v5.10.0-dev.3) (2026-09-13)
 
 ### 🐛 Bug Fixes
