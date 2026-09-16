@@ -268,7 +268,7 @@ Tado's API limits are restrictive. That's why Tado Hijack uses a **Zero-Waste Po
 | :------------------ | :----: | :------------ | :--------------------------------------- | :------------------------------------------------------------------------------------- |
 | **Zone Poll**       | **1**  | Adaptive      | HVAC, Valve %, Humidity.                 | v3: `GET /homes/{id}/zoneStates`<br>X: `GET hops…/rooms` (+ DHW if installed)          |
 | **Presence Poll**   | **1**  | 12h (Default) | Home/Away presence state.                | **Both gens:** `GET my.tado.com/api/v2/homes/{id}/state` (not Hops)                    |
-| **Hardware Sync**   | **1–2+** | 24h (Default) | Syncs battery, firmware and device list. | v3: `GET /zones` + `GET /devices` (+ caps)<br>X: `GET hops…/roomsAndDevices` (**1**) |
+| **Hardware Sync**   | **1–2+N** | 24h (Default) | Syncs battery, firmware, device list, and zone capabilities. | v3: `GET /zones` + `GET /devices` + **1 GET `/capabilities` per zone** (no bulk)<br>X: `GET hops…/roomsAndDevices` (**1**, no caps API) |
 | **Refresh Zones**   | **1–2**  | On Demand     | Updates zone/device metadata.            | v3: zones + devices<br>X: `roomsAndDevices`                                            |
 | **Refresh Offsets** | **1–N**  | On Demand  | Fetches device offsets. 1 call with `entity_id`, N without. | v3: `GET /devices/{s}/temperatureOffset`<br>X: usually in metadata snapshot        |
 | **Refresh Away**    | **1–M**  | On Demand  | Fetches zone away temps. 1 call with `entity_id`, M without. | v3 only (`awayConfiguration`). Tado X: not available via API                     |
@@ -276,6 +276,7 @@ Tado's API limits are restrictive. That's why Tado Hijack uses a **Zero-Waste Po
 | **Presence**        | **1**  | On Demand     | Force presence lock (home/away=PUT, auto=DELETE). | **Both gens:** `PUT/DELETE …/presenceLock` on my.tado.com (v2)                  |
 
 _Notes:_
+- **Restart** (after the first run): `GET /me` + zoneStates + presence + zones + devices. Zone capabilities (temp min/max, AC modes) are stored locally. There is **no bulk capabilities endpoint** (1 GET per zone). They refresh on the hardware-sync interval (default 24h), via `button.refresh_capabilities` / per-room `refresh_capability`, or `manual_poll` type `capabilities` / `all`. Auto Quota reserves that daily burst as `capabilities_total` (not as zone-poll cost).
 - **Presence is always the classic v2 API** for both v3 Classic and Tado X (`/state`, `/presenceLock`). Hops `roomsAndDevices` does **not** include home/away.
 - Room/device control for Tado X uses the Hops API (`hops.tado.com`). See [Generation Support](#generation-support-v3-classic--tado-x).
 - Default presence poll is 12h → **~2 calls/day**. Manual refresh / set still costs 1 call each.
@@ -601,7 +602,8 @@ Advanced monitoring sensors available under the Internet Bridge device diagnosti
 - `binary_sensor.fetch_extended_data` - Extended data fetching status
 
 **Manual Refresh Buttons:**
-- `button.refresh_metadata` - Force hardware sync
+- `button.refresh_metadata` - Force hardware sync (zones/devices)
+- `button.refresh_capabilities` - Refetch zone capabilities (1 GET per zone; no bulk endpoint)
 - `button.refresh_offsets` - GET current offsets from Tado (not calibrate)
 - `button.calibrate_offsets` - Write offsets from linked `zone_temp_source` now
 - `button.refresh_away` - Force away config sync
@@ -639,6 +641,7 @@ Cloud-only features that HomeKit does not support.
 | `number.away_temperature`           | Number        | **v3 Only:** Set away mode temperature.                                                         |
 | `select.zone_temp_source`           | Select        | **Config:** Optional temperature source for indoor climate sensors. Link any `climate` or temperature `sensor`. Required for Tado X (no cloud temp in Full-Matter mode). |
 | `button.calibrate_offset`           | Button        | **Config:** Calibrate this room's TRV offset against the linked `zone_temp_source` now. 1 PUT per measuring device in the room that needs a change. |
+| `button.refresh_capability`         | Button        | **Config:** Refetch this zone's capabilities (1 GET; no bulk endpoint). |
 | `select.zone_humidity_source`       | Select        | **Config:** Optional humidity source for indoor climate sensors. Link a `climate` entity (reads `current_humidity`) or a humidity `sensor`. Fallback: cloud zone state. |
 | `select.fan_speed`                  | Select        | **v3 AC Only:** Full fan speed control.                                                         |
 | `select.vertical_swing`             | Select        | **v3 AC Only:** Vertical swing control (ON/OFF or position modes).                              |
@@ -726,7 +729,7 @@ For advanced automation, use these services. All manual control services feature
 > [!TIP]
 > **Targeting Rooms:** You can use **any** Tado zone entity (climate, switch, sensor) or even **device entities** (battery, connection, child_lock) as the `entity_id`. Device entities automatically resolve to their zone via serial number lookup. This includes your existing **HomeKit climate** entities (e.g. `climate.living_room`).
 >
-> **Targeted Fetch:** When using `manual_poll` with an `entity_id`, the refresh is limited to that single entity — `offsets` costs 1 API call instead of N, `away` / `timetable` / `schedule` cost 1 instead of M. `capabilities` uses the lazy cache and only drops that zone's entry. Bulk types (`zone`, `metadata`, `presence`, `all`) always fall back to a full refresh. `all` (and `button.full_manual_poll`) also fetches active timetable types and weekly plans (1 GET per compatible zone each, 2 per zone when the timetable type is not cached). Type `schedule` fetches only weekly plans.
+> **Targeted Fetch:** When using `manual_poll` with an `entity_id`, the refresh is limited to that single entity — `offsets` costs 1 API call instead of N, `away` / `timetable` / `schedule` cost 1 instead of M. `capabilities` uses the persisted cache and only drops that zone's entry. Bulk types (`zone`, `metadata`, `presence`, `all`) always fall back to a full refresh. `all` (and `button.full_manual_poll`) also fetches active timetable types and weekly plans (1 GET per compatible zone each, 2 per zone when the timetable type is not cached). Type `schedule` fetches only weekly plans.
 
 <br>
 
