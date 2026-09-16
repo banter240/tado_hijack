@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import http
+import time
 from typing import Any, cast
 
 from aiohttp import ClientResponseError
@@ -32,7 +33,7 @@ class TadoRequestHandler:
     def __init__(self) -> None:
         """Initialize the handler."""
         # Shared storage for hijacked headers
-        self.rate_limit_data: dict[str, int] = {"limit": 0, "remaining": 0}
+        self.rate_limit_data: dict[str, Any] = {"limit": 0, "remaining": 0}
 
     async def robust_request(
         self,
@@ -166,6 +167,7 @@ class TadoRequestHandler:
         if rl := parse_ratelimit_headers(dict(response.headers)):
             self.rate_limit_data["limit"] = rl.limit
             self.rate_limit_data["remaining"] = rl.remaining
+            self.rate_limit_data["updated_at"] = time.monotonic()
             _LOGGER.debug(
                 "Tado Response: %d %s. Quota: %d/%d remaining.",
                 response.status,

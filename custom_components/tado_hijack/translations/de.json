@@ -262,6 +262,12 @@
       "refresh_offsets": {
         "name": "Offsets aktualisieren"
       },
+      "calibrate_offsets": {
+        "name": "Offsets kalibrieren"
+      },
+      "calibrate_offset": {
+        "name": "Offset kalibrieren"
+      },
       "refresh_away": {
         "name": "Away-Temperaturen aktualisieren"
       },
