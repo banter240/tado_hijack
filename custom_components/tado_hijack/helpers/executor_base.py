@@ -19,6 +19,7 @@ from ..const import (
     HTTP_UNPROCESSABLE_ENTITY,
     OFF_MAGIC_TEMP,
 )
+from .command_merger import manual_poll_includes
 from .logging_utils import get_redacted_logger
 from .utils import apply_jitter
 
@@ -218,7 +219,7 @@ class TadoExecutorBase(ABC):
                 },
             )
 
-        if merged.get("manual_poll") in {"all", "schedule"}:
+        if manual_poll_includes(merged.get("manual_poll"), "all", "schedule"):
             return
         written = {
             int(slot["zone_id"])
@@ -251,10 +252,11 @@ class TadoExecutorBase(ABC):
             )
 
         # PUT first; skip GET for zones this batch just wrote.
-        await self.coordinator._execute_timetable_refreshes(
-            merged.get("refresh_timetables") or (),
-            skip_zone_ids=merged.get("timetables", {}).keys(),
-        )
+        if not manual_poll_includes(merged.get("manual_poll"), "all", "timetable"):
+            await self.coordinator._execute_timetable_refreshes(
+                merged.get("refresh_timetables") or (),
+                skip_zone_ids=merged.get("timetables", {}).keys(),
+            )
 
     def _rollback_optimistic(
         self,

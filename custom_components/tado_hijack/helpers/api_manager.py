@@ -105,6 +105,7 @@ class TadoApiManager:
                 f"(zone={command.zone_id}, day={data.get('day_type', '?')}, "
                 f"timetable_id={data.get('timetable_id', '?')})"
             ),
+            CommandType.QUICK_ACTION: f"(action={data.get('action', '?')})",
         }
         if command.cmd_type in descriptions:
             return descriptions[command.cmd_type]
@@ -123,8 +124,21 @@ class TadoApiManager:
     def _get_command_key(self, command: TadoCommand) -> str:
         """Reconstruct the key for a command (reverse of queue_command key logic)."""
         if command.cmd_type == CommandType.MANUAL_POLL:
-            refresh_type = command.data.get("type", "all") if command.data else "all"
+            data = command.data or {}
+            refresh_type = data.get("type", "all")
+            if entity_id := data.get("entity_id"):
+                return f"manual_poll_{refresh_type}_{entity_id}"
+            if refresh_type == "capabilities":
+                zid = (
+                    command.zone_id
+                    if command.zone_id is not None
+                    else data.get("zone_id")
+                )
+                if zid is not None:
+                    return f"manual_poll_capabilities_{zid}"
             return f"manual_poll_{refresh_type}"
+        if command.cmd_type == CommandType.QUICK_ACTION:
+            return "x_quick_action"
         if command.cmd_type == CommandType.SET_PRESENCE:
             return "presence"
         if command.cmd_type == CommandType.IDENTIFY:
@@ -221,6 +235,13 @@ class TadoApiManager:
             action_desc,
         )
 
+        self._rearm_pending_debounce()
+
+    def _arm_key_timer(self, key: str) -> None:
+        """Start or reset the debounce timer that flushes this queue key."""
+        if cancel_fn := self._pending_timers.pop(key, None):
+            cancel_fn()
+
         @callback
         def _move_to_worker(_now: Any = None, target_key: str = key) -> None:
             self._pending_timers.pop(target_key, None)
@@ -232,6 +253,18 @@ class TadoApiManager:
             float(self._debounce_time),
             HassJob(_move_to_worker, cancel_on_shutdown=True),
         )
+
+    def _rearm_pending_debounce(self) -> None:
+        """Hold every pending command until debounce after the last queue."""
+        keys = list(self._action_queue)
+        for key in keys:
+            self._arm_key_timer(key)
+        if len(keys) > 1:
+            _LOGGER.debug(
+                "Rearmed shared debounce for %d command(s): %s",
+                len(keys),
+                keys,
+            )
 
     async def _worker_loop(self) -> None:
         """Sequential background processing loop."""
@@ -323,10 +356,17 @@ class TadoApiManager:
             self._pending_keys.discard(key)
 
         self.coordinator.update_rate_limit_local(silent=False)
-        if merged["manual_poll"]:
-            # Jitter manual poll as well
+        if (
+            merged["manual_poll"]
+            or merged.get("capability_zone_ids")
+            or merged.get("targeted_polls")
+        ):
             await self._maybe_apply_call_jitter()
-            await self.coordinator._execute_manual_poll(merged["manual_poll"])
+            await self.coordinator._execute_manual_poll(
+                merged["manual_poll"],
+                capability_zone_ids=merged.get("capability_zone_ids") or (),
+                targeted_polls=merged.get("targeted_polls") or (),
+            )
         elif self.coordinator.rate_limit.is_throttled:
             self.coordinator.rate_limit.decrement(len(commands))
 

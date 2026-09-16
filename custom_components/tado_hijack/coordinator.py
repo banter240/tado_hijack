@@ -389,11 +389,16 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         return await self.data_manager.async_get_capabilities(zone_id)
 
     async def async_refresh_zone_capabilities(self, zone_id: int) -> None:
-        """GET capabilities for one zone and persist."""
-        _LOGGER.info("Refreshing capabilities for zone %s", zone_id)
-        self.data_manager.capabilities_cache.pop(zone_id, None)
-        await self.data_manager.async_get_capabilities(zone_id)
-        self.async_update_listeners()
+        """Queue a debounced capabilities GET for one zone."""
+        _LOGGER.info("Queued capabilities refresh for zone %s", zone_id)
+        self.api_manager.queue_command(
+            f"manual_poll_capabilities_{zone_id}",
+            TadoCommand(
+                CommandType.MANUAL_POLL,
+                zone_id=zone_id,
+                data={"type": "capabilities", "zone_id": zone_id},
+            ),
+        )
 
     def get_active_zones(
         self,
@@ -774,10 +779,40 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         self.poll_scheduler.shutdown()
         self.api_manager.shutdown()
 
-    async def _execute_manual_poll(self, refresh_type: str = "all") -> None:
-        """Execute the manual poll logic (worker target)."""
-        self.data_manager.invalidate_cache(refresh_type)
-        await self.async_refresh()
+    async def _execute_manual_poll(
+        self,
+        refresh_type: str | tuple[str, ...] | None = "all",
+        *,
+        capability_zone_ids: Iterable[int] = (),
+        targeted_polls: Iterable[tuple[str, str]] = (),
+    ) -> None:
+        """Execute queued poll/refresh work after debounce."""
+        unscoped: set[str] = set()
+        if isinstance(refresh_type, str) and refresh_type:
+            unscoped.add(refresh_type)
+        elif isinstance(refresh_type, tuple):
+            unscoped.update(refresh_type)
+        if "all" in unscoped:
+            self.data_manager.invalidate_cache("all")
+            await self.async_refresh()
+            return
+        for kind in unscoped:
+            self.data_manager.invalidate_cache(kind)
+        skip_targeted = set(unscoped)
+        if "capabilities" not in skip_targeted:
+            for zone_id in capability_zone_ids:
+                self.data_manager.capabilities_cache.pop(int(zone_id), None)
+                await self.data_manager.async_get_capabilities(int(zone_id))
+        else:
+            skip_targeted.add("capabilities")
+        for kind, entity_id in targeted_polls:
+            if kind in skip_targeted:
+                continue
+            await self.data_manager.async_targeted_fetch(kind, entity_id)
+        if unscoped:
+            await self.async_refresh()
+        elif capability_zone_ids or targeted_polls:
+            self.async_update_listeners()
 
     async def async_manual_poll(
         self, refresh_type: str = "all", silent: bool = False
@@ -795,14 +830,17 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         )
 
     async def async_targeted_fetch(self, refresh_type: str, entity_id: str) -> None:
-        """Fetch a specific data type for a single entity (targeted, cheaper than full poll)."""
-        _LOGGER.info("Targeted fetch: type=%s entity=%s", refresh_type, entity_id)
-        targeted = await self.data_manager.async_targeted_fetch(refresh_type, entity_id)
-        if targeted:
-            self.async_update_listeners()
-        else:
-            # Fell back to cache invalidation — need a full coordinator refresh
-            await self.async_refresh()
+        """Queue a targeted fetch so it shares debounce with other Tado commands."""
+        _LOGGER.info(
+            "Queued targeted fetch: type=%s entity=%s", refresh_type, entity_id
+        )
+        self.api_manager.queue_command(
+            f"manual_poll_{refresh_type}_{entity_id}",
+            TadoCommand(
+                CommandType.MANUAL_POLL,
+                data={"type": refresh_type, "entity_id": entity_id},
+            ),
+        )
 
     def update_rate_limit_local(self, silent: bool = False) -> None:
         """Sync remaining from the newest v2/Hops headers."""

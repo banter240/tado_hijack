@@ -146,13 +146,15 @@ While other integrations waste your precious API quota for every tiny interactio
 <br>
 
 > [!TIP]
-> **Maximum Fusion Scenario:**
-> Triggering a "Party Scene": **AC living_room** (Temp + Fan + Swing) + **AC kitchen** (Temp + Fan) + **Hot Water** (ON).
+> **Maximum Fusion Scenario (v3 Classic):**
+> Triggering a "Party Scene": **AC living_room** (Temp + Fan + Swing) + **AC kitchen** (Temp + Fan) + **Hot Water** (ON) + boost all + one room 21 °C.
 >
 > ❌ **Standard Integrations:** 6-8 API calls (Half your hourly quota gone).
-> ✅ **Tado Hijack:** **1 single API call** for everything.
+> ✅ **Tado Hijack Classic:** **1** `POST /homes/{id}/overlay` for the whole mix.
 >
-> _Note: This works within your configurable **Debounce Window**. Every action is automatically fused._
+> _Tado X has no overlay array on Hops: house-wide boost/off/resume is 1 `quickActions/*`; mixed room setpoints are per-room `manualControl`._
+>
+> _Debounce window: last write per zone, then that cheapest mix._
 
 <br>
 
@@ -272,7 +274,7 @@ Tado's API limits are restrictive. That's why Tado Hijack uses a **Zero-Waste Po
 | **Refresh Zones**   | **1–2**  | On Demand     | Updates zone/device metadata.            | v3: zones + devices<br>X: `roomsAndDevices`                                            |
 | **Refresh Offsets** | **1–N**  | On Demand  | Fetches device offsets. 1 call with `entity_id`, N without. | v3: `GET /devices/{s}/temperatureOffset`<br>X: usually in metadata snapshot        |
 | **Refresh Away**    | **1–M**  | On Demand  | Fetches zone away temps. 1 call with `entity_id`, M without. | v3 only (`awayConfiguration`). Tado X: not available via API                     |
-| **Zone Overlay**    | **1**  | On Demand     | **Fused:** All zone changes in 1 call.   | v3: `POST /homes/{id}/overlay`<br>X: per-room `manualControl` (or quickActions)        |
+| **Zone Overlay**    | **1**  | On Demand     | **Fused:** all zone changes in 1 call (Classic). | **v3:** one `POST /homes/{id}/overlay` — mix heating, AC, hot water, any temps (boost all + AC + one room 21 °C = **1**). Resume-all is `DELETE /overlay` (not HW ids).<br>**X:** house-wide `quickActions/*` (**1**). Hops has no mixed-room overlay body; different room setpoints are per-room `manualControl`. |
 | **Presence**        | **1**  | On Demand     | Force presence lock (home/away=PUT, auto=DELETE). | **Both gens:** `PUT/DELETE …/presenceLock` on my.tado.com (v2)                  |
 
 _Notes:_
@@ -610,6 +612,15 @@ Advanced monitoring sensors available under the Internet Bridge device diagnosti
 - `button.refresh_presence` - Force presence sync
 - `button.refresh_all_zone_plans` - Fetch every room's weekly plan (calendar cache)
 
+Every Tado write/refresh goes through one debounce queue (default 5s). A new command rearms the timer for **all** pending keys; last write **per key** wins; then the cheapest HTTP mix:
+
+- **Classic overlay:** **always 1** `POST /homes/{id}/overlay` for the whole window — boost all, AC, hot water, one room another temp, mix anything. Same as the fusion example above.
+- **Classic resume-all:** **1** `DELETE /overlay?rooms=`. If the window also has overlays, that is a second endpoint (set vs clear). Hot-water resume is a per-zone DELETE (API forbids HW ids on the bulk delete).
+- **Tado X:** house-wide boost/off/resume = **1** `quickActions/*`. Mixed room setpoints have no overlay array on Hops, so those rooms are `manualControl`.
+- **Home-all + the same room again** (timetable/plan/caps/offset): already in the all-set, **not** a second call.
+- **Poll types** union into one coordinator refresh (caps + offsets ≠ full poll).
+- **No bulk GET/PUT** for timetable type, weekly plan, capabilities, offset, child lock, OWD (1 per zone/device). X can PATCH child-lock+offset on the **same** device together.
+
 <br>
 
 ### Zone Devices (Rooms / Hot Water / AC)
@@ -708,7 +719,7 @@ For advanced automation, use these services. All manual control services feature
 | `tado_hijack.boost_all_zones`       | Boost every zone to 25°C.                                                                                                    | **1 call** (bulk)    | **1 call** (bulk)    |
 | `tado_hijack.resume_all_schedules`  | Restore Smart Schedule across all zones.                                                                                     | **1 call** (bulk)    | **1 call** (bulk)    |
 | `tado_hijack.set_mode`              | Set mode, temperature, and termination. Supports `hvac_mode` (auto, heat, off) and `overlay` (manual, next_block, presence). | **1 call** (batched) | **1 call** (batched) |
-| `tado_hijack.set_mode_all_zones`    | Targets all HEATING and/or AC zones at once using `hvac_mode`.                                                               | **1 call** (bulk)    | **N calls** (per-zone sequential) |
+| `tado_hijack.set_mode_all_zones`    | Targets all HEATING and/or AC zones at once using `hvac_mode`.                                                               | **1 call** (bulk overlay) | **1** if every room matches a quickAction; else **N** `manualControl` |
 | `tado_hijack.set_water_heater_mode` | Set `operation_mode` and temperature for hot water.                                                                      | **1 call** (v3)      | **1 call** (X)       |
 | `tado_hijack.add_meter_reading`     | Upload a meter reading (integer) to Tado Energy IQ. Optional `date` backfills a historic reading; defaults to today.         | **1 call**           | **1 call**           |
 | `tado_hijack.set_schedule`          | Write Smart Schedule time blocks (`blocks` or a `schedule` helper). `one_day` has no day picker. `three_day` = Mon-Fri/Sat/Sun. `seven_day` = any weekdays (e.g. Tue+Wed). Tuesday on one_day errors. | **1-7** | **1-7** |
@@ -883,7 +894,8 @@ data:
 
 While Tado Hijack optimizes every possible interaction, some operations are inherently limited by Tado's server-side architecture:
 
-- **No Bulk Device Config:** Tado does **not** provide bulk API endpoints for hardware-specific settings. Temperature Offsets, Child Lock, and Window Detection must be sent individually (1 API call per device). If you change these for 10 devices, it will always cost 10 calls.
+- **No Bulk Device Config:** Tado does **not** provide bulk API endpoints for hardware-specific settings. Temperature Offsets, Child Lock, and Window Detection must be sent individually (1 API call per device). If you change these for 10 devices, it will always cost 10 calls. Home-all + the same device again in the debounce window is still **1** call (last write wins), not 11.
+- **Classic overlay is one POST:** heating, AC, hot water, and mixed temps in the same `POST /homes/{id}/overlay`. Tado X has house-wide `quickActions` only; mixed room setpoints are per-room `manualControl`.
 - **Schedule Logic is Cloud-Side:** When you "Resume Schedule", the actual target temperature is determined by Tado's servers. To show the correct value in HA immediately, a single confirmatory poll is required (if `Refresh After Resume` is enabled).
 - **Sequential Execution:** To prevent account locks and respect the backend, device configuration commands are executed sequentially with a small delay.
 

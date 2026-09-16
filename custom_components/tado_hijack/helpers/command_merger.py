@@ -12,7 +12,15 @@ if TYPE_CHECKING:
     from tadoasync.models import Zone
 
 # Merger control fields: not sent to execute_batch as work items.
-_MERGED_CONTROL_KEYS = frozenset({"old_presence", "manual_poll"})
+_MERGED_CONTROL_KEYS = frozenset(
+    {
+        "old_presence",
+        "manual_poll",
+        "capability_zone_ids",
+        "targeted_polls",
+        "capabilities_all",
+    }
+)
 
 
 def executor_payload(merged: dict[str, Any]) -> dict[str, Any]:
@@ -27,6 +35,17 @@ def executor_payload(merged: dict[str, Any]) -> dict[str, Any]:
 def merged_has_executor_work(merged: dict[str, Any]) -> bool:
     """True if the merged batch still has work for execute_batch."""
     return any(executor_payload(merged).values())
+
+
+def manual_poll_includes(poll: Any, *kinds: str) -> bool:
+    """True if this batch's manual_poll covers any of the given types."""
+    if poll is None:
+        return False
+    if poll == "all" or poll in kinds:
+        return True
+    if isinstance(poll, list | tuple | set | frozenset):
+        return "all" in poll or bool(set(poll) & set(kinds))
+    return False
 
 
 def format_executor_payload(merged: dict[str, Any]) -> str:
@@ -56,7 +75,11 @@ class CommandMerger:
         self.identifies: set[str] = set()
         self.presence: str | None = None
         self.old_presence: str | None = None
-        self.manual_poll: str | None = None
+        self.manual_poll_types: set[str] = set()
+        self.capability_zone_ids: set[int] = set()
+        self.capabilities_all: bool = False
+        self.targeted_polls: list[tuple[str, str]] = []
+        self.quick_action: str | None = None
         self.rollback_zones: dict[int, Any] = {}
         self.rollback_child_locks: dict[str, bool] = {}
         self.rollback_offsets: dict[str, float] = {}
@@ -84,16 +107,38 @@ class CommandMerger:
             CommandType.IDENTIFY: self._merge_identify,
             CommandType.SET_PRESENCE: self._merge_presence,
             CommandType.RESUME_SCHEDULE: self._merge_resume,
+            CommandType.QUICK_ACTION: self._merge_quick_action,
         }
         if handler := handlers.get(cmd.cmd_type):
             handler(cmd)
 
     def _merge_manual_poll(self, cmd: TadoCommand) -> None:
-        new_type = cmd.data.get("type", "all") if cmd.data else "all"
-        if self.manual_poll is None:
-            self.manual_poll = new_type
-        elif self.manual_poll != new_type:
-            self.manual_poll = "all"
+        data = cmd.data or {}
+        new_type = str(data.get("type", "all"))
+        if entity_id := data.get("entity_id"):
+            self.targeted_polls.append((new_type, str(entity_id)))
+            return
+        zid = cmd.zone_id if cmd.zone_id is not None else data.get("zone_id")
+        if new_type == "capabilities" and zid is not None:
+            self.capability_zone_ids.add(int(zid))
+            return
+        self.manual_poll_types.add(new_type)
+        if new_type in {"all", "capabilities"}:
+            self.capabilities_all = True
+
+    def _merge_quick_action(self, cmd: TadoCommand) -> None:
+        """Last queued house-wide Tado X quick action wins."""
+        if cmd.data and cmd.data.get("action"):
+            self.quick_action = str(cmd.data["action"])
+
+    def _resolved_manual_poll(self) -> str | tuple[str, ...] | None:
+        """One type, several types, or all — never upgrade a mix to a full poll."""
+        if not self.manual_poll_types:
+            return None
+        if "all" in self.manual_poll_types:
+            return "all"
+        ordered = tuple(sorted(self.manual_poll_types))
+        return ordered[0] if len(ordered) == 1 else ordered
 
     def _merge_keyed(
         self,
@@ -264,7 +309,11 @@ class CommandMerger:
             "identifies": self.identifies,
             "presence": self.presence,
             "old_presence": self.old_presence,
-            "manual_poll": self.manual_poll,
+            "manual_poll": self._resolved_manual_poll(),
+            "capability_zone_ids": self.capability_zone_ids,
+            "capabilities_all": self.capabilities_all,
+            "targeted_polls": self.targeted_polls,
+            "quick_action": self.quick_action,
             "rollback_zones": self.rollback_zones,
             "rollback_child_locks": self.rollback_child_locks,
             "rollback_offsets": self.rollback_offsets,

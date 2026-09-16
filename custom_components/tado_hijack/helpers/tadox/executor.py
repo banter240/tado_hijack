@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Coroutine
 from typing import TYPE_CHECKING, Any
 
+from ...const import BOOST_MODE_TEMP, POWER_OFF, POWER_ON, TEMP_TOLERANCE
 from ...lib.tadox_api import TadoXApi
 from ..executor_base import TadoExecutorBase, map_magic_temp_to_power
 from ..logging_utils import get_redacted_logger
@@ -48,7 +49,7 @@ class TadoXExecutor(TadoExecutorBase):
         # 2. Device Properties (Child Lock, Offset) -> Unified into PATCH
         await self._execute_device_fusion(merged)
 
-        # 3. Zone Actions & Quick Actions
+        # 3. Zone / house-wide actions (one bulk call when the endpoint covers it)
         await self._execute_zone_actions(merged)
 
         # 4. Open Window Detection
@@ -132,49 +133,122 @@ class TadoXExecutor(TadoExecutorBase):
                 context={"serial": serial, "payload": payload},
             )
 
-    async def _execute_zone_actions(self, merged: dict[str, Any]) -> None:
-        """Execute zone commands, prioritizing house-wide Quick Actions."""
-        zones = merged["zones"]
-        if not zones:
+    def _zone_power_temp(
+        self, data: dict[str, Any] | None
+    ) -> tuple[str | None, float | None]:
+        """Resume is (None, None); overlay is (power, temp after magic mapping)."""
+        if data is None:
+            return None, None
+        setting = data.get("setting") or {}
+        temp = (setting.get("temperature") or {}).get("celsius")
+        temp, power = map_magic_temp_to_power(temp)
+        return power, temp
+
+    def _covered_by_quick_action(
+        self, data: dict[str, Any] | None, action: str
+    ) -> bool:
+        """True if this room is already implied by a house-wide quick action."""
+        power, temp = self._zone_power_temp(data)
+        if action == "resume_all":
+            return data is None
+        if action == "all_off":
+            return data is not None and power == POWER_OFF
+        if action == "boost_all":
+            return (
+                data is not None
+                and power == POWER_ON
+                and temp is not None
+                and abs(float(temp) - BOOST_MODE_TEMP) <= TEMP_TOLERANCE
+            )
+        return False
+
+    def _infer_quick_action(
+        self,
+        real_zones: dict[int, dict[str, Any] | None],
+        all_heating: list[int],
+    ) -> str | None:
+        """Use one house-wide call when every heating room wants the same action."""
+        if not all_heating or set(real_zones) != set(all_heating):
+            return None
+        if all(data is None for data in real_zones.values()):
+            return "resume_all"
+        if any(data is None for data in real_zones.values()):
+            return None
+        if all(
+            self._covered_by_quick_action(data, "all_off")
+            for data in real_zones.values()
+        ):
+            return "all_off"
+        if all(
+            self._covered_by_quick_action(data, "boost_all")
+            for data in real_zones.values()
+        ):
+            return "boost_all"
+        return None
+
+    async def _run_quick_action(
+        self, action: str, rollback_zones: dict[int, Any], zone_ids: list[int]
+    ) -> None:
+        """POST one Tado X quickActions call."""
+        if self.bridge is None:
+            return
+        if action == "resume_all":
+            coro = self.bridge.async_resume_all_schedules()
+        elif action == "boost_all":
+            coro = self.bridge.async_boost_all()
+        elif action == "all_off":
+            coro = self.bridge.async_turn_off_all_zones()
+        else:
+            _LOGGER.warning("Unknown Tado X quick action '%s'", action)
             return
 
+        def _on_success() -> None:
+            if action == "resume_all":
+                for zone_id in zone_ids:
+                    self.coordinator.optimistic.clear_zone(zone_id)
+            self.coordinator.async_update_listeners()
+
+        _LOGGER.info("Tado X: house-wide quick action '%s' (1 call)", action)
+        await self._safe_execute(
+            f"quick_action_{action}",
+            coro,
+            rollback_fn=self._create_zones_rollback(zone_ids, rollback_zones)
+            if zone_ids
+            else None,
+            success_fn=_on_success,
+            context={"action": action},
+        )
+
+    async def _execute_zone_actions(self, merged: dict[str, Any]) -> None:
+        """House-wide bulk when possible; only extra rooms that differ from it."""
+        zones = merged.get("zones") or {}
         real_zones = {
             zone_id: data
             for zone_id, data in zones.items()
             if not self._intercept_zone_command(zone_id, data)
         }
+        rollback_zones = merged.get("rollback_zones", {})
+        all_heating = self.coordinator.get_active_zones(include_heating=True)
+        if action := merged.get("quick_action") or self._infer_quick_action(
+            real_zones, all_heating
+        ):
+            await self._run_quick_action(action, rollback_zones, all_heating)
+            real_zones = {
+                zone_id: data
+                for zone_id, data in real_zones.items()
+                if not self._covered_by_quick_action(data, action)
+            }
+            if real_zones:
+                _LOGGER.info(
+                    "Tado X: %d room(s) differ from '%s', extra manualControl",
+                    len(real_zones),
+                    action,
+                )
+
         if not real_zones:
             return
 
-        rollback_zones = merged.get("rollback_zones", {})
-
-        # Check for Quick Action potential (Heuristic)
-        all_heating = self.coordinator.get_active_zones(include_heating=True)
-        pending_resumes = [
-            zone_id
-            for zone_id, data in real_zones.items()
-            if data is None and zone_id in all_heating
-        ]
-
-        if pending_resumes and len(pending_resumes) == len(all_heating):
-            _LOGGER.info("Tado X: Fusing multiple resumes into house-wide Quick Action")
-
-            def _clear_all_optimistic() -> None:
-                for zone_id in pending_resumes:
-                    self.coordinator.optimistic.clear_zone(zone_id)
-
-            await self._safe_execute(
-                "resume_all",
-                self.bridge.async_resume_all_schedules(),
-                rollback_fn=self._create_zones_rollback(
-                    pending_resumes, rollback_zones
-                ),
-                success_fn=_clear_all_optimistic,
-                context={"zones": pending_resumes},
-            )
-            return
-
-        # Fallback: Execute remaining zone actions sequentially with jitter
+        # Remaining rooms: no house-wide endpoint covers this mix
         for zone_id, data in real_zones.items():
             if data is None:
                 await self._safe_execute(

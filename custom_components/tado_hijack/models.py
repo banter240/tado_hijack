@@ -66,6 +66,7 @@ class CommandType(StrEnum):
     REFRESH_TIMETABLE = "refresh_timetable"
     REFRESH_SCHEDULE = "refresh_schedule"
     IDENTIFY = "identify"
+    QUICK_ACTION = "quick_action"
 
 
 @dataclass
