@@ -15,6 +15,7 @@ See dev/workspace/context/tadoasync_coupling.md for details.
 from __future__ import annotations
 
 import http
+import time
 from typing import TYPE_CHECKING, Any, cast
 
 from aiohttp import ClientTimeout
@@ -54,7 +55,7 @@ class TadoXApi:
         self._tado = tado_client
         self._session = tado_client._ensure_session()
         self._home_id = tado_client._home_id
-        self.rate_limit_data: dict[str, int] = {"limit": 0, "remaining": 0}
+        self.rate_limit_data: dict[str, Any] = {"limit": 0, "remaining": 0}
         _LOGGER.debug(
             "TadoXApi initialized: home_id=%s, session=%s",
             self._home_id,
@@ -161,8 +162,8 @@ class TadoXApi:
         if rl := parse_ratelimit_headers(title_cased):
             if rl.limit:
                 self.rate_limit_data["limit"] = rl.limit
-            if rl.remaining:
-                self.rate_limit_data["remaining"] = rl.remaining
+            self.rate_limit_data["remaining"] = rl.remaining
+            self.rate_limit_data["updated_at"] = time.monotonic()
             _LOGGER.debug(
                 "Hops rate limit: %d/%d remaining",
                 self.rate_limit_data["remaining"],
@@ -218,6 +219,10 @@ class TadoXApi:
         return await self._request(
             "POST", f"rooms/{room_id}/schedule", json_data=payload
         )
+
+    async def async_get_room_schedule(self, room_id: int) -> Any:
+        """GET the Smart Schedule for a Tado X room."""
+        return await self._request("GET", f"rooms/{room_id}/schedule")
 
     async def async_get_home_state(self) -> Any:
         """Get home presence state."""

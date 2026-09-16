@@ -85,7 +85,10 @@ class TadoApiManager:
                 else "offset"
             )
             return f"(serial={data.get('serial', '?')}, value={data.get(field, '?')})"
-        if command.cmd_type == CommandType.REFRESH_TIMETABLE:
+        if command.cmd_type in (
+            CommandType.REFRESH_TIMETABLE,
+            CommandType.REFRESH_SCHEDULE,
+        ):
             if command.zone_id is not None:
                 return f"(zone={command.zone_id})"
             return f"(zones={data.get('zone_ids', [])})"

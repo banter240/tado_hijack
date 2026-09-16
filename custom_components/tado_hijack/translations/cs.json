@@ -288,6 +288,12 @@
       },
       "refresh_all_timetables": {
         "name": "Aktualizovat všechny týdenní plány"
+      },
+      "refresh_zone_plan": {
+        "name": "Načíst týdenní plán"
+      },
+      "refresh_all_zone_plans": {
+        "name": "Načíst všechny týdenní plány"
       }
     },
     "number": {
@@ -351,6 +357,21 @@
           "three_day": "Po-Pá / So / Ne",
           "seven_day": "Podle dne v týdnu"
         }
+      },
+      "offset_cal_interval": {
+        "name": "Automatická kalibrace offsetu",
+        "state": {
+          "off": "Vypnuto",
+          "3h": "Každé 3 hodiny (od 00:00)",
+          "6h": "Každých 6 hodin (od 00:00)",
+          "9h": "Každých 9 hodin (od 00:00)",
+          "12h": "Každých 12 hodin (od 00:00)",
+          "15h": "Každých 15 hodin (od 00:00)",
+          "18h": "Každých 18 hodin (od 00:00)",
+          "21h": "Každých 21 hodin (od 00:00)",
+          "24h": "Jednou denně (00:00)",
+          "on_reset": "Jednou po resetu kvóty"
+        }
       }
     },
     "climate": {
@@ -363,6 +384,28 @@
               "heat": "Manuálně",
               "off": "Vypnuto"
             }
+          }
+        }
+      }
+    },
+    "calendar": {
+      "zone_plan": {
+        "name": "Tado {zone} týdenní plán",
+        "state_attributes": {
+          "timetable": {
+            "name": "Rozvrh"
+          },
+          "day": {
+            "name": "Den"
+          },
+          "blocks": {
+            "name": "Bloky"
+          },
+          "plan": {
+            "name": "Plán"
+          },
+          "updated_at": {
+            "name": "Aktualizováno"
           }
         }
       }
@@ -618,11 +661,11 @@
         },
         "refresh_type": {
           "name": "Typ obnovení",
-          "description": "Která data se mají obnovit. Cílené typy (offsets, away, capabilities, timetable) podporují entity_id pro levnější stažení jediné entity."
+          "description": "Která data se mají obnovit. Cílené typy (offsets, away, capabilities, timetable, schedule) podporují entity_id pro levnější stažení jediné entity."
         },
         "entity_id": {
           "name": "Entita (volitelné)",
-          "description": "Omezit obnovení na jedinou entitu. Podporováno pro: offsets, away, capabilities, timetable. Ostatní typy provedou kompletní obnovu."
+          "description": "Omezit obnovení na jedinou entitu. Podporováno pro: offsets, away, capabilities, timetable, schedule. Ostatní typy provedou kompletní obnovu."
         }
       }
     },
@@ -821,7 +864,8 @@
         "away": "Teploty mimo domov",
         "capabilities": "Možnosti zařízení",
         "presence": "Přítomnost",
-        "timetable": "Typ rozvrhu"
+        "timetable": "Typ rozvrhu",
+        "schedule": "Týdenní plán"
       }
     },
     "schedule_day": {

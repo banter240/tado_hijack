@@ -364,6 +364,8 @@ def _get_internal_state_diagnostics(
                 "presence_dirty": dm._presence_invalidated_at > dm._last_presence_poll,
                 "offsets_dirty": dm._offset_invalidated_at > dm._last_offset_poll,
                 "away_dirty": dm._away_invalidated_at > dm._last_away_poll,
+                "schedule_dirty": dm._schedule_invalidated_at > dm._last_schedule_poll,
+                "schedule_plan_zones": len(dm.schedule_blocks_cache),
             },
         },
         "device_linking": _get_device_linking_diagnostics(hass, coordinator),

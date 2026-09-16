@@ -60,6 +60,7 @@ PLATFORMS: list[Platform] = [
     Platform.SELECT,
     Platform.CLIMATE,
     Platform.WATER_HEATER,
+    Platform.CALENDAR,
 ]
 
 

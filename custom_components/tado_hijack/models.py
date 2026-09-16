@@ -64,6 +64,7 @@ class CommandType(StrEnum):
     SET_TIMETABLE = "set_timetable"
     SET_SCHEDULE = "set_schedule"
     REFRESH_TIMETABLE = "refresh_timetable"
+    REFRESH_SCHEDULE = "refresh_schedule"
     IDENTIFY = "identify"
 
 

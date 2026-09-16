@@ -288,6 +288,12 @@
       },
       "refresh_all_timetables": {
         "name": "Alle Zeitpläne aktualisieren"
+      },
+      "refresh_zone_plan": {
+        "name": "Wochenplan abrufen"
+      },
+      "refresh_all_zone_plans": {
+        "name": "Alle Wochenpläne abrufen"
       }
     },
     "number": {
@@ -351,6 +357,21 @@
           "three_day": "Mo-Fr / Sa / So",
           "seven_day": "Pro Wochentag"
         }
+      },
+      "offset_cal_interval": {
+        "name": "Offset auto-kalibrieren",
+        "state": {
+          "off": "Aus",
+          "3h": "Alle 3 Stunden (ab 00:00)",
+          "6h": "Alle 6 Stunden (ab 00:00)",
+          "9h": "Alle 9 Stunden (ab 00:00)",
+          "12h": "Alle 12 Stunden (ab 00:00)",
+          "15h": "Alle 15 Stunden (ab 00:00)",
+          "18h": "Alle 18 Stunden (ab 00:00)",
+          "21h": "Alle 21 Stunden (ab 00:00)",
+          "24h": "1x am Tag (00:00)",
+          "on_reset": "1x nach Quota-Reset"
+        }
       }
     },
     "climate": {
@@ -363,6 +384,28 @@
               "heat": "Manuell",
               "off": "Aus"
             }
+          }
+        }
+      }
+    },
+    "calendar": {
+      "zone_plan": {
+        "name": "Tado {zone} Wochenplan",
+        "state_attributes": {
+          "timetable": {
+            "name": "Zeitplan"
+          },
+          "day": {
+            "name": "Tag"
+          },
+          "blocks": {
+            "name": "Blöcke"
+          },
+          "plan": {
+            "name": "Plan"
+          },
+          "updated_at": {
+            "name": "Aktualisiert"
           }
         }
       }
@@ -614,11 +657,11 @@
       "fields": {
         "refresh_type": {
           "name": "Abruf-Typ",
-          "description": "Welche Daten aktualisiert werden sollen. Gezielte Typen (offsets, away, capabilities, timetable) unterstützen entity_id für einen günstigeren Einzelabruf."
+          "description": "Welche Daten aktualisiert werden sollen. Gezielte Typen (offsets, away, capabilities, timetable, schedule) unterstützen entity_id für einen günstigeren Einzelabruf."
         },
         "entity_id": {
           "name": "Entity (optional)",
-          "description": "Schränkt den Abruf auf eine einzelne Entity ein. Unterstützt für: offsets, away, capabilities, timetable. Andere Typen fallen auf einen vollständigen Refresh zurück."
+          "description": "Schränkt den Abruf auf eine einzelne Entity ein. Unterstützt für: offsets, away, capabilities, timetable, schedule. Andere Typen fallen auf einen vollständigen Refresh zurück."
         },
         "config_entry": {
           "name": "Tado-Zuhause (optional)",
@@ -821,7 +864,8 @@
         "away": "Abwesenheitstemperaturen",
         "capabilities": "Gerätefunktionen",
         "presence": "Anwesenheit",
-        "timetable": "Zeitplan-Typ"
+        "timetable": "Zeitplan-Typ",
+        "schedule": "Wochenplan"
       }
     },
     "schedule_day": {

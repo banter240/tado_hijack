@@ -288,6 +288,12 @@
       },
       "refresh_all_timetables": {
         "name": "Refresh all timetables"
+      },
+      "refresh_zone_plan": {
+        "name": "Fetch weekly plan"
+      },
+      "refresh_all_zone_plans": {
+        "name": "Fetch all weekly plans"
       }
     },
     "number": {
@@ -351,6 +357,21 @@
           "three_day": "Mon-Fri / Sat / Sun",
           "seven_day": "Per day of the week"
         }
+      },
+      "offset_cal_interval": {
+        "name": "Offset auto-calibrate",
+        "state": {
+          "off": "Off",
+          "3h": "Every 3 hours (from 00:00)",
+          "6h": "Every 6 hours (from 00:00)",
+          "9h": "Every 9 hours (from 00:00)",
+          "12h": "Every 12 hours (from 00:00)",
+          "15h": "Every 15 hours (from 00:00)",
+          "18h": "Every 18 hours (from 00:00)",
+          "21h": "Every 21 hours (from 00:00)",
+          "24h": "Once a day (00:00)",
+          "on_reset": "Once per quota reset"
+        }
       }
     },
     "climate": {
@@ -363,6 +384,28 @@
               "heat": "Manual",
               "off": "Off"
             }
+          }
+        }
+      }
+    },
+    "calendar": {
+      "zone_plan": {
+        "name": "Tado {zone} Weekly Plan",
+        "state_attributes": {
+          "timetable": {
+            "name": "Timetable"
+          },
+          "day": {
+            "name": "Day"
+          },
+          "blocks": {
+            "name": "Blocks"
+          },
+          "plan": {
+            "name": "Plan"
+          },
+          "updated_at": {
+            "name": "Updated"
           }
         }
       }
@@ -614,11 +657,11 @@
       "fields": {
         "refresh_type": {
           "name": "Refresh Type",
-          "description": "Which data to refresh. Targeted types (offsets, away, capabilities, timetable) support entity_id for a cheaper single-entity fetch."
+          "description": "Which data to refresh. Targeted types (offsets, away, capabilities, timetable, schedule) support entity_id for a cheaper single-entity fetch."
         },
         "entity_id": {
           "name": "Entity (optional)",
-          "description": "Restrict the refresh to a single entity. Supported for: offsets, away, capabilities, timetable. Other types fall back to a full refresh."
+          "description": "Restrict the refresh to a single entity. Supported for: offsets, away, capabilities, timetable, schedule. Other types fall back to a full refresh."
         },
         "config_entry": {
           "name": "Tado home (optional)",
@@ -821,7 +864,8 @@
         "away": "Away temperatures",
         "capabilities": "Device capabilities",
         "presence": "Presence",
-        "timetable": "Timetable type"
+        "timetable": "Timetable type",
+        "schedule": "Weekly plan"
       }
     },
     "schedule_day": {

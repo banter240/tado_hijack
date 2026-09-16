@@ -15,6 +15,7 @@ manual_poll:
             - "capabilities"
             - "presence"
             - "timetable"
+            - "schedule"
     entity_id:
       selector:
         entity:

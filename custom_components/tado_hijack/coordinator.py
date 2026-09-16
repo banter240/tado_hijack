@@ -12,6 +12,7 @@ from homeassistant.core import (
     HomeAssistant,
 )
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 from tadoasync import Tado, TadoError
@@ -34,6 +35,7 @@ from .const import (
     CONF_GENERATION,
     CONF_JITTER_PERCENT,
     CONF_MIN_AUTO_QUOTA_INTERVAL_S,
+    CONF_OFFSET_CAL_INTERVAL,
     CONF_OFFSET_POLL_INTERVAL,
     CONF_PRESENCE_POLL_INTERVAL,
     CONF_QUOTA_SAFETY_RESERVE,
@@ -46,10 +48,12 @@ from .const import (
     CONF_SUPPRESS_REDUNDANT_BUTTONS,
     CONF_SUPPRESS_REDUNDANT_CALLS,
     CONF_THROTTLE_THRESHOLD,
+    CONF_ZONE_TEMP_ENTITIES,
     DEFAULT_AUTO_API_QUOTA_PERCENT,
     DEFAULT_DEBOUNCE_TIME,
     DEFAULT_JITTER_PERCENT,
     DEFAULT_MIN_AUTO_QUOTA_INTERVAL_S,
+    DEFAULT_OFFSET_CAL_INTERVAL,
     DEFAULT_OFFSET_POLL_INTERVAL,
     DEFAULT_PRESENCE_POLL_INTERVAL,
     DEFAULT_QUOTA_SAFETY_RESERVE,
@@ -107,13 +111,19 @@ from .helpers.reset_window_tracker import ResetWindowTracker
 from .helpers.schedule import (
     blocks_from_schedule_state,
     build_classic_blocks,
+    build_refresh_all_schedules_command,
+    build_refresh_schedule_command,
     build_set_schedule_command,
     build_x_payload,
     ensure_full_day,
     ha_days_for_tado_day,
     parse_blocks,
+    parse_classic_plan,
+    parse_x_plan,
+    refresh_schedule_queue_key,
     resolve_day_types,
     resolve_timetable_type,
+    schedule_capable_zone_ids,
     schedule_queue_key,
     setting_type_for_zone,
     zone_supports_schedule,
@@ -231,6 +241,10 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             throttle_threshold,
             self.provider.get_rate_limit_source() if self.provider else get_handler(),
         )
+        # v2 and Hops both spend the same account quota; watch whichever answered last.
+        self.rate_limit.add_source(get_handler())
+        if bridge := getattr(self, "tadox_bridge", None):
+            self.rate_limit.add_source(bridge)
         self.auth_manager = AuthManager(hass, entry, client)
         self.property_manager = PropertyManager(self)
 
@@ -252,6 +266,10 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             provider=self.provider,
         )
         self.api_manager = TadoApiManager(hass, self, self._debounce_time)
+        self._zone_plan_locks: dict[int, asyncio.Lock] = {}
+        self._offset_cal_unsub: Callable[[], None] | None = None
+        self._last_offset_cal_at: datetime | None = None
+        self._offset_cal_lock = asyncio.Lock()
         # [DUMMY_HOOK]
         self.dummy_handler = TadoDummyHandler(self) if CONF_ENABLE_DUMMY_ZONES else None
         _LOGGER.info(
@@ -316,6 +334,13 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
                 len(restored),
                 restored,
             )
+
+        plan_data = await self.storage.async_get("schedule_blocks_cache")
+        if plan_data:
+            self.data_manager.schedule_blocks_cache.update(
+                {int(k): v for k, v in plan_data.items()}
+            )
+        self._schedule_offset_cal_timer()
 
     def _save_reset_tracker(self) -> None:
         """Persist reset tracker state to storage."""
@@ -437,7 +462,8 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
                 self.rate_limit.last_poll_cost = float(actual_cost)
                 self._polling_calls_today += actual_cost
 
-            self._detect_quota_reset()
+            if self._detect_quota_reset():
+                self._maybe_calibrate_offsets_on_reset()
 
             data.rate_limit = RateLimit(
                 limit=self.rate_limit.limit, remaining=self.rate_limit.remaining
@@ -667,18 +693,20 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
 
         self.poll_scheduler.schedule_reset_poll(delay, self._on_reset_poll)
 
-    def _detect_quota_reset(self) -> None:
+    def _detect_quota_reset(self) -> bool:
         """Detect quota reset by monitoring any increase in remaining quota.
 
         Since quota only decreases through usage, any upward movement
         unambiguously signals a reset. Uses adaptive learning to track actual
         reset times, independent of time-of-day.
         """
+        reset = False
         if check_quota_reset(
             limit=self.rate_limit.limit,
             remaining=self.rate_limit.remaining,
             last_remaining=self._last_remaining,
         ):
+            reset = True
             reset_time = dt_util.now()
             self._last_quota_reset = reset_time
             self._polling_calls_today = 0
@@ -699,6 +727,7 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             )
 
         self._last_remaining = self.rate_limit.remaining
+        return reset
 
     async def _on_reset_poll(self) -> None:
         """Execute automatic poll at quota reset time."""
@@ -724,6 +753,9 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
 
     def shutdown(self) -> None:
         """Cleanup listeners and tasks."""
+        if self._offset_cal_unsub:
+            self._offset_cal_unsub()
+            self._offset_cal_unsub = None
         self.event_handler.shutdown()
         self.poll_scheduler.shutdown()
         self.api_manager.shutdown()
@@ -759,13 +791,16 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             await self.async_refresh()
 
     def update_rate_limit_local(self, silent: bool = False) -> None:
-        """Update local stats and sync internal remaining from headers."""
+        """Sync remaining from the newest v2/Hops headers."""
         self.rate_limit.sync_from_headers()
-        self.data.rate_limit = RateLimit(
-            limit=self.rate_limit.limit,
-            remaining=self.rate_limit.remaining,
-        )
-        self.data.api_status = self.rate_limit.api_status
+        if self.data:
+            self.data.rate_limit = RateLimit(
+                limit=self.rate_limit.limit,
+                remaining=self.rate_limit.remaining,
+            )
+            self.data.api_status = self.rate_limit.api_status
+        if self._detect_quota_reset():
+            self._maybe_calibrate_offsets_on_reset()
         if not silent:
             self.async_update_listeners()
 
@@ -1241,6 +1276,127 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         """Set temperature offset for a device."""
         await self.action_provider.async_set_temperature_offset(serial_no, offset)
 
+    def _offset_cal_option(self) -> str:
+        """Return the configured offset auto-cal interval."""
+        return str(
+            self.config_entry.data.get(
+                CONF_OFFSET_CAL_INTERVAL, DEFAULT_OFFSET_CAL_INTERVAL
+            )
+        )
+
+    def _schedule_offset_cal_timer(self) -> None:
+        """Track local clock slots from 00:00 in 3h steps."""
+        from .helpers.offset_calibrate import hours_from_midnight
+
+        if self._offset_cal_unsub:
+            self._offset_cal_unsub()
+            self._offset_cal_unsub = None
+        hours = hours_from_midnight(self._offset_cal_option())
+        if not hours:
+            return
+        self._offset_cal_unsub = async_track_time_change(
+            self.hass,
+            self._on_offset_cal_tick,
+            hour=hours,
+            minute=0,
+            second=0,
+        )
+        _LOGGER.info("Offset auto-cal scheduled at local hours %s", hours)
+
+    async def _on_offset_cal_tick(self, _now: datetime) -> None:
+        """Clock slot from 00:00."""
+        await self.async_calibrate_offsets("interval")
+
+    def _maybe_calibrate_offsets_on_reset(self) -> None:
+        """Fire once when remaining quota jumps up, if that mode is selected."""
+        from .helpers.offset_calibrate import OFFSET_CAL_ON_RESET
+
+        if self._offset_cal_option() != OFFSET_CAL_ON_RESET:
+            return
+        self.hass.async_create_task(self.async_calibrate_offsets("quota_reset"))
+
+    async def async_set_offset_cal_interval(self, option: str) -> None:
+        """Persist the offset auto-cal dropdown and reschedule clock slots."""
+        from .helpers.offset_calibrate import OFFSET_CAL_OPTIONS
+
+        key = option.strip().lower()
+        if key not in OFFSET_CAL_OPTIONS:
+            raise HomeAssistantError(f"Unknown offset cal interval '{option}'.")
+        new_data = {**self.config_entry.data, CONF_OFFSET_CAL_INTERVAL: key}
+        self.hass.config_entries.async_update_entry(self.config_entry, data=new_data)
+        self._schedule_offset_cal_timer()
+        self.async_update_interval_local()
+        self.async_update_listeners()
+        _LOGGER.info("Offset auto-cal interval set to %s", key)
+
+    async def async_calibrate_offsets(self, reason: str) -> None:
+        """Write TRV offset = linked thermostat minus Tado raw, then hold."""
+        from .helpers.offset_calibrate import (
+            OFFSET_STEP,
+            compute_device_offset,
+            current_device_offset,
+            inside_from_zone_state,
+            measuring_devices,
+            read_entity_temperature,
+        )
+
+        if self.rate_limit.is_throttled and reason != "quota_reset":
+            _LOGGER.debug("Skip offset cal (%s): throttled", reason)
+            return
+        linked = self.config_entry.data.get(CONF_ZONE_TEMP_ENTITIES) or {}
+        if not isinstance(linked, dict) or not linked:
+            return
+
+        async with self._offset_cal_lock:
+            if (
+                reason == "quota_reset"
+                and self._last_offset_cal_at
+                and self._last_quota_reset
+                and self._last_offset_cal_at >= self._last_quota_reset
+            ):
+                return
+            wrote = 0
+            zone_states = getattr(self.data, "zone_states", None) or {}
+            for serial, zone_id in measuring_devices(self):
+                if self.dummy_handler and self.dummy_handler.is_dummy_zone(zone_id):
+                    continue
+                entity_id = linked.get(str(zone_id))
+                if not entity_id:
+                    continue
+                thermostat = read_entity_temperature(self.hass, str(entity_id))
+                tado_inside = inside_from_zone_state(
+                    zone_states.get(str(zone_id)) or zone_states.get(zone_id)
+                )
+                current = current_device_offset(self, serial)
+                if thermostat is None or tado_inside is None or current is None:
+                    _LOGGER.debug(
+                        "Skip offset cal zone %s device %s "
+                        "(thermostat=%s tado=%s offset=%s)",
+                        zone_id,
+                        serial,
+                        thermostat,
+                        tado_inside,
+                        current,
+                    )
+                    continue
+                desired = compute_device_offset(thermostat, tado_inside, current)
+                if abs(desired - current) < OFFSET_STEP:
+                    continue
+                _LOGGER.info(
+                    "Offset cal (%s) %s: thermostat=%.2f tado=%.2f offset %.1f -> %.1f",
+                    reason,
+                    serial,
+                    thermostat,
+                    tado_inside,
+                    current,
+                    desired,
+                )
+                await self.async_set_temperature_offset(serial, desired)
+                wrote += 1
+            self._last_offset_cal_at = dt_util.now()
+            if wrote:
+                _LOGGER.info("Offset auto-cal (%s) queued %d device(s)", reason, wrote)
+
     async def async_set_away_temperature(self, zone_id: int, temp: float) -> None:
         """Set away temperature for a zone."""
         old_val = self.data_manager.away_cache.get(zone_id)
@@ -1366,6 +1522,10 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             set_queue_key(zone_id),
             build_set_command(zone_id, entry["id"], old_id),
         )
+        plan = self.data_manager.schedule_blocks_cache.get(zone_id)
+        if plan and plan.get("timetable_type") != canonical:
+            self.data_manager.schedule_blocks_cache.pop(zone_id, None)
+            self._save_schedule_blocks_cache()
 
     def _canonical_schedule_blocks(
         self,
@@ -1413,10 +1573,12 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         if timetable is None and not cached_type:
             try:
                 raw = await self.client.get_active_timetable(zone_id)
+                self.update_rate_limit_local(silent=True)
                 fetched = normalize_api_entry(raw)
                 self._apply_timetable_cache(zone_id, fetched)
                 cached_type = fetched.get("type")
             except Exception as err:
+                self.update_rate_limit_local(silent=True)
                 raise HomeAssistantError(
                     f"Could not read active timetable for zone {zone_id}: {err}"
                 ) from err
@@ -1464,11 +1626,195 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             )
             self.api_manager.queue_command(
                 schedule_queue_key(zone_id, timetable_id, day_type),
-                build_set_schedule_command(zone_id, timetable_id, day_type, payload),
+                build_set_schedule_command(
+                    zone_id,
+                    timetable_id,
+                    day_type,
+                    payload,
+                    timetable_type,
+                    canonical,
+                ),
             )
 
         if activate:
             await self.async_set_timetable(zone_id, timetable_type)
+
+    def _save_schedule_blocks_cache(self) -> None:
+        """Persist zone plan cache."""
+        self.hass.async_create_task(
+            self.storage.async_update(
+                "schedule_blocks_cache",
+                {
+                    str(zone_id): entry
+                    for zone_id, entry in self.data_manager.schedule_blocks_cache.items()
+                },
+            )
+        )
+
+    def _store_zone_plan_day(
+        self,
+        zone_id: int,
+        timetable_id: int,
+        timetable_type: str,
+        day_type: str,
+        canonical: list[dict[str, Any]],
+    ) -> None:
+        """Merge one day of blocks into the zone plan cache."""
+        entry = self.data_manager.schedule_blocks_cache.get(zone_id)
+        if (
+            not entry
+            or entry.get("timetable_id") != timetable_id
+            or entry.get("timetable_type") != timetable_type
+        ):
+            entry = {
+                "timetable_id": timetable_id,
+                "timetable_type": timetable_type,
+                "days": {},
+            }
+            self.data_manager.schedule_blocks_cache[zone_id] = entry
+        days = entry.setdefault("days", {})
+        days[day_type] = canonical
+        entry["updated_at"] = dt_util.utcnow().isoformat()
+
+    def apply_successful_schedule_write(self, slot: dict[str, Any]) -> None:
+        """Update the calendar cache only after Tado accepted the write."""
+        canonical = slot.get("canonical")
+        if not isinstance(canonical, list):
+            return
+        self._store_zone_plan_day(
+            int(slot["zone_id"]),
+            int(slot["timetable_id"]),
+            str(slot["timetable_type"]),
+            str(slot["day_type"]),
+            canonical,
+        )
+        self._save_schedule_blocks_cache()
+        self.async_update_listeners()
+
+    def _schedule_write_pending(self, zone_id: int) -> bool:
+        """True while a set_schedule command for this zone is still queued."""
+        prefix = f"{CommandType.SET_SCHEDULE.value}_{zone_id}_"
+        return any(key.startswith(prefix) for key in self.api_manager.pending_keys)
+
+    async def async_refresh_zone_plan(self, zone_id: int) -> None:
+        """Queue a debounced weekly-plan GET for one zone."""
+        _LOGGER.info(
+            "Queued zone plan refresh for zone %s (generation=%s)",
+            zone_id,
+            self.generation,
+        )
+        self.api_manager.queue_command(
+            refresh_schedule_queue_key(zone_id),
+            build_refresh_schedule_command(zone_id),
+        )
+
+    async def async_refresh_all_zone_plans(self) -> None:
+        """Queue a debounced weekly-plan GET for every schedule-capable zone."""
+        zone_ids = schedule_capable_zone_ids(self)
+        if not zone_ids:
+            _LOGGER.debug("Queued zone plan refresh: no schedule-capable zones found")
+            return
+        _LOGGER.info(
+            "Queued zone plan refresh for %d zone(s) (generation=%s): %s",
+            len(zone_ids),
+            self.generation,
+            zone_ids,
+        )
+        self.api_manager.queue_command(
+            refresh_schedule_queue_key(),
+            build_refresh_all_schedules_command(zone_ids),
+        )
+
+    async def _execute_zone_plan_refreshes(
+        self,
+        zone_ids: Iterable[int],
+        skip_zone_ids: Iterable[int] = (),
+        *,
+        notify: bool = True,
+    ) -> None:
+        """GET unique zone plans after debounce; skip dummy, pending SET, skip list."""
+        to_fetch = unique_zone_ids(zone_ids, skip_zone_ids)
+        if not to_fetch:
+            return
+        _LOGGER.info(
+            "Fetching weekly plans for %d zone(s) (generation=%s): %s",
+            len(to_fetch),
+            self.generation,
+            to_fetch,
+        )
+        for zid in to_fetch:
+            await self._fetch_zone_plan(zid)
+        if notify:
+            self.async_update_listeners()
+
+    async def _fetch_zone_plan(self, zone_id: int) -> None:
+        """GET the zone's current plan (1 call when timetable id is cached)."""
+        if not zone_supports_schedule(self, zone_id):
+            return
+        if self.dummy_handler and self.dummy_handler.is_dummy_zone(zone_id):
+            return
+        if self._schedule_write_pending(zone_id):
+            _LOGGER.debug(
+                "Skipping zone plan GET for zone %s (SET pending, generation=%s)",
+                zone_id,
+                self.generation,
+            )
+            return
+        lock = self._zone_plan_locks.setdefault(zone_id, asyncio.Lock())
+        async with lock:
+            await self._fetch_zone_plan_locked(zone_id)
+
+    async def _fetch_zone_plan_locked(self, zone_id: int) -> None:
+        """GET one zone plan while holding the per-zone lock."""
+        try:
+            if self.generation == GEN_X:
+                bridge = getattr(self, "tadox_bridge", None)
+                if bridge is None:
+                    return
+                raw = await bridge.async_get_room_schedule(zone_id)
+                days = parse_x_plan(raw)
+                cached_type = (
+                    self.data_manager.timetable_cache.get(zone_id) or {}
+                ).get("type")
+                self.data_manager.schedule_blocks_cache[zone_id] = {
+                    "timetable_id": None,
+                    "timetable_type": cached_type,
+                    "days": days,
+                    "updated_at": dt_util.utcnow().isoformat(),
+                }
+            else:
+                cached = self.data_manager.timetable_cache.get(zone_id)
+                if not cached or cached.get("id") is None:
+                    raw_type = await self.client.get_active_timetable(zone_id)
+                    cached = normalize_api_entry(raw_type)
+                    self._apply_timetable_cache(zone_id, cached)
+                timetable_id = int(cached["id"])
+                raw_blocks = await self.client.get_timetable_blocks(
+                    zone_id, timetable_id
+                )
+                self.data_manager.schedule_blocks_cache[zone_id] = {
+                    "timetable_id": timetable_id,
+                    "timetable_type": cached.get("type"),
+                    "days": parse_classic_plan(raw_blocks),
+                    "updated_at": dt_util.utcnow().isoformat(),
+                }
+        except Exception:
+            _LOGGER.exception(
+                "Failed to fetch heating plan for zone %s (generation=%s)",
+                zone_id,
+                self.generation,
+            )
+            self.update_rate_limit_local(silent=True)
+            return
+        self.update_rate_limit_local(silent=True)
+        cached = self.data_manager.schedule_blocks_cache.get(zone_id) or {}
+        _LOGGER.debug(
+            "Fetched heating plan for zone %s (%d day slots, generation=%s)",
+            zone_id,
+            len(cached.get("days") or {}),
+            self.generation,
+        )
+        self._save_schedule_blocks_cache()
 
     async def async_refresh_timetable(self, zone_id: int) -> None:
         """Queue a debounced activeTimetable GET for one zone."""

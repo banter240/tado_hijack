@@ -187,7 +187,7 @@ class TadoExecutorBase(ABC):
         return False
 
     async def _execute_schedules(self, merged: dict[str, Any]) -> None:
-        """Write timetable blocks (classic PUT or Tado X Hops POST)."""
+        """Write timetable blocks, then GET weekly plans queued in this batch."""
         for slot in merged.get("schedules", {}).values():
             zid = int(slot["zone_id"])
             if self._should_skip_zone(zid):  # [DUMMY_HOOK]
@@ -207,6 +207,9 @@ class TadoExecutorBase(ABC):
             await self._safe_execute(
                 f"schedule_{zid}_{day_type}",
                 coro,
+                success_fn=lambda data=slot: (
+                    self.coordinator.apply_successful_schedule_write(data)
+                ),
                 context={
                     "generation": self.coordinator.generation,
                     "zone_id": zid,
@@ -214,6 +217,18 @@ class TadoExecutorBase(ABC):
                     "day_type": day_type,
                 },
             )
+
+        if merged.get("manual_poll") in {"all", "schedule"}:
+            return
+        written = {
+            int(slot["zone_id"])
+            for slot in merged.get("schedules", {}).values()
+            if "zone_id" in slot
+        }
+        await self.coordinator._execute_zone_plan_refreshes(
+            merged.get("refresh_schedules") or (),
+            skip_zone_ids=written,
+        )
 
     async def _execute_timetables(self, merged: dict[str, Any]) -> None:
         """PUT classic v2 activeTimetable (v3 plus experimental Tado X)."""

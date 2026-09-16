@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from collections.abc import Iterator
+from datetime import datetime, timedelta
+from typing import TYPE_CHECKING, Any, cast
 
 from ..const import (
     GEN_X,
@@ -17,7 +19,7 @@ from ..const import (
     ZONE_TYPE_HOT_WATER,
 )
 from ..models import CommandType, TadoCommand
-from .timetable import entry_for_type, normalize_timetable_type
+from .timetable import entry_for_type, normalize_timetable_type, unique_zone_ids
 from .zone_utils import get_zone_type
 
 if TYPE_CHECKING:
@@ -29,6 +31,7 @@ MIN_BLOCK_MINUTES = 15
 MINUTES_PER_DAY = 1440
 CLOCK_HOURS = 24
 CLOCK_MINUTES = 60
+_REFRESH_ALL_KEY = "all"
 
 DAY_MONDAY_TO_SUNDAY = "MONDAY_TO_SUNDAY"
 DAY_MONDAY_TO_FRIDAY = "MONDAY_TO_FRIDAY"
@@ -329,6 +332,15 @@ def zone_supports_schedule(
     return ztype in _CLASSIC_SCHEDULE_TYPES
 
 
+def schedule_capable_zone_ids(coordinator: TadoDataUpdateCoordinator) -> list[int]:
+    """Zone ids that can have a weekly plan fetched or written."""
+    return [
+        zone_id
+        for zone_id in coordinator.zones_meta
+        if zone_supports_schedule(coordinator, zone_id)
+    ]
+
+
 def build_classic_blocks(
     day_type: str, setting_type: str, blocks: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
@@ -383,8 +395,16 @@ def schedule_slot_key(zone_id: int, timetable_id: int, day_type: str) -> str:
     return f"{zone_id}:{timetable_id}:{day_type}"
 
 
+def refresh_schedule_queue_key(zone_id: int | None = None) -> str:
+    """Debounce key for one zone plan GET, or the home-wide fetch."""
+    suffix = _REFRESH_ALL_KEY if zone_id is None else zone_id
+    return f"{CommandType.REFRESH_SCHEDULE.value}_{suffix}"
+
+
 def schedule_queue_key_for_command(cmd: TadoCommand) -> str | None:
-    """Debounce key for SET_SCHEDULE, or None."""
+    """Debounce key for SET_SCHEDULE or REFRESH_SCHEDULE, or None."""
+    if cmd.cmd_type == CommandType.REFRESH_SCHEDULE:
+        return refresh_schedule_queue_key(cmd.zone_id)
     if cmd.cmd_type != CommandType.SET_SCHEDULE or not cmd.data:
         return None
     return schedule_queue_key(
@@ -394,11 +414,40 @@ def schedule_queue_key_for_command(cmd: TadoCommand) -> str | None:
     )
 
 
+def refresh_schedule_zone_ids_from_command(cmd: TadoCommand) -> list[int]:
+    """Zone ids carried by a REFRESH_SCHEDULE command (one zone or a list)."""
+    if cmd.data and cmd.data.get("zone_ids"):
+        return unique_zone_ids(cmd.data["zone_ids"])
+    zid = cmd.zone_id
+    if zid is None and cmd.data and "zone_id" in cmd.data:
+        zid = cmd.data["zone_id"]
+    return unique_zone_ids((zid,) if zid is not None else ())
+
+
+def build_refresh_schedule_command(zone_id: int) -> TadoCommand:
+    """Queue payload for GET weekly plan on one zone."""
+    return TadoCommand(
+        CommandType.REFRESH_SCHEDULE,
+        zone_id=zone_id,
+        data={"zone_id": zone_id},
+    )
+
+
+def build_refresh_all_schedules_command(zone_ids: list[int]) -> TadoCommand:
+    """Queue payload for GET weekly plan on every capable zone."""
+    return TadoCommand(
+        CommandType.REFRESH_SCHEDULE,
+        data={"zone_ids": zone_ids},
+    )
+
+
 def build_set_schedule_command(
     zone_id: int,
     timetable_id: int,
     day_type: str,
     payload: Any,
+    timetable_type: str,
+    canonical: list[dict[str, Any]],
 ) -> TadoCommand:
     """Queue payload for one dayType write."""
     return TadoCommand(
@@ -409,6 +458,8 @@ def build_set_schedule_command(
             "timetable_id": timetable_id,
             "day_type": day_type,
             "payload": payload,
+            "timetable_type": timetable_type,
+            "canonical": canonical,
         },
     )
 
@@ -434,3 +485,260 @@ def as_day_list(days: Any) -> list[str] | None:
     if days is None:
         return None
     return [days] if isinstance(days, str) else [str(item) for item in days]
+
+
+_SLOT_WEEKDAYS: dict[str, frozenset[int]] = {
+    DAY_MONDAY_TO_SUNDAY: frozenset(range(7)),
+    DAY_MONDAY_TO_FRIDAY: frozenset(range(5)),
+    DAY_MONDAY: frozenset({0}),
+    DAY_TUESDAY: frozenset({1}),
+    DAY_WEDNESDAY: frozenset({2}),
+    DAY_THURSDAY: frozenset({3}),
+    DAY_FRIDAY: frozenset({4}),
+    DAY_SATURDAY: frozenset({5}),
+    DAY_SUNDAY: frozenset({6}),
+}
+
+
+def _service_number(value: float) -> int | float:
+    as_int = int(value)
+    return as_int if value == as_int else value
+
+
+def blocks_as_service(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Canonical blocks -> set_schedule `blocks` field (copy/paste / templates)."""
+    payload: list[dict[str, Any]] = []
+    for block in blocks:
+        item: dict[str, Any] = {
+            "start": format_hhmm(int(block["start_min"]), end_of_day_midnight=True),
+            "end": format_hhmm(int(block["end_min"]), end_of_day_midnight=True),
+        }
+        if block["power"] == POWER_ON and block["temperature"] is not None:
+            item["temperature"] = _service_number(float(block["temperature"]))
+        else:
+            item["power"] = POWER_OFF
+        if block.get("geolocation_override"):
+            item["geolocation_override"] = True
+        payload.append(item)
+    return payload
+
+
+def slot_for_weekday(
+    timetable_type: str | None,
+    weekday: int,
+    days: dict[str, Any] | None = None,
+) -> str | None:
+    """Tado dayType that covers this weekday in the active plan."""
+    canonical = (
+        normalize_timetable_type(str(timetable_type)) if timetable_type else None
+    )
+    if canonical and (slots := TIMETABLE_DAY_TYPES.get(canonical)):
+        return next(
+            (
+                slot
+                for slot in slots
+                if weekday in _SLOT_WEEKDAYS.get(slot, frozenset())
+            ),
+            None,
+        )
+    if not days:
+        return None
+    candidates = [
+        slot
+        for slot, weekdays in _SLOT_WEEKDAYS.items()
+        if weekday in weekdays and slot in days
+    ]
+    return (
+        min(candidates, key=lambda slot: len(_SLOT_WEEKDAYS[slot]))
+        if candidates
+        else None
+    )
+
+
+def service_blocks_for_weekday(
+    days: dict[str, Any],
+    timetable_type: str | None,
+    weekday: int,
+) -> list[dict[str, Any]] | None:
+    """Today's (or any weekday's) set_schedule blocks, or None if missing."""
+    slot = slot_for_weekday(timetable_type, weekday, days)
+    if not slot:
+        return None
+    raw = days.get(slot)
+    return blocks_as_service(raw) if isinstance(raw, list) else None
+
+
+def plan_service_attrs(plan: dict[str, Any] | None, weekday: int) -> dict[str, Any]:
+    """Calendar/state attributes that round-trip into set_schedule."""
+    if not plan:
+        return {}
+    days = plan.get("days")
+    days_map = days if isinstance(days, dict) else {}
+    attrs: dict[str, Any] = {}
+    ttype = plan.get("timetable_type")
+    if ttype and (canonical := normalize_timetable_type(str(ttype))):
+        attrs["timetable"] = canonical.lower()
+    if days_map:
+        attrs["plan"] = {
+            str(slot).lower(): blocks_as_service(blocks)
+            for slot, blocks in days_map.items()
+            if isinstance(blocks, list)
+        }
+    if slot := slot_for_weekday(ttype, weekday, days_map):
+        attrs["day"] = slot.lower()
+        raw = days_map.get(slot)
+        if isinstance(raw, list):
+            attrs["blocks"] = blocks_as_service(raw)
+    if updated := plan.get("updated_at"):
+        attrs["updated_at"] = updated
+    return attrs
+
+
+def _as_setting(raw: Any) -> dict[str, Any]:
+    return cast(dict[str, Any], raw) if isinstance(raw, dict) else {}
+
+
+def _block_temperature(setting: dict[str, Any], temperature_key: str) -> float | None:
+    raw_temp = setting.get("temperature")
+    if isinstance(raw_temp, dict):
+        value = raw_temp.get(temperature_key)
+        return float(value) if value is not None else None
+    return float(raw_temp) if isinstance(raw_temp, int | float) else None
+
+
+def _append_api_block(
+    days: dict[str, list[dict[str, Any]]],
+    day_type: str,
+    start_raw: Any,
+    end_raw: Any,
+    setting: dict[str, Any],
+    temperature_key: str,
+    geo: bool,
+) -> None:
+    try:
+        start_min = parse_hhmm(str(start_raw))
+        end_min = parse_hhmm(str(end_raw))
+    except TypeError, ValueError:
+        return
+    if end_min == 0 and start_min > 0:
+        end_min = MINUTES_PER_DAY
+    power = str(setting.get("power") or POWER_OFF).upper()
+    temperature = None
+    if power == POWER_ON:
+        temperature = _block_temperature(setting, temperature_key)
+        if temperature is None:
+            return
+    days.setdefault(day_type, []).append(
+        _canonical_block(start_min, end_min, power, temperature, geo)
+    )
+
+
+def parse_classic_plan(raw: Any) -> dict[str, list[dict[str, Any]]]:
+    """Parse classic GET .../blocks array into canonical days."""
+    days: dict[str, list[dict[str, Any]]] = {}
+    if not isinstance(raw, list):
+        return days
+    for item in raw:
+        if not isinstance(item, dict) or not item.get("dayType"):
+            continue
+        _append_api_block(
+            days,
+            str(item["dayType"]),
+            item.get("start"),
+            item.get("end"),
+            _as_setting(item.get("setting")),
+            "celsius",
+            bool(item.get("geolocationOverride", False)),
+        )
+    return days
+
+
+def _iter_x_schedule_blocks(raw: Any) -> Iterator[dict[str, Any]]:
+    """Yield flat block dicts from the Hops schedule GET shapes."""
+    if isinstance(raw, list):
+        items: list[Any] = raw
+    elif isinstance(raw, dict):
+        nested = raw.get("schedule") or raw.get("days")
+        items = nested if isinstance(nested, list) else [raw]
+    else:
+        return
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        nested_blocks = item.get("daySchedule")
+        if isinstance(nested_blocks, list):
+            fallback_day = item.get("dayType")
+            for block in nested_blocks:
+                if not isinstance(block, dict):
+                    continue
+                if fallback_day and not block.get("dayType"):
+                    yield {**block, "dayType": fallback_day}
+                else:
+                    yield block
+        elif item.get("dayType"):
+            yield item
+
+
+def plan_has_all_slots(plan: dict[str, Any] | None) -> bool:
+    """True when cached days cover every slot of the stored timetable type."""
+    if not plan:
+        return False
+    days = plan.get("days")
+    if not isinstance(days, dict) or not days:
+        return False
+    ttype = plan.get("timetable_type")
+    if not ttype:
+        return True
+    canonical = normalize_timetable_type(str(ttype)) or str(ttype)
+    slots = TIMETABLE_DAY_TYPES.get(canonical)
+    return all(slot in days for slot in slots) if slots else True
+
+
+def parse_x_plan(raw: Any) -> dict[str, list[dict[str, Any]]]:
+    """Parse Hops GET rooms/{id}/schedule into canonical days."""
+    days: dict[str, list[dict[str, Any]]] = {}
+    for item in _iter_x_schedule_blocks(raw):
+        if day_type := item.get("dayType"):
+            _append_api_block(
+                days,
+                str(day_type),
+                item.get("start"),
+                item.get("end"),
+                _as_setting(item.get("setting")),
+                "value",
+                False,
+            )
+    return days
+
+
+def iter_heat_windows(
+    days: dict[str, list[dict[str, Any]]],
+    range_start: datetime,
+    range_end: datetime,
+) -> Iterator[tuple[datetime, datetime, float]]:
+    """Yield ON heat windows that overlap [range_start, range_end)."""
+    if range_end <= range_start:
+        return
+    tzinfo = range_start.tzinfo
+    day = range_start.date()
+    last = range_end.date()
+    while day <= last:
+        weekday = day.weekday()
+        midnight = datetime.combine(day, datetime.min.time(), tzinfo)
+        for slot, blocks in days.items():
+            if weekday not in _SLOT_WEEKDAYS.get(slot, frozenset()):
+                continue
+            for block in blocks:
+                if block["power"] != POWER_ON or block["temperature"] is None:
+                    continue
+                start_min = int(block["start_min"])
+                end_min = int(block["end_min"])
+                start_at = midnight + timedelta(minutes=start_min)
+                end_at = (
+                    midnight + timedelta(days=1)
+                    if end_min >= MINUTES_PER_DAY
+                    else midnight + timedelta(minutes=end_min)
+                )
+                if end_at > range_start and start_at < range_end:
+                    yield start_at, end_at, float(block["temperature"])
+        day += timedelta(days=1)

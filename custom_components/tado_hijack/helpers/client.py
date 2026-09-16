@@ -196,3 +196,14 @@ class TadoHijackClient(Tado):
             data=cast(Any, blocks),
             method=HttpMethod.PUT,
         )
+
+    async def get_timetable_blocks(
+        self, zone_id: int, timetable_id: int
+    ) -> list[dict[str, Any]]:
+        """GET all blocks for one timetable type (all dayTypes in one call)."""
+        response = await self._request(
+            f"homes/{self._home_id}/zones/{zone_id}/schedule/"
+            f"timetables/{timetable_id}/blocks"
+        )
+        parsed = orjson.loads(response)
+        return parsed if isinstance(parsed, list) else []

@@ -24,6 +24,7 @@ from .const import (
     CONF_JITTER_PERCENT,
     CONF_LOG_LEVEL,
     CONF_MIN_AUTO_QUOTA_INTERVAL_S,
+    CONF_OFFSET_CAL_INTERVAL,
     CONF_OFFSET_POLL_INTERVAL,
     CONF_OUTDOOR_WEATHER_ENTITY,
     CONF_PRESENCE_POLL_INTERVAL,
@@ -49,6 +50,7 @@ from .const import (
     DEFAULT_JITTER_PERCENT,
     DEFAULT_LOG_LEVEL,
     DEFAULT_MIN_AUTO_QUOTA_INTERVAL_S,
+    DEFAULT_OFFSET_CAL_INTERVAL,
     DEFAULT_OFFSET_POLL_INTERVAL,
     DEFAULT_PRESENCE_POLL_INTERVAL,
     DEFAULT_QUOTA_SAFETY_RESERVE,
@@ -84,7 +86,9 @@ from .helpers.climate_physics import (
     compute_mold_risk_level,
     compute_ventilation_beneficial,
 )
+from .helpers.offset_calibrate import OFFSET_CAL_OPTIONS
 from .helpers.parsers import get_ac_capabilities
+from .helpers.schedule import zone_supports_schedule
 from .helpers.tadov3 import parsers as v3_parsers
 from .helpers.tadox import parsers as tadox_parsers
 from .helpers.timetable import home_select_value, zone_select_value
@@ -1784,6 +1788,20 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         icon="mdi:clock-check-outline",
         entity_category=EntityCategory.CONFIG,
     ),
+    create_home_select(
+        key="offset_cal_interval",
+        value_fn=lambda c: str(
+            c.config_entry.data.get(
+                CONF_OFFSET_CAL_INTERVAL, DEFAULT_OFFSET_CAL_INTERVAL
+            )
+        ),
+        options=list(OFFSET_CAL_OPTIONS),
+        select_option_fn=lambda c, val: c.async_set_offset_cal_interval(val),
+        icon="mdi:thermometer-adjust",
+        entity_category=EntityCategory.CONFIG,
+        supported_generations={GEN_CLASSIC, GEN_X},
+        translation_key="offset_cal_interval",
+    ),
     create_device_switch(
         key="child_lock",
         value_fn=lambda c, serial: bool(
@@ -1960,5 +1978,20 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         supported_generations={GEN_CLASSIC, GEN_X},
         unique_id_suffix="refresh_timetable",
         is_supported_fn=lambda _c, zid: zid != TADOX_VIRTUAL_HOT_WATER_ZONE_ID,
+    ),
+    create_home_button(
+        key="refresh_all_zone_plans",
+        press_fn=lambda c: c.async_refresh_all_zone_plans(),
+        icon="mdi:calendar-sync",
+        supported_generations={GEN_CLASSIC, GEN_X},
+    ),
+    create_zone_button(
+        key="refresh_zone_plan",
+        press_fn=lambda c, zid: c.async_refresh_zone_plan(zid),
+        icon="mdi:calendar-sync",
+        supported_zone_types=TIMETABLE_ZONE_TYPES,
+        supported_generations={GEN_CLASSIC, GEN_X},
+        unique_id_suffix="refresh_zone_plan",
+        is_supported_fn=zone_supports_schedule,
     ),
 ]
