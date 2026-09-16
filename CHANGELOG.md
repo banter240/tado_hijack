@@ -1,3 +1,18 @@
+## [5.10.0-dev.6](https://github.com/banter240/tado_hijack/compare/v5.10.0-dev.5...v5.10.0-dev.6) (2026-09-16)
+
+### 🐛 Bug Fixes
+
+* fix(core): share debounce across all queued Tado commands
+
+  Any new command rearms the debounce timer for every pending key.
+  Last write per key wins; the merger still fuses overlays, polls,
+  timetable/plan GETs, and Tado X house-wide quick actions.
+
+  Zone capability refresh and targeted fetches go through the same
+  queue. Distinct manual_poll types union into one coordinator
+  refresh instead of upgrading to a full poll. Skip command-path
+  GETs when the same batch already invalidates that track.
+
 ## [5.10.0-dev.5](https://github.com/banter240/tado_hijack/compare/v5.10.0-dev.4...v5.10.0-dev.5) (2026-09-16)
 
 ### ✨ New Features
