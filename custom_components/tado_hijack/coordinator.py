@@ -340,6 +340,10 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             self.data_manager.schedule_blocks_cache.update(
                 {int(k): v for k, v in plan_data.items()}
             )
+        caps_data = await self.storage.async_get("capabilities_cache")
+        if isinstance(caps_data, dict) and caps_data:
+            restored_caps = self.data_manager.restore_capabilities_cache(caps_data)
+            _LOGGER.debug("Restored capabilities cache for %d zone(s)", restored_caps)
         self._schedule_offset_cal_timer()
 
     def _save_reset_tracker(self) -> None:
@@ -383,6 +387,13 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
     async def async_get_capabilities(self, zone_id: int) -> Any:
         """Return capabilities for a zone."""
         return await self.data_manager.async_get_capabilities(zone_id)
+
+    async def async_refresh_zone_capabilities(self, zone_id: int) -> None:
+        """GET capabilities for one zone and persist."""
+        _LOGGER.info("Refreshing capabilities for zone %s", zone_id)
+        self.data_manager.capabilities_cache.pop(zone_id, None)
+        await self.data_manager.async_get_capabilities(zone_id)
+        self.async_update_listeners()
 
     def get_active_zones(
         self,
@@ -458,9 +469,12 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             self.rate_limit.sync_from_headers()
 
             actual_cost = quota_start - self.rate_limit.remaining
+            cap_calls = self.data_manager.take_capabilities_refresh_count()
             if actual_cost > 0:
-                self.rate_limit.last_poll_cost = float(actual_cost)
-                self._polling_calls_today += actual_cost
+                poll_calls = max(0, actual_cost - cap_calls)
+                if poll_calls > 0:
+                    self.rate_limit.last_poll_cost = float(poll_calls)
+                    self._polling_calls_today += poll_calls
 
             if self._detect_quota_reset():
                 self._maybe_calibrate_offsets_on_reset()
@@ -1515,6 +1529,15 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             self.optimistic.set_open_window,
             timeout_seconds if enabled else 0,
             rollback_context=old_val,
+        )
+
+    def _save_capabilities_cache(self) -> None:
+        """Persist zone capabilities (min/max, AC modes) across restarts."""
+        self.hass.async_create_task(
+            self.storage.async_update(
+                "capabilities_cache",
+                self.data_manager.export_capabilities_cache(),
+            )
         )
 
     def _save_timetable_cache(self) -> None:

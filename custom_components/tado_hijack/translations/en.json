@@ -259,6 +259,12 @@
       "refresh_metadata": {
         "name": "Refresh Zones/Devices"
       },
+      "refresh_capabilities": {
+        "name": "Refresh capabilities"
+      },
+      "refresh_capability": {
+        "name": "Refresh capabilities"
+      },
       "refresh_offsets": {
         "name": "Refresh Offsets"
       },

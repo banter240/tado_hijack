@@ -1721,6 +1721,29 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         entity_category=EntityCategory.CONFIG,
     ),
     create_home_button(
+        key="refresh_capabilities",
+        press_fn=lambda c: c.async_manual_poll("capabilities"),
+        icon="mdi:tune",
+        entity_category=EntityCategory.CONFIG,
+        supported_generations={GEN_CLASSIC},
+    ),
+    create_zone_button(
+        key="refresh_capability",
+        press_fn=lambda c, zid: c.async_refresh_zone_capabilities(zid),
+        icon="mdi:tune",
+        entity_category=EntityCategory.CONFIG,
+        supported_zone_types={
+            ZONE_TYPE_HEATING,
+            ZONE_TYPE_AIR_CONDITIONING,
+            ZONE_TYPE_HOT_WATER,
+        },
+        supported_generations={GEN_CLASSIC},
+        unique_id_suffix="refresh_capability",
+        is_supported_fn=lambda c, zid: (
+            not (c.dummy_handler and c.dummy_handler.is_dummy_zone(zid))
+        ),
+    ),
+    create_home_button(
         key="refresh_offsets",
         press_fn=lambda c: c.async_manual_poll("offsets"),
         entity_category=EntityCategory.CONFIG,

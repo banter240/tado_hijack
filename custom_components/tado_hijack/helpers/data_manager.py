@@ -7,7 +7,7 @@ import time
 from typing import TYPE_CHECKING, Any, cast
 
 from tadoasync import Tado, TadoConnectionError
-from tadoasync.models import TemperatureOffset
+from tadoasync.models import Capabilities, TemperatureOffset
 
 from .models_unified import UnifiedDataProvider, UnifiedTadoData
 
@@ -76,7 +76,11 @@ class TadoDataManager:
         self._last_schedule_poll: float = 0
         self._last_presence_poll: float = 0
         self._last_zones_poll: float = 0
+        self._last_capabilities_poll: float = 0
         self._offset_invalidated_at: float = 0
+        self._capabilities_invalidated_at: float = 0
+        self._capabilities_fetched_at: float = 0
+        self._last_capabilities_refresh_count: int = 0
         self._away_invalidated_at: float = 0
         self._timetable_invalidated_at: float = 0
         self._schedule_invalidated_at: float = 0
@@ -114,6 +118,7 @@ class TadoDataManager:
         self._add_away_track_to_plan(plan, current_time)
         self._add_timetable_track_to_plan(plan)
         self._add_schedule_track_to_plan(plan)
+        self._add_capabilities_track_to_plan(plan)
         return plan
 
     def _add_fast_track_to_plan(self, plan: list[PollTask], now: float) -> None:
@@ -204,6 +209,33 @@ class TadoDataManager:
         if self._timetable_invalidated_at > self._last_timetable_poll:
             plan.append(PollTask(1, self._fetch_timetables))
 
+    def _add_capabilities_track_to_plan(self, plan: list[PollTask]) -> None:
+        """Refetch caps on button/full poll, or with hardware sync when due."""
+        if self.coordinator.generation == GEN_X:
+            return
+        invalidated = self._capabilities_invalidated_at > self._last_capabilities_poll
+        slow_running = any(task.coroutine == self._fetch_metadata for task in plan)
+        if invalidated or (slow_running and self._capabilities_due()):
+            plan.append(PollTask(1, self._refresh_capabilities))
+
+    def _capabilities_due(self) -> bool:
+        """True when capabilities should follow the hardware-sync interval."""
+        interval = float(self._slow_poll_seconds)
+        if interval <= 0:
+            return self._capabilities_fetched_at <= 0
+        if self._capabilities_fetched_at <= 0:
+            return True
+        return (time.time() - self._capabilities_fetched_at) >= interval
+
+    def _capability_zone_ids(self) -> list[int]:
+        """Classic zones that have a capabilities endpoint (skip dummies)."""
+        dummy = self.coordinator.dummy_handler
+        return [
+            int(zone.id)
+            for zone in self.zones_meta.values()
+            if not (dummy and dummy.is_dummy_zone(zone.id))
+        ]
+
     def _add_schedule_track_to_plan(self, plan: list[PollTask]) -> None:
         """Fetch weekly plans only when a full/schedule poll invalidates."""
         if self._schedule_invalidated_at > self._last_schedule_poll:
@@ -217,13 +249,6 @@ class TadoDataManager:
         """Measure cost of zone_states poll."""
         return 1
 
-    def _count_special_zones_v3(self) -> int:
-        """Count v3 zones with special polling needs (AC/HOT_WATER)."""
-        return sum(
-            z.type in ("AIR_CONDITIONING", "HOT_WATER")
-            for z in self.zones_meta.values()
-        )
-
     def _count_special_zones_tadox(self) -> int:
         """Count Tado X zones with special polling needs (none)."""
         return 0
@@ -233,12 +258,12 @@ class TadoDataManager:
         sec_day = SLOW_POLL_CYCLE_S
         p_cost = 1
 
-        special_zones = (
-            self._count_special_zones_tadox()
-            if self.coordinator.generation == GEN_X
-            else self._count_special_zones_v3()
-        )
-        s_cost = 2 + special_zones
+        if self.coordinator.generation == GEN_X:
+            s_cost = 2 + self._count_special_zones_tadox()
+            cap_cost = 0
+        else:
+            s_cost = 2
+            cap_cost = len(self._capability_zone_ids())
         o_cost = sum(
             CAPABILITY_INSIDE_TEMP in (d.characteristics.capabilities or [])
             and not self._is_entity_disabled(
@@ -249,12 +274,14 @@ class TadoDataManager:
 
         from .offset_calibrate import daily_offset_cal_puts
 
+        slow_s = float(self._slow_poll_seconds)
         breakdown = {
             "presence_poll_total": int(p_cost * (sec_day / self._presence_poll_seconds))
             if self._presence_poll_seconds > 0
             else 0,
-            "slow_poll_total": int(s_cost * (sec_day / self._slow_poll_seconds))
-            if self._slow_poll_seconds > 0
+            "slow_poll_total": int(s_cost * (sec_day / slow_s)) if slow_s > 0 else 0,
+            "capabilities_total": int(cap_cost * (sec_day / slow_s))
+            if slow_s > 0
             else 0,
             "offset_poll_total": int(o_cost * (sec_day / self._offset_poll_seconds))
             if self._offset_poll_seconds > 0
@@ -265,6 +292,7 @@ class TadoDataManager:
         total = (
             breakdown["presence_poll_total"]
             + breakdown["slow_poll_total"]
+            + breakdown["capabilities_total"]
             + breakdown["offset_poll_total"]
             + breakdown["offset_cal_total"]
         )
@@ -298,6 +326,9 @@ class TadoDataManager:
             elif task.coroutine == self._fetch_zone_plans:
                 await task.coroutine()
                 self._last_schedule_poll = now
+            elif task.coroutine == self._refresh_capabilities:
+                await task.coroutine()
+                self._last_capabilities_poll = now
 
         if self.coordinator.generation != GEN_X:
             return TadoData(
@@ -417,15 +448,6 @@ class TadoDataManager:
                 self.zones_meta, self.devices_meta, self.capabilities_cache
             )
 
-        # Lazy refresh for capabilities (V3 only)
-        if self.coordinator.generation != GEN_X:
-            for z in zones.values():
-                if (
-                    z.type in ("AIR_CONDITIONING", "HOT_WATER")
-                    and z.id not in self.capabilities_cache
-                ):
-                    await self._fetch_capabilities(z.id)
-
         self._metadata_init = True
 
         # Update bridges for discovery
@@ -448,7 +470,7 @@ class TadoDataManager:
             new_zone.open_window_detection.enabled = opt_timeout > 0
             new_zone.open_window_detection.timeout_in_seconds = opt_timeout
 
-    async def _fetch_capabilities(self, zone_id: int) -> None:
+    async def _fetch_capabilities(self, zone_id: int, *, persist: bool = True) -> None:
         """Fetch and cache capabilities for a zone."""
         if not self.provider:
             return
@@ -457,6 +479,8 @@ class TadoDataManager:
             caps = await self.provider.async_fetch_capabilities(zone_id)
             if caps:
                 self.capabilities_cache[zone_id] = caps
+                if persist:
+                    self.coordinator._save_capabilities_cache()
         except Exception as e:
             _LOGGER.warning(
                 "Capabilities unavailable for zone %d (%s) — skipping",
@@ -464,6 +488,28 @@ class TadoDataManager:
                 type(e).__name__,
             )
             self.capabilities_cache[zone_id] = None  # Cache failure, no retry
+
+    async def _refresh_capabilities(self) -> None:
+        """GET capabilities for every classic zone (no bulk endpoint)."""
+        zone_ids = self._capability_zone_ids()
+        if not zone_ids:
+            return
+        _LOGGER.info(
+            "DataManager: Refreshing capabilities for %d zone(s)", len(zone_ids)
+        )
+        self._last_capabilities_refresh_count = 0
+        for zone_id in zone_ids:
+            self.capabilities_cache.pop(zone_id, None)
+            await self._fetch_capabilities(zone_id, persist=False)
+            self._last_capabilities_refresh_count += 1
+        self._capabilities_fetched_at = time.time()
+        self.coordinator._save_capabilities_cache()
+
+    def take_capabilities_refresh_count(self) -> int:
+        """Return GETs from the last capabilities refresh and clear the counter."""
+        count = self._last_capabilities_refresh_count
+        self._last_capabilities_refresh_count = 0
+        return count
 
     async def async_get_capabilities(self, zone_id: int) -> Any:
         """Get capabilities (thread-safe, cached)."""
@@ -482,6 +528,44 @@ class TadoDataManager:
 
         return self.capabilities_cache.get(zone_id)
 
+    def export_capabilities_cache(self) -> dict[str, Any]:
+        """JSON-safe capabilities for storage (skip dummies and failed lookups)."""
+        dumped: dict[str, Any] = {}
+        dummy = self.coordinator.dummy_handler
+        for zone_id, caps in self.capabilities_cache.items():
+            if caps is None:
+                continue
+            if dummy and dummy.is_dummy_zone(zone_id):
+                continue
+            to_dict = getattr(caps, "to_dict", None)
+            if not callable(to_dict):
+                continue
+            dumped[str(zone_id)] = to_dict()
+        return {
+            "fetched_at": self._capabilities_fetched_at,
+            "zones": dumped,
+        }
+
+    def restore_capabilities_cache(self, raw: dict[str, Any]) -> int:
+        """Load persisted capabilities. Returns how many zones were restored."""
+        fetched = raw.get("fetched_at")
+        zones = raw.get("zones")
+        if isinstance(zones, dict):
+            if isinstance(fetched, int | float) and fetched > 0:
+                self._capabilities_fetched_at = float(fetched)
+            raw = zones
+        count = 0
+        for key, payload in raw.items():
+            if not isinstance(payload, dict):
+                continue
+            try:
+                self.capabilities_cache[int(key)] = Capabilities.from_dict(payload)
+            except TypeError, ValueError, KeyError, AttributeError:
+                _LOGGER.debug("Skipping stored capabilities for zone %s", key)
+                continue
+            count += 1
+        return count
+
     def invalidate_cache(self, refresh_type: str = "all") -> None:
         """Force specific cache refresh."""
         now = time.monotonic()
@@ -495,6 +579,8 @@ class TadoDataManager:
             self._timetable_invalidated_at = now
         if refresh_type in {"all", "schedule"}:
             self._schedule_invalidated_at = now
+        if refresh_type in {"all", "capabilities"}:
+            self._capabilities_invalidated_at = now
         if refresh_type in {"all", "presence"}:
             self._presence_invalidated_at = now
             self._presence_init = False

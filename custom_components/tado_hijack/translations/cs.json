@@ -259,6 +259,12 @@
       "refresh_metadata": {
         "name": "Obnovit zóny/zařízení"
       },
+      "refresh_capabilities": {
+        "name": "Obnovit možnosti zařízení"
+      },
+      "refresh_capability": {
+        "name": "Obnovit možnosti zařízení"
+      },
       "refresh_offsets": {
         "name": "Obnovit teplotní odchylky"
       },
