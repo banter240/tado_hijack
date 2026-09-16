@@ -262,6 +262,12 @@
       "refresh_offsets": {
         "name": "Obnovit teplotní odchylky"
       },
+      "calibrate_offsets": {
+        "name": "Kalibrovat teplotní odchylky"
+      },
+      "calibrate_offset": {
+        "name": "Kalibrovat teplotní odchylku"
+      },
       "refresh_away": {
         "name": "Obnovit teploty mimo domov"
       },

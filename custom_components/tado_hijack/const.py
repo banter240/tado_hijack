@@ -46,6 +46,7 @@ CONF_OUTDOOR_WEATHER_ENTITY: Final = "outdoor_weather_entity"
 CONF_VENTILATION_AH_THRESHOLD: Final = "ventilation_ah_threshold"
 CONF_ZONE_TEMP_ENTITIES: Final = "zone_temp_entities"
 CONF_ZONE_HUMIDITY_ENTITIES: Final = "zone_humidity_entities"
+CONF_OFFSET_CAL_INTERVAL: Final = "offset_cal_interval"
 
 # Logging Levels
 LOG_LEVELS: Final[list[str]] = ["DEBUG", "INFO", "WARNING", "ERROR"]
@@ -86,6 +87,7 @@ DEFAULT_SCAN_INTERVAL: Final = 1800  # 30 minutes (Zone States)
 DEFAULT_PRESENCE_POLL_INTERVAL: Final = 43200  # 12 hours
 DEFAULT_SLOW_POLL_INTERVAL: Final = 86400  # 24 hours (Hardware Metadata)
 DEFAULT_OFFSET_POLL_INTERVAL: Final = 0  # Disabled by default
+DEFAULT_OFFSET_CAL_INTERVAL: Final = "off"
 DEFAULT_AUTO_API_QUOTA_PERCENT: Final = 80  # Use 80% of daily quota by default
 DEFAULT_DEBOUNCE_TIME: Final = 5  # Seconds
 DEFAULT_THROTTLE_THRESHOLD: Final = 20  # Reserve last 20 calls for external use

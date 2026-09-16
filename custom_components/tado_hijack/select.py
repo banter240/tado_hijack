@@ -77,7 +77,9 @@ class TadoGenericHomeSelect(TadoHomeEntity, TadoGenericEntityMixin, SelectEntity
         if options_fn := definition.get("options_fn"):
             raw_options: list[str] = options_fn(coordinator)
             self._option_map = {opt.lower(): opt for opt in raw_options}
-        self._attr_options: list[str] = sorted(self._option_map.keys())
+            self._attr_options = [opt.lower() for opt in raw_options]
+        else:
+            self._attr_options = []
 
     @property
     def current_option(self) -> str | None:

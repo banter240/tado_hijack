@@ -1329,22 +1329,42 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         self.async_update_listeners()
         _LOGGER.info("Offset auto-cal interval set to %s", key)
 
-    async def async_calibrate_offsets(self, reason: str) -> None:
-        """Write TRV offset = linked thermostat minus Tado raw, then hold."""
-        from .helpers.offset_calibrate import (
-            OFFSET_STEP,
-            compute_device_offset,
-            current_device_offset,
-            inside_from_zone_state,
-            measuring_devices,
-            read_entity_temperature,
-        )
+    def _log_offset_cal_skip(self, reason: str, detail: str) -> None:
+        """Warn on a manual skip, debug otherwise."""
+        if reason == "manual":
+            _LOGGER.warning("Offset cal skipped: %s", detail)
+        else:
+            _LOGGER.debug("Skip offset cal (%s): %s", reason, detail)
 
-        if self.rate_limit.is_throttled and reason != "quota_reset":
-            _LOGGER.debug("Skip offset cal (%s): throttled", reason)
-            return
+    def _linked_zone_temp_sources(
+        self, reason: str, zone_id: int | None = None
+    ) -> dict[str, Any] | None:
+        """Return zone_temp_source map, or None if empty."""
         linked = self.config_entry.data.get(CONF_ZONE_TEMP_ENTITIES) or {}
-        if not isinstance(linked, dict) or not linked:
+        if not isinstance(linked, dict):
+            linked = {}
+        if zone_id is not None:
+            source = linked.get(str(zone_id))
+            if not source:
+                self._log_offset_cal_skip(
+                    reason, f"no linked zone_temp_source for zone {zone_id}"
+                )
+                return None
+            return {str(zone_id): source}
+        if linked:
+            return linked
+        self._log_offset_cal_skip(reason, "no linked zone_temp_source")
+        return None
+
+    async def async_calibrate_offsets(
+        self, reason: str, zone_id: int | None = None
+    ) -> None:
+        """Write TRV offset = linked thermostat minus Tado raw, then hold."""
+        if self.rate_limit.is_throttled and reason != "quota_reset":
+            self._log_offset_cal_skip(reason, "API throttled")
+            return
+        linked = self._linked_zone_temp_sources(reason, zone_id)
+        if linked is None:
             return
 
         async with self._offset_cal_lock:
@@ -1355,47 +1375,72 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
                 and self._last_offset_cal_at >= self._last_quota_reset
             ):
                 return
-            wrote = 0
-            zone_states = getattr(self.data, "zone_states", None) or {}
-            for serial, zone_id in measuring_devices(self):
-                if self.dummy_handler and self.dummy_handler.is_dummy_zone(zone_id):
-                    continue
-                entity_id = linked.get(str(zone_id))
-                if not entity_id:
-                    continue
-                thermostat = read_entity_temperature(self.hass, str(entity_id))
-                tado_inside = inside_from_zone_state(
-                    zone_states.get(str(zone_id)) or zone_states.get(zone_id)
-                )
-                current = current_device_offset(self, serial)
-                if thermostat is None or tado_inside is None or current is None:
-                    _LOGGER.debug(
-                        "Skip offset cal zone %s device %s "
-                        "(thermostat=%s tado=%s offset=%s)",
-                        zone_id,
-                        serial,
-                        thermostat,
-                        tado_inside,
-                        current,
-                    )
-                    continue
-                desired = compute_device_offset(thermostat, tado_inside, current)
-                if abs(desired - current) < OFFSET_STEP:
-                    continue
-                _LOGGER.info(
-                    "Offset cal (%s) %s: thermostat=%.2f tado=%.2f offset %.1f -> %.1f",
-                    reason,
+            wrote = await self._queue_offset_cal_writes(reason, linked, zone_id)
+            if reason != "manual":
+                self._last_offset_cal_at = dt_util.now()
+            if wrote:
+                _LOGGER.info("Offset auto-cal (%s) queued %d device(s)", reason, wrote)
+            elif reason == "manual":
+                target = f"zone {zone_id}" if zone_id is not None else "home"
+                _LOGGER.info("Offset cal (manual %s): no device needed a write", target)
+
+    async def _queue_offset_cal_writes(
+        self,
+        reason: str,
+        linked: dict[str, Any],
+        zone_id: int | None = None,
+    ) -> int:
+        """Queue one offset PUT per measuring device that needs a change."""
+        from .helpers.offset_calibrate import (
+            OFFSET_STEP,
+            compute_device_offset,
+            current_device_offset,
+            inside_from_zone_state,
+            measuring_devices,
+            read_entity_temperature,
+        )
+
+        wrote = 0
+        zone_states = getattr(self.data, "zone_states", None) or {}
+        for serial, zid in measuring_devices(self):
+            if zone_id is not None and zid != zone_id:
+                continue
+            if self.dummy_handler and self.dummy_handler.is_dummy_zone(zid):
+                continue
+            entity_id = linked.get(str(zid))
+            if not entity_id:
+                continue
+            thermostat = read_entity_temperature(self.hass, str(entity_id))
+            tado_inside = inside_from_zone_state(
+                zone_states.get(str(zid)) or zone_states.get(zid)
+            )
+            current = current_device_offset(self, serial)
+            if thermostat is None or tado_inside is None or current is None:
+                _LOGGER.debug(
+                    "Skip offset cal zone %s device %s "
+                    "(thermostat=%s tado=%s offset=%s)",
+                    zid,
                     serial,
                     thermostat,
                     tado_inside,
                     current,
-                    desired,
                 )
-                await self.async_set_temperature_offset(serial, desired)
-                wrote += 1
-            self._last_offset_cal_at = dt_util.now()
-            if wrote:
-                _LOGGER.info("Offset auto-cal (%s) queued %d device(s)", reason, wrote)
+                continue
+            desired = compute_device_offset(thermostat, tado_inside, current)
+            if abs(desired - current) < OFFSET_STEP:
+                continue
+            _LOGGER.info(
+                "Offset cal (%s) %s: thermostat=%.2f tado=%.2f offset %.1f -> %.1f",
+                reason,
+                serial,
+                thermostat,
+                tado_inside,
+                current,
+                desired,
+            )
+            await self.async_set_temperature_offset(serial, desired)
+            wrote += 1
+        return wrote
 
     async def async_set_away_temperature(self, zone_id: int, temp: float) -> None:
         """Set away temperature for a zone."""

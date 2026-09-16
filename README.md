@@ -543,6 +543,7 @@ Global controls and elite transparency for your home. _Linked to your Internet B
 | `switch.tado_{home}_polling_active`        | Switch | **Master Switch:** Instantly stop/start all periodic API polls.   |
 | `switch.tado_{home}_reduced_polling_logic` | Switch | **Logic Switch:** Toggle the timed "Economy" profile.             |
 | `select.tado_{home}_offset_cal_interval`   | Select | Auto-calibrate TRV offset against a linked `zone_temp_source` (third-party thermostat). Slots from local 00:00 in 3h steps (`3h`..`24h`), or `on_reset` (once when quota remaining jumps up). Off by default. 1 PUT per measuring device, no bulk. Skips zones without a linked thermostat. |
+| `button.tado_{home}_calibrate_offsets`     | Button | Run that calibration now (same formula, same linked thermostats). Works even if the interval is `off`. 1 PUT per measuring device that needs a change. |
 | `button.tado_{home}_resume_all_schedules`  | Button | Restore Smart Schedule across all zones (1 bulk call).            |
 | `button.tado_{home}_turn_off_all_zones`    | Button | Turn off all zones instantly (1 bulk call).                       |
 | `button.tado_{home}_boost_all_zones`       | Button | Boost all zones to 25°C (1 bulk call).                            |
@@ -601,7 +602,8 @@ Advanced monitoring sensors available under the Internet Bridge device diagnosti
 
 **Manual Refresh Buttons:**
 - `button.refresh_metadata` - Force hardware sync
-- `button.refresh_offsets` - Force offset sync
+- `button.refresh_offsets` - GET current offsets from Tado (not calibrate)
+- `button.calibrate_offsets` - Write offsets from linked `zone_temp_source` now
 - `button.refresh_away` - Force away config sync
 - `button.refresh_presence` - Force presence sync
 - `button.refresh_all_zone_plans` - Fetch every room's weekly plan (calendar cache)
@@ -636,6 +638,7 @@ Cloud-only features that HomeKit does not support.
 | `number.target_temperature`         | Number        | **HW & AC:** Set target temperature for hot water (manual mode) or AC zones.                                            |
 | `number.away_temperature`           | Number        | **v3 Only:** Set away mode temperature.                                                         |
 | `select.zone_temp_source`           | Select        | **Config:** Optional temperature source for indoor climate sensors. Link any `climate` or temperature `sensor`. Required for Tado X (no cloud temp in Full-Matter mode). |
+| `button.calibrate_offset`           | Button        | **Config:** Calibrate this room's TRV offset against the linked `zone_temp_source` now. 1 PUT per measuring device in the room that needs a change. |
 | `select.zone_humidity_source`       | Select        | **Config:** Optional humidity source for indoor climate sensors. Link a `climate` entity (reads `current_humidity`) or a humidity `sensor`. Fallback: cloud zone state. |
 | `select.fan_speed`                  | Select        | **v3 AC Only:** Full fan speed control.                                                         |
 | `select.vertical_swing`             | Select        | **v3 AC Only:** Vertical swing control (ON/OFF or position modes).                              |

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Any, Protocol
 
 from ..const import INITIAL_RATE_LIMIT_GUESS, RATELIMIT_SMOOTHING_ALPHA
 from .logging_utils import get_redacted_logger
@@ -13,7 +13,7 @@ _LOGGER = get_redacted_logger(__name__)
 class RateLimitSource(Protocol):
     """Protocol for the rate limit data source."""
 
-    rate_limit_data: dict[str, int]
+    rate_limit_data: dict[str, Any]
 
 
 class RateLimitManager:
@@ -25,9 +25,29 @@ class RateLimitManager:
         """Initialize the manager."""
         self._throttle_threshold = throttle_threshold
         self._internal_remaining: int = INITIAL_RATE_LIMIT_GUESS
-        self._data_source = data_source
+        self._sources: list[RateLimitSource] = []
+        if data_source is not None:
+            self._sources.append(data_source)
 
         self._last_poll_cost: float = 2.0
+
+    def add_source(self, source: RateLimitSource) -> None:
+        """Watch another header source (v2 handler and Hops both count)."""
+        if source not in self._sources:
+            self._sources.append(source)
+
+    def _latest_header_data(self) -> dict[str, Any] | None:
+        latest: dict[str, Any] | None = None
+        latest_ts = -1.0
+        for source in self._sources:
+            data = source.rate_limit_data
+            if "remaining" not in data:
+                continue
+            ts = float(data.get("updated_at") or 0)
+            if ts >= latest_ts:
+                latest_ts = ts
+                latest = data
+        return latest
 
     @property
     def last_poll_cost(self) -> float:
@@ -71,9 +91,9 @@ class RateLimitManager:
 
     @property
     def limit(self) -> int:
-        """Return total limit from headers."""
-        if self._data_source:
-            return int(self._data_source.rate_limit_data.get("limit", 0))
+        """Return total limit from the newest header source."""
+        if data := self._latest_header_data():
+            return int(data.get("limit") or 0)
         return 0
 
     def decrement(self, count: int = 1) -> None:
@@ -82,12 +102,16 @@ class RateLimitManager:
         _LOGGER.debug("Internal remaining decremented to %d", self._internal_remaining)
 
     def sync_from_headers(self) -> None:
-        """Sync internal counter with latest captured headers."""
-        if not self._data_source:
+        """Sync internal counter from the most recently updated header source."""
+        data = self._latest_header_data()
+        if data is None:
             return
-
-        header_remaining = int(
-            self._data_source.rate_limit_data.get("remaining", self._internal_remaining)
-        )
+        header_remaining = int(data.get("remaining", self._internal_remaining))
         if header_remaining != self._internal_remaining:
+            _LOGGER.debug(
+                "Quota remaining %d -> %d (header source updated_at=%.3f)",
+                self._internal_remaining,
+                header_remaining,
+                float(data.get("updated_at") or 0),
+            )
             self._internal_remaining = header_remaining

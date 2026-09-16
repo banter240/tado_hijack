@@ -1802,6 +1802,24 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         supported_generations={GEN_CLASSIC, GEN_X},
         translation_key="offset_cal_interval",
     ),
+    create_home_button(
+        key="calibrate_offsets",
+        press_fn=lambda c: c.async_calibrate_offsets("manual"),
+        icon="mdi:thermometer-check",
+        supported_generations={GEN_CLASSIC, GEN_X},
+    ),
+    create_zone_button(
+        key="calibrate_offset",
+        press_fn=lambda c, zid: c.async_calibrate_offsets("manual", zone_id=zid),
+        icon="mdi:thermometer-check",
+        entity_category=EntityCategory.CONFIG,
+        supported_zone_types={ZONE_TYPE_HEATING},
+        supported_generations={GEN_CLASSIC, GEN_X},
+        unique_id_suffix="calibrate_offset",
+        is_supported_fn=lambda c, zid: (
+            not (c.dummy_handler and c.dummy_handler.is_dummy_zone(zid))
+        ),
+    ),
     create_device_switch(
         key="child_lock",
         value_fn=lambda c, serial: bool(
