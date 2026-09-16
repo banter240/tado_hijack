@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from ...models import CommandType, TadoCommand
 from ..action_provider_base import TadoActionProvider
 from ..discovery import yield_zones
 from ..logging_utils import get_redacted_logger
@@ -25,23 +26,25 @@ class TadoXActionProvider(TadoActionProvider):
         self.coordinator = coordinator
         self.bridge = coordinator.tadox_bridge
 
+    def _queue_quick_action(self, action: str) -> None:
+        """Last house-wide quick action in the debounce window wins."""
+        _LOGGER.info("Queued Tado X quick action '%s'", action)
+        self.coordinator.api_manager.queue_command(
+            "x_quick_action",
+            TadoCommand(CommandType.QUICK_ACTION, data={"action": action}),
+        )
+
     async def async_resume_all_schedules(self) -> None:
         """Resume schedule for all zones (Tado X bulk API)."""
-        _LOGGER.debug("Resume all schedules triggered (Tado X)")
-        await self.bridge.async_resume_all_schedules()
-        self.coordinator.async_update_listeners()
+        self._queue_quick_action("resume_all")
 
     async def async_boost_all_zones(self) -> None:
         """Boost all zones (Tado X bulk API)."""
-        _LOGGER.debug("Boost all zones triggered (Tado X)")
-        await self.bridge.async_boost_all()
-        self.coordinator.async_update_listeners()
+        self._queue_quick_action("boost_all")
 
     async def async_turn_off_all_zones(self) -> None:
         """Turn off all zones (Tado X bulk API)."""
-        _LOGGER.debug("Turn off all zones triggered (Tado X)")
-        await self.bridge.async_turn_off_all_zones()
-        self.coordinator.async_update_listeners()
+        self._queue_quick_action("all_off")
 
     def get_active_zone_ids(
         self,
