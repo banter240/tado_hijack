@@ -1,3 +1,52 @@
+## [5.10.0-dev.5](https://github.com/banter240/tado_hijack/compare/v5.10.0-dev.4...v5.10.0-dev.5) (2026-09-16)
+
+### ✨ New Features
+
+* feat(core): add per-zone weekly plan calendar
+
+  Read-only calendar per schedule-capable zone on the zone device
+  (Tado <room> Weekly Plan). ON heat windows only. Attributes
+  timetable, day, blocks, and plan match set_schedule for copy-paste.
+
+  Opening the calendar is cache-only (0 calls). Fetch with the
+  per-room Fetch weekly plan button, home Fetch all weekly plans,
+  or full_manual_poll / manual_poll type all or schedule.
+  1 GET per zone when the timetable type is cached, otherwise 2.
+  Debounced and coalesced. Not part of periodic poll.
+
+  set_schedule updates the cache only after Tado accepts the write.
+  A failed write leaves the previous plan.
+
+  Classic GET .../timetables/{id}/blocks (all days in one call).
+  Tado X GET Hops rooms/{id}/schedule. Cache persisted in storage.
+* feat(core): auto-calibrate TRV offset on a clock interval
+
+  Home select offset_cal_interval. Only zones with a linked
+  zone_temp_source (third-party thermostat). Offset is
+  thermostat minus TRV raw, then held.
+
+  Slots from local 00:00 in 3h steps (3h..24h), or on_reset
+  when remaining jumps up. 1 PUT per measuring device, no bulk.
+  Auto Quota subtracts those PUTs from the polling budget
+  (offset_cal_total). 3h slots have no cooldown; on_reset
+  fires at most once per detected reset.
+
+  Remaining is synced from the newest v2 or Hops headers,
+  including remaining=0.
+
+### 🐛 Bug Fixes
+
+* fix(core): persist zone capabilities and refresh them daily
+
+  Capabilities (temp min/max, AC modes) almost never change but were
+  refetched for every heating zone on each Home Assistant start. Store
+  them next to the timetable cache.
+
+  There is no bulk capabilities endpoint (1 GET per zone). After the
+  first fill, restart skips those GETs. They refresh on the hardware-sync
+  interval (default 24h), via home/room config buttons, or manual_poll
+  type capabilities/all. Tado X has no capabilities API.
+
 ## [5.10.0-dev.4](https://github.com/banter240/tado_hijack/compare/v5.10.0-dev.3...v5.10.0-dev.4) (2026-09-13)
 
 ### ✨ New Features
