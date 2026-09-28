@@ -61,7 +61,7 @@ def daily_offset_cal_puts(coordinator: TadoDataUpdateCoordinator) -> int:
     for zid_str in linked:
         try:
             zone_id = int(zid_str)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             continue
         if not linked.get(zid_str):
             continue
@@ -141,7 +141,7 @@ def read_entity_temperature(hass: HomeAssistant, entity_id: str) -> float | None
         raw = state.state
     try:
         return float(raw)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 

@@ -95,7 +95,7 @@ class EntityResolver:
             for i, part in enumerate(parts):
                 if part == "zone" and i + 1 < len(parts) and parts[i + 1].isdigit():
                     return int(parts[i + 1])
-        except (ValueError, IndexError, AttributeError):
+        except ValueError, IndexError, AttributeError:
             pass
         return None
 
@@ -120,7 +120,7 @@ class EntityResolver:
                                 serial_no,
                             )
                             return zone_id
-        except (ValueError, IndexError, AttributeError):
+        except ValueError, IndexError, AttributeError:
             pass
         return None
 

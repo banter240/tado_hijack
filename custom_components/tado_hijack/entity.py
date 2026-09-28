@@ -302,42 +302,17 @@ class TadoHomeEntity(TadoEntity):
         if self.coordinator.config_entry is None:
             raise RuntimeError("Config entry not available")
 
-        # Use Home ID (unique_id) as identifier for consistent grouping
-        identifiers = {
-            (
-                DOMAIN,
-                self.coordinator.config_entry.unique_id
-                or self.coordinator.config_entry.entry_id,
-            )
-        }
-
-        name = self.coordinator.config_entry.title
-        model = (
-            "Internet Bridge" if self.coordinator.generation != GEN_X else "Tado Home"
-        )
-        sw_version = None
-        serial_number = None
-
-        # Link to Bridges if found
-        for bridge in self.coordinator.bridges:
-            identifiers.add((DOMAIN, bridge.serial_no))
-
-            # Use first bridge for metadata
-            if sw_version is None:
-                # In Classic mode, we follow OG style if a bridge is found
-                if self.coordinator.generation != GEN_X:
-                    name = f"tado Internet Bridge {bridge.serial_no}"
-
-                model = bridge.device_type
-                sw_version = bridge.current_fw_version
-                serial_number = bridge.serial_no
         return DeviceInfo(
-            identifiers=identifiers,
-            name=name,
+            identifiers={
+                (
+                    DOMAIN,
+                    self.coordinator.config_entry.unique_id
+                    or self.coordinator.config_entry.entry_id,
+                )
+            },
+            name=self.coordinator.config_entry.title,
             manufacturer="Tado",
-            model=model,
-            sw_version=sw_version,
-            serial_number=serial_number,
+            model=("Tado Home" if self.coordinator.generation == GEN_X else "Tado"),
             configuration_url="https://app.tado.com",
         )
 
@@ -345,7 +320,6 @@ class TadoHomeEntity(TadoEntity):
 class TadoBridgeEntity(TadoHomeEntity):
     """Entity belonging to a Tado Internet Bridge."""
 
-    # Bridge entities use 'tado_ib' prefix and exclude serial number from entity_id
     _entity_id_prefix = "tado_ib"
     _entity_id_include_context = False
 
@@ -362,8 +336,26 @@ class TadoBridgeEntity(TadoHomeEntity):
 
     @property
     def device_info(self) -> DeviceInfo | None:
-        """Return device info, or None when attached to a local bridge."""
-        return None if self.device_entry is not None else super().device_info
+        """Return a dedicated Bridge device, or None when attached locally."""
+        if self.device_entry is not None:
+            return None
+
+        bridge = next(
+            (b for b in self.coordinator.bridges if b.serial_no == self._serial_no),
+            None,
+        )
+        short_serial = getattr(bridge, "short_serial_no", None) or self._serial_no[-4:]
+        return DeviceInfo(
+            # Same identifier the home device used to claim, so HA moves the device.
+            identifiers={(DOMAIN, self._serial_no)},
+            name=f"tado Internet Bridge {short_serial}",
+            manufacturer="Tado",
+            model=getattr(bridge, "device_type", None) if bridge else None,
+            sw_version=(
+                getattr(bridge, "current_fw_version", None) if bridge else None
+            ),
+            serial_number=self._serial_no,
+        )
 
     @property
     def _tado_entity_id(self) -> str:
