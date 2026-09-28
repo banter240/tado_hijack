@@ -451,6 +451,7 @@
               "min_auto_quota_interval_s": "Minimum Auto Quota Interval",
               "disable_polling_when_throttled": "Disable polling when throttled",
               "refresh_after_resume": "Refresh state after resume schedule",
+              "recovery_cloud_replay": "Replay Cloud-Only Features on Recovery",
               "suppress_redundant_calls": "Suppress Redundant Calls",
               "suppress_redundant_buttons": "Suppress Redundant Buttons"
             },
@@ -461,6 +462,7 @@
               "min_auto_quota_interval_s": "Minimum polling interval in seconds (5-43200 = 12h max). Standard API: 5s minimum. Proxy: 120s minimum enforced. Lower = faster updates but higher API usage. Default 20s.",
               "disable_polling_when_throttled": "Stop periodic polling entirely when remaining quota hits the safety buffer.",
               "refresh_after_resume": "Automatically fetch target temperature/state after resume schedule (HVAC AUTO). Required because schedules are managed Tado cloud-side. Costs 1 API call.",
+              "recovery_cloud_replay": "When an offline TRV (HomeKit or Matter) becomes available again, cloud-only features (e.g. Resume Schedule) cannot be replayed locally. If enabled, these commands are additionally resent to the Tado cloud (1 API call per zone). Disable to save quota.",
               "suppress_redundant_calls": "Skip API calls when target state matches cached state (temperature, mode, presence, power). Saves quota on accidental double-clicks or UI interactions. Only sends when actual change detected. Values not in cache always send.",
               "suppress_redundant_buttons": "Also skip button actions (resume_all, boost_all, turn_off_all, set_mode_all) when ALL zones already match target state. Requires 'Suppress Redundant Calls' to be enabled. Individual explicit actions and sync buttons (manual_poll, refresh) always send."
             }
@@ -560,6 +562,7 @@
               "min_auto_quota_interval_s": "Minimum Auto Quota Interval",
               "disable_polling_when_throttled": "Disable polling when throttled",
               "refresh_after_resume": "Refresh state after resume schedule",
+              "recovery_cloud_replay": "Replay Cloud-Only Features on Recovery",
               "suppress_redundant_calls": "Suppress Redundant Calls",
               "suppress_redundant_buttons": "Suppress Redundant Buttons"
             },
@@ -570,6 +573,7 @@
               "min_auto_quota_interval_s": "Minimum polling interval in seconds (5-43200 = 12h max). Standard API: 5s minimum. Proxy: 120s minimum enforced. Lower = faster updates but higher API usage. Default 20s.",
               "disable_polling_when_throttled": "Stop periodic polling entirely when remaining quota hits the safety buffer.",
               "refresh_after_resume": "Automatically fetch target temperature/state after resume schedule (HVAC AUTO). Required because schedules are managed Tado cloud-side. Costs 1 API call.",
+              "recovery_cloud_replay": "When an offline TRV (HomeKit or Matter) becomes available again, cloud-only features (e.g. Resume Schedule) cannot be replayed locally. If enabled, these commands are additionally resent to the Tado cloud (1 API call per zone). Disable to save quota.",
               "suppress_redundant_calls": "Skip API calls when target state matches cached state (temperature, mode, presence, power). Saves quota on accidental double-clicks or UI interactions. Only sends when actual change detected. Values not in cache always send.",
               "suppress_redundant_buttons": "Also skip button actions (resume_all, boost_all, turn_off_all, set_mode_all) when ALL zones already match target state. Requires 'Suppress Redundant Calls' to be enabled. Individual explicit actions and sync buttons (manual_poll, refresh) always send."
             }

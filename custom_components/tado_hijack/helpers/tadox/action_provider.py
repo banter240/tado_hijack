@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from ...const import BOOST_MODE_TEMP, POWER_OFF, POWER_ON
 from ...models import CommandType, TadoCommand
 from ..action_provider_base import TadoActionProvider
 from ..discovery import yield_zones
@@ -37,14 +38,24 @@ class TadoXActionProvider(TadoActionProvider):
     async def async_resume_all_schedules(self) -> None:
         """Resume schedule for all zones (Tado X bulk API)."""
         self._queue_quick_action("resume_all")
+        for zone_id in self.get_active_zone_ids(include_heating=True):
+            self.coordinator.recovery_queue.capture_resume(zone_id)
 
     async def async_boost_all_zones(self) -> None:
         """Boost all zones (Tado X bulk API)."""
         self._queue_quick_action("boost_all")
+        for zone_id in self.get_active_zone_ids(include_heating=True):
+            self.coordinator.recovery_queue.capture_overlay(
+                zone_id, power=POWER_ON, temperature=BOOST_MODE_TEMP
+            )
 
     async def async_turn_off_all_zones(self) -> None:
         """Turn off all zones (Tado X bulk API)."""
         self._queue_quick_action("all_off")
+        for zone_id in self.get_active_zone_ids(include_heating=True):
+            self.coordinator.recovery_queue.capture_overlay(
+                zone_id, power=POWER_OFF, temperature=None
+            )
 
     def get_active_zone_ids(
         self,

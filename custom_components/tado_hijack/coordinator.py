@@ -38,6 +38,7 @@ from .const import (
     CONF_OFFSET_POLL_INTERVAL,
     CONF_PRESENCE_POLL_INTERVAL,
     CONF_QUOTA_SAFETY_RESERVE,
+    CONF_RECOVERY_CLOUD_REPLAY,
     CONF_REDUCED_POLLING_ACTIVE,
     CONF_REDUCED_POLLING_END,
     CONF_REDUCED_POLLING_INTERVAL,
@@ -56,6 +57,7 @@ from .const import (
     DEFAULT_OFFSET_POLL_INTERVAL,
     DEFAULT_PRESENCE_POLL_INTERVAL,
     DEFAULT_QUOTA_SAFETY_RESERVE,
+    DEFAULT_RECOVERY_CLOUD_REPLAY,
     DEFAULT_REDUCED_POLLING_END,
     DEFAULT_REDUCED_POLLING_INTERVAL,
     DEFAULT_REDUCED_POLLING_START,
@@ -88,6 +90,7 @@ from .dummy.dummy_handler import TadoDummyHandler  # [DUMMY_HOOK]
 from .helpers.ac_overlay import pick_cap_value, resolve_ac_attr
 from .helpers.api_manager import TadoApiManager
 from .helpers.auth_manager import AuthManager
+from .helpers.availability_tracker import AvailabilityTracker
 from .helpers.data_manager import TadoDataManager, UnifiedDataProvider
 from .helpers.device_linker import get_climate_entity_id
 from .helpers.entity_resolver import EntityResolver
@@ -107,6 +110,8 @@ from .helpers.quota_math import (
     is_in_reset_safe_window,
 )
 from .helpers.rate_limit_manager import RateLimitManager
+from .helpers.recovery_listener import LocalRecoveryListener
+from .helpers.recovery_queue import LocalRecoveryQueue
 from .helpers.reset_window_tracker import ResetWindowTracker
 from .helpers.schedule import (
     blocks_from_schedule_state,
@@ -236,6 +241,9 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
                 CONF_SUPPRESS_REDUNDANT_BUTTONS, DEFAULT_SUPPRESS_REDUNDANT_BUTTONS
             )
         )
+        self._recovery_cloud_replay: bool = bool(
+            entry.data.get(CONF_RECOVERY_CLOUD_REPLAY, DEFAULT_RECOVERY_CLOUD_REPLAY)
+        )
         self._base_scan_interval = scan_interval  # Store original interval
 
         self.is_polling_enabled = True  # Master switch (always starts ON)
@@ -290,6 +298,12 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         self.event_handler = TadoEventHandler(self)
         self.window_controller = WindowController(self)
         self._window_controller_started = False
+        self.availability_tracker = AvailabilityTracker(self)
+        self.recovery_queue = LocalRecoveryQueue(self, self.availability_tracker)
+        self.recovery_listener = LocalRecoveryListener(
+            hass, self, self.availability_tracker, self.recovery_queue
+        )
+        self._recovery_started = False
 
         from .helpers.action_provider_base import TadoActionProvider
         from .helpers.tadov3.action_provider import TadoV3ActionProvider
@@ -364,9 +378,8 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         if opt is not None:
             return int(opt)
         zone = self.zones_meta.get(zone_id)
-        if zone and zone.open_window_detection and zone.open_window_detection.enabled:
-            return int(zone.open_window_detection.timeout_in_seconds)
-        return 0
+        owd = getattr(zone, "open_window_detection", None)
+        return int(owd.timeout_in_seconds) if owd and owd.enabled else 0
 
     def _save_reset_tracker(self) -> None:
         """Persist reset tracker state to storage."""
@@ -516,11 +529,16 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             # Reset force flag only after a successful fetch
             self._force_next_update = False
 
-            # Window handling subscribes once zone metadata is populated, so
-            # restart recovery cannot send overlays for unknown zones.
+            # Zones have to exist before window/recovery can target them.
             if not self._window_controller_started:
                 self._window_controller_started = True
                 self.hass.async_create_task(self.window_controller.async_start())
+
+            if not self._recovery_started:
+                self._recovery_started = True
+                self.hass.async_create_task(self._async_start_recovery_stack())
+            else:
+                self.availability_tracker.refresh()
 
             return cast(TadoData, data)
         except (TimeoutError, TadoError, aiohttp.ClientError) as err:
@@ -804,9 +822,17 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             self._offset_cal_unsub()
             self._offset_cal_unsub = None
         self.window_controller.shutdown()
+        self.recovery_listener.shutdown()
+        self.availability_tracker.shutdown()
+        self.recovery_queue.clear()
         self.event_handler.shutdown()
         self.poll_scheduler.shutdown()
         self.api_manager.shutdown()
+
+    async def _async_start_recovery_stack(self) -> None:
+        """Start availability tracking and the local recovery listener."""
+        await self.availability_tracker.async_start()
+        await self.recovery_listener.async_start()
 
     async def _execute_manual_poll(
         self,
@@ -931,6 +957,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         power: str | None = None,
         temperature: float | None = None,
         operation_mode: str | None = None,
+        owd_timeout_s: float | None = None,
     ) -> None:
         """Apply optimistic overlay state and queue the SET_OVERLAY command."""
         old_state = patch_zone_overlay(self.data.zone_states.get(str(zone_id)), data)
@@ -953,6 +980,14 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
                 rollback_context=old_state,
             ),
         )
+        self.recovery_queue.capture_overlay(
+            zone_id,
+            power=power,
+            temperature=temperature,
+            expiry_s=owd_timeout_s
+            if owd_timeout_s is not None and owd_timeout_s > 0
+            else None,
+        )
 
     def _execute_resume_command(
         self, zone_id: int, operation_mode: str | None = None
@@ -973,6 +1008,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
                 rollback_context=old_state,
             ),
         )
+        self.recovery_queue.capture_resume(zone_id)
 
     async def async_set_zone_auto(
         self,
@@ -1008,11 +1044,13 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         )
         self._execute_overlay_command(zone_id, data, power="ON", temperature=temp)
 
-    async def async_set_zone_off(self, zone_id: int) -> None:
+    async def async_set_zone_off(
+        self, zone_id: int, owd_timeout_s: float | None = None
+    ) -> None:
         """Set zone to OFF (frost protection mode).
 
-        Uses magic number (OFF_MAGIC_TEMP) to signal OFF mode.
-        Executor will map OFF_MAGIC_TEMP to power=OFF before sending to API.
+        OFF_MAGIC_TEMP is mapped to power=OFF by the executor. owd_timeout_s
+        lets a window-off expire into a schedule resume if the TRV was offline.
         """
         from .const import OFF_MAGIC_TEMP
 
@@ -1024,7 +1062,11 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             supports_temp=self.supports_temperature(zone_id),
         )
         self._execute_overlay_command(
-            zone_id, data, power="ON", temperature=OFF_MAGIC_TEMP
+            zone_id,
+            data,
+            power="ON",
+            temperature=OFF_MAGIC_TEMP,
+            owd_timeout_s=owd_timeout_s,
         )
 
     async def async_set_hot_water_auto(
@@ -1125,6 +1167,8 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         except Exception as e:
             _LOGGER.error("Failed to resume Tado X hot water schedule: %s", e)
             self.optimistic.clear_zone(zid)
+            return
+        self.recovery_queue.capture_resume(zid)
         self._schedule_queued_refresh()
 
     async def _async_set_hot_water_tadox_off(self) -> None:
@@ -1177,6 +1221,8 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         except Exception as e:
             _LOGGER.error("Failed to set Tado X hot water OFF: %s", e)
             self.optimistic.clear_zone(zid)
+            return
+        self.recovery_queue.capture_overlay(zid, power="OFF", temperature=None)
         self._schedule_queued_refresh()
 
     async def _async_set_hot_water_tadox_boost(self) -> None:
@@ -1230,6 +1276,8 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         except Exception as e:
             _LOGGER.error("Failed to boost Tado X hot water ON: %s", e)
             self.optimistic.clear_zone(zid)
+            return
+        self.recovery_queue.capture_overlay(zid, power="ON", temperature=None)
         self._schedule_queued_refresh()
 
     async def async_set_hot_water_heat(
@@ -2395,6 +2443,13 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             ),
         )
 
+        self.recovery_queue.capture_overlay(
+            zone_id,
+            power=power,
+            temperature=final_temp,
+            expiry_s=float(duration * 60) if duration else None,
+        )
+
         self._handle_overlay_side_effects(duration, overlay_mode, refresh_after)
 
     async def async_set_multiple_zone_overlays(
@@ -2467,6 +2522,13 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
                     data=data,
                     rollback_context=old_state,
                 ),
+            )
+
+            self.recovery_queue.capture_overlay(
+                zone_id,
+                power=power,
+                temperature=zone_temp,
+                expiry_s=float(duration * 60) if duration else None,
             )
 
         self._handle_overlay_side_effects(duration, overlay_mode, refresh_after)

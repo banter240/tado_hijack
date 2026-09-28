@@ -451,6 +451,7 @@
               "min_auto_quota_interval_s": "Minimales Auto-Quota-Intervall",
               "disable_polling_when_throttled": "Polling stoppen wenn gedrosselt",
               "refresh_after_resume": "Status nach Zeitplan-Fortsetzung abrufen",
+              "recovery_cloud_replay": "Cloud-only-Features bei Wiederherstellung nachsenden",
               "suppress_redundant_calls": "Redundante API-Aufrufe unterdrücken",
               "suppress_redundant_buttons": "Redundante Button-Aktionen unterdrücken"
             },
@@ -461,6 +462,7 @@
               "min_auto_quota_interval_s": "Minimales Abfrage-Intervall in Sekunden (5-43200 = 12h max). Standard-API: 5s Minimum. Proxy: 120s Minimum erzwungen. Niedriger = schnellere Updates aber höherer API-Verbrauch. Standard 20s.",
               "disable_polling_when_throttled": "Stoppt die periodische Abfrage vollständig, wenn das verbleibende Kontingent den Puffer (throttle_threshold) erreicht.",
               "refresh_after_resume": "Automatisch Zieltemperatur/Status abrufen nach 'resume_schedule' (HVAC AUTO). Notwendig, da Zeitpläne Tado-Cloud-seitig verwaltet werden. Nutzt 1s Karenzzeit (Grace-Period), um mehrere Fortsetzungen zusammenzufassen. Kostet 1 API-Aufruf.",
+              "recovery_cloud_replay": "Wird ein offlinees TRV (HomeKit oder Matter) wieder verfügbar, lassen sich Cloud-only-Features (z. B. Resume Schedule) nicht lokal wiedergeben. Falls aktiviert, werden diese Befehle zusätzlich an die Tado-Cloud gesendet (1 API-Aufruf pro Zone). Deaktivieren, um Kontingent zu sparen.",
               "suppress_redundant_calls": "Überspringe API-Aufrufe wenn Zielzustand dem Cache entspricht (Temperatur, Modus, Anwesenheit, Power). Spart Kontingent bei versehentlichem Doppelklick oder UI-Interaktionen. Sendet nur bei tatsächlicher Änderung. Werte die nicht im Cache sind werden immer gesendet.",
               "suppress_redundant_buttons": "Überspringe auch Button-Aktionen (resume_all, boost_all, turn_off_all, set_mode_all) wenn alle Zonen bereits im Zielzustand. Benötigt 'Redundante API-Aufrufe unterdrücken'. Einzelne explizite Aktionen und Synchronisierungs-Buttons werden immer gesendet."
             }
@@ -560,6 +562,7 @@
               "min_auto_quota_interval_s": "Minimales Auto-Quota-Intervall",
               "disable_polling_when_throttled": "Polling stoppen wenn gedrosselt",
               "refresh_after_resume": "Status nach Zeitplan-Fortsetzung abrufen",
+              "recovery_cloud_replay": "Cloud-only-Features bei Wiederherstellung nachsenden",
               "suppress_redundant_calls": "Redundante API-Aufrufe unterdrücken",
               "suppress_redundant_buttons": "Redundante Button-Aktionen unterdrücken"
             },
@@ -570,6 +573,7 @@
               "min_auto_quota_interval_s": "Minimales Abfrage-Intervall in Sekunden (5-43200 = 12h max). Standard-API: 5s Minimum. Proxy: 120s Minimum erzwungen. Niedriger = schnellere Updates aber höherer API-Verbrauch. Standard 20s.",
               "disable_polling_when_throttled": "Stoppt die periodische Abfrage vollständig, wenn das verbleibende Kontingent den Puffer (throttle_threshold) erreicht.",
               "refresh_after_resume": "Automatisch Zieltemperatur/Status abrufen nach 'resume_schedule' (HVAC AUTO). Notwendig, da Zeitpläne Tado-Cloud-seitig verwaltet werden. Nutzt 1s Karenzzeit (Grace-Period), um mehrere Fortsetzungen zusammenzufassen. Kostet 1 API-Aufruf.",
+              "recovery_cloud_replay": "Wird ein offlinees TRV (HomeKit oder Matter) wieder verfügbar, lassen sich Cloud-only-Features (z. B. Resume Schedule) nicht lokal wiedergeben. Falls aktiviert, werden diese Befehle zusätzlich an die Tado-Cloud gesendet (1 API-Aufruf pro Zone). Deaktivieren, um Kontingent zu sparen.",
               "suppress_redundant_calls": "Überspringe API-Aufrufe wenn Zielzustand dem Cache entspricht (Temperatur, Modus, Anwesenheit, Power). Spart Kontingent bei versehentlichem Doppelklick oder UI-Interaktionen. Sendet nur bei tatsächlicher Änderung. Werte die nicht im Cache sind werden immer gesendet.",
               "suppress_redundant_buttons": "Überspringe auch Button-Aktionen (resume_all, boost_all, turn_off_all, set_mode_all) wenn alle Zonen bereits im Zielzustand. Benötigt 'Redundante API-Aufrufe unterdrücken'. Einzelne explizite Aktionen und Synchronisierungs-Buttons werden immer gesendet."
             }

@@ -33,15 +33,11 @@ _OPEN_STATES = {STATE_ON, STATE_OPEN}
 
 
 class WindowController:
-    """React to external contact sensors and drive zone off/resume.
+    """Drive zone off/resume from linked contact sensors.
 
-    Subscribes to every zone-linked ``binary_sensor`` and translates window
-    open/close transitions into overlay commands through the coordinator's
-    existing command queue (so batching, redundancy suppression and optimistic
-    patches apply).  Both modes turn the zone off immediately on open and
-    resume on close; ``timeout`` additionally holds one self-heal timer per
-    zone that resumes heating even when the window is still open (stuck
-    sensor / dead battery protection).
+    Both modes turn the zone off on open and resume on close. ``timeout`` also
+    resumes when the open-window timer expires while the sensor is still open,
+    so a dead battery cannot hold the zone off.
     """
 
     def __init__(self, coordinator: TadoDataUpdateCoordinator) -> None:
@@ -51,13 +47,8 @@ class WindowController:
         self._subs: dict[str, Callable[[], None]] = {}
         self._zones_by_sensor: dict[str, set[int]] = defaultdict(set)
         self._timers: dict[int, Callable[..., Any]] = {}
-        # Zones whose window-off overlay was actually sent.  Closing the
-        # window (or an expired self-heal timer) is the resume signal.
+        # Close or the self-heal timer resumes only if this zone was turned off.
         self._off_active: set[int] = set()
-
-    # ------------------------------------------------------------------
-    # Configuration access (persisted in config_entry.data, no reload)
-    # ------------------------------------------------------------------
 
     def _sensor_map(self) -> dict[str, str]:
         """Return the persisted {zone_id: sensor_entity_id} mapping."""
@@ -75,15 +66,12 @@ class WindowController:
         current = dict(self._sensor_map())
         if entity_id in (WINDOW_SENSOR_NONE, ""):
             current.pop(str(zone_id), None)
-            # A detached sensor leaves no armed timer or tracked off state.
             self._cancel_timer(zone_id)
             self._off_active.discard(zone_id)
         else:
             current[str(zone_id)] = entity_id
         self._update_entry_data({CONF_ZONE_WINDOW_ENTITIES: current})
         self.reload_subscriptions()
-        # A freshly linked sensor is evaluated like a startup: an already
-        # open window must take effect without waiting for a transition.
         await self._async_evaluate_zone_startup(zone_id)
 
     async def async_set_zone_window_mode(self, zone_id: int, mode: str) -> None:
@@ -94,13 +82,10 @@ class WindowController:
             self._coordinator.config_entry.data.get(CONF_ZONE_WINDOW_MODES) or {}
         )
         if mode == WINDOW_MODE_DIRECT:
-            # 'direct' is the default; drop the entry instead of storing it.
             modes.pop(str(zone_id), None)
         else:
             modes[str(zone_id)] = mode
         self._update_entry_data({CONF_ZONE_WINDOW_MODES: modes})
-        # Mode switch invalidates a possibly armed timer (e.g. moving from
-        # timeout to direct while a window is open).
         self._cancel_timer(zone_id)
 
     def _update_entry_data(self, patch: dict[str, dict[str, str]]) -> None:
@@ -109,10 +94,6 @@ class WindowController:
         self._hass.config_entries.async_update_entry(
             entry, data={**entry.data, **patch}
         )
-
-    # ------------------------------------------------------------------
-    # Subscription lifecycle
-    # ------------------------------------------------------------------
 
     @callback
     def reload_subscriptions(self) -> None:
@@ -132,7 +113,6 @@ class WindowController:
                     self._hass, [entity_id], self._async_on_sensor_event
                 )
 
-        # Zones whose feature got switched off again must not keep timers.
         active_zones = {int(zid) for zid in self._sensor_map()}
         for zone_id in list(self._timers):
             if zone_id not in active_zones:
@@ -149,13 +129,7 @@ class WindowController:
             await self._async_evaluate_zone_startup(zone_id)
 
     async def _async_evaluate_zone_startup(self, zone_id: int) -> None:
-        """Evaluate the linked sensor state once (HA start / fresh link).
-
-        Windows already open re-send OFF through the redundancy suppressor
-        (a no-op when the overlay is already active) and re-arm the timer.
-        Closed windows never trigger anything here; only transitions count
-        once the listeners are live.
-        """
+        """Apply an already-open window once. Closed windows wait for a transition."""
         entity_id = self._sensor_map().get(str(zone_id))
         if not entity_id:
             return
@@ -166,9 +140,6 @@ class WindowController:
             return
 
         mode = self.get_zone_window_mode(zone_id)
-        # Both modes turn off immediately; timeout arms the self-heal timer
-        # so a window already open at startup cannot stall heating forever
-        # (dead sensor battery). Degrades to direct when OWD is disabled.
         await self._async_turn_off(zone_id)
         if mode == WINDOW_MODE_TIMEOUT:
             self._start_timer(zone_id)
@@ -183,10 +154,6 @@ class WindowController:
         for zone_id in list(self._timers):
             self._cancel_timer(zone_id)
 
-    # ------------------------------------------------------------------
-    # Transition handling
-    # ------------------------------------------------------------------
-
     async def _async_on_sensor_event(self, event: Event) -> None:
         """Dispatch a single sensor state transition to linked zones."""
         entity_id = str(event.data.get("entity_id", ""))
@@ -194,10 +161,8 @@ class WindowController:
         old_state = event.data.get("old_state")
 
         if new_state is None or old_state is None:
-            # Registry removal or first-ever write; no usable transition.
             return
         if new_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
-            # Safest policy: neither trigger nor resume on degenerate states.
             return
 
         is_open = new_state.state in _OPEN_STATES
@@ -209,31 +174,16 @@ class WindowController:
             await self._async_dispatch_transition(zone_id, is_open)
 
     async def _async_dispatch_transition(self, zone_id: int, opened: bool) -> None:
-        """Translate a window transition into zone actions.
-
-        Open always turns the zone off immediately (both modes).  ``timeout``
-        additionally arms the self-heal timer so a window that stays open
-        longer than the open window detection timeout resumes heating anyway
-        (stuck sensor / dead battery protection).  Close resumes immediately
-        unless the cycle already ended via an expired self-heal timer — a
-        new cycle only starts on the next close -> open transition.
-        """
+        """Turn the zone off on open. Close resumes unless the self-heal already did."""
         mode = self.get_zone_window_mode(zone_id)
 
         if opened:
-            # A re-open drops any stale timer from a previous cycle before
-            # the zone is turned off again.
             self._cancel_timer(zone_id)
             await self._async_turn_off(zone_id)
             if mode == WINDOW_MODE_TIMEOUT:
-                # Arms only when OWD is enabled; otherwise degrades to the
-                # direct behaviour above (off until close, no auto-resume).
                 self._start_timer(zone_id)
             return
 
-        # Close: drop a pending self-heal timer.  Resume only when the off
-        # overlay is still active — after a timer-driven auto-resume the
-        # close is inert (the zone is already on schedule again).
         self._cancel_timer(zone_id)
         if zone_id not in self._off_active:
             return
@@ -264,13 +214,10 @@ class WindowController:
         async def _expire(_now: object) -> None:
             self._timers.pop(zone_id, None)
             if zone_id not in self._off_active:
-                # Cycle already ended (close raced the timer or the zone
-                # was resumed elsewhere) — nothing to do.
                 return
             _LOGGER.warning(
                 "Window timer expired for zone %s with the sensor still"
-                " open — resuming heating anyway (self-heal, protects"
-                " against a stuck sensor or dead battery)",
+                " open; resuming heating (self-heal)",
                 zone_id,
             )
             await self._async_resume(zone_id)
@@ -287,7 +234,13 @@ class WindowController:
         """Send the window-off overlay through the command queue."""
         _LOGGER.info("Window open: setting zone %s off", zone_id)
         self._off_active.add(zone_id)
-        await self._coordinator.async_set_zone_off(zone_id)
+        # Timeout mode expires into a resume. direct stays off until close.
+        owd_s = self._coordinator.get_open_window_timeout_seconds(zone_id)
+        mode = self.get_zone_window_mode(zone_id)
+        armed = mode == WINDOW_MODE_TIMEOUT and owd_s > 0
+        await self._coordinator.async_set_zone_off(
+            zone_id, owd_timeout_s=owd_s if armed else None
+        )
 
     async def _async_resume(self, zone_id: int) -> None:
         """Resume the zone schedule through the command queue."""
