@@ -279,14 +279,25 @@ class TadoExecutorBase(ABC):
         return rollback
 
     def _create_presence_rollback(
-        self, old_presence: str | None
+        self, old_presence: str | None, old_locked: bool | None = None
     ) -> Callable[[], Coroutine[Any, Any, None]]:
         """Create rollback function for presence."""
 
         async def restore() -> None:
-            if old_presence and self.coordinator.data.home_state:
-                _LOGGER.info("Rolling back local presence state to %s", old_presence)
-                self.coordinator.data.home_state.presence = old_presence
+            if self.coordinator.data and self.coordinator.data.home_state:
+                state = self.coordinator.data.home_state
+                if old_presence is not None:
+                    _LOGGER.info(
+                        "Rolling back local presence to %s (locked=%s)",
+                        old_presence,
+                        old_locked,
+                    )
+                    state.presence = old_presence
+                    if old_locked is not None:
+                        state.presence_locked = old_locked
+                else:
+                    _LOGGER.info("Triggering manual poll to recover presence state")
+                    await self.coordinator.async_manual_poll("presence")
             else:
                 _LOGGER.info("Triggering manual poll to recover presence state")
                 await self.coordinator.async_manual_poll("presence")

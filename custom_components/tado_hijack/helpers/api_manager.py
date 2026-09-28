@@ -204,8 +204,8 @@ class TadoApiManager:
         if key.startswith("zone_"):
             return {"overlay", "overlay_active", "setting"}
 
-        # Presence commands protect home state presence field
-        return {"presence"} if key == "presence" else set()
+        # Presence commands protect home state presence/lock fields
+        return {"presence", "presence_locked"} if key == "presence" else set()
 
     def queue_command(self, key: str, command: TadoCommand) -> None:
         """Add command to debounce queue."""

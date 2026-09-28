@@ -43,12 +43,12 @@ class TadoXMapper:
             snapshot = None
 
         home_state = await self.async_fetch_home_state()
-        presence = getattr(home_state, "presence", "HOME")
+        # Preserve full HomeState object (includes presence_locked) instead of stripping fields
         rooms = snapshot.rooms if snapshot else []
         other_devices = snapshot.other_devices if snapshot else []
 
         unified_data = UnifiedTadoData(
-            home_state=type("HomeState", (), {"presence": presence}),
+            home_state=home_state,
             api_status="online",
             zones={room.room_id: room for room in rooms},
             limit=0,

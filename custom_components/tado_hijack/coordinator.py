@@ -1192,22 +1192,48 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         )
 
     async def async_set_presence_debounced(self, presence: str) -> None:
-        """Set presence state."""
+        """Set presence mode (HOME/AWAY lock or AUTO/geofencing).
+
+        The mode drives the select entity while the effective presence
+        (binary sensor) keeps reflecting whatever Tado reports.
+        """
         self.optimistic.set_presence(presence)
 
         old_presence = None
+        old_locked = None
         if self.data and self.data.home_state:
-            old_presence = self.data.home_state.presence
-            self.data.home_state.presence = presence
+            state = self.data.home_state
+            old_presence = state.presence
+            old_locked = getattr(state, "presence_locked", None)
+            if presence.upper() == "AUTO":
+                # Hand control back to geofencing; effective presence stays
+                # as-is until the next presence poll confirms it.
+                state.presence_locked = False
+            else:
+                state.presence = presence
+                state.presence_locked = True
 
         self.async_update_listeners()
+
         self.api_manager.queue_command(
             "presence",
             TadoCommand(
                 CommandType.SET_PRESENCE,
-                data={"presence": presence, "old_presence": old_presence},
+                data={
+                    "presence": presence,
+                    "old_presence": old_presence,
+                    "old_locked": old_locked,
+                },
             ),
         )
+
+        if presence.upper() == "AUTO":
+            # Geofencing took over; refresh effective presence through the
+            # normal pipeline (batched/merged with other pending polls).
+            self.api_manager.queue_command(
+                "presence_refresh",
+                TadoCommand(CommandType.MANUAL_POLL, data={"type": "presence"}),
+            )
 
     def _get_reduced_window_config(self) -> dict[str, Any] | None:
         """Fetch and parse reduced window configuration."""

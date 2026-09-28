@@ -346,13 +346,9 @@ class TadoDataManager:
             )
         from .models_unified import UnifiedTadoData
 
-        presence = (
-            home_state.presence
-            if home_state and hasattr(home_state, "presence")
-            else "HOME"
-        )
+        # Preserve full HomeState object to keep presence_locked field intact
         return UnifiedTadoData(
-            home_state=type("HomeState", (), {"presence": presence}),
+            home_state=home_state,
             api_status="online",
             zones=self.zones_meta,
             zone_states=(

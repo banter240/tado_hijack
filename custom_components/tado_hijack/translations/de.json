@@ -322,6 +322,11 @@
         "name": "Soll-Temperatur"
       }
     },
+    "binary_sensor": {
+      "presence_state": {
+        "name": "Anwesenheit"
+      }
+    },
     "select": {
       "presence_mode": {
         "name": "Anwesenheitsmodus",

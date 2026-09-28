@@ -322,6 +322,11 @@
         "name": "Target Temperature"
       }
     },
+    "binary_sensor": {
+      "presence_state": {
+        "name": "Presence"
+      }
+    },
     "select": {
       "presence_mode": {
         "name": "Presence Mode",
