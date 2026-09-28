@@ -49,6 +49,7 @@ from .const import (
     CONF_PRESENCE_POLL_INTERVAL,
     CONF_PROXY_TOKEN,
     CONF_QUOTA_SAFETY_RESERVE,
+    CONF_RECOVERY_CLOUD_REPLAY,
     CONF_REDUCED_POLLING_ACTIVE,
     CONF_REDUCED_POLLING_END,
     CONF_REDUCED_POLLING_INTERVAL,
@@ -72,6 +73,7 @@ from .const import (
     DEFAULT_OFFSET_POLL_INTERVAL,
     DEFAULT_PRESENCE_POLL_INTERVAL,
     DEFAULT_QUOTA_SAFETY_RESERVE,
+    DEFAULT_RECOVERY_CLOUD_REPLAY,
     DEFAULT_REDUCED_POLLING_END,
     DEFAULT_REDUCED_POLLING_INTERVAL,
     DEFAULT_REDUCED_POLLING_START,
@@ -167,6 +169,7 @@ class TadoHijackCommonFlow:
                 CONF_THROTTLE_THRESHOLD,
                 CONF_DISABLE_POLLING_WHEN_THROTTLED,
                 CONF_REFRESH_AFTER_RESUME,
+                CONF_RECOVERY_CLOUD_REPLAY,
                 CONF_SUPPRESS_REDUNDANT_CALLS,
                 CONF_SUPPRESS_REDUNDANT_BUTTONS,
                 CONF_MIN_AUTO_QUOTA_INTERVAL_S,
@@ -303,6 +306,13 @@ class TadoHijackCommonFlow:
                                 default=self._get_current_data(
                                     CONF_REFRESH_AFTER_RESUME,
                                     DEFAULT_REFRESH_AFTER_RESUME,
+                                ),
+                            ): BooleanSelector(),
+                            vol.Optional(
+                                CONF_RECOVERY_CLOUD_REPLAY,
+                                default=self._get_current_data(
+                                    CONF_RECOVERY_CLOUD_REPLAY,
+                                    DEFAULT_RECOVERY_CLOUD_REPLAY,
                                 ),
                             ): BooleanSelector(),
                             vol.Optional(

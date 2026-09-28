@@ -37,6 +37,7 @@ CONF_MIN_AUTO_QUOTA_INTERVAL_S: Final = "min_auto_quota_interval_s"
 CONF_QUOTA_SAFETY_RESERVE: Final = "quota_safety_reserve"
 CONF_SUPPRESS_REDUNDANT_CALLS: Final = "suppress_redundant_calls"
 CONF_SUPPRESS_REDUNDANT_BUTTONS: Final = "suppress_redundant_buttons"
+CONF_RECOVERY_CLOUD_REPLAY: Final = "recovery_cloud_replay"
 CONF_INITIAL_POLL_DONE: Final = "initial_poll_done"
 
 # Feature Flags
@@ -125,6 +126,9 @@ DEFAULT_JITTER_PERCENT: Final = 10.0  # 10% variation (+/- 10%)
 DEFAULT_MIN_AUTO_QUOTA_INTERVAL_S: Final = 20  # Default minimum interval for auto quota
 DEFAULT_QUOTA_SAFETY_RESERVE: Final = 2  # API calls reserved for reset window (12-13h)
 DEFAULT_SUPPRESS_REDUNDANT_CALLS: Final = False  # Opt-in redundancy suppression
+DEFAULT_RECOVERY_CLOUD_REPLAY: Final = (
+    True  # Replay cloud-only features via cloud on recovery
+)
 DEFAULT_SUPPRESS_REDUNDANT_BUTTONS: Final = (
     False  # Opt-in button redundancy suppression
 )
@@ -158,6 +162,9 @@ OPTIMISTIC_GRACE_PERIOD_S: Final = 30
 PROTECTION_MODE_TEMP: Final = 5.0  # Minimum safe temperature for manual override
 BOOST_MODE_TEMP: Final = 25.0  # Temperature for Boost All
 BATCH_LINGER_S: Final = 1.0  # Time to wait for more commands in batch
+RECOVERY_BATCH_DEBOUNCE_S: Final = (
+    0.2  # Debounce window for simultaneous TRV recoveries
+)
 RESUME_REFRESH_DELAY_S: Final = (
     1.0  # Grace period to collect multiple resumes before refresh
 )

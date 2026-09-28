@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -23,6 +24,22 @@ def get_zone_type(
 ) -> str | None:
     """Safely extract zone type with consistent fallback."""
     return default if zone is None else getattr(zone, "type", default)
+
+
+def trv_serials(zones_meta: Mapping[int, Any], zone_id: int | None = None) -> list[str]:
+    """TRV serials for one zone, or for every zone when zone_id is omitted."""
+    zones = (
+        [zones_meta.get(zone_id)] if zone_id is not None else list(zones_meta.values())
+    )
+    serials: list[str] = []
+    for zone in zones:
+        if zone is None or not getattr(zone, "devices", None):
+            continue
+        for dev in zone.devices:
+            serial = getattr(dev, "serial_no", None)
+            if serial and (text := str(serial)) not in serials:
+                serials.append(text)
+    return serials
 
 
 def unify_zone(zone: Any) -> TadoUnifiedZone:

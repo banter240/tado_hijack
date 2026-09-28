@@ -60,6 +60,7 @@ class TadoV3ActionProvider(TadoActionProvider):
                     rollback_context=old_state,
                 ),
             )
+            self.coordinator.recovery_queue.capture_resume(zone_id)
 
         self.coordinator.async_update_listeners()
 
@@ -127,6 +128,12 @@ class TadoV3ActionProvider(TadoActionProvider):
                     data=data,
                     rollback_context=old_state,
                 ),
+            )
+
+            self.coordinator.recovery_queue.capture_overlay(
+                zone_id,
+                power=setting.get("power", POWER_ON),
+                temperature=setting.get("temperature", {}).get("celsius"),
             )
 
         self.coordinator.async_update_listeners()
