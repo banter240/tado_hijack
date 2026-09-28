@@ -416,6 +416,34 @@ def _create_definition(
     )
 
 
+def _get_presence_mode_str(coordinator: Any) -> str:
+    """Derive the presence MODE from the home state.
+
+    Reflects who controls presence:
+    - AUTO: Tado geofencing decides (presenceLocked is False / absent).
+    - HOME/AWAY: presence is manually locked to that value.
+
+    The *effective* presence (what Tado currently detects) is exposed separately
+    by the `presence_state` binary sensor, since it diverges from the mode
+    whenever AUTO (geofencing) is active.
+    """
+    home_state = getattr(coordinator.data, "home_state", None)
+    if home_state is None:
+        return "AUTO"
+    presence_locked = getattr(home_state, "presence_locked", None)
+    if presence_locked is False or presence_locked is None:
+        return "AUTO"
+    return str(getattr(home_state, "presence", "HOME"))
+
+
+def _get_effective_presence(coordinator: Any) -> bool:
+    """Return the effective presence: True = HOME, False = AWAY."""
+    home_state = getattr(coordinator.data, "home_state", None)
+    if home_state is None:
+        return True
+    return str(getattr(home_state, "presence", "HOME")) == "HOME"
+
+
 def create_home_sensor(
     key: str,
     value_fn: Any,
@@ -1786,14 +1814,16 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     ),
     create_home_select(
         key="presence_mode",
-        value_fn=lambda c: str(
-            getattr(c.data.home_state, "presence", "HOME")
-            if c.data and c.data.home_state
-            else "HOME"
-        ),
+        value_fn=_get_presence_mode_str,
         options=["HOME", "AWAY", "AUTO"],
         select_option_fn=lambda c, option: c.async_set_presence_debounced(option),
         icon="mdi:home-account",
+    ),
+    create_home_binary_sensor(
+        key="presence_state",
+        value_fn=_get_effective_presence,
+        icon="mdi:home-map-marker",
+        translation_key="presence_state",
     ),
     create_home_switch(
         key="polling_active",

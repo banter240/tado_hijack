@@ -25,6 +25,8 @@ def preserve_rollback_state(existing: TadoCommand, replacement: TadoCommand) -> 
         if replacement.data is not None and existing.data is not None:
             if (original := existing.data.get("old_presence")) is not None:
                 replacement.data["old_presence"] = original
+            if "old_locked" in existing.data:
+                replacement.data["old_locked"] = existing.data["old_locked"]
     elif existing.rollback_context is not None:
         replacement.rollback_context = existing.rollback_context
 
@@ -38,13 +40,21 @@ def _check_presence_redundancy(
 
     target_presence = command.data.get("presence")
     old_presence = command.data.get("old_presence")
+    old_locked = command.data.get("old_locked")
 
-    if old_presence is None:
+    if target_presence is None:
         return False
 
-    if old_presence == target_presence:
+    target = str(target_presence).upper()
+    if target == "AUTO":
+        if old_locked is False:
+            _LOGGER.debug("Skipping redundant SET_PRESENCE: already AUTO")
+            return True
+        return False
+
+    if old_locked and old_presence is not None and old_presence == target_presence:
         _LOGGER.debug(
-            "Skipping redundant SET_PRESENCE: already %s",
+            "Skipping redundant SET_PRESENCE: already manually locked to %s",
             target_presence,
         )
         return True
@@ -646,11 +656,21 @@ def _filter_simple_attributes(
 
 def _filter_presence(merged: dict[str, Any]) -> dict[str, Any]:
     """Filter redundant presence updates."""
-    if presence := merged.get("presence"):
-        old_presence = merged.get("old_presence")
-        if old_presence is not None and old_presence == presence:
-            _LOGGER.debug("Skipping redundant presence: already %s", presence)
+    presence = merged.get("presence")
+    if presence is None:
+        return merged
+
+    old_presence = merged.get("old_presence")
+    old_locked = merged.get("old_locked")
+
+    if str(presence).upper() == "AUTO":
+        if old_locked is False:
+            _LOGGER.debug("Skipping redundant presence: already AUTO")
             merged.pop("presence", None)
+    elif old_locked and old_presence is not None and old_presence == presence:
+        _LOGGER.debug("Skipping redundant presence: already locked to %s", presence)
+        merged.pop("presence", None)
+
     return merged
 
 

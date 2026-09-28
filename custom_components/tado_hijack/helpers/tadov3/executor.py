@@ -37,7 +37,9 @@ class TadoV3Executor(TadoExecutorBase):
             await self._safe_execute(
                 "presence",
                 self.client.set_presence(presence),
-                rollback_fn=self._create_presence_rollback(merged.get("old_presence")),
+                rollback_fn=self._create_presence_rollback(
+                    merged.get("old_presence"), merged.get("old_locked")
+                ),
                 success_fn=lambda: self.coordinator.optimistic.set_presence(
                     presence, grace_period=2.0
                 ),

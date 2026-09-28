@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 _MERGED_CONTROL_KEYS = frozenset(
     {
         "old_presence",
+        "old_locked",
         "manual_poll",
         "capability_zone_ids",
         "targeted_polls",
@@ -75,6 +76,7 @@ class CommandMerger:
         self.identifies: set[str] = set()
         self.presence: str | None = None
         self.old_presence: str | None = None
+        self.old_locked: bool | None = None
         self.manual_poll_types: set[str] = set()
         self.capability_zone_ids: set[int] = set()
         self.capabilities_all: bool = False
@@ -249,6 +251,8 @@ class CommandMerger:
             self.presence = str(cmd.data["presence"])
             if self.old_presence is None and "old_presence" in cmd.data:
                 self.old_presence = cmd.data["old_presence"]
+            if "old_locked" in cmd.data and cmd.data["old_locked"] is not None:
+                self.old_locked = cmd.data["old_locked"]
 
     def _merge_resume(self, cmd: TadoCommand) -> None:
         if cmd.zone_id is not None:
@@ -309,6 +313,7 @@ class CommandMerger:
             "identifies": self.identifies,
             "presence": self.presence,
             "old_presence": self.old_presence,
+            "old_locked": self.old_locked,
             "manual_poll": self._resolved_manual_poll(),
             "capability_zone_ids": self.capability_zone_ids,
             "capabilities_all": self.capabilities_all,
