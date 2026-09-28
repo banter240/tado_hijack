@@ -12,7 +12,6 @@ from homeassistant.core import (
     HomeAssistant,
 )
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 from tadoasync import Tado, TadoError
@@ -36,7 +35,6 @@ from .const import (
     CONF_GENERATION,
     CONF_JITTER_PERCENT,
     CONF_MIN_AUTO_QUOTA_INTERVAL_S,
-    CONF_OFFSET_CAL_INTERVAL,
     CONF_OFFSET_POLL_INTERVAL,
     CONF_PRESENCE_POLL_INTERVAL,
     CONF_QUOTA_SAFETY_RESERVE,
@@ -55,7 +53,6 @@ from .const import (
     DEFAULT_FEATURE_FLOW_TEMP,
     DEFAULT_JITTER_PERCENT,
     DEFAULT_MIN_AUTO_QUOTA_INTERVAL_S,
-    DEFAULT_OFFSET_CAL_INTERVAL,
     DEFAULT_OFFSET_POLL_INTERVAL,
     DEFAULT_PRESENCE_POLL_INTERVAL,
     DEFAULT_QUOTA_SAFETY_RESERVE,
@@ -96,6 +93,7 @@ from .helpers.device_linker import get_climate_entity_id
 from .helpers.entity_resolver import EntityResolver
 from .helpers.event_handlers import TadoEventHandler
 from .helpers.logging_utils import get_redacted_logger
+from .helpers.offset_cal_config import OffsetCalSchedulerMixin
 from .helpers.optimistic_manager import OptimisticManager, ZoneOverlayFields
 from .helpers.overlay_builder import build_overlay_data
 from .helpers.poll_scheduler import PollScheduler
@@ -152,7 +150,7 @@ from .models import CommandType, RateLimit, TadoCommand, TadoData
 _LOGGER = get_redacted_logger(__name__)
 
 
-class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
+class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[Any]):
     """Orchestrates Tado integration logic via specialized managers."""
 
     def __init__(
@@ -1451,37 +1449,6 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         """Set temperature offset for a device."""
         await self.action_provider.async_set_temperature_offset(serial_no, offset)
 
-    def _offset_cal_option(self) -> str:
-        """Return the configured offset auto-cal interval."""
-        return str(
-            self.config_entry.data.get(
-                CONF_OFFSET_CAL_INTERVAL, DEFAULT_OFFSET_CAL_INTERVAL
-            )
-        )
-
-    def _schedule_offset_cal_timer(self) -> None:
-        """Track local clock slots from 00:00 in 3h steps."""
-        from .helpers.offset_calibrate import hours_from_midnight
-
-        if self._offset_cal_unsub:
-            self._offset_cal_unsub()
-            self._offset_cal_unsub = None
-        hours = hours_from_midnight(self._offset_cal_option())
-        if not hours:
-            return
-        self._offset_cal_unsub = async_track_time_change(
-            self.hass,
-            self._on_offset_cal_tick,
-            hour=hours,
-            minute=0,
-            second=0,
-        )
-        _LOGGER.info("Offset auto-cal scheduled at local hours %s", hours)
-
-    async def _on_offset_cal_tick(self, _now: datetime) -> None:
-        """Clock slot from 00:00."""
-        await self.async_calibrate_offsets("interval")
-
     def _maybe_calibrate_offsets_on_reset(self) -> None:
         """Fire once when remaining quota jumps up, if that mode is selected."""
         from .helpers.offset_calibrate import OFFSET_CAL_ON_RESET
@@ -1489,20 +1456,6 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
         if self._offset_cal_option() != OFFSET_CAL_ON_RESET:
             return
         self.hass.async_create_task(self.async_calibrate_offsets("quota_reset"))
-
-    async def async_set_offset_cal_interval(self, option: str) -> None:
-        """Persist the offset auto-cal dropdown and reschedule clock slots."""
-        from .helpers.offset_calibrate import OFFSET_CAL_OPTIONS
-
-        key = option.strip().lower()
-        if key not in OFFSET_CAL_OPTIONS:
-            raise HomeAssistantError(f"Unknown offset cal interval '{option}'.")
-        new_data = {**self.config_entry.data, CONF_OFFSET_CAL_INTERVAL: key}
-        self.hass.config_entries.async_update_entry(self.config_entry, data=new_data)
-        self._schedule_offset_cal_timer()
-        self.async_update_interval_local()
-        self.async_update_listeners()
-        _LOGGER.info("Offset auto-cal interval set to %s", key)
 
     def _log_offset_cal_skip(self, reason: str, detail: str) -> None:
         """Warn on a manual skip, debug otherwise."""
@@ -1590,19 +1543,41 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
                 zone_states.get(str(zid)) or zone_states.get(zid)
             )
             current = current_device_offset(self, serial)
+            if current is None and reason == "manual":
+                try:
+                    await self.data_manager._fetch_offset_for(serial)
+                except Exception:
+                    _LOGGER.debug(
+                        "Offset cal zone %s device %s: offset fetch failed",
+                        zid,
+                        serial,
+                    )
+                current = current_device_offset(self, serial)
             if thermostat is None or tado_inside is None or current is None:
-                _LOGGER.debug(
-                    "Skip offset cal zone %s device %s "
-                    "(thermostat=%s tado=%s offset=%s)",
-                    zid,
-                    serial,
-                    thermostat,
-                    tado_inside,
-                    current,
-                )
+                if reason == "manual":
+                    _LOGGER.warning(
+                        "Offset cal skipped: zone %s device %s "
+                        "(thermostat=%s tado=%s offset=%s)",
+                        zid,
+                        serial,
+                        thermostat,
+                        tado_inside,
+                        current,
+                    )
+                else:
+                    _LOGGER.debug(
+                        "Skip offset cal zone %s device %s "
+                        "(thermostat=%s tado=%s offset=%s)",
+                        zid,
+                        serial,
+                        thermostat,
+                        tado_inside,
+                        current,
+                    )
                 continue
             desired = compute_device_offset(thermostat, tado_inside, current)
-            if abs(desired - current) < OFFSET_STEP:
+            threshold = self.get_zone_offset_cal_threshold(zid)
+            if abs(desired - current) < max(threshold, OFFSET_STEP):
                 continue
             _LOGGER.info(
                 "Offset cal (%s) %s: thermostat=%.2f tado=%.2f offset %.1f -> %.1f",

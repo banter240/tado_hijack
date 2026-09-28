@@ -28,7 +28,11 @@ OFFSET_CAL_OPTIONS: tuple[str, ...] = (
 
 
 def daily_offset_cal_puts(coordinator: TadoDataUpdateCoordinator) -> int:
-    """How many offset PUTs auto-cal will spend per quota day (0 if off)."""
+    """How many offset PUTs auto-cal will spend per quota day (0 if off).
+
+    Counts per-zone interval fires + bridge fires, avoiding double-counting
+    when a zone inherits the bridge interval.
+    """
     from ..const import (
         CONF_OFFSET_CAL_INTERVAL,
         CONF_ZONE_TEMP_ENTITIES,
@@ -37,25 +41,49 @@ def daily_offset_cal_puts(coordinator: TadoDataUpdateCoordinator) -> int:
 
     if coordinator.config_entry is None:
         return 0
-    option = str(
-        coordinator.config_entry.data.get(
-            CONF_OFFSET_CAL_INTERVAL, DEFAULT_OFFSET_CAL_INTERVAL
-        )
-    )
-    hours = hours_from_midnight(option)
-    if option == OFFSET_CAL_ON_RESET:
-        fires = 1
-    elif hours:
-        fires = len(hours)
-    else:
-        return 0
+
     linked = coordinator.config_entry.data.get(CONF_ZONE_TEMP_ENTITIES) or {}
     if not isinstance(linked, dict) or not linked:
         return 0
+
+    # Count devices with linked sensors
     devices = sum(
         bool(linked.get(str(zone_id)))
         for _serial, zone_id in measuring_devices(coordinator)
     )
+    if devices == 0:
+        return 0
+
+    # Get effective interval for each zone and count unique fire-hours
+    all_hours: set[int] = set()
+    on_reset_zones = False
+
+    for zid_str in linked:
+        try:
+            zone_id = int(zid_str)
+        except (TypeError, ValueError):
+            continue
+        if not linked.get(zid_str):
+            continue
+
+        # Use mixin method if available, else fallback to bridge
+        if hasattr(coordinator, "get_zone_offset_cal_interval"):
+            option = coordinator.get_zone_offset_cal_interval(zone_id)
+        else:
+            option = str(
+                coordinator.config_entry.data.get(
+                    CONF_OFFSET_CAL_INTERVAL, DEFAULT_OFFSET_CAL_INTERVAL
+                )
+            )
+
+        if option == "on_reset":
+            on_reset_zones = True
+        else:
+            hours = hours_from_midnight(option)
+            if hours:
+                all_hours.update(hours)
+
+    fires = len(all_hours) if all_hours else (1 if on_reset_zones else 0)
     return devices * fires
 
 
@@ -113,7 +141,7 @@ def read_entity_temperature(hass: HomeAssistant, entity_id: str) -> float | None
         raw = state.state
     try:
         return float(raw)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return None
 
 

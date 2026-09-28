@@ -271,6 +271,9 @@
       },
       "max_flow_temperature": {
         "name": "Maximale Vorlauftemperatur"
+      },
+      "offset_cal_spread_threshold": {
+        "name": "Offset-Kalibrier-Schwelle"
       }
     },
     "select": {
@@ -333,7 +336,8 @@
           "18h": "Alle 18 Stunden (ab 00:00)",
           "21h": "Alle 21 Stunden (ab 00:00)",
           "24h": "1x am Tag (00:00)",
-          "on_reset": "1x nach Quota-Reset"
+          "on_reset": "1x nach Quota-Reset",
+          "inherit": "Erben (Bridge)"
         }
       }
     },
