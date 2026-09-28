@@ -1,6 +1,6 @@
 # Features Guide
 
-Tado Hijack is a power-user integration designed to unlock the full potential of your Tado hardware while bypassing the strict limitations of the official API and app.
+Tado Hijack is a power-user integration designed to unlock the full potential of your Tado hardware while bypassing the strict limitations of the official API and app. All features are verified against the code in `custom_components/tado_hijack/`.
 
 ---
 
@@ -8,49 +8,117 @@ Tado Hijack is a power-user integration designed to unlock the full potential of
 
 **The Tech:** Tado Hijack uses a **Fused Overlay Strategy**.
 - **Official App:** Sends one request per zone when resuming schedules or turning off zones.
-- **Tado Hijack (v3):** Buffers commands for 5 seconds and merges them into a single `POST /homes/{homeId}/overlay` (heating, AC, hot water, mixed temps).
-- **Tado Hijack (Tado X):** House-wide boost/off/resume is `POST /quickActions/*` (1 call). Hops has no mixed-room overlay body (`manualControl` is per room).
-- **The Quota Saving:** Turning off 10 rooms costs **1 API call** instead of 10. This is the single most important feature for users with many radiators.
+- **Tado Hijack (V3 Classic):** Buffers commands for 5 seconds (debounce window) and merges them into a single `POST /homes/{homeId}/overlay` — heating, AC, hot water, mixed temperatures in one call.
+- **Tado Hijack (Tado X / Hops):** House-wide boost/off/resume uses `POST /quickActions/*` (single API call). Hops has no mixed-room overlay body, so per-room `manualControl` is used for mixed sets.
+- **The Quota Saving:** Turning off 10 rooms costs **1 API call** instead of 10 — the single most important feature for users with many radiators.
+
+---
 
 ## 🌡️ Indoor Climate Intelligence
 
-We calculate advanced building physics metrics per zone using high-precision formulas.
+We calculate advanced building physics metrics per zone using high-precision formulas (`helpers/climate_physics.py`).
 
-- **Dew Point (°C):** Calculated using the **Magnus formula**. It represents the temperature at which condensation begins on surfaces.
-- **Mold Risk Level:** A 4-step rating (`none`, `low`, `medium`, `high`) based on the spread between the wall temperature (estimated via dew point) and the room temperature.
-- **Absolute Humidity (g/m³):** The actual mass of water in the air.
-- **Ventilation Recommendation:** A smart binary sensor that compares indoor vs. outdoor Absolute Humidity. It only turns `ON` if opening the window will actually **reduce** indoor moisture (requires an outdoor weather entity).
+- **Dew Point (°C):** Calculated using the **Magnus formula** (Bolton 1980, valid −30…+35 °C, error < 0.1 % over water). Represents the temperature at which condensation begins on surfaces.
+- **Mold Risk Level:** A 4-step rating (`none`, `low`, `medium`, `high`) based on the spread between the wall temperature (estimated via dew point) and the room temperature:
+  - `> 7 °C spread` → `none` (surface RH well below 70 %)
+  - `> 5 °C spread` → `low` (cold bridges / poorly insulated spots)
+  - `> 3 °C spread` → `medium` (corners, airing recommended)
+  - `≤ 3 °C spread` → `high` (near-condensation, widespread risk)
+- **Absolute Humidity (g/m³):** The actual mass of water in the air, derived from saturation vapour pressure via the Magnus formula.
+- **Ventilation Recommendation:** A smart binary sensor that compares indoor vs. outdoor Absolute Humidity. It turns `ON` only when opening windows will **reduce** indoor moisture by at least the configured threshold (default `1.0 g/m³`), preventing automation chatter. Requires an outdoor weather entity.
 
 > [!TIP]
 > **Dynamic Source Selection:** You can select a high-precision external sensor (Aqara, Hue, etc.) as the data source for these calculations, effectively bypassing the TRV's inaccurate measurement point near the radiator.
 
+---
+
 ## 🧠 Auto API Quota (Adaptive Polling)
 
-Tado Hijack features a self-regulating polling engine that ensures 24/7 continuity.
+Tado Hijack conserves API quota with intelligent polling that balances responsiveness and efficiency.
 
-- **Weighted distribution:** Instead of polling every X minutes, the integration calculates how many calls are left and stretches them until the next reset.
-- **Reset Window Learning:** The system monitors API headers to detect the exact moment Tado resets your quota. It learns this pattern over 2-3 days to optimize your budget planning.
-- **Economy Window (Night-Savings):** You can define a "Sleep Window" (e.g. 23:00 - 07:00) where polling stops or slows down. These saved calls are "reinvested" into your active hours, allowing for updates as fast as every 20 seconds during the day.
-- **Threshold Throttling:** A configurable "Throttle Threshold" (default 20 calls) reserves quota for external automations and manual actions. When remaining quota hits this floor, background polling pauses instantly.
-- **Proxy Support:** Fully compatible with local `tado-api-proxy`. The system adapts polling speed to the higher quota limits provided by the proxy.
-- **Safety Reserve:** 2 calls are reserved for the ±1h window around the expected reset time to handle reset-time variability.
+- **Weighted Distribution:** The system calculates the polling interval based on remaining quota, time until reset, and measured poll costs. More calls are invested during daytime hours; nighttime budgets are saved.
+- **Reset Window Learning:** The system monitors API headers to detect when Tado resets your quota. A learned window is confirmed after **2 consecutive resets** at the same hour (history size: 5 resets, stored in UTC so DST does not shift it); until then, the default hour (11:00 UTC ≈ 12:00/13:00 Berlin) is used.
+- **Economy Window (Night-Savings):** Configure a sleep window (e.g., 22:00–07:00) where polling slows down or pauses entirely. Saved calls are reinvested during the day, allowing updates as fast as every 20 seconds when quota permits.
+- **Safety Reserve:** A configurable number of calls (default 2) are reserved for the reset safe window (±1 h around the expected reset hour, spanning 3 h total). This ensures background polling resumes promptly when Tado resets your account.
 
-## 🚿 Unleashed Platforms
+---
 
-- **AC Pro Control:** Unlocks Fan Speed and Horizontal/Vertical Swing controls for v3 AC controllers that are often missing in standard integrations.
-- **Professional Hot Water:** A dedicated `water_heater` platform with `boost` functionality and schedule synchronization. v3 uses the Classic API overlay endpoint; Tado X uses `programmer/domesticHotWater/` endpoints (boost, resumeSchedule).
-- **Timetable type:** Per-zone and home-wide select for ONE_DAY / THREE_DAY / SEVEN_DAY via classic `zones/{id}/schedule/activeTimetable`. Classic heating and hot water; Tado X heating rooms experimental (same v2 URI, not Hops). Writes and refresh buttons go through the command debounce/batch window (1 GET/PUT per zone). `full_manual_poll` / `manual_poll` type `all` also fetches timetable types and weekly plans.
-- **Set schedule:** `tado_hijack.set_schedule` writes the daily time blocks to Tado (app-free). Day picker follows the timetable: `one_day` none (Tuesday fails), `three_day` Mon-Fri/Sat/Sun, `seven_day` Mon..Sun (Tue+Wed). Payload is `blocks` or a Home Assistant `schedule` helper. Classic PUT per dayType; Tado X POST Hops `rooms/{id}/schedule`. Debounced per zone+day.
-- **Zone plan calendar:** One read-only `calendar` entity per schedule-capable zone (`Tado <room> Weekly Plan`). Opening the calendar is cache-only (0 calls). Fetch via per-room `refresh_zone_plan`, home `refresh_all_zone_plans`, or `full_manual_poll` / `manual_poll` type `all` or `schedule` (1 GET per zone when timetable type is cached, 2 if not). Cache is persisted; `set_schedule` updates it only after a successful write and leaves it unchanged on error. Not part of periodic poll.
-- **Command merge:** One debounce queue for every Tado write/refresh. Last write per key. Classic: any overlay mix (boost all + AC + one room 21 °C + hot water) is **one** `POST /overlay`. Tado X: house-wide `quickActions/*` (1); mixed room setpoints are per-room `manualControl` (no mixed overlay body on Hops). Home-all + the same room again does not double-send. Offset/child-lock/OWD have no bulk endpoint (1 per device); X can PATCH lock+offset on the same device together.
-- **Zone capabilities:** Persisted across restarts. No bulk API (1 GET per zone). Refetched on the hardware-sync interval (default 24h) and via home/room config buttons (`refresh_capabilities` / `refresh_capability`). Auto Quota reserves those GETs as `capabilities_total` (same interval as hardware sync) and does not treat them as zone-poll cost. Tado X has no capabilities endpoint.
-- **Offset auto-calibrate:** Home select `offset_cal_interval`, home button `calibrate_offsets`, and per-room config button `calibrate_offset`. Only zones with a linked `zone_temp_source`. Offset = thermostat - TRV raw. Clock slots from local midnight in 3h steps, or once when quota reset is detected. Auto Quota subtracts scheduled PUTs from the daily polling budget (`offset_cal_total` in reserved cost). Per device PUT, not bulk.
-- **Presence Lock:** Force the home into "Home" or "Away" mode via a simple switch, overriding Tado's own geolocation engine when needed.
-- **Presence-Aware Overlays:** Set a temperature that is tied to the current presence state. If the home transitions from Home -> Away, the overlay automatically cancels.
+## 🔗 Device Unification
 
-## 🔗 Device Unification (v3 Classic & Tado X)
+- **Multi-TRV Rooms:** Multiple TRVs in one room are unified under a single logical entity. Offsets are applied per device; a multi-device batch fires one command per TRV, and on Tado X offset plus child lock fuse into a single PATCH per device.
+- **Matter + HomeKit Support:** Devices registered via either protocol are recognized and linked. `DeviceLinker` unifies devices by serial number across platforms.
+- **AC Pro Controls:** Fan speed, swing mode (axis swing preferred, single-toggle fallback), and operation mode are fully exposed for Air Conditioner Pro units.
+- **External Window Sensor Handler:** Any `binary_sensor` contact sensor can be linked per zone (`select.zone_window_sensor`). Window open/close transitions turn the zone off and resume the schedule through the coordinator's command queue. The reaction mode (`select.zone_window_mode`) is `direct` (immediate off on open, resume on close) or `timeout` (immediate off on open plus a self-healing resume: heating resumes after the zone's open window detection timeout even while the window is still open, protecting against a stuck sensor or dead battery; only a new close -> open transition starts the next cycle). Already-open windows take effect at HA startup without waiting for a transition; if open window detection is disabled, `timeout` behaves like `direct`.
+- **Internet Bridge:** Bridge entities (cloud connection) are created on the HomeKit or Matter bridge when that device is present, the same way TRV entities attach to the local valve. If no local bridge is linked, Hijack creates its own Internet Bridge device.
+- **Offline TRV recovery:** Commands are still sent to the cloud. If the local climate entity (HomeKit or Matter) is unavailable, the last intent for that serial is kept and replayed when it returns. An expired window-off or timer resolves to resume schedule. Cloud-only resume is resent only when `recovery_cloud_replay` is enabled (one call per zone). Tado X hot water uses the same capture on the virtual hot-water zone; that zone has no TRV serials, so the capture is a no-op unless a local device is actually mapped.
 
-Tado Hijack doesn't just add new devices; it **augments** your existing ones.
-- **V3 (HomeKit):** The `DeviceLinker` matches Tado cloud serial numbers against the HA device registry and injects cloud features (Child Lock, Offset, Battery, Dazzle) directly into existing HomeKit device entries.
-- **Tado X (Matter):** When Matter exposes the device serial (same `VA…` as the cloud), the same injection mechanism applies — cloud features merge onto the Matter device. If no serial is available, features stay on separate Hijack devices with manual source linking.
-- **The result:** One single device in Home Assistant that has both local-instant control and advanced cloud features — for both generations.
+---
+
+## 📅 Calendars & Overlays
+
+- **Zone Plan Calendar:** Read-only weekly plan displayed as calendar events per zone; the calendar platform exposes the active Tado schedule but cannot drive overlays.
+- **Set Schedule Service:** `tado_hijack.set_schedule` lets automations or scripts push schedules to one or more zones.
+- **Boost All / Resume All:** `async_boost_all()` and `async_resume_all_schedules()` control all zones with a single API call (Tado X).
+- **Hot Water Boost:** On Tado X the water heater operation modes call the Hops programmer directly (`boost`, `boost` off, `resumeSchedule`), with optimistic state and the redundancy check. This path does not go through the zone overlay debounce queue. `heat` is boost on, `off` forces hot water off, `auto` resumes the schedule (that cancels a boost).
+- **Flow temperature (Tado X, OpenTherm):** Opt-in (`feature_flow_temperature_optimization`, default off). A 404 is cached so homes without an OpenTherm device are not polled again. Max flow temperature and auto adaptation share one debounced PATCH; editing both inside the debounce window keeps both fields.
+
+---
+
+## 🔍 Advanced Diagnostics
+
+- **Offset Calibration:** Automatically adjusts TRV offsets based on external reference sensors (e.g., a high-precision thermostat). The home interval and spread threshold are the defaults. Each heating zone can override them (`inherit`, or threshold `0`, clears the override). The scheduler fires at the union of those hours and writes a zone only when its own slot matches and the delta exceeds its threshold.
+- **Presence mode vs presence state:** `select.presence_mode` shows who is in control: `auto` (geofencing, `presenceLocked` false) or a manual `home`/`away` lock. It no longer flips when geofencing changes the effective state. `binary_sensor.presence_state` is that effective state (`on` = home). Switching to `auto` queues a presence refresh through the normal debounce pipeline.
+- **Diagnostic Sensors:** Expose rate-limit state (`limit`, `remaining`, `api_status`), throttle threshold, learned reset windows, and daily quota usage.
+
+---
+
+## 🌐 Proxy & Transparency
+
+- **Transparent Proxy:** Route classic API traffic through a proxy (`tado-api-proxy`) without modifying tadoasync itself. The proxy injects authentication headers; the handler omits them (proxy handles auth).
+- **Proxy Call Jitter:** Optional randomized jitter per call (enabled via config) spreads load for proxy deployments.
+- **Rate-Limit Headers:** Every response is parsed for `ratelimit-policy` / `ratelimit` headers, feeding both the quota manager and diagnostic sensors.
+
+---
+
+## 🔒 Security & Privacy
+
+- **Credential Handling:** Credentials are managed by Home Assistant's config-entry storage; the integration itself never touches plaintext secrets in logs (see Redaction below).
+- **Redaction:** All logs use `get_redacted_logger()` with regex scrubbing of emails, tokens, serial numbers and other sensitive data.
+- **Field Locking:** While a command is pending, affected entity attributes are locked to prevent stale poll data from overwriting user intent (race-condition prevention).
+
+---
+
+## 🧩 AC Control Deep Dive
+
+For Air Conditioner Pro units:
+
+- **Fan Speed:** Exposes all available fan speeds from the device capabilities; selects the closest matching value.
+- **Swing Mode:** Axis swing (verticalSwing/horizontalSwing) is preferred when exposed. Falls back to a single toggle swing (cached last state or "OFF") because tadoasync does not parse single-toggle swing from mode capabilities.
+- **Operation Modes:** Heating, cooling, auto, dry, fan — mapped from capability lists.
+- **Temperature Control:** Target temperature can be set within the device's supported range.
+
+---
+
+## 📊 Quota Math & Budget Planning
+
+The integration uses sophisticated math (`helpers/quota_math.py`) to plan daily budget:
+
+- **Usable Budget:** `limit − pro_rata_background_costs − throttle_threshold`, scaled by `auto_quota_percent`; external usage observed from header deltas can further reduce it.
+- **Progress Proration:** Background costs consumed so far are deducted proportionally to the day's progress.
+- **Predicted Poll Cost:** EMA-smoothed (`RATELIMIT_SMOOTHING_ALPHA`) from measured `last_poll_cost` (actual calls minus capabilities calls).
+- **Remaining Polls:** Budget divided by predicted cost determines how many polls can be safely made.
+- **Adaptive Interval:** Seconds until reset divided by remaining polls yields the optimal polling interval.
+
+---
+
+## 🔧 Configuration Options
+
+- `throttle_threshold` — Remaining calls reserved for external use (automations, scripts, manual app usage). Default 20.
+- `debounce_time` — Command debounce window in seconds. Default 5 s, minimum 1 s.
+- `disable_polling_when_throttled` — Pause all background polling when throttled. Default false (15-min heartbeat). Set true to pause completely.
+- `auto_quota_percent` — Percentage of usable quota allocated to this integration. 100 = full control.
+- `quota_safety_reserve` — Calls reserved for the reset safe window. Default 2.
+- `presence_poll_interval` — Poll interval for presence track. Default 43200 s (12 h).
+- `slow_poll_interval` — Poll interval for hardware metadata (capabilities, bridges). Default 86400 s (24 h).
+- `offset_poll_interval` — Poll interval for offset calibration. Default 0 (disabled).
+- `reduced_polling_start/end/interval` — Economy window timing and reduced interval. Interval 0 pauses updates.

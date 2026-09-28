@@ -22,8 +22,23 @@ The original `set_meter_readings` method in `tadoasync` was missing required URI
 ### 3. User-Agent Compatibility
 Updates the internal `VERSION` string of the library to ensure that the User-Agent header sent to Tado's servers identifies as a patched version, preventing potential blocks or compatibility flags.
 
-### 4. TadoRequestHandler (Retry & Backoff)
-A custom `TadoRequestHandler` (instantiated in `patches.py`, implemented in `helpers/tado_request_handler.py`) wraps API requests with exponential backoff and retry logic. It handles transient network errors, rate-limit responses, and ensures graceful degradation during Tado server outages.
+### 4. TadoRequestHandler (Browser Mimicry & Proxy)
+A custom `TadoRequestHandler` (instantiated in `patches.py`, implemented in `helpers/tado_request_handler.py`) replaces tadoasync's internal request logic entirely. Every classic/Energy-IQ request is routed through this singleton.
+
+- Reproduces the browser-like header combination Tado's backend expects (User-Agent, Content-Type only on PUT — browsers omit it on DELETE).
+- Transparent proxy support (`tado-api-proxy`): proxy paths are rewritten to the classic or EIQ base path, and no Authorization header is sent (the proxy injects auth itself).
+- Captures rate-limit headers on every response and feeds the shared quota telemetry used by the `RateLimitManager`.
+- Timeout handling (10s default), 204-no-content handling, and delegation to tadoasync's expired-token re-auth logic on HTTP errors (non-proxy mode).
+
+There is **no** exponential-backoff/retry loop in the handler — quota is conserved through batching (`CommandMerger`) and adaptive polling instead of retrying.
+
+---
+
+## 📦 Relationship to Upstream (kritsel v2 OpenAPI & tadoasync)
+
+- **OpenAPI base:** Development is based on the community **kritsel v2 OpenAPI spec** for `my.tado.com/api/v2`, but that spec is patched and extended locally — it does not reflect everything this integration actually talks to. The verified surface lives in `docs/TADO_API.md` (checked against code, commit `7166d36`), not in the public spec.
+- **tadoasync (pinned 0.2.2):** several library gaps are monkeypatched at runtime (see Applied Patches). Some of these fixes have already been contributed upstream by this integration's author; the rest remain local until they are released upstream. `tadoasync` therefore lags behind our patched feature set.
+- **Tado X is not supported by tadoasync at all** — the entire Hops surface (`lib/tadox_api.py`) is our own implementation that piggybacks on the authenticated tadoasync session (see below).
 
 ---
 
