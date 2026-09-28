@@ -48,6 +48,12 @@ CONF_VENTILATION_AH_THRESHOLD: Final = "ventilation_ah_threshold"
 CONF_ZONE_TEMP_ENTITIES: Final = "zone_temp_entities"
 CONF_ZONE_HUMIDITY_ENTITIES: Final = "zone_humidity_entities"
 CONF_OFFSET_CAL_INTERVAL: Final = "offset_cal_interval"
+CONF_OFFSET_CAL_SPREAD_THRESHOLD: Final = "offset_cal_spread_threshold"
+CONF_ZONE_OFFSET_CAL_INTERVALS: Final = "zone_offset_cal_intervals"
+CONF_ZONE_OFFSET_CAL_THRESHOLDS: Final = "zone_offset_cal_thresholds"
+
+# Offset auto-calibration defaults
+DEFAULT_OFFSET_CAL_SPREAD_THRESHOLD: Final = 0.5  # deg C min deviation before write
 
 # Logging Levels
 LOG_LEVELS: Final[list[str]] = ["DEBUG", "INFO", "WARNING", "ERROR"]

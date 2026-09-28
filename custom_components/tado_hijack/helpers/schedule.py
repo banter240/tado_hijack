@@ -618,7 +618,7 @@ def _append_api_block(
     try:
         start_min = parse_hhmm(str(start_raw))
         end_min = parse_hhmm(str(end_raw))
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return
     if end_min == 0 and start_min > 0:
         end_min = MINUTES_PER_DAY

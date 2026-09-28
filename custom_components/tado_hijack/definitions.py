@@ -668,6 +668,7 @@ def create_home_number(
     unique_id_suffix: str | None = None,
     is_supported_fn: Any | None = None,
     suggested_display_precision: int | None = None,
+    translation_key: str | None = None,
 ) -> TadoEntityDefinition:
     """Create a number entity for the Tado Home."""
     return _create_definition(
@@ -690,6 +691,7 @@ def create_home_number(
         unique_id_suffix=unique_id_suffix,
         is_supported_fn=is_supported_fn,
         suggested_display_precision=suggested_display_precision,
+        translation_key=translation_key,
     )
 
 
@@ -850,6 +852,8 @@ def create_zone_number(
     use_legacy_unique_id_format: bool | None = None,
     is_supported_fn: Any | None = None,
     suggested_display_precision: int | None = None,
+    icon: str | None = None,
+    translation_key: str | None = None,
 ) -> TadoEntityDefinition:
     """Create a number entity for a Tado Zone."""
     return _create_definition(
@@ -874,6 +878,8 @@ def create_zone_number(
         use_legacy_unique_id_format=use_legacy_unique_id_format,
         is_supported_fn=is_supported_fn,
         suggested_display_precision=suggested_display_precision,
+        icon=icon,
+        translation_key=translation_key,
     )
 
 
@@ -994,6 +1000,7 @@ def create_zone_select(
     supported_generations: set[str] | None = None,
     unique_id_suffix: str | None = None,
     is_supported_fn: Any | None = None,
+    translation_key: str | None = None,
 ) -> TadoEntityDefinition:
     """Create a select entity for a Tado Zone."""
     return _create_definition(
@@ -1011,6 +1018,7 @@ def create_zone_select(
         supported_generations=supported_generations,
         unique_id_suffix=unique_id_suffix,
         is_supported_fn=is_supported_fn,
+        translation_key=translation_key,
     )
 
 
@@ -1971,6 +1979,20 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         supported_generations={GEN_CLASSIC, GEN_X},
         translation_key="offset_cal_interval",
     ),
+    create_home_number(
+        key="offset_cal_spread_threshold",
+        value_fn=lambda c: c.get_offset_cal_threshold(),
+        set_fn=lambda c, val: c.async_set_offset_cal_threshold(val),
+        min_value=0.1,
+        max_value=5.0,
+        step=0.1,
+        suggested_display_precision=1,
+        unit="°C",
+        icon="mdi:thermometer-chevron-up",
+        entity_category=EntityCategory.CONFIG,
+        supported_generations={GEN_CLASSIC, GEN_X},
+        translation_key="offset_cal_spread_threshold",
+    ),
     create_home_button(
         key="calibrate_offsets",
         press_fn=lambda c: c.async_calibrate_offsets("manual"),
@@ -1985,6 +2007,40 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         supported_zone_types={ZONE_TYPE_HEATING},
         supported_generations={GEN_CLASSIC, GEN_X},
         unique_id_suffix="calibrate_offset",
+        is_supported_fn=lambda c, zid: (
+            not (c.dummy_handler and c.dummy_handler.is_dummy_zone(zid))
+        ),
+    ),
+    create_zone_select(
+        key="offset_cal_interval",
+        value_fn=lambda c, zid: c.get_zone_offset_cal_interval(zid),
+        options_fn=lambda c, zid: ["inherit", *list(OFFSET_CAL_OPTIONS)],
+        select_option_fn=lambda c, zid, val: c.async_set_zone_offset_cal_interval(
+            zid, val
+        ),
+        icon="mdi:timer-sand",
+        entity_category=EntityCategory.CONFIG,
+        supported_zone_types={ZONE_TYPE_HEATING},
+        supported_generations={GEN_CLASSIC, GEN_X},
+        translation_key="offset_cal_interval",
+        is_supported_fn=lambda c, zid: (
+            not (c.dummy_handler and c.dummy_handler.is_dummy_zone(zid))
+        ),
+    ),
+    create_zone_number(
+        key="offset_cal_spread_threshold",
+        value_fn=lambda c, zid: c.get_zone_offset_cal_threshold(zid),
+        set_fn=lambda c, zid, val: c.async_set_offset_cal_threshold(val, zone_id=zid),
+        min_value=0.0,
+        max_value=5.0,
+        step=0.1,
+        suggested_display_precision=1,
+        unit="°C",
+        icon="mdi:thermometer-chevron-up",
+        entity_category=EntityCategory.CONFIG,
+        supported_zone_types={ZONE_TYPE_HEATING},
+        supported_generations={GEN_CLASSIC, GEN_X},
+        translation_key="offset_cal_spread_threshold",
         is_supported_fn=lambda c, zid: (
             not (c.dummy_handler and c.dummy_handler.is_dummy_zone(zid))
         ),

@@ -271,6 +271,9 @@
       },
       "max_flow_temperature": {
         "name": "Max Flow Temperature"
+      },
+      "offset_cal_spread_threshold": {
+        "name": "Offset Calibrate Threshold"
       }
     },
     "select": {
@@ -333,7 +336,8 @@
           "18h": "Every 18 hours (from 00:00)",
           "21h": "Every 21 hours (from 00:00)",
           "24h": "Once a day (00:00)",
-          "on_reset": "Once per quota reset"
+          "on_reset": "Once per quota reset",
+          "inherit": "Inherit (Bridge)"
         }
       }
     },

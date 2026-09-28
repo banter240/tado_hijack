@@ -320,6 +320,9 @@
       },
       "target_temperature": {
         "name": "Cílová teplota"
+      },
+      "offset_cal_spread_threshold": {
+        "name": "Prahová hodnota kalibrace posunu"
       }
     },
     "select": {
@@ -382,7 +385,8 @@
           "18h": "Každých 18 hodin (od 00:00)",
           "21h": "Každých 21 hodin (od 00:00)",
           "24h": "Jednou denně (00:00)",
-          "on_reset": "Jednou po resetu kvóty"
+          "on_reset": "Jednou po resetu kvóty",
+          "inherit": "Dědit (Bridge)"
         }
       }
     },
