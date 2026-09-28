@@ -37,7 +37,7 @@ OPERATION_MODE_HEAT = "heat"
 OPERATION_MODE_OFF = "off"
 
 OPERATION_MODES = [OPERATION_MODE_AUTO, OPERATION_MODE_HEAT, OPERATION_MODE_OFF]
-OPERATION_MODES_TADOX = [OPERATION_MODE_AUTO, OPERATION_MODE_OFF]
+OPERATION_MODES_TADOX = [OPERATION_MODE_AUTO, OPERATION_MODE_HEAT, OPERATION_MODE_OFF]
 
 
 def _setup_water_heater_entities_tadox(
@@ -307,11 +307,11 @@ class TadoHotWaterX(TadoHotWater):
         state = self.coordinator.data.zone_states.get(str(self._zone_id))
         if state is None:
             return OPERATION_MODE_AUTO
-        return (
-            OPERATION_MODE_OFF
-            if getattr(state, "overlay_active", False)
-            else OPERATION_MODE_AUTO
-        )
+        if not getattr(state, "overlay_active", False):
+            return OPERATION_MODE_AUTO
+        # BOOST_ON is a 60 minute boost overlay, BOOST_OFF forces off.
+        raw_state = str(getattr(state, "state", "")).strip().upper()
+        return OPERATION_MODE_HEAT if raw_state == "BOOST_ON" else OPERATION_MODE_OFF
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         pass
@@ -321,6 +321,8 @@ class TadoHotWaterX(TadoHotWater):
             await self.tado_coordinator.async_set_hot_water_off(self._zone_id)
         elif operation_mode == OPERATION_MODE_AUTO:
             await self.tado_coordinator.async_set_hot_water_auto(self._zone_id)
+        elif operation_mode == OPERATION_MODE_HEAT:
+            await self.tado_coordinator.async_set_hot_water_heat(self._zone_id)
         else:
             _LOGGER.warning(
                 "Tado X hot water: unsupported operation mode '%s' (supported: %s)",

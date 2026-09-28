@@ -279,6 +279,15 @@ class TadoDummyHandler:
                 nextStateChange=getattr(current, "next_state_change", None),
             )
 
+    def set_tadox_hot_water_on(self, zone_id: int | None = None) -> None:
+        """Simulate the Hops boost ON for hot water."""
+        zid = zone_id or TADOX_VIRTUAL_HOT_WATER_ZONE_ID
+        if current := self._states.get(zid):
+            self._states[zid] = TadoXHotWaterState(
+                state="BOOST_ON",
+                nextStateChange=getattr(current, "next_state_change", None),
+            )
+
     def set_tadox_hot_water_auto(self, zone_id: int | None = None) -> None:
         """Simulate resuming the schedule (SCHEDULE_ON)."""
         zid = zone_id or TADOX_VIRTUAL_HOT_WATER_ZONE_ID

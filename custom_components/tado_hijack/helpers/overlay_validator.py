@@ -96,3 +96,8 @@ def validate_tadox_hot_water_boost_off() -> tuple[bool, str | None]:
     # Fixed payload {"boost": "OFF"} for the current supported operation.
     # Extend here when the programmer API gains more options or stricter rules.
     return True, None
+
+
+def validate_tadox_hot_water_boost_on() -> tuple[bool, str | None]:
+    """Validate Tado X domesticHotWater boost ON payload (Hops)."""
+    return True, None

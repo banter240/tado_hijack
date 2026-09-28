@@ -619,6 +619,18 @@ def should_skip_hot_water_off(
     return _is_hot_water_off_redundant(zone_id, zone_states, suppress_buttons)
 
 
+def should_skip_hot_water_boost_on(
+    zone_id: int, zone_states: dict[str, Any], suppress_buttons: bool
+) -> bool:
+    """Return True if hot water boost ON is redundant (TadoX Hops)."""
+    if not suppress_buttons:
+        return False
+    state = zone_states.get(str(zone_id))
+    if state is None:
+        return False
+    return str(getattr(state, "state", "")).strip().upper() == "BOOST_ON"
+
+
 def _filter_zone_updates(
     merged: dict[str, Any],
     zone_states: dict[str, Any],
