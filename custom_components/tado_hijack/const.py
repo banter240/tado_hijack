@@ -47,6 +47,25 @@ CONF_OUTDOOR_WEATHER_ENTITY: Final = "outdoor_weather_entity"
 CONF_VENTILATION_AH_THRESHOLD: Final = "ventilation_ah_threshold"
 CONF_ZONE_TEMP_ENTITIES: Final = "zone_temp_entities"
 CONF_ZONE_HUMIDITY_ENTITIES: Final = "zone_humidity_entities"
+CONF_ZONE_WINDOW_ENTITIES: Final = "zone_window_entities"
+CONF_ZONE_WINDOW_MODES: Final = "zone_window_modes"
+
+# Sentinel value for "no window sensor linked" (select + controller).
+WINDOW_SENSOR_NONE: Final = "none"
+
+# Window handler modes (select options, persisted per zone)
+WINDOW_MODE_DIRECT: Final = "direct"
+WINDOW_MODE_TIMEOUT: Final = "timeout"  # Was: timeout_on_open (renamed for clarity)
+# Note: timeout_on_close was removed (never upstreamed, deprecated).
+WINDOW_MODES: Final = {
+    WINDOW_MODE_DIRECT,
+    WINDOW_MODE_TIMEOUT,
+}
+# Display order for the mode select entity.
+WINDOW_MODE_OPTIONS: Final[list[str]] = [
+    WINDOW_MODE_DIRECT,
+    WINDOW_MODE_TIMEOUT,
+]
 CONF_OFFSET_CAL_INTERVAL: Final = "offset_cal_interval"
 CONF_OFFSET_CAL_SPREAD_THRESHOLD: Final = "offset_cal_spread_threshold"
 CONF_ZONE_OFFSET_CAL_INTERVALS: Final = "zone_offset_cal_intervals"

@@ -340,6 +340,16 @@
       "zone_humidity_source": {
         "name": "Zdroj vlhkosti"
       },
+      "zone_window_sensor": {
+        "name": "Okenní senzor"
+      },
+      "zone_window_mode": {
+        "name": "Režim okna",
+        "state": {
+          "direct": "Přímo",
+          "timeout": "Vypnutí + automatické obnovení po timeoutu"
+        }
+      },
       "fan_speed": {
         "name": "Rychlost ventilátoru",
         "state": {
