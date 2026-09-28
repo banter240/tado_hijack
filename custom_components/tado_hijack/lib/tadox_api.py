@@ -302,6 +302,14 @@ class TadoXApi:
             json_data={"boost": "OFF"},
         )
 
+    async def async_set_hot_water_on(self) -> Any:
+        """Boost hot water ON via the programmer boost endpoint."""
+        return await self._request(
+            "POST",
+            "programmer/domesticHotWater/boost",
+            json_data={"boost": "ON"},
+        )
+
     async def async_set_open_window_detection(self, room_id: int, enabled: bool) -> Any:
         """Enable or disable open window detection."""
         if enabled:

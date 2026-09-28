@@ -297,9 +297,12 @@ async def async_setup_services(hass: HomeAssistant) -> None:  # noqa: C901
                         await coord.async_set_hot_water_off(
                             zone_id, refresh_after=refresh_after
                         )
+                    elif operation_mode == "heat":
+                        await coord.async_set_hot_water_heat(zone_id)
                     else:
                         _LOGGER.warning(
-                            "Hot water 'heat' mode is not supported on Tado X"
+                            "Unsupported water heater mode '%s' for Tado X",
+                            operation_mode,
                         )
                     continue
 
