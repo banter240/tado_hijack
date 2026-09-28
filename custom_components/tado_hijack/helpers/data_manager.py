@@ -556,7 +556,7 @@ class TadoDataManager:
                 continue
             try:
                 self.capabilities_cache[int(key)] = Capabilities.from_dict(payload)
-            except (TypeError, ValueError, KeyError, AttributeError):
+            except TypeError, ValueError, KeyError, AttributeError:
                 _LOGGER.debug("Skipping stored capabilities for zone %s", key)
                 continue
             count += 1
