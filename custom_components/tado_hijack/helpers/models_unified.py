@@ -95,6 +95,7 @@ class UnifiedTadoData:
     offsets: dict[str, Any] = field(default_factory=dict)
     away_config: dict[int, float] = field(default_factory=dict)
     generation: str = GEN_CLASSIC
+    flow_temp: Any = None
     rate_limit: RateLimit = field(default_factory=lambda: RateLimit(0, 0))
     limit: int = 0
     remaining: int = 0

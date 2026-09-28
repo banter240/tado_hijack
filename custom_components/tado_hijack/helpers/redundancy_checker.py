@@ -262,6 +262,37 @@ def _check_early_start_redundancy(
     return False
 
 
+def _check_flow_temp_redundancy(
+    command: TadoCommand, optimistic: OptimisticState
+) -> bool:
+    """Check if SET_FLOW_TEMP is redundant (value already active/optimistic)."""
+    if not command.data:
+        return False
+
+    if (temp := command.data.get("maxFlowTemperature")) is not None:
+        current = optimistic.get_max_flow_temp()
+        if current is not None and current == temp:
+            _LOGGER.debug("Skipping redundant SET_FLOW_TEMP: already %s", temp)
+            return True
+
+    if (adapt := _flow_adapt_from_data(command.data.get("autoAdaptation"))) is not None:
+        current = optimistic.get_flow_auto_adapt()
+        if current is not None and current == adapt:
+            _LOGGER.debug(
+                "Skipping redundant SET_FLOW_TEMP: auto adaptation already %s", adapt
+            )
+            return True
+
+    return False
+
+
+def _flow_adapt_from_data(auto_adaptation: Any) -> bool | None:
+    """Extract the enabled flag from an autoAdaptation payload fragment."""
+    if isinstance(auto_adaptation, dict) and "enabled" in auto_adaptation:
+        return bool(auto_adaptation["enabled"])
+    return None
+
+
 def _check_open_window_redundancy(
     command: TadoCommand, optimistic: OptimisticState
 ) -> bool:
@@ -305,6 +336,7 @@ _REDUNDANCY_CHECKERS = {
     CommandType.SET_DAZZLE: _check_dazzle_redundancy,
     CommandType.SET_EARLY_START: _check_early_start_redundancy,
     CommandType.SET_OPEN_WINDOW: _check_open_window_redundancy,
+    CommandType.SET_FLOW_TEMP: _check_flow_temp_redundancy,
 }
 
 # Commands that should always send (explicit user actions)

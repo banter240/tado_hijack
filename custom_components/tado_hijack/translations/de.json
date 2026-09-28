@@ -164,63 +164,8 @@
       }
     },
     "binary_sensor": {
-      "heating_demand": {
-        "name": "Heizbedarf"
-      },
-      "battery_state": {
-        "name": "Batteriezustand"
-      },
-      "link_state": {
-        "name": "Verbindungsstatus"
-      },
-      "connection_state": {
-        "name": "Cloud-Verbindungsstatus"
-      },
-      "bridge_connection": {
-        "name": "Bridge Cloud-Verbindung"
-      },
-      "overlay": {
-        "name": "Aktives Overlay"
-      },
-      "power": {
-        "name": "Betriebszustand"
-      },
-      "connectivity": {
-        "name": "Konnektivität"
-      },
-      "mold_risk": {
-        "name": "Schimmelrisiko",
-        "state": {
-          "on": "Ja",
-          "off": "Nein"
-        }
-      },
-      "ventilation_recommended": {
-        "name": "Lüften empfohlen"
-      },
-      "reduced_polling_active": {
-        "name": "Sparfenster Aktiv"
-      },
-      "call_jitter_enabled": {
-        "name": "Call-Jitter Aktiviert"
-      },
-      "disable_polling_when_throttled": {
-        "name": "Abfrage bei Drosselung stoppen"
-      },
-      "refresh_after_resume": {
-        "name": "Status-Update nach Fortsetzen"
-      },
-      "fetch_extended_data": {
-        "name": "Erweiterte Daten abrufen"
-      },
-      "feature_dew_point": {
-        "name": "Taupunkt-Feature"
-      },
-      "feature_mold_detection": {
-        "name": "Schimmelerkennungs-Feature"
-      },
-      "full_cloud_mode": {
-        "name": "Vollständiger Cloud-Modus"
+      "presence_state": {
+        "name": "Anwesenheit"
       }
     },
     "switch": {
@@ -250,6 +195,9 @@
       },
       "early_start": {
         "name": "Vorzeitiges Aufheizen"
+      },
+      "flow_auto_adaptation": {
+        "name": "Automatische Vorlauftemperatur-Anpassung"
       }
     },
     "button": {
@@ -320,11 +268,9 @@
       },
       "target_temperature": {
         "name": "Soll-Temperatur"
-      }
-    },
-    "binary_sensor": {
-      "presence_state": {
-        "name": "Anwesenheit"
+      },
+      "max_flow_temperature": {
+        "name": "Maximale Vorlauftemperatur"
       }
     },
     "select": {
@@ -524,12 +470,14 @@
             "name": "Features",
             "data": {
               "feature_dew_point": "Taupunkt-Sensor",
+              "feature_flow_temperature_optimization": "Vorlauftemperatur-Optimierung",
               "feature_mold_detection": "Schimmelrisiko-Sensoren",
               "outdoor_weather_entity": "Lüftungsempfehlung-Sensor (Benötigt Wetter-Entität)",
               "ventilation_ah_threshold": "Lüftungs-Schwellenwert (g/m³)"
             },
             "data_description": {
               "feature_dew_point": "Erstellt einen Taupunkt-Sensor pro Zone. Berechnet aus Raumtemperatur und Luftfeuchtigkeit. WICHTIG für Tado X: Erfordert zwingend eine verknüpfte Temperaturquelle am Zonen-Gerät, da die Cloud-API für Tado X keine Temperatur liefert.",
+              "feature_flow_temperature_optimization": "Fragt die Tado-X-Einstellungen zur Vorlauftemperatur-Optimierung ab (benötigt ein OpenTherm-Kesselregelungsgerät) und stellt eine Max.-Vorlauftemperatur-Zahlenentität sowie einen Schalter für die automatische Anpassung bereit. Kostet 1 API-Aufruf pro Metadaten-Poll. Standardmäßig deaktiviert, um API-Quota zu sparen.",
               "feature_mold_detection": "Erstellt Schimmelrisiko-Sensoren pro Zone. Enthält ein Risikolevel (keins/niedrig/mittel/hoch) und einen binären Sensor für akutes Schimmelrisiko. WICHTIG für Tado X: Erfordert zwingend eine verknüpfte Temperaturquelle am Zonen-Gerät.",
               "outdoor_weather_entity": "Wähle eine Wetter-Entität (z. B. weather.home) aus, die Außentemperatur und Luftfeuchtigkeit bereitstellt. Dies wird benötigt, um die absolute Luftfeuchtigkeit innen zu berechnen und 'Lüften empfohlen'-Sensoren zu aktivieren. Der Sensor meldet 'Ja', wenn Lüften die Feuchtigkeit im Raum effektiv senkt.",
               "ventilation_ah_threshold": "Mindest-Differenz der absoluten Luftfeuchtigkeit zwischen innen und außen, ab der 'Lüften empfohlen' auf 'Ja' springt. Ein Wert von 1,0 g/m³ (Gramm Wasser pro Kubikmeter Luft) bedeutet, dass die Außenluft deutlich trockener sein muss als die Innenluft, bevor eine Empfehlung erfolgt. Verhindert flatternde Sensoren bei minimalen Unterschieden. Standard: 1,0."
@@ -631,12 +579,14 @@
             "name": "Features",
             "data": {
               "feature_dew_point": "Taupunkt-Sensor",
+              "feature_flow_temperature_optimization": "Vorlauftemperatur-Optimierung",
               "feature_mold_detection": "Schimmelrisiko-Sensoren",
               "outdoor_weather_entity": "Lüftungsempfehlung-Sensor (Benötigt Wetter-Entität)",
               "ventilation_ah_threshold": "Lüftungs-Schwellenwert (g/m³)"
             },
             "data_description": {
               "feature_dew_point": "Erstellt einen Taupunkt-Sensor pro Zone. Berechnet aus Raumtemperatur und Luftfeuchtigkeit. WICHTIG für Tado X: Erfordert zwingend eine verknüpfte Temperaturquelle am Zonen-Gerät, da die Cloud-API für Tado X keine Temperatur liefert.",
+              "feature_flow_temperature_optimization": "Fragt die Tado-X-Einstellungen zur Vorlauftemperatur-Optimierung ab (benötigt ein OpenTherm-Kesselregelungsgerät) und stellt eine Max.-Vorlauftemperatur-Zahlenentität sowie einen Schalter für die automatische Anpassung bereit. Kostet 1 API-Aufruf pro Metadaten-Poll. Standardmäßig deaktiviert, um API-Quota zu sparen.",
               "feature_mold_detection": "Erstellt Schimmelrisiko-Sensoren pro Zone. Enthält ein Risikolevel (keins/niedrig/mittel/hoch) und einen binären Sensor für akutes Schimmelrisiko. WICHTIG für Tado X: Erfordert zwingend eine verknüpfte Temperaturquelle am Zonen-Gerät.",
               "outdoor_weather_entity": "Wähle eine Wetter-Entität (z. B. weather.home) aus, die Außentemperatur und Luftfeuchtigkeit bereitstellt. Dies wird benötigt, um die absolute Luftfeuchtigkeit innen zu berechnen und 'Lüften empfohlen'-Sensoren zu aktivieren. Der Sensor meldet 'Ja', wenn Lüften die Feuchtigkeit im Raum effektiv senkt.",
               "ventilation_ah_threshold": "Mindest-Differenz der absoluten Luftfeuchtigkeit zwischen innen und außen, ab der 'Lüften empfohlen' auf 'Ja' springt. Ein Wert von 1,0 g/m³ (Gramm Wasser pro Kubikmeter Luft) bedeutet, dass die Außenluft deutlich trockener sein muss als die Innenluft, bevor eine Empfehlung erfolgt. Verhindert flatternde Sensoren bei minimalen Unterschieden. Standard: 1,0."

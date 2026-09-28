@@ -82,6 +82,8 @@ class CommandMerger:
         self.capabilities_all: bool = False
         self.targeted_polls: list[tuple[str, str]] = []
         self.quick_action: str | None = None
+        self.flow_temp: dict[str, Any] = {}
+        self.rollback_flow_temp: dict[str, Any] = {}
         self.rollback_zones: dict[int, Any] = {}
         self.rollback_child_locks: dict[str, bool] = {}
         self.rollback_offsets: dict[str, float] = {}
@@ -110,6 +112,7 @@ class CommandMerger:
             CommandType.SET_PRESENCE: self._merge_presence,
             CommandType.RESUME_SCHEDULE: self._merge_resume,
             CommandType.QUICK_ACTION: self._merge_quick_action,
+            CommandType.SET_FLOW_TEMP: self._merge_flow_temp,
         }
         if handler := handlers.get(cmd.cmd_type):
             handler(cmd)
@@ -127,6 +130,22 @@ class CommandMerger:
         self.manual_poll_types.add(new_type)
         if new_type in {"all", "capabilities"}:
             self.capabilities_all = True
+
+    def _merge_flow_temp(self, cmd: TadoCommand) -> None:
+        """One PATCH. Per field, the later value wins and the first rollback sticks."""
+        if not cmd.data:
+            return
+        for key, value in cmd.data.items():
+            if key.startswith("rollback_"):
+                continue
+            self.flow_temp[key] = value
+        if not isinstance(cmd.rollback_context, dict):
+            return
+        context = self.rollback_flow_temp.setdefault("context", {})
+        if not isinstance(context, dict):
+            return
+        for key, value in cmd.rollback_context.items():
+            context.setdefault(key, value)
 
     def _merge_quick_action(self, cmd: TadoCommand) -> None:
         """Last queued house-wide Tado X quick action wins."""
@@ -312,6 +331,8 @@ class CommandMerger:
             "schedules": self.schedules,
             "identifies": self.identifies,
             "presence": self.presence,
+            "flow_temp": self.flow_temp,
+            "rollback_flow_temp": self.rollback_flow_temp,
             "old_presence": self.old_presence,
             "old_locked": self.old_locked,
             "manual_poll": self._resolved_manual_poll(),

@@ -41,6 +41,7 @@ CONF_INITIAL_POLL_DONE: Final = "initial_poll_done"
 
 # Feature Flags
 CONF_FEATURE_DEW_POINT: Final = "feature_dew_point"
+CONF_FEATURE_FLOW_TEMP: Final = "feature_flow_temperature_optimization"
 CONF_FEATURE_MOLD_DETECTION: Final = "feature_mold_detection"
 CONF_OUTDOOR_WEATHER_ENTITY: Final = "outdoor_weather_entity"
 CONF_VENTILATION_AH_THRESHOLD: Final = "ventilation_ah_threshold"
@@ -105,6 +106,7 @@ DEFAULT_SUPPRESS_REDUNDANT_BUTTONS: Final = (
 
 # Feature Flag Defaults (all on by default — zero cost when unused)
 DEFAULT_FEATURE_DEW_POINT: Final = True
+DEFAULT_FEATURE_FLOW_TEMP: Final = False
 DEFAULT_FEATURE_MOLD_DETECTION: Final = True
 DEFAULT_VENTILATION_AH_THRESHOLD: Final = 1.0  # g/m³
 

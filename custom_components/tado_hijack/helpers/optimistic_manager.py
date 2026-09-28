@@ -143,6 +143,48 @@ class OptimisticManager:
         """Clear optimistic offset state."""
         self.clear_optimistic("device", serial_no, "offset")
 
+    # Home (Flow Temperature Optimization)
+
+    _FLOW_HOME_ID = "global"
+
+    def set_max_flow_temp(
+        self, value: float, grace_period: float | None = None
+    ) -> None:
+        """Set optimistic max flow temperature."""
+        self.set_optimistic(
+            "home", self._FLOW_HOME_ID, "max_flow_temperature", value, grace_period
+        )
+
+    def get_max_flow_temp(self) -> float | None:
+        """Return optimistic max flow temperature."""
+        return cast(
+            "float | None",
+            self.get_optimistic("home", self._FLOW_HOME_ID, "max_flow_temperature"),
+        )
+
+    def clear_max_flow_temp(self) -> None:
+        """Clear optimistic max flow temperature."""
+        self.clear_optimistic("home", self._FLOW_HOME_ID, "max_flow_temperature")
+
+    def set_flow_auto_adapt(
+        self, enabled: bool, grace_period: float | None = None
+    ) -> None:
+        """Set optimistic flow temperature auto adaptation."""
+        self.set_optimistic(
+            "home", self._FLOW_HOME_ID, "flow_auto_adaptation", enabled, grace_period
+        )
+
+    def get_flow_auto_adapt(self) -> bool | None:
+        """Return optimistic flow temperature auto adaptation."""
+        return cast(
+            "bool | None",
+            self.get_optimistic("home", self._FLOW_HOME_ID, "flow_auto_adaptation"),
+        )
+
+    def clear_flow_auto_adapt(self) -> None:
+        """Clear optimistic flow temperature auto adaptation."""
+        self.clear_optimistic("home", self._FLOW_HOME_ID, "flow_auto_adaptation")
+
     # Zones (Zone scope)
 
     def set_zone(
