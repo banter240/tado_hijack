@@ -164,63 +164,8 @@
       }
     },
     "binary_sensor": {
-      "heating_demand": {
-        "name": "Heating Demand"
-      },
-      "battery_state": {
-        "name": "Battery"
-      },
-      "link_state": {
-        "name": "Connectivity"
-      },
-      "connection_state": {
-        "name": "Cloud Connection"
-      },
-      "bridge_connection": {
-        "name": "Bridge Cloud Connection"
-      },
-      "overlay": {
-        "name": "Overlay"
-      },
-      "power": {
-        "name": "Power"
-      },
-      "connectivity": {
-        "name": "Connectivity"
-      },
-      "mold_risk": {
-        "name": "Mold Risk",
-        "state": {
-          "on": "Yes",
-          "off": "No"
-        }
-      },
-      "ventilation_recommended": {
-        "name": "Ventilation Recommended"
-      },
-      "reduced_polling_active": {
-        "name": "Reduced Polling Active"
-      },
-      "call_jitter_enabled": {
-        "name": "Call Jitter Enabled"
-      },
-      "disable_polling_when_throttled": {
-        "name": "Disable Polling When Throttled"
-      },
-      "refresh_after_resume": {
-        "name": "Refresh After Resume"
-      },
-      "fetch_extended_data": {
-        "name": "Fetch Extended Data"
-      },
-      "feature_dew_point": {
-        "name": "Dew Point Feature"
-      },
-      "feature_mold_detection": {
-        "name": "Mold Detection Feature"
-      },
-      "full_cloud_mode": {
-        "name": "Full Cloud Mode"
+      "presence_state": {
+        "name": "Presence"
       }
     },
     "switch": {
@@ -250,6 +195,9 @@
       },
       "early_start": {
         "name": "Early Start"
+      },
+      "flow_auto_adaptation": {
+        "name": "Flow Temperature Auto Adaptation"
       }
     },
     "button": {
@@ -320,11 +268,9 @@
       },
       "target_temperature": {
         "name": "Target Temperature"
-      }
-    },
-    "binary_sensor": {
-      "presence_state": {
-        "name": "Presence"
+      },
+      "max_flow_temperature": {
+        "name": "Max Flow Temperature"
       }
     },
     "select": {
@@ -524,12 +470,14 @@
             "name": "Features",
             "data": {
               "feature_dew_point": "Dew Point Sensor",
+              "feature_flow_temperature_optimization": "Flow Temperature Optimization",
               "feature_mold_detection": "Mold Risk Sensors",
               "outdoor_weather_entity": "Ventilation Recommendation Sensor (Requires Weather Entity)",
               "ventilation_ah_threshold": "Ventilation Threshold (g/m³)"
             },
             "data_description": {
               "feature_dew_point": "Create a dew point temperature sensor per zone. Calculated from room temperature and humidity. MANDATORY for Tado X: Requires a linked temperature source on the zone device as the cloud API provides no temperature for Tado X.",
+              "feature_flow_temperature_optimization": "Poll Tado X flow temperature optimization settings (requires an OpenTherm boiler control device) and expose a max flow temperature number entity and an auto adaptation switch. Costs 1 API call per metadata poll. Disabled by default to conserve API quota.",
               "feature_mold_detection": "Create mold risk sensors per zone. Includes a risk level (none/low/medium/high) and a binary sensor for acute mold risk. MANDATORY for Tado X: Requires a linked temperature source on the zone device.",
               "outdoor_weather_entity": "Select a weather entity (e.g., weather.home) that provides outdoor temperature and humidity. This is required to calculate indoor absolute humidity and to activate 'Ventilation Recommended' sensors. The sensor reports 'Yes' when opening windows effectively reduces indoor moisture.",
               "ventilation_ah_threshold": "Minimum absolute humidity difference between indoor and outdoor required before 'Ventilation Recommended' turns to 'Yes'. A value of 1.0 g/m³ (grams of water per cubic meter of air) ensures that outdoor air is significantly dryer than indoor air before recommending ventilation. Prevents sensor chatter. Default: 1.0."
@@ -631,12 +579,14 @@
             "name": "Features",
             "data": {
               "feature_dew_point": "Dew Point Sensor",
+              "feature_flow_temperature_optimization": "Flow Temperature Optimization",
               "feature_mold_detection": "Mold Risk Sensors",
               "outdoor_weather_entity": "Ventilation Recommendation Sensor (Requires Weather Entity)",
               "ventilation_ah_threshold": "Ventilation Threshold (g/m³)"
             },
             "data_description": {
               "feature_dew_point": "Create a dew point temperature sensor per zone. Calculated from room temperature and humidity. MANDATORY for Tado X: Requires a linked temperature source on the zone device as the cloud API provides no temperature for Tado X.",
+              "feature_flow_temperature_optimization": "Poll Tado X flow temperature optimization settings (requires an OpenTherm boiler control device) and expose a max flow temperature number entity and an auto adaptation switch. Costs 1 API call per metadata poll. Disabled by default to conserve API quota.",
               "feature_mold_detection": "Create mold risk sensors per zone. Includes a risk level (none/low/medium/high) and a binary sensor for acute mold risk. MANDATORY for Tado X: Requires a linked temperature source on the zone device.",
               "outdoor_weather_entity": "Select a weather entity (e.g., weather.home) that provides outdoor temperature and humidity. This is required to calculate indoor absolute humidity and to activate 'Ventilation Recommended' sensors. The sensor reports 'Yes' when opening windows effectively reduces indoor moisture.",
               "ventilation_ah_threshold": "Minimum absolute humidity difference between indoor and outdoor required before 'Ventilation Recommended' turns to 'Yes'. A value of 1.0 g/m³ (grams of water per cubic meter of air) ensures that outdoor air is significantly dryer than indoor air before recommending ventilation. Prevents sensor chatter. Default: 1.0."

@@ -6,7 +6,7 @@ from typing import Any
 
 from ...const import GEN_X, TADOX_VIRTUAL_HOT_WATER_ZONE_ID
 from ...lib.tadox_api import TadoXApi
-from ...lib.tadox_models import TadoXHotWaterState
+from ...lib.tadox_models import TadoXFlowTempSettings, TadoXHotWaterState
 from ..logging_utils import get_redacted_logger
 from ..models_unified import UnifiedTadoData
 
@@ -19,11 +19,43 @@ class TadoXMapper:
     This keeps the Coordinator generic.
     """
 
-    def __init__(self, bridge: TadoXApi) -> None:
+    def __init__(self, bridge: TadoXApi, enable_flow_temp: bool = False) -> None:
         """Initialize the Tado X mapper."""
         self.bridge = bridge
         # None = not probed; True = installed; False = not installed (skip future calls)
         self._hot_water_available: bool | None = None
+        self.enable_flow_temp = enable_flow_temp
+        self._flow_temp_available: bool | None = None
+        self._flow_temp_cached: TadoXFlowTempSettings | None = None
+
+    async def _fetch_flow_temp_safe(self) -> TadoXFlowTempSettings | None:
+        """Fetch flow temperature optimization settings (opt-in, 404-cached).
+
+        Mirrors the hot-water availability pattern: a 404 (no OpenTherm
+        device) is cached so later polls skip the quota-consuming call.
+        """
+        if not self.enable_flow_temp:
+            return None
+        if self._flow_temp_available is False:
+            return None
+
+        try:
+            result = await self.bridge.async_get_flow_temperature_optimization()
+        except Exception as e:
+            _LOGGER.debug("Tado X flow temp fetch failed (transient): %s", e)
+            return None
+
+        if result is None:
+            if self._flow_temp_available is not False:
+                _LOGGER.debug(
+                    "Tado X flow temperature optimization not available "
+                    "(no OpenTherm boiler control device)"
+                )
+                self._flow_temp_available = False
+            return None
+
+        self._flow_temp_available = True
+        return result
 
     async def async_fetch_unified_data(self) -> UnifiedTadoData:
         """Fetch all relevant Tado X data and return a UnifiedTadoData container."""
@@ -56,6 +88,13 @@ class TadoXMapper:
             generation=GEN_X,
         )
 
+        if (flow_temp := await self._fetch_flow_temp_safe()) is not None:
+            unified_data.flow_temp = flow_temp
+            self._flow_temp_cached = flow_temp
+        elif self._flow_temp_available is True:
+            # Keep last known settings on transient failures
+            unified_data.flow_temp = self._flow_temp_cached
+
         for state in room_states:
             unified_data.zone_states[str(state.room_id)] = state
 
@@ -68,6 +107,10 @@ class TadoXMapper:
             unified_data.devices[dev.serial_no] = dev
 
         return unified_data
+
+    def has_flow_temp_optimization(self) -> bool:
+        """True when flow temperature optimization settings were fetched."""
+        return self._flow_temp_cached is not None
 
     async def async_fetch_zones(self) -> dict[str, Any]:
         """Fetch Tado X room states (fast poll)."""

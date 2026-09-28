@@ -34,6 +34,25 @@ if TYPE_CHECKING:
 _LOGGER = get_redacted_logger(__name__)
 
 
+def _merge_pending_flow_temp(existing: TadoCommand, incoming: TadoCommand) -> None:
+    """Keep both flow-temp fields. Rollback stays the first server value per field."""
+    data = dict(existing.data or {})
+    data |= incoming.data or {}
+    incoming.data = data
+
+    rollback = (
+        dict(existing.rollback_context)
+        if isinstance(existing.rollback_context, dict)
+        else {}
+    )
+    incoming_rollback = (
+        incoming.rollback_context if isinstance(incoming.rollback_context, dict) else {}
+    )
+    for key, value in incoming_rollback.items():
+        rollback.setdefault(key, value)
+    incoming.rollback_context = rollback or None
+
+
 class TadoApiManager:
     """Handles queuing, debouncing and sequential execution of API commands."""
 
@@ -106,6 +125,7 @@ class TadoApiManager:
                 f"timetable_id={data.get('timetable_id', '?')})"
             ),
             CommandType.QUICK_ACTION: f"(action={data.get('action', '?')})",
+            CommandType.SET_FLOW_TEMP: f"(flow_temp={data})",
         }
         if command.cmd_type in descriptions:
             return descriptions[command.cmd_type]
@@ -141,6 +161,8 @@ class TadoApiManager:
             return "x_quick_action"
         if command.cmd_type == CommandType.SET_PRESENCE:
             return "presence"
+        if command.cmd_type == CommandType.SET_FLOW_TEMP:
+            return "flow_temp"
         if command.cmd_type == CommandType.IDENTIFY:
             serial = command.data.get("serial", "") if command.data else ""
             return f"identify_{serial}"
@@ -205,7 +227,14 @@ class TadoApiManager:
             return {"overlay", "overlay_active", "setting"}
 
         # Presence commands protect home state presence/lock fields
-        return {"presence", "presence_locked"} if key == "presence" else set()
+        if key == "presence":
+            return {"presence", "presence_locked"}
+
+        # Flow temperature commands protect the flow temp settings
+        if key == "flow_temp":
+            return {"max_flow_temperature", "flow_auto_adaptation"}
+
+        return set()
 
     def queue_command(self, key: str, command: TadoCommand) -> None:
         """Add command to debounce queue."""
@@ -214,8 +243,15 @@ class TadoApiManager:
             cancel_fn()
             was_replaced = True
 
-        if was_replaced and self._suppress_calls:
-            if existing := self._action_queue.get(key):
+        if was_replaced and (existing := self._action_queue.get(key)):
+            if (
+                existing.cmd_type == CommandType.SET_FLOW_TEMP
+                and command.cmd_type == CommandType.SET_FLOW_TEMP
+            ):
+                # Same queue key, two fields. Fold them or the second write
+                # drops the first inside the debounce window.
+                _merge_pending_flow_temp(existing, command)
+            elif self._suppress_calls:
                 from .redundancy_checker import preserve_rollback_state
 
                 preserve_rollback_state(existing, command)

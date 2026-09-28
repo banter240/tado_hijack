@@ -35,6 +35,7 @@ from .const import (
     CONF_DEBOUNCE_TIME,
     CONF_DISABLE_POLLING_WHEN_THROTTLED,
     CONF_FEATURE_DEW_POINT,
+    CONF_FEATURE_FLOW_TEMP,
     CONF_FEATURE_MOLD_DETECTION,
     CONF_FETCH_EXTENDED_DATA,
     CONF_FULL_CLOUD_MODE,
@@ -62,6 +63,7 @@ from .const import (
     DEFAULT_AUTO_API_QUOTA_PERCENT,
     DEFAULT_DEBOUNCE_TIME,
     DEFAULT_FEATURE_DEW_POINT,
+    DEFAULT_FEATURE_FLOW_TEMP,
     DEFAULT_FEATURE_MOLD_DETECTION,
     DEFAULT_JITTER_PERCENT,
     DEFAULT_LOG_LEVEL,
@@ -187,6 +189,7 @@ class TadoHijackCommonFlow:
             ],
             "features": [
                 CONF_FEATURE_DEW_POINT,
+                CONF_FEATURE_FLOW_TEMP,
                 CONF_FEATURE_MOLD_DETECTION,
                 CONF_OUTDOOR_WEATHER_ENTITY,
                 CONF_VENTILATION_AH_THRESHOLD,
@@ -390,6 +393,13 @@ class TadoHijackCommonFlow:
                                 default=self._get_current_data(
                                     CONF_FEATURE_DEW_POINT,
                                     DEFAULT_FEATURE_DEW_POINT,
+                                ),
+                            ): BooleanSelector(),
+                            vol.Optional(
+                                CONF_FEATURE_FLOW_TEMP,
+                                default=self._get_current_data(
+                                    CONF_FEATURE_FLOW_TEMP,
+                                    DEFAULT_FEATURE_FLOW_TEMP,
                                 ),
                             ): BooleanSelector(),
                             vol.Optional(

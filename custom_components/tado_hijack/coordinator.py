@@ -30,6 +30,7 @@ from .const import (
     CONF_DEBOUNCE_TIME,
     CONF_DISABLE_POLLING_WHEN_THROTTLED,
     CONF_ENABLE_DUMMY_ZONES,  # [DUMMY_HOOK]
+    CONF_FEATURE_FLOW_TEMP,
     CONF_FETCH_EXTENDED_DATA,
     CONF_FULL_CLOUD_MODE,
     CONF_GENERATION,
@@ -51,6 +52,7 @@ from .const import (
     CONF_ZONE_TEMP_ENTITIES,
     DEFAULT_AUTO_API_QUOTA_PERCENT,
     DEFAULT_DEBOUNCE_TIME,
+    DEFAULT_FEATURE_FLOW_TEMP,
     DEFAULT_JITTER_PERCENT,
     DEFAULT_MIN_AUTO_QUOTA_INTERVAL_S,
     DEFAULT_OFFSET_CAL_INTERVAL,
@@ -180,7 +182,12 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
             from .lib.tadox_api import TadoXApi
 
             self.tadox_bridge = TadoXApi(client)
-            self.provider = TadoXMapper(self.tadox_bridge)
+            self.provider = TadoXMapper(
+                self.tadox_bridge,
+                enable_flow_temp=entry.data.get(
+                    CONF_FEATURE_FLOW_TEMP, DEFAULT_FEATURE_FLOW_TEMP
+                ),
+            )
             _LOGGER.debug("Initialized Tado X mode")
         elif self.generation == GEN_CLASSIC:
             from .helpers.client import TadoHijackClient
@@ -1234,6 +1241,50 @@ class TadoDataUpdateCoordinator(DataUpdateCoordinator[Any]):
                 "presence_refresh",
                 TadoCommand(CommandType.MANUAL_POLL, data={"type": "presence"}),
             )
+
+    async def async_set_max_flow_temperature(self, value: float) -> None:
+        """Set the max flow temperature (Tado X, requires OpenTherm device)."""
+        self.optimistic.set_max_flow_temp(value)
+
+        rollback_context = None
+        if self.data and self.data.flow_temp is not None:
+            rollback_context = {
+                "maxFlowTemperature": self.data.flow_temp.max_flow_temperature
+            }
+
+        self.async_update_listeners()
+
+        self.api_manager.queue_command(
+            "flow_temp",
+            TadoCommand(
+                CommandType.SET_FLOW_TEMP,
+                data={"maxFlowTemperature": int(value)},
+                rollback_context=rollback_context,
+            ),
+        )
+
+    async def async_set_flow_auto_adaptation(self, enabled: bool) -> None:
+        """Set flow temperature auto adaptation (Tado X, requires OpenTherm device)."""
+        self.optimistic.set_flow_auto_adapt(enabled)
+
+        rollback_context = None
+        if self.data and self.data.flow_temp is not None:
+            rollback_context = {
+                "autoAdaptation": {
+                    "enabled": bool(self.data.flow_temp.auto_adaptation.enabled)
+                }
+            }
+
+        self.async_update_listeners()
+
+        self.api_manager.queue_command(
+            "flow_temp",
+            TadoCommand(
+                CommandType.SET_FLOW_TEMP,
+                data={"autoAdaptation": {"enabled": enabled}},
+                rollback_context=rollback_context,
+            ),
+        )
 
     def _get_reduced_window_config(self) -> dict[str, Any] | None:
         """Fetch and parse reduced window configuration."""

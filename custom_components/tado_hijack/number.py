@@ -15,6 +15,7 @@ from homeassistant.helpers.restore_state import RestoreEntity
 from .entity import (
     TadoDefinitionMixin,
     TadoDeviceEntity,
+    TadoHomeEntity,
     TadoOptimisticMixin,
     TadoZoneEntity,
 )
@@ -40,6 +41,7 @@ async def async_setup_entry(
         async_add_entities,
         "number",
         {
+            "home": TadoGenericHomeNumber,
             "device": TadoGenericDeviceNumber,
             "zone": TadoGenericZoneNumber,
         },
@@ -124,6 +126,28 @@ class TadoGenericNumberMixin(TadoDefinitionMixin):
                 args.append(ctx_id)
             args.append(value)
             await set_fn(*args)
+
+
+class TadoGenericHomeNumber(
+    TadoGenericNumberMixin, TadoOptimisticNumber, TadoHomeEntity
+):
+    """Generic number for Home scope."""
+
+    def __init__(
+        self,
+        coordinator: TadoDataUpdateCoordinator,
+        definition: TadoEntityDefinition,
+    ) -> None:
+        """Initialize the generic home number."""
+        TadoOptimisticNumber.__init__(self)
+        TadoHomeEntity.__init__(
+            self, coordinator, cast(str, definition["translation_key"])
+        )
+        TadoGenericNumberMixin.__init__(self, definition)
+        self._set_entity_id("number", definition["key"])
+        self._attr_unique_id = (
+            f"{coordinator.config_entry.entry_id}_{self._get_unique_id_suffix()}"
+        )
 
 
 class TadoGenericDeviceNumber(

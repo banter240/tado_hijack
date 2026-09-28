@@ -611,6 +611,88 @@ def create_bridge_binary_sensor(
     )
 
 
+def _get_flow_temp_settings(c: Any) -> Any:
+    """Return the flow temperature settings if available."""
+    return getattr(c.data, "flow_temp", None) if c.data else None
+
+
+def _get_max_flow_temperature(c: Any) -> float | None:
+    """Return the configured max flow temperature."""
+    ft = _get_flow_temp_settings(c)
+    return float(ft.max_flow_temperature) if ft is not None else None
+
+
+def _get_flow_auto_adaptation(c: Any) -> bool | None:
+    """Return whether flow temperature auto adaptation is enabled."""
+    ft = _get_flow_temp_settings(c)
+    if ft is None or ft.auto_adaptation is None:
+        return None
+    return bool(ft.auto_adaptation.enabled)
+
+
+def _get_flow_temp_min(c: Any, _ctx: Any = None) -> float:
+    """Return the minimum max-flow-temperature allowed by the API."""
+    ft = _get_flow_temp_settings(c)
+    if ft is not None and ft.max_flow_temperature_constraints is not None:
+        return float(ft.max_flow_temperature_constraints.min)
+    return 20.0
+
+
+def _get_flow_temp_max(c: Any, _ctx: Any = None) -> float:
+    """Return the maximum max-flow-temperature allowed by the API."""
+    ft = _get_flow_temp_settings(c)
+    if ft is not None and ft.max_flow_temperature_constraints is not None:
+        return float(ft.max_flow_temperature_constraints.max)
+    return 75.0
+
+
+def _flow_temp_supported(c: Any) -> bool:
+    """Only create flow temp entities when settings were fetched."""
+    return _get_flow_temp_settings(c) is not None
+
+
+def create_home_number(
+    key: str,
+    value_fn: Any,
+    set_fn: Any,
+    min_value: float | None = None,
+    max_value: float | None = None,
+    step: float | None = None,
+    min_fn: Any | None = None,
+    max_fn: Any | None = None,
+    unit: str | None = None,
+    icon: str | None = None,
+    optimistic_key: str | None = None,
+    entity_category: EntityCategory | None = None,
+    supported_generations: set[str] | None = None,
+    unique_id_suffix: str | None = None,
+    is_supported_fn: Any | None = None,
+    suggested_display_precision: int | None = None,
+) -> TadoEntityDefinition:
+    """Create a number entity for the Tado Home."""
+    return _create_definition(
+        key=key,
+        platform="number",
+        scope="home",
+        value_fn=value_fn,
+        set_fn=set_fn,
+        min_value=min_value,
+        max_value=max_value,
+        step=step,
+        min_fn=min_fn,
+        max_fn=max_fn,
+        unit=unit,
+        icon=icon,
+        optimistic_key=optimistic_key,
+        optimistic_scope="home",
+        entity_category=entity_category,
+        supported_generations=supported_generations,
+        unique_id_suffix=unique_id_suffix,
+        is_supported_fn=is_supported_fn,
+        suggested_display_precision=suggested_display_precision,
+    )
+
+
 def create_home_switch(
     key: str,
     value_fn: Any,
@@ -622,6 +704,9 @@ def create_home_switch(
     is_inverted: bool | None = None,
     unique_id_suffix: str | None = None,
     optimistic_value_map: dict[str, bool] | None = None,
+    supported_generations: set[str] | None = None,
+    translation_key: str | None = None,
+    is_supported_fn: Any | None = None,
 ) -> TadoEntityDefinition:
     """Create a switch for the Tado Home."""
     return _create_definition(
@@ -638,6 +723,9 @@ def create_home_switch(
         is_inverted=is_inverted,
         unique_id_suffix=unique_id_suffix,
         optimistic_value_map=optimistic_value_map,
+        supported_generations=supported_generations,
+        translation_key=translation_key,
+        is_supported_fn=is_supported_fn,
     )
 
 
@@ -1832,6 +1920,34 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         turn_off_fn=lambda c: c.async_set_polling_active(False),
         icon="mdi:sync",
         entity_category=EntityCategory.CONFIG,
+    ),
+    create_home_number(
+        key="max_flow_temperature",
+        value_fn=_get_max_flow_temperature,
+        set_fn=lambda c, value: c.async_set_max_flow_temperature(value),
+        min_fn=_get_flow_temp_min,
+        max_fn=_get_flow_temp_max,
+        step=1,
+        unit=UnitOfTemperature.CELSIUS,
+        icon="mdi:thermometer-high",
+        optimistic_key="max_flow_temperature",
+        entity_category=EntityCategory.CONFIG,
+        supported_generations={GEN_X},
+        unique_id_suffix="max_flow_temperature",
+        is_supported_fn=_flow_temp_supported,
+        suggested_display_precision=0,
+    ),
+    create_home_switch(
+        key="flow_auto_adaptation",
+        value_fn=lambda c: bool(_get_flow_auto_adaptation(c)),
+        turn_on_fn=lambda c: c.async_set_flow_auto_adaptation(True),
+        turn_off_fn=lambda c: c.async_set_flow_auto_adaptation(False),
+        icon="mdi:tune-variant",
+        entity_category=EntityCategory.CONFIG,
+        optimistic_key="flow_auto_adaptation",
+        supported_generations={GEN_X},
+        unique_id_suffix="flow_auto_adaptation",
+        is_supported_fn=_flow_temp_supported,
     ),
     create_home_switch(
         key="reduced_polling_logic",

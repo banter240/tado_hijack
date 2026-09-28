@@ -26,6 +26,7 @@ from ..helpers.parsers import parse_ratelimit_headers
 from ..helpers.tadox.const import HOPS_BASE_URL
 from .tadox_models import (
     HopsRoomsAndDevicesResponse,
+    TadoXFlowTempSettings,
     TadoXHotWaterState,
     TadoXZoneState,
 )
@@ -227,6 +228,31 @@ class TadoXApi:
     async def async_get_home_state(self) -> Any:
         """Get home presence state."""
         return await self._tado.get_home_state()
+
+    async def async_get_flow_temperature_optimization(
+        self,
+    ) -> TadoXFlowTempSettings | None:
+        """Fetch flow temperature optimization settings.
+
+        Returns None when no OpenTherm boiler control device is installed
+        (the endpoint answers 404, which _request maps to an empty dict).
+        """
+        data = await self._request("GET", "settings/flowTemperatureOptimization")
+        if not data:
+            return None
+        return cast(TadoXFlowTempSettings, TadoXFlowTempSettings.model_validate(data))
+
+    async def async_patch_flow_temperature_optimization(
+        self, payload: dict[str, Any]
+    ) -> Any:
+        """Patch flow temperature optimization settings (single combined call).
+
+        Payload accepts ``{"maxFlowTemperature": int}`` and/or
+        ``{"autoAdaptation": {"enabled": bool}}``.
+        """
+        return await self._request(
+            "PATCH", "settings/flowTemperatureOptimization", json_data=payload
+        )
 
     async def async_set_presence(self, presence: str) -> None:
         """Set home presence via v2 API (shared endpoint)."""

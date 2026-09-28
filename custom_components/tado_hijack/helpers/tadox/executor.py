@@ -17,6 +17,14 @@ if TYPE_CHECKING:
 _LOGGER = get_redacted_logger(__name__)
 
 
+def _auto_adaptation_enabled(value: Any) -> bool | None:
+    """enabled flag from an autoAdaptation object. A bare dict must not be bool()."""
+    if isinstance(value, dict):
+        enabled = value.get("enabled")
+        return None if enabled is None else bool(enabled)
+    return value if isinstance(value, bool) else None
+
+
 class TadoXExecutor(TadoExecutorBase):
     """Handles execution of merged commands targeting the Hops API."""
 
@@ -46,6 +54,18 @@ class TadoXExecutor(TadoExecutorBase):
                 success_fn=lambda: self.coordinator.optimistic.set_presence(
                     presence, grace_period=2.0
                 ),
+            )
+
+        # 1b. Flow Temperature Optimization (one combined PATCH per batch)
+        if flow_temp := merged.get("flow_temp"):
+            payload = dict(flow_temp)
+            rollback_ctx = (merged.get("rollback_flow_temp") or {}).get("context")
+            await self._safe_execute(
+                "flow_temp",
+                self.bridge.async_patch_flow_temperature_optimization(payload),
+                rollback_fn=self._create_flow_temp_rollback(rollback_ctx),
+                success_fn=lambda: self._on_flow_temp_success(payload),
+                context={"payload": payload},
             )
 
         # 2. Device Properties (Child Lock, Offset) -> Unified into PATCH
@@ -87,6 +107,47 @@ class TadoXExecutor(TadoExecutorBase):
         # 6. Schedule blocks (Hops POST) then activeTimetable (classic v2)
         await self._execute_schedules(merged)
         await self._execute_timetables(merged)
+
+    def _on_flow_temp_success(self, payload: dict[str, Any]) -> None:
+        """Apply optimistic state after a successful flow temp PATCH."""
+        if (temp := payload.get("maxFlowTemperature")) is not None:
+            self.coordinator.optimistic.set_max_flow_temp(float(temp), grace_period=2.0)
+        if (
+            enabled := _auto_adaptation_enabled(payload.get("autoAdaptation"))
+        ) is not None:
+            self.coordinator.optimistic.set_flow_auto_adapt(enabled, grace_period=2.0)
+
+    def _create_flow_temp_rollback(
+        self, context: Any
+    ) -> Callable[[], Coroutine[Any, Any, None]]:
+        """Restore previous flow temperature optimization settings on failure."""
+
+        async def _rollback() -> None:
+            if not context:
+                return
+            payload: dict[str, Any] = {}
+            if (
+                "maxFlowTemperature" in context
+                and context["maxFlowTemperature"] is not None
+            ):
+                payload["maxFlowTemperature"] = context["maxFlowTemperature"]
+            if "autoAdaptation" in context and context["autoAdaptation"] is not None:
+                payload["autoAdaptation"] = context["autoAdaptation"]
+            if not payload:
+                return
+            await self.bridge.async_patch_flow_temperature_optimization(payload)
+            if "maxFlowTemperature" in payload:
+                self.coordinator.optimistic.set_max_flow_temp(
+                    float(payload["maxFlowTemperature"]), grace_period=2.0
+                )
+            if (
+                enabled := _auto_adaptation_enabled(payload.get("autoAdaptation"))
+            ) is not None:
+                self.coordinator.optimistic.set_flow_auto_adapt(
+                    enabled, grace_period=2.0
+                )
+
+        return _rollback
 
     async def _execute_device_fusion(self, merged: dict[str, Any]) -> None:
         """Fuse multiple property changes for the same device into a single PATCH call."""

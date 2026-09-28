@@ -29,6 +29,39 @@ class HopsCharacteristics(BaseModel):
 # --- Hops Internal Components ---
 
 
+class TadoXAutoAdaptation(BaseModel):
+    """Auto adaptation settings for flow temperature optimization."""
+
+    enabled: bool = False
+    max_flow_temperature: float | None = Field(default=None, alias="maxFlowTemperature")
+
+
+class TadoXFlowTempConstraints(BaseModel):
+    """Valid range for the max flow temperature."""
+
+    min: float = 20
+    max: float = 75
+
+
+class TadoXFlowTempSettings(BaseModel):
+    """Flow temperature optimization settings (requires OpenTherm device)."""
+
+    max_flow_temperature: float = Field(alias="maxFlowTemperature")
+    max_flow_temperature_constraints: TadoXFlowTempConstraints = Field(
+        default_factory=TadoXFlowTempConstraints,
+        alias="maxFlowTemperatureConstraints",
+    )
+    open_therm_device_serial_number: str | None = Field(
+        default=None, alias="openThermDeviceSerialNumber"
+    )
+    has_multiple_boiler_control_devices: bool = Field(
+        default=False, alias="hasMultipleBoilerControlDevices"
+    )
+    auto_adaptation: TadoXAutoAdaptation = Field(
+        default_factory=TadoXAutoAdaptation, alias="autoAdaptation"
+    )
+
+
 class HopsConnection(BaseModel):
     """Model for device connection state."""
 
