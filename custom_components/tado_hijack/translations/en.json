@@ -291,6 +291,16 @@
       "zone_humidity_source": {
         "name": "Humidity Source"
       },
+      "zone_window_sensor": {
+        "name": "Window Sensor"
+      },
+      "zone_window_mode": {
+        "name": "Window Mode",
+        "state": {
+          "direct": "Direct",
+          "timeout": "Off + auto-resume after timeout"
+        }
+      },
       "fan_speed": {
         "name": "Fan Speed",
         "state": {

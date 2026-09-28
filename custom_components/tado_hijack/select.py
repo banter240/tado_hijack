@@ -11,6 +11,9 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import (
     CONF_ZONE_HUMIDITY_ENTITIES,
     CONF_ZONE_TEMP_ENTITIES,
+    CONF_ZONE_WINDOW_ENTITIES,
+    WINDOW_MODE_OPTIONS,
+    WINDOW_SENSOR_NONE,
 )
 from .entity import TadoGenericEntityMixin, TadoHomeEntity, TadoZoneEntity
 from .helpers.discovery import yield_zones
@@ -53,6 +56,8 @@ async def async_setup_entry(
             (
                 TadoZoneTempSourceSelect(coordinator, zone.id, zone.name),
                 TadoZoneHumiditySourceSelect(coordinator, zone.id, zone.name),
+                TadoZoneWindowSensorSelect(coordinator, zone.id, zone.name),
+                TadoZoneWindowModeSelect(coordinator, zone.id, zone.name),
             )
         )
     if source_entities:
@@ -277,3 +282,97 @@ class TadoZoneHumiditySourceSelect(TadoZoneSourceSelectBase):
             "humidity",
             "humidity_source",
         )
+
+
+class TadoZoneWindowSensorSelect(TadoZoneEntity, SelectEntity):
+    """Select entity to link an external contact sensor as the zone window state.
+
+    Available for all hardware generations.  When set, the chosen
+    ``binary_sensor`` drives window open/close reactions handled by the
+    coordinator's ``WindowController`` (zone off / schedule resume, optionally
+    delayed by the zone's open-window detection timeout).
+    """
+
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_icon = "mdi:window-open-variant"
+
+    def __init__(
+        self,
+        coordinator: TadoDataUpdateCoordinator,
+        zone_id: int,
+        zone_name: str,
+    ) -> None:
+        """Initialize the window sensor select."""
+        super().__init__(coordinator, "zone_window_sensor", zone_id, zone_name)
+        self._attr_unique_id = (
+            f"{coordinator.config_entry.entry_id}_zone_{zone_id}_window_sensor"
+        )
+
+    @property
+    def options(self) -> list[str]:
+        """Return all binary sensors plus the unlink sentinel."""
+        return [
+            WINDOW_SENSOR_NONE,
+            *sorted(self.hass.states.async_entity_ids("binary_sensor")),
+        ]
+
+    @property
+    def current_option(self) -> str:
+        """Return the linked sensor entity ID, or the sentinel if none."""
+        saved = self.coordinator.config_entry.data.get(
+            CONF_ZONE_WINDOW_ENTITIES, {}
+        ).get(str(self._zone_id))
+        if saved and self.hass.states.get(str(saved)) is not None:
+            return str(saved)
+        return WINDOW_SENSOR_NONE
+
+    async def async_select_option(self, option: str) -> None:
+        """Link the chosen sensor and re-subscribe without reload."""
+        entity_id = "" if option == WINDOW_SENSOR_NONE else option
+        await self.coordinator.window_controller.async_set_zone_window_sensor(
+            self._zone_id, entity_id
+        )
+        self.async_write_ha_state()
+
+
+class TadoZoneWindowModeSelect(TadoZoneEntity, SelectEntity):
+    """Select entity to configure the zone's external window reaction mode.
+
+    Modes:
+    - ``direct``: window open turns the zone off immediately, close resumes.
+    - ``timeout``: like ``direct``, plus a self-healing resume — heating
+      resumes after the open window detection timeout even while the
+      window is still open (protection against a stuck sensor or a dead
+      sensor battery); a new cycle only starts on the next close -> open
+      transition.
+    """
+
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_icon = "mdi:tune-vertical"
+
+    def __init__(
+        self,
+        coordinator: TadoDataUpdateCoordinator,
+        zone_id: int,
+        zone_name: str,
+    ) -> None:
+        """Initialize the window mode select."""
+        super().__init__(coordinator, "zone_window_mode", zone_id, zone_name)
+        self._attr_unique_id = (
+            f"{coordinator.config_entry.entry_id}_zone_{zone_id}_window_mode"
+        )
+        self._attr_options = list(WINDOW_MODE_OPTIONS)
+
+    @property
+    def current_option(self) -> str:
+        """Return the persisted window mode (default: direct)."""
+        return str(
+            self.coordinator.window_controller.get_zone_window_mode(self._zone_id)
+        )
+
+    async def async_select_option(self, option: str) -> None:
+        """Persist the chosen window mode without reload."""
+        await self.coordinator.window_controller.async_set_zone_window_mode(
+            self._zone_id, option
+        )
+        self.async_write_ha_state()

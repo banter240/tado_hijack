@@ -143,6 +143,7 @@ from .helpers.timetable import (
     unique_zone_ids,
 )
 from .helpers.utils import apply_jitter
+from .helpers.window_controller import WindowController
 from .helpers.zone_utils import get_zone_type
 from .lib.patches import get_handler
 from .models import CommandType, RateLimit, TadoCommand, TadoData
@@ -287,6 +288,8 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         self.optimistic = OptimisticManager()
         self.entity_resolver = EntityResolver(self)
         self.event_handler = TadoEventHandler(self)
+        self.window_controller = WindowController(self)
+        self._window_controller_started = False
 
         from .helpers.action_provider_base import TadoActionProvider
         from .helpers.tadov3.action_provider import TadoV3ActionProvider
@@ -350,6 +353,20 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             restored_caps = self.data_manager.restore_capabilities_cache(caps_data)
             _LOGGER.debug("Restored capabilities cache for %d zone(s)", restored_caps)
         self._schedule_offset_cal_timer()
+
+    def get_open_window_timeout_seconds(self, zone_id: int) -> int:
+        """Resolve the open window timeout (optimistic > zone metadata).
+
+        Mirrors _get_owd_timeout in definitions.py; kept as a coordinator
+        method so the WindowController does not import definitions.
+        """
+        opt = self.optimistic.get_open_window(zone_id)
+        if opt is not None:
+            return int(opt)
+        zone = self.zones_meta.get(zone_id)
+        if zone and zone.open_window_detection and zone.open_window_detection.enabled:
+            return int(zone.open_window_detection.timeout_in_seconds)
+        return 0
 
     def _save_reset_tracker(self) -> None:
         """Persist reset tracker state to storage."""
@@ -498,6 +515,12 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
 
             # Reset force flag only after a successful fetch
             self._force_next_update = False
+
+            # Window handling subscribes once zone metadata is populated, so
+            # restart recovery cannot send overlays for unknown zones.
+            if not self._window_controller_started:
+                self._window_controller_started = True
+                self.hass.async_create_task(self.window_controller.async_start())
 
             return cast(TadoData, data)
         except (TimeoutError, TadoError, aiohttp.ClientError) as err:
@@ -780,6 +803,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         if self._offset_cal_unsub:
             self._offset_cal_unsub()
             self._offset_cal_unsub = None
+        self.window_controller.shutdown()
         self.event_handler.shutdown()
         self.poll_scheduler.shutdown()
         self.api_manager.shutdown()
