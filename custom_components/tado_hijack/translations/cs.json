@@ -141,7 +141,16 @@
         "name": "Práh absolutní vlhkosti pro větrání"
       },
       "scan_interval": {
-        "name": "Interval dotazování (Scan)"
+        "name": "Interval dotazování"
+      },
+      "window_resume_batch_s": {
+        "name": "Prodleva obnovení plánu"
+      },
+      "offset_cal_window_settle_s": {
+        "name": "Pauza po zavření okna"
+      },
+      "offset_cal_send_cooldown_s": {
+        "name": "Pauza po zápisu odchylky"
       },
       "zone_mode": {
         "name": "Režim zóny",
@@ -173,9 +182,6 @@
       "battery_state": {
         "name": "Baterie"
       },
-      "link_state": {
-        "name": "Připojení"
-      },
       "connection_state": {
         "name": "Připojení ke cloudu"
       },
@@ -186,7 +192,7 @@
         "name": "Ruční změna"
       },
       "power": {
-        "name": "Napájení"
+        "name": "Provoz"
       },
       "connectivity": {
         "name": "Připojení"
@@ -211,7 +217,7 @@
         "name": "Zakázat dotazování při omezení"
       },
       "refresh_after_resume": {
-        "name": "Obnovit po zrušení manuální změny"
+        "name": "Obnovit stav po návratu k plánu"
       },
       "fetch_extended_data": {
         "name": "Stáhnout rozšířená data"
@@ -224,6 +230,18 @@
       },
       "full_cloud_mode": {
         "name": "Plný cloudový režim"
+      },
+      "window_resume_batch": {
+        "name": "Fronta obnovení plánu"
+      },
+      "recovery_cloud_replay": {
+        "name": "Cloudové funkce při obnově"
+      },
+      "feature_flow_temperature_optimization": {
+        "name": "Optimalizace teploty topné vody"
+      },
+      "log_version_prefix": {
+        "name": "Verze v protokolu"
       }
     },
     "switch": {
@@ -287,7 +305,7 @@
         "name": "Obnovit přítomnost"
       },
       "resume_all_schedules": {
-        "name": "Obnovit všechny plány"
+        "name": "Pokračovat podle všech plánů"
       },
       "turn_off_all_zones": {
         "name": "Vypnout všechny zóny"
@@ -296,7 +314,7 @@
         "name": "Zvýšit výkon všech zón"
       },
       "resume_schedule": {
-        "name": "Obnovit plán"
+        "name": "Pokračovat podle plánu"
       },
       "identify_device": {
         "name": "Identifikovat zařízení"
@@ -331,7 +349,7 @@
         "name": "Maximální teplota topné vody"
       },
       "offset_cal_spread_threshold": {
-        "name": "Prahová hodnota kalibrace posunu"
+        "name": "Práh kalibrace teplotní odchylky"
       }
     },
     "select": {
@@ -344,19 +362,28 @@
         }
       },
       "zone_temp_source": {
-        "name": "Zdroj teploty"
+        "name": "Zdroj teploty",
+        "state": {
+          "device": "Zařízení"
+        }
       },
       "zone_humidity_source": {
-        "name": "Zdroj vlhkosti"
+        "name": "Zdroj vlhkosti",
+        "state": {
+          "device": "Zařízení"
+        }
       },
       "zone_window_sensor": {
-        "name": "Okenní senzor"
+        "name": "Okenní senzor",
+        "state": {
+          "none": "Žádný"
+        }
       },
       "zone_window_mode": {
         "name": "Režim okna",
         "state": {
-          "direct": "Přímo",
-          "timeout": "Vypnutí + automatické obnovení po timeoutu"
+          "direct": "Ihned",
+          "timeout": "Timeout"
         }
       },
       "fan_speed": {
@@ -393,7 +420,7 @@
         }
       },
       "offset_cal_interval": {
-        "name": "Automatická kalibrace offsetu",
+        "name": "Automatická kalibrace teplotní odchylky",
         "state": {
           "off": "Vypnuto",
           "3h": "Každé 3 hodiny (od 00:00)",
@@ -405,7 +432,8 @@
           "21h": "Každých 21 hodin (od 00:00)",
           "24h": "Jednou denně (00:00)",
           "on_reset": "Jednou po resetu kvóty",
-          "inherit": "Dědit (Bridge)"
+          "threshold": "Jakmile odchylka dosáhne prahu",
+          "inherit": "Výchozí (Bridge)"
         }
       }
     },
@@ -490,43 +518,16 @@
             "data": {
               "scan_interval": "Interval aktualizace zón (sekundy)",
               "presence_poll_interval": "Interval aktualizace přítomnosti (sekundy)",
-              "slow_poll_interval": "Interval synchronizace hardwaru (sekundy)",
-              "offset_poll_interval": "Interval aktualizace teplotní odchylky (sekundy)"
+              "slow_poll_interval": "Interval synchronizace hardwaru (sekundy)"
             },
             "data_description": {
-              "scan_interval": "Interval pro data místnosti (teplota, vlhkost, výkon topení). DŮLEŽITÉ: Dynamicky přepisováno 'Automatickou API kvótou', pokud je povolena; slouží jako záloha při vyčerpání vypočteného rozpočtu.",
+              "scan_interval": "Interval pro data místnosti (teplota, vlhkost, výkon topení). DŮLEŽITÉ: Při zapnuté automatické kvótě API se tato hodnota přepisuje. Platí jen jako záloha, když je vypočtený rozpočet vyčerpán.",
               "presence_poll_interval": "Jak často kontrolovat stav Doma/Mimo domov. Nastavte na vyšší hodnotu (např. 43200s/12h) pro ušetření kvóty.",
-              "slow_poll_interval": "Jak často synchronizovat úroveň baterie, firmware, schopnosti a seznam zařízení. Doporučeno je 86400s (24h).",
-              "offset_poll_interval": "Jak často stahovat teplotní odchylky. Stojí 1 API dotaz NA KAŽDOU HLAVICI. 0 = vypnuto."
-            }
-          },
-          "api_quota": {
-            "name": "Automatické řízení kvóty API a zabezpečení",
-            "data": {
-              "auto_api_quota_percent": "Automaticky využitá kvóta API (%)",
-              "throttle_threshold": "Práh omezení (Bezpečnostní rezerva)",
-              "quota_safety_reserve": "Bezpečnostní rezerva kvóty API",
-              "min_auto_quota_interval_s": "Minimální interval automatické kvóty",
-              "disable_polling_when_throttled": "Zakázat dotazování při omezení",
-              "refresh_after_resume": "Obnovit stav po zrušení manuální změny",
-              "recovery_cloud_replay": "Při obnově odeslat funkce jen pro cloud",
-              "suppress_redundant_calls": "Potlačit nadbytečné dotazy",
-              "suppress_redundant_buttons": "Potlačit nadbytečná tlačítka"
-            },
-            "data_description": {
-              "auto_api_quota_percent": "Využít X % volné denní kvóty pro zjišťování stavu (0 = vypnuto). Volná kvóta = limit − rezerva na pozadí (synchronizace) − externí aktivita (automatizace, ruční použití). Hybridní strategie používá vyšší hodnotu z denního rozpočtu po odečtení již využitých požadavků a ze zbývající kvóty vynásobené X %. Systém proto pokračuje v dotazování i po překročení denního rozpočtu.",
-              "throttle_threshold": "Rezervuje N požadavků pro vše kromě pravidelného dotazování integrace na pozadí (automatizace, skripty a ruční použití aplikace). Po dosažení této hranice se pravidelné dotazování zastaví, aby zůstala kvóta pro ostatní požadavky. Doporučeno: 20.",
-              "quota_safety_reserve": "Počet požadavků API vyhrazených pro období samoučícího resetu. Systém se automaticky učí čas resetu a přizpůsobuje čerpání této rezervy výkyvům cloudové služby. Hodnota 0 funkci vypne (nedoporučuje se). Výchozí hodnota: 2.",
-              "min_auto_quota_interval_s": "Minimální interval dotazování ve vteřinách (5-43200 = 12h max). Standardní API: minimum 5s. Proxy: vynuceno minimum 120s. Nižší = rychlejší aktualizace, ale vyšší využití API. Výchozí 20s.",
-              "disable_polling_when_throttled": "Zcela zastavit pravidelné dotazování, když zbývající kvóta narazí na bezpečnostní rezervu.",
-              "refresh_after_resume": "Automaticky stáhnout cílovou teplotu/stav po obnovení plánu (HVAC AUTO). Nutné, protože plány jsou spravovány na straně Tado cloudu. Stojí 1 API dotaz.",
-              "recovery_cloud_replay": "Když se TRV (HomeKit nebo Matter) vrátí do stavu online, nelze funkce závislé jen na cloudu (např. obnovení plánu) přehrát lokálně. Je-li povoleno, tyto příkazy se dodatečně odešlou do Tado cloudu (1 API dotaz na zónu). Vypnutím ušetříte kvótu.",
-              "suppress_redundant_calls": "Přeskočit API dotazy, když se cílový stav shoduje s načteným stavem (teplota, režim, přítomnost, výkon). Šetří kvótu při neúmyslném dvojitém kliknutí nebo interakci v UI. Odesílá pouze při detekci skutečné změny. Hodnoty, které nejsou v mezipaměti, se odesílají vždy.",
-              "suppress_redundant_buttons": "Rovněž přeskočit akce tlačítek (resume_all, boost_all, turn_off_all, set_mode_all), pokud VŠECHNY zóny již odpovídají cílovému stavu. Vyžaduje povolení 'Potlačit nadbytečné dotazy'. Individuální explicitní akce a tlačítka synchronizace (manual_poll, refresh) se odesílají vždy."
+              "slow_poll_interval": "Jak často synchronizovat úroveň baterie, firmware, schopnosti a seznam zařízení. Doporučeno je 86400s (24h)."
             }
           },
           "reduced_polling": {
-            "name": "Ekonomické okno (Noc)",
+            "name": "Úsporné okno",
             "data": {
               "reduced_polling_active": "Omezené dotazování aktivní",
               "reduced_polling_start": "Čas začátku okna",
@@ -540,6 +541,62 @@
               "reduced_polling_interval": "Interval dotazování během ekonomického okna (např. 3600s = 1h). Nastavte na 0 pro pozastavení aktualizací."
             }
           },
+          "api_quota": {
+            "name": "Automatická kvóta API a rezerva",
+            "data": {
+              "auto_api_quota_percent": "Automaticky využitá kvóta API (%)",
+              "throttle_threshold": "Práh omezení (Bezpečnostní rezerva)",
+              "quota_safety_reserve": "Bezpečnostní rezerva kvóty API",
+              "min_auto_quota_interval_s": "Minimální interval automatické kvóty",
+              "disable_polling_when_throttled": "Zakázat dotazování při omezení",
+              "suppress_redundant_calls": "Potlačit nadbytečné dotazy",
+              "suppress_redundant_buttons": "Potlačit nadbytečná tlačítka"
+            },
+            "data_description": {
+              "auto_api_quota_percent": "Využít X % volné denní kvóty pro zjišťování stavu (0 = vypnuto). Volná kvóta = limit − rezerva na pozadí (synchronizace) − externí aktivita (automatizace, ruční použití). Hybridní strategie používá vyšší hodnotu z denního rozpočtu po odečtení již využitých požadavků a ze zbývající kvóty vynásobené X %. Systém proto pokračuje v dotazování i po překročení denního rozpočtu.",
+              "throttle_threshold": "Rezervuje N požadavků pro vše kromě pravidelného dotazování integrace na pozadí (automatizace, skripty a ruční použití aplikace). Po dosažení této hranice se pravidelné dotazování zastaví, aby zůstala kvóta pro ostatní požadavky. Doporučeno: 20.",
+              "quota_safety_reserve": "Počet požadavků API vyhrazených pro období samoučícího resetu. Systém se automaticky učí čas resetu a přizpůsobuje čerpání této rezervy výkyvům cloudové služby. Hodnota 0 funkci vypne (nedoporučuje se). Výchozí hodnota: 2.",
+              "min_auto_quota_interval_s": "Minimální interval dotazování v sekundách (5-43200, tedy nejvýše 12 hodin). Běžné API: nejméně 5 s. Proxy: vynuceno nejméně 120 s. Kratší interval znamená rychlejší aktualizace a víc dotazů API. Výchozí: 20 s.",
+              "disable_polling_when_throttled": "Zcela zastavit pravidelné dotazování, když zbývající kvóta narazí na bezpečnostní rezervu.",
+              "suppress_redundant_calls": "Přeskočit API dotazy, když se cílový stav shoduje s načteným stavem (teplota, režim, přítomnost, výkon). Šetří kvótu při neúmyslném dvojitém kliknutí nebo ovládání v rozhraní. Odesílá pouze při detekci skutečné změny. Hodnoty, které nejsou v mezipaměti, se odesílají vždy.",
+              "suppress_redundant_buttons": "Rovněž přeskočit akce tlačítek (resume_all, boost_all, turn_off_all, set_mode_all), pokud VŠECHNY zóny již odpovídají cílovému stavu. Vyžaduje povolení 'Potlačit nadbytečné dotazy'. Individuální explicitní akce a tlačítka synchronizace (manual_poll, refresh) se odesílají vždy."
+            }
+          },
+          "window": {
+            "name": "Okna",
+            "data": {
+              "window_resume_batch": "Obnovení plánu zařadit do fronty a odeslat se zpožděním",
+              "window_resume_batch_s": "Prodleva před odesláním obnovení plánu",
+              "offset_cal_window_settle_s": "Pauza po zavření okna"
+            },
+            "data_description": {
+              "window_resume_batch": "Při zavření okna nebo konci časového limitu se teplota z doby před otevřením hned nastaví na místní klima HomeKit nebo Matter. Pokud běžel plán, odeslání do cloudu počká, aby zóny ve stejném intervalu odešly společně. Pokud plán neběžel, nastaví se jen místně. Výchozí zapnuto.",
+              "window_resume_batch_s": "Sekundy, po které se odeslání do cloudu drží. Místnosti, které se v této době zavřou nebo jim skončí časový limit, jdou v jednom odeslání. Výchozí 120. 0 odešle při dalším průchodu. Platí jen když je fronta zapnutá.",
+              "offset_cal_window_settle_s": "V režimu práh se zóna ignoruje, dokud je její okenní senzor otevřený. Po zavření počkat, než se ventil a čidlo v místnosti srovnají. Výchozí 300 sekund."
+            }
+          },
+          "offset": {
+            "name": "Kalibrace odchylky",
+            "data": {
+              "offset_poll_interval": "Interval aktualizace teplotní odchylky (sekundy)",
+              "offset_cal_send_cooldown_s": "Pauza po zápisu teplotní odchylky (práh)"
+            },
+            "data_description": {
+              "offset_poll_interval": "Jak často stahovat teplotní odchylky. Stojí 1 dotaz API na každou hlavici. 0 = vypnuto.",
+              "offset_cal_send_cooldown_s": "Po zápisu teplotní odchylky v režimu práh počkat, než se smí zapsat znovu. Brání druhému odeslání, dokud měření dobíhá. Výchozí 300 sekund."
+            }
+          },
+          "recovery": {
+            "name": "Obnova a plán",
+            "data": {
+              "recovery_cloud_replay": "Při obnově odeslat funkce jen pro cloud",
+              "refresh_after_resume": "Obnovit stav po návratu k plánu"
+            },
+            "data_description": {
+              "recovery_cloud_replay": "Když se termostatická hlavice (HomeKit nebo Matter) vrátí do stavu online, nelze funkce závislé jen na cloudu (např. obnovení plánu) přehrát lokálně. Je-li povoleno, tyto příkazy se dodatečně odešlou do cloudu Tado (1 dotaz API na zónu). Vypnutím ušetříte kvótu.",
+              "refresh_after_resume": "Po obnovení plánu u klimatizace nebo teplé vody jednou načte zóny, aby se ukázala cílová teplota. Topné zóny ne. Několik obnovení krátce po sobě sdílí toto načtení. Stojí 1 dotaz API."
+            }
+          },
           "features": {
             "name": "Funkce",
             "data": {
@@ -551,7 +608,7 @@
             },
             "data_description": {
               "feature_dew_point": "Vytvoří senzor teploty rosného bodu pro každou zónu. Vypočítává se z teploty a vlhkosti v místnosti. POVINNÉ pro Tado X: Vyžaduje propojený zdroj teploty na zařízení zóny, protože cloudové API neposkytuje žádnou teplotu pro Tado X.",
-              "feature_flow_temperature_optimization": "Načítá nastavení optimalizace teploty topné vody u Tado X (vyžaduje OpenTherm regulaci kotle) a vystaví číslo maximální teploty a spínač automatického přizpůsobení. Stojí 1 API dotaz na metadata poll. Ve výchozím stavu vypnuto, aby se šetřila kvóta.",
+              "feature_flow_temperature_optimization": "Načítá nastavení optimalizace teploty topné vody u Tado X (vyžaduje OpenTherm regulaci kotle) a vystaví číslo maximální teploty a spínač automatického přizpůsobení. Stojí 1 dotaz API na načtení metadat. Ve výchozím stavu vypnuto, aby se šetřila kvóta.",
               "feature_mold_detection": "Vytvoří senzory rizika plísně pro každou zónu. Obsahuje úroveň rizika (žádné/nízké/střední/vysoké) a binární senzor pro akutní riziko plísně. POVINNÉ pro Tado X: Vyžaduje propojený zdroj teploty na zařízení zóny.",
               "outdoor_weather_entity": "Vyberte entitu počasí (např. weather.home), která poskytuje venkovní teplotu a vlhkost. To je nezbytné pro výpočet vnitřní absolutní vlhkosti a pro aktivaci senzorů 'Doporučeno větrat'. Senzor hlásí 'Ano', když otevření oken efektivně sníží vnitřní vlhkost.",
               "ventilation_ah_threshold": "Minimální rozdíl absolutní vlhkosti mezi vnitřkem a venkem potřebný k tomu, aby se 'Doporučeno větrat' změnilo na 'Ano'. Hodnota 1.0 g/m³ (gramů vody na metr krychlový vzduchu) zajišťuje, že venkovní vzduch je výrazně sušší než vnitřní před doporučením vyvětrat. Zabraňuje přeskakování senzoru. Výchozí: 1.0."
@@ -601,43 +658,16 @@
             "data": {
               "scan_interval": "Interval aktualizace zón (sekundy)",
               "presence_poll_interval": "Interval aktualizace přítomnosti (sekundy)",
-              "slow_poll_interval": "Interval synchronizace hardwaru (sekundy)",
-              "offset_poll_interval": "Interval aktualizace teplotní odchylky (sekundy)"
+              "slow_poll_interval": "Interval synchronizace hardwaru (sekundy)"
             },
             "data_description": {
-              "scan_interval": "Interval pro data místnosti (teplota, vlhkost, výkon topení). DŮLEŽITÉ: Dynamicky přepisováno 'Automatickou API kvótou', pokud je povolena; slouží jako záloha při vyčerpání vypočteného rozpočtu.",
+              "scan_interval": "Interval pro data místnosti (teplota, vlhkost, výkon topení). DŮLEŽITÉ: Při zapnuté automatické kvótě API se tato hodnota přepisuje. Platí jen jako záloha, když je vypočtený rozpočet vyčerpán.",
               "presence_poll_interval": "Jak často kontrolovat stav Doma/Mimo domov. Nastavte na vyšší hodnotu (např. 43200s/12h) pro ušetření kvóty.",
-              "slow_poll_interval": "Jak často synchronizovat úroveň baterie, firmware, schopnosti a seznam zařízení. Doporučeno je 86400s (24h).",
-              "offset_poll_interval": "Jak často stahovat teplotní odchylky. Stojí 1 API dotaz NA KAŽDOU HLAVICI. 0 = vypnuto."
-            }
-          },
-          "api_quota": {
-            "name": "Automatické řízení kvóty API a zabezpečení",
-            "data": {
-              "auto_api_quota_percent": "Automaticky využitá kvóta API (%)",
-              "throttle_threshold": "Práh omezení (Bezpečnostní rezerva)",
-              "quota_safety_reserve": "Bezpečnostní rezerva kvóty API",
-              "min_auto_quota_interval_s": "Minimální interval automatické kvóty",
-              "disable_polling_when_throttled": "Zakázat dotazování při omezení",
-              "refresh_after_resume": "Obnovit stav po zrušení manuální změny",
-              "recovery_cloud_replay": "Při obnově odeslat funkce jen pro cloud",
-              "suppress_redundant_calls": "Potlačit nadbytečné dotazy",
-              "suppress_redundant_buttons": "Potlačit nadbytečná tlačítka"
-            },
-            "data_description": {
-              "auto_api_quota_percent": "Využít X % volné denní kvóty pro zjišťování stavu (0 = vypnuto). Volná kvóta = limit − rezerva na pozadí (synchronizace) − externí aktivita (automatizace, ruční použití). Hybridní strategie používá vyšší hodnotu z denního rozpočtu po odečtení již využitých požadavků a ze zbývající kvóty vynásobené X %. Systém proto pokračuje v dotazování i po překročení denního rozpočtu.",
-              "throttle_threshold": "Rezervuje N požadavků pro vše kromě pravidelného dotazování integrace na pozadí (automatizace, skripty a ruční použití aplikace). Po dosažení této hranice se pravidelné dotazování zastaví, aby zůstala kvóta pro ostatní požadavky. Doporučeno: 20.",
-              "quota_safety_reserve": "Počet požadavků API vyhrazených pro období samoučícího resetu. Systém se automaticky učí čas resetu a přizpůsobuje čerpání této rezervy výkyvům cloudové služby. Hodnota 0 funkci vypne (nedoporučuje se). Výchozí hodnota: 2.",
-              "min_auto_quota_interval_s": "Minimální interval dotazování ve vteřinách (5-43200 = 12h max). Standardní API: minimum 5s. Proxy: vynuceno minimum 120s. Nižší = rychlejší aktualizace, ale vyšší využití API. Výchozí 20s.",
-              "disable_polling_when_throttled": "Zcela zastavit pravidelné dotazování, když zbývající kvóta narazí na bezpečnostní rezervu.",
-              "refresh_after_resume": "Automaticky stáhnout cílovou teplotu/stav po obnovení plánu (HVAC AUTO). Nutné, protože plány jsou spravovány na straně Tado cloudu. Stojí 1 API dotaz.",
-              "recovery_cloud_replay": "Když se TRV (HomeKit nebo Matter) vrátí do stavu online, nelze funkce závislé jen na cloudu (např. obnovení plánu) přehrát lokálně. Je-li povoleno, tyto příkazy se dodatečně odešlou do Tado cloudu (1 API dotaz na zónu). Vypnutím ušetříte kvótu.",
-              "suppress_redundant_calls": "Přeskočit API dotazy, když se cílový stav shoduje s načteným stavem (teplota, režim, přítomnost, výkon). Šetří kvótu při neúmyslném dvojitém kliknutí nebo interakci v UI. Odesílá pouze při detekci skutečné změny. Hodnoty, které nejsou v mezipaměti, se odesílají vždy.",
-              "suppress_redundant_buttons": "Rovněž přeskočit akce tlačítek (resume_all, boost_all, turn_off_all, set_mode_all), pokud VŠECHNY zóny již odpovídají cílovému stavu. Vyžaduje povolení 'Potlačit nadbytečné dotazy'. Individuální explicitní akce a tlačítka synchronizace (manual_poll, refresh) se odesílají vždy."
+              "slow_poll_interval": "Jak často synchronizovat úroveň baterie, firmware, schopnosti a seznam zařízení. Doporučeno je 86400s (24h)."
             }
           },
           "reduced_polling": {
-            "name": "Ekonomické okno (Noc)",
+            "name": "Úsporné okno",
             "data": {
               "reduced_polling_active": "Omezené dotazování aktivní",
               "reduced_polling_start": "Čas začátku okna",
@@ -651,6 +681,62 @@
               "reduced_polling_interval": "Interval dotazování během ekonomického okna (např. 3600s = 1h). Nastavte na 0 pro pozastavení aktualizací."
             }
           },
+          "api_quota": {
+            "name": "Automatická kvóta API a rezerva",
+            "data": {
+              "auto_api_quota_percent": "Automaticky využitá kvóta API (%)",
+              "throttle_threshold": "Práh omezení (Bezpečnostní rezerva)",
+              "quota_safety_reserve": "Bezpečnostní rezerva kvóty API",
+              "min_auto_quota_interval_s": "Minimální interval automatické kvóty",
+              "disable_polling_when_throttled": "Zakázat dotazování při omezení",
+              "suppress_redundant_calls": "Potlačit nadbytečné dotazy",
+              "suppress_redundant_buttons": "Potlačit nadbytečná tlačítka"
+            },
+            "data_description": {
+              "auto_api_quota_percent": "Využít X % volné denní kvóty pro zjišťování stavu (0 = vypnuto). Volná kvóta = limit − rezerva na pozadí (synchronizace) − externí aktivita (automatizace, ruční použití). Hybridní strategie používá vyšší hodnotu z denního rozpočtu po odečtení již využitých požadavků a ze zbývající kvóty vynásobené X %. Systém proto pokračuje v dotazování i po překročení denního rozpočtu.",
+              "throttle_threshold": "Rezervuje N požadavků pro vše kromě pravidelného dotazování integrace na pozadí (automatizace, skripty a ruční použití aplikace). Po dosažení této hranice se pravidelné dotazování zastaví, aby zůstala kvóta pro ostatní požadavky. Doporučeno: 20.",
+              "quota_safety_reserve": "Počet požadavků API vyhrazených pro období samoučícího resetu. Systém se automaticky učí čas resetu a přizpůsobuje čerpání této rezervy výkyvům cloudové služby. Hodnota 0 funkci vypne (nedoporučuje se). Výchozí hodnota: 2.",
+              "min_auto_quota_interval_s": "Minimální interval dotazování v sekundách (5-43200, tedy nejvýše 12 hodin). Běžné API: nejméně 5 s. Proxy: vynuceno nejméně 120 s. Kratší interval znamená rychlejší aktualizace a víc dotazů API. Výchozí: 20 s.",
+              "disable_polling_when_throttled": "Zcela zastavit pravidelné dotazování, když zbývající kvóta narazí na bezpečnostní rezervu.",
+              "suppress_redundant_calls": "Přeskočit API dotazy, když se cílový stav shoduje s načteným stavem (teplota, režim, přítomnost, výkon). Šetří kvótu při neúmyslném dvojitém kliknutí nebo ovládání v rozhraní. Odesílá pouze při detekci skutečné změny. Hodnoty, které nejsou v mezipaměti, se odesílají vždy.",
+              "suppress_redundant_buttons": "Rovněž přeskočit akce tlačítek (resume_all, boost_all, turn_off_all, set_mode_all), pokud VŠECHNY zóny již odpovídají cílovému stavu. Vyžaduje povolení 'Potlačit nadbytečné dotazy'. Individuální explicitní akce a tlačítka synchronizace (manual_poll, refresh) se odesílají vždy."
+            }
+          },
+          "window": {
+            "name": "Okna",
+            "data": {
+              "window_resume_batch": "Obnovení plánu zařadit do fronty a odeslat se zpožděním",
+              "window_resume_batch_s": "Prodleva před odesláním obnovení plánu",
+              "offset_cal_window_settle_s": "Pauza po zavření okna"
+            },
+            "data_description": {
+              "window_resume_batch": "Při zavření okna nebo konci časového limitu se teplota z doby před otevřením hned nastaví na místní klima HomeKit nebo Matter. Pokud běžel plán, odeslání do cloudu počká, aby zóny ve stejném intervalu odešly společně. Pokud plán neběžel, nastaví se jen místně. Výchozí zapnuto.",
+              "window_resume_batch_s": "Sekundy, po které se odeslání do cloudu drží. Místnosti, které se v této době zavřou nebo jim skončí časový limit, jdou v jednom odeslání. Výchozí 120. 0 odešle při dalším průchodu. Platí jen když je fronta zapnutá.",
+              "offset_cal_window_settle_s": "V režimu práh se zóna ignoruje, dokud je její okenní senzor otevřený. Po zavření počkat, než se ventil a čidlo v místnosti srovnají. Výchozí 300 sekund."
+            }
+          },
+          "offset": {
+            "name": "Kalibrace odchylky",
+            "data": {
+              "offset_poll_interval": "Interval aktualizace teplotní odchylky (sekundy)",
+              "offset_cal_send_cooldown_s": "Pauza po zápisu teplotní odchylky (práh)"
+            },
+            "data_description": {
+              "offset_poll_interval": "Jak často stahovat teplotní odchylky. Stojí 1 dotaz API na každou hlavici. 0 = vypnuto.",
+              "offset_cal_send_cooldown_s": "Po zápisu teplotní odchylky v režimu práh počkat, než se smí zapsat znovu. Brání druhému odeslání, dokud měření dobíhá. Výchozí 300 sekund."
+            }
+          },
+          "recovery": {
+            "name": "Obnova a plán",
+            "data": {
+              "recovery_cloud_replay": "Při obnově odeslat funkce jen pro cloud",
+              "refresh_after_resume": "Obnovit stav po návratu k plánu"
+            },
+            "data_description": {
+              "recovery_cloud_replay": "Když se termostatická hlavice (HomeKit nebo Matter) vrátí do stavu online, nelze funkce závislé jen na cloudu (např. obnovení plánu) přehrát lokálně. Je-li povoleno, tyto příkazy se dodatečně odešlou do cloudu Tado (1 dotaz API na zónu). Vypnutím ušetříte kvótu.",
+              "refresh_after_resume": "Po obnovení plánu u klimatizace nebo teplé vody jednou načte zóny, aby se ukázala cílová teplota. Topné zóny ne. Několik obnovení krátce po sobě sdílí toto načtení. Stojí 1 dotaz API."
+            }
+          },
           "features": {
             "name": "Funkce",
             "data": {
@@ -662,7 +748,7 @@
             },
             "data_description": {
               "feature_dew_point": "Vytvoří senzor teploty rosného bodu pro každou zónu. Vypočítává se z teploty a vlhkosti v místnosti. POVINNÉ pro Tado X: Vyžaduje propojený zdroj teploty na zařízení zóny, protože cloudové API neposkytuje žádnou teplotu pro Tado X.",
-              "feature_flow_temperature_optimization": "Načítá nastavení optimalizace teploty topné vody u Tado X (vyžaduje OpenTherm regulaci kotle) a vystaví číslo maximální teploty a spínač automatického přizpůsobení. Stojí 1 API dotaz na metadata poll. Ve výchozím stavu vypnuto, aby se šetřila kvóta.",
+              "feature_flow_temperature_optimization": "Načítá nastavení optimalizace teploty topné vody u Tado X (vyžaduje OpenTherm regulaci kotle) a vystaví číslo maximální teploty a spínač automatického přizpůsobení. Stojí 1 dotaz API na načtení metadat. Ve výchozím stavu vypnuto, aby se šetřila kvóta.",
               "feature_mold_detection": "Vytvoří senzory rizika plísně pro každou zónu. Obsahuje úroveň rizika (žádné/nízké/střední/vysoké) a binární senzor pro akutní riziko plísně. POVINNÉ pro Tado X: Vyžaduje propojený zdroj teploty na zařízení zóny.",
               "outdoor_weather_entity": "Vyberte entitu počasí (např. weather.home), která poskytuje venkovní teplotu a vlhkost. To je nezbytné pro výpočet vnitřní absolutní vlhkosti a pro aktivaci senzorů 'Doporučeno větrat'. Senzor hlásí 'Ano', když otevření oken efektivně sníží vnitřní vlhkost.",
               "ventilation_ah_threshold": "Minimální rozdíl absolutní vlhkosti mezi vnitřkem a venkem potřebný k tomu, aby se 'Doporučeno větrat' změnilo na 'Ano'. Hodnota 1.0 g/m³ (gramů vody na metr krychlový vzduchu) zajišťuje, že venkovní vzduch je výrazně sušší než vnitřní před doporučením vyvětrat. Zabraňuje přeskakování senzoru. Výchozí: 1.0."
@@ -713,8 +799,8 @@
       }
     },
     "resume_all_schedules": {
-      "name": "Obnovit všechny plány",
-      "description": "Zruší všechny ruční změny teploty ve všech zónách a obnoví chytrý plán.",
+      "name": "Pokračovat podle všech plánů",
+      "description": "Zruší všechny ruční změny ve všech zónách a vrátí chytrý plán.",
       "fields": {
         "config_entry": {
           "name": "Domácnost Tado (volitelné)",
@@ -860,19 +946,19 @@
     },
     "set_schedule": {
       "name": "Nastavit rozvrh",
-      "description": "Zapíše časové bloky Tado Smart Schedule pro zónu. Nahradí celý den. all_days zapíše všechny dny typu rozvrhu, days jen vybrané dny. Zadejte blocks nebo HA schedule helper.",
+      "description": "Zapíše časové bloky chytrého plánu Tado pro zónu. Nahradí celý den. all_days zapíše všechny dny tohoto typu rozvrhu, days jen vybrané dny. Zadejte blocks nebo pomocníka plánu Home Assistant.",
       "fields": {
         "entity_id": {
           "name": "Entita",
-          "description": "Zóna climate nebo ohřevu vody."
+          "description": "Zóna klimatu nebo ohřevu vody."
         },
         "all_days": {
           "name": "Všechny dny",
-          "description": "Zapsat každý slot typu rozvrhu. U one_day se ignoruje (žádný výběr dne)."
+          "description": "Zapsat každé okno tohoto typu rozvrhu. U one_day se ignoruje (žádný výběr dne)."
         },
         "days": {
           "name": "Dny",
-          "description": "Jen sloty zvoleného typu. one_day: vynechat. three_day: Po-Pá, sobota, neděle. seven_day: Po..Ne (např. Út+St). Úterý u one_day je chyba."
+          "description": "Jen okna zvoleného typu. one_day: vynechat. three_day: Po-Pá, sobota, neděle. seven_day: Po až Ne (např. Út+St). Úterý u one_day je chyba."
         },
         "timetable": {
           "name": "Typ rozvrhu",
@@ -887,12 +973,12 @@
           "description": "Seznam start, end, temperature a power. Musí pokrýt 00:00-24:00; mezery se vyplní jako VYP."
         },
         "schedule_entity": {
-          "name": "Schedule helper",
-          "description": "Entita rozvrhu Home Assistant místo blocks. Extra data: temperature, power."
+          "name": "Pomocník plánu",
+          "description": "Entita plánu Home Assistant místo blocks. Doplňková data: temperature, power."
         },
         "geolocation_override": {
           "name": "Ignorovat režim pryč",
-          "description": "Když je zapnuto, bloky platí i v režimu Away."
+          "description": "Když je zapnuto, bloky platí i v režimu mimo domov."
         }
       }
     }

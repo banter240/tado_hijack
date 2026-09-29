@@ -11,16 +11,16 @@
         "name": "Absolute Außenfeuchtigkeit"
       },
       "quota_reset_last": {
-        "name": "Letzter Quota-Reset"
+        "name": "Letzte Kontingent-Rücksetzung"
       },
       "quota_reset_expected_window": {
-        "name": "Erwartetes Reset-Fenster"
+        "name": "Erwartetes Rücksetzfenster"
       },
       "quota_reset_next": {
-        "name": "Nächster erwarteter Reset"
+        "name": "Nächste erwartete Rücksetzung"
       },
       "quota_reset_pattern_confidence": {
-        "name": "Reset-Muster Konfidenz",
+        "name": "Verlässlichkeit des Rücksetzmusters",
         "state": {
           "learned": "Gelernt",
           "single_observation": "Einzelbeobachtung",
@@ -28,10 +28,10 @@
         }
       },
       "quota_reset_history_count": {
-        "name": "Anzahl Reset-Historie"
+        "name": "Anzahl gespeicherter Rücksetzungen"
       },
       "api_status": {
-        "name": "API Status",
+        "name": "API-Status",
         "state": {
           "connected": "Verbunden",
           "throttled": "Gedrosselt",
@@ -39,10 +39,10 @@
         }
       },
       "proxy_url": {
-        "name": "API Proxy URL"
+        "name": "API-Proxy-URL"
       },
       "proxy_token": {
-        "name": "API Proxy Token"
+        "name": "API-Proxy-Token"
       },
       "current_zone_interval": {
         "name": "Aktuelles Abfrageintervall"
@@ -57,7 +57,7 @@
         "name": "Intervall im Sparfenster"
       },
       "debounce_time": {
-        "name": "Entprellzeit (Debounce)"
+        "name": "Entprellzeit"
       },
       "presence_poll_interval": {
         "name": "Anwesenheits-Abfrageintervall"
@@ -72,7 +72,7 @@
         "name": "Redundante Aufrufe unterdrücken"
       },
       "suppress_redundant_buttons": {
-        "name": "Redundante Button-Aktionen unterdrücken"
+        "name": "Redundante Schaltflächen unterdrücken"
       },
       "heating_power": {
         "name": "Heizleistung"
@@ -87,7 +87,7 @@
         "name": "Taupunkt"
       },
       "mold_risk_level": {
-        "name": "Schimmelrisiko Level",
+        "name": "Schimmelrisiko",
         "state": {
           "none": "Keins",
           "low": "Niedrig",
@@ -117,7 +117,7 @@
         "name": "Drossel-Schwellenwert"
       },
       "jitter_percent": {
-        "name": "Jitter-Stärke (%)"
+        "name": "Zufällige Abweichung (%)"
       },
       "reduced_polling_start": {
         "name": "Startzeit Sparfenster"
@@ -126,22 +126,31 @@
         "name": "Endzeit Sparfenster"
       },
       "log_level": {
-        "name": "Log-Level"
+        "name": "Protokollstufe"
       },
       "tado_generation": {
         "name": "Hardware-Generation"
       },
       "quota_safety_reserve": {
-        "name": "API-Quota Sicherheitsreserve"
+        "name": "Sicherheitsreserve des API-Kontingents"
       },
       "outdoor_weather_entity": {
         "name": "Außenwetter-Quelle"
       },
       "ventilation_ah_threshold": {
-        "name": "Lüftungs-AH-Schwellwert"
+        "name": "Lüftungsschwelle (absolute Feuchte)"
       },
       "scan_interval": {
         "name": "Abfrageintervall"
+      },
+      "window_resume_batch_s": {
+        "name": "Wartezeit Fortsetzen"
+      },
+      "offset_cal_window_settle_s": {
+        "name": "Pause nach Fenster zu"
+      },
+      "offset_cal_send_cooldown_s": {
+        "name": "Pause nach Offset-Schreiben"
       },
       "zone_mode": {
         "name": "Zonenmodus",
@@ -153,7 +162,7 @@
         }
       },
       "home_mode": {
-        "name": "Home-Modus",
+        "name": "Hausmodus",
         "state": {
           "schedule": "Zeitplan",
           "off": "Aus",
@@ -166,20 +175,87 @@
     "binary_sensor": {
       "presence_state": {
         "name": "Anwesenheit"
+      },
+      "heating_demand": {
+        "name": "Heizbedarf"
+      },
+      "battery_state": {
+        "name": "Batterie"
+      },
+      "connection_state": {
+        "name": "Cloud-Verbindung"
+      },
+      "bridge_connection": {
+        "name": "Cloud-Verbindung der Bridge"
+      },
+      "overlay": {
+        "name": "Manuelle Änderung"
+      },
+      "power": {
+        "name": "Betrieb"
+      },
+      "connectivity": {
+        "name": "Verbindung"
+      },
+      "mold_risk": {
+        "name": "Schimmelrisiko",
+        "state": {
+          "on": "Ja",
+          "off": "Nein"
+        }
+      },
+      "ventilation_recommended": {
+        "name": "Lüften empfohlen"
+      },
+      "reduced_polling_active": {
+        "name": "Reduzierte Abfrage aktiv"
+      },
+      "call_jitter_enabled": {
+        "name": "Zufällige Verzögerung aktiv"
+      },
+      "disable_polling_when_throttled": {
+        "name": "Abfrage bei Drosselung stoppen"
+      },
+      "refresh_after_resume": {
+        "name": "Status nach Fortsetzen abrufen"
+      },
+      "fetch_extended_data": {
+        "name": "Erweiterte Daten laden"
+      },
+      "feature_dew_point": {
+        "name": "Taupunkt"
+      },
+      "feature_mold_detection": {
+        "name": "Schimmelerkennung"
+      },
+      "full_cloud_mode": {
+        "name": "Vollständiger Cloud-Modus"
+      },
+      "window_resume_batch": {
+        "name": "Fortsetzen sammeln"
+      },
+      "recovery_cloud_replay": {
+        "name": "Cloud-Funktionen bei Wiederkehr"
+      },
+      "feature_flow_temperature_optimization": {
+        "name": "Vorlauftemperatur-Optimierung"
+      },
+      "log_version_prefix": {
+        "name": "Version im Protokoll"
       }
     },
     "switch": {
       "polling_active": {
-        "name": "Globales Polling"
+        "name": "Globale Abfrage"
       },
       "reduced_polling_logic": {
-        "name": "Reduzierte Polling-Logik"
+        "name": "Reduzierte Abfrage"
       },
       "suppress_redundant_calls": {
         "name": "Redundante Aufrufe unterdrücken"
       },
       "suppress_redundant_buttons": {
-        "name": "Redundante Button-Aktionen unterdrücken"
+        "name": "Redundante Schaltflächen unterdrücken"
       },
       "schedule": {
         "name": "Zeitplan"
@@ -223,7 +299,7 @@
         "name": "Offset kalibrieren"
       },
       "refresh_away": {
-        "name": "Away-Temperaturen aktualisieren"
+        "name": "Abwesenheitstemperaturen aktualisieren"
       },
       "refresh_presence": {
         "name": "Anwesenheit aktualisieren"
@@ -261,10 +337,10 @@
         "name": "Temperatur-Offset"
       },
       "away_temperature": {
-        "name": "Away-Temperatur"
+        "name": "Abwesenheitstemperatur"
       },
       "open_window_timeout": {
-        "name": "Fenster-Offen-Timeout"
+        "name": "Zeitlimit bei offenem Fenster"
       },
       "target_temperature": {
         "name": "Soll-Temperatur"
@@ -286,19 +362,28 @@
         }
       },
       "zone_temp_source": {
-        "name": "Temperaturquelle"
+        "name": "Temperaturquelle",
+        "state": {
+          "device": "Gerät"
+        }
       },
       "zone_humidity_source": {
-        "name": "Luftfeuchtigkeitsquelle"
+        "name": "Luftfeuchtigkeitsquelle",
+        "state": {
+          "device": "Gerät"
+        }
       },
       "zone_window_sensor": {
-        "name": "Fenster-Sensor"
+        "name": "Fenster-Sensor",
+        "state": {
+          "none": "Keiner"
+        }
       },
       "zone_window_mode": {
         "name": "Fenstermodus",
         "state": {
-          "direct": "Direkt",
-          "timeout": "Aus + Auto-Resume nach Timeout"
+          "direct": "Sofort",
+          "timeout": "Timeout"
         }
       },
       "fan_speed": {
@@ -311,7 +396,7 @@
         }
       },
       "vertical_swing": {
-        "name": "Vertikaler Swing",
+        "name": "Vertikales Schwenken",
         "state": {
           "on": "An",
           "off": "Aus",
@@ -319,7 +404,7 @@
         }
       },
       "horizontal_swing": {
-        "name": "Horizontaler Swing",
+        "name": "Horizontales Schwenken",
         "state": {
           "on": "An",
           "off": "Aus",
@@ -346,8 +431,9 @@
           "18h": "Alle 18 Stunden (ab 00:00)",
           "21h": "Alle 21 Stunden (ab 00:00)",
           "24h": "1x am Tag (00:00)",
-          "on_reset": "1x nach Quota-Reset",
-          "inherit": "Erben (Bridge)"
+          "on_reset": "Einmal nach Kontingent-Rücksetzung",
+          "threshold": "Sobald die Abweichung den Schwellwert erreicht",
+          "inherit": "Standard (Bridge)"
         }
       }
     },
@@ -411,8 +497,8 @@
           "fetch_extended_data": "Erweiterte Daten laden"
         },
         "data_description": {
-          "full_cloud_mode": "Klima-Entitäten via Cloud-Polling aktivieren.\n\n**Erforderlich für V2 Bridges (GW)**, da diese kein HomeKit unterstützen. Für V3 (IB01/GW01) und Tado X deaktiviert lassen, um HomeKit/Matter zu nutzen.",
-          "fetch_extended_data": "Lädt zusätzliche Daten während der **initialen Einrichtung**. Kosten: **1 API-Aufruf pro Gerät** (Temperatur-Offset) + **1 API-Aufruf pro Heiz-Zone** (Abwesenheits-Temperatur). Nach der ersten Abfrage werden die Daten gemäß den konfigurierten Intervallen geladen. Deaktivieren, um Kontingent zu sparen."
+          "full_cloud_mode": "Klimasteuerung über die Cloud aktivieren.\n\n**Nötig für V2-Bridges (GW)**, weil sie kein HomeKit unterstützen. Für V3 (IB01/GW01) und Tado X aus lassen und stattdessen HomeKit oder Matter nutzen.",
+          "fetch_extended_data": "Lädt zusätzliche Daten während der **ersten Einrichtung**. Kosten: **1 API-Aufruf pro Gerät** (Temperatur-Offset) + **1 API-Aufruf pro Heizzone** (Abwesenheitstemperatur). Danach gelten die eingestellten Intervalle. Aus, um Kontingent zu sparen."
         }
       },
       "reauth_confirm": {
@@ -428,62 +514,91 @@
         "description": "Alle Einstellungen über aufklappbare Bereiche konfigurieren.",
         "sections": {
           "general_polling": {
-            "name": "Allgemeine Polling-Intervalle",
+            "name": "Allgemeine Abfrageintervalle",
             "data": {
-              "scan_interval": "Status Polling Intervall (Sekunden)",
-              "presence_poll_interval": "Anwesenheits Polling Intervall (Sekunden)",
-              "slow_poll_interval": "Hardware-Sync Intervall (Sekunden)",
-              "offset_poll_interval": "Offset Update Intervall (Sekunden)"
+              "scan_interval": "Abfrageintervall Status (Sekunden)",
+              "presence_poll_interval": "Abfrageintervall Anwesenheit (Sekunden)",
+              "slow_poll_interval": "Hardware-Sync Intervall (Sekunden)"
             },
             "data_description": {
-              "scan_interval": "Intervall für Raumdaten (Temp, Feuchtigkeit, Heizleistung). WICHTIG: Wird bei aktiver 'Auto API Quota' dynamisch überschrieben und dient dann nur als Fallback bei Erschöpfung des berechneten Auto-Quota-Budgets.",
-              "presence_poll_interval": "Wie oft der Home/Away Status geprüft wird. Ein hoher Wert (z.B. 43200s/12h) spart API-Quota, falls HA-Anwesenheit genutzt wird.",
-              "slow_poll_interval": "Wie oft Batterien, Firmware, Fähigkeiten und die Geräteliste geprüft werden. 86400s (24h) wird dringend empfohlen.",
-              "offset_poll_interval": "Wie oft Temperatur-Offsets abgerufen werden. Kostet 1 API-Aufruf PRO VENTIL. 0 = deaktiviert."
-            }
-          },
-          "api_quota": {
-            "name": "Auto-API-Kontingent & Sicherheit",
-            "data": {
-              "auto_api_quota_percent": "Auto-API-Kontingent (%)",
-              "throttle_threshold": "Drosselungs-Schwelle (Sicherheits-Puffer)",
-              "quota_safety_reserve": "Kontingent-Sicherheitsreserve",
-              "min_auto_quota_interval_s": "Minimales Auto-Quota-Intervall",
-              "disable_polling_when_throttled": "Polling stoppen wenn gedrosselt",
-              "refresh_after_resume": "Status nach Zeitplan-Fortsetzung abrufen",
-              "recovery_cloud_replay": "Cloud-only-Features bei Wiederherstellung nachsenden",
-              "suppress_redundant_calls": "Redundante API-Aufrufe unterdrücken",
-              "suppress_redundant_buttons": "Redundante Button-Aktionen unterdrücken"
-            },
-            "data_description": {
-              "auto_api_quota_percent": "Nutze X% des FREIEN Tageskontingents für Status-Abfragen (0 = deaktiviert). FREI = Limit - Hintergrund-Reserve (Syncs) - Externe-Aktivität (Automationen, App-Nutzung über dem Puffer). Hybrid-Strategie: Nutzt MAX(Tagesbudget - Verbraucht, Verbleibend * X%) → System fragt IMMER weiter ab, auch wenn Tagesbudget überschritten.",
-              "throttle_threshold": "Reserviert N Aufrufe für ALLES außerhalb des Hijack-Hintergrund-Pollings (Automationen, Skripte, manuelle App-Nutzung). Die Abfrage stoppt bei Erreichen dieser Schwelle (throttle_threshold), um deren Funktion zu sichern. Empfohlen: 20. 0 = deaktiviert.",
-              "quota_safety_reserve": "API-Aufrufe, die für das selbstlernende Reset-Fenster reserviert werden. Das System lernt den Reset-Zeitpunkt automatisch und verteilt diese Reserve adaptiv während des Fensters, um Cloud-Schwankungen zu überbrücken. 0 = deaktiviert (nicht empfohlen). Standard: 2.",
-              "min_auto_quota_interval_s": "Minimales Abfrage-Intervall in Sekunden (5-43200 = 12h max). Standard-API: 5s Minimum. Proxy: 120s Minimum erzwungen. Niedriger = schnellere Updates aber höherer API-Verbrauch. Standard 20s.",
-              "disable_polling_when_throttled": "Stoppt die periodische Abfrage vollständig, wenn das verbleibende Kontingent den Puffer (throttle_threshold) erreicht.",
-              "refresh_after_resume": "Automatisch Zieltemperatur/Status abrufen nach 'resume_schedule' (HVAC AUTO). Notwendig, da Zeitpläne Tado-Cloud-seitig verwaltet werden. Nutzt 1s Karenzzeit (Grace-Period), um mehrere Fortsetzungen zusammenzufassen. Kostet 1 API-Aufruf.",
-              "recovery_cloud_replay": "Wird ein offlinees TRV (HomeKit oder Matter) wieder verfügbar, lassen sich Cloud-only-Features (z. B. Resume Schedule) nicht lokal wiedergeben. Falls aktiviert, werden diese Befehle zusätzlich an die Tado-Cloud gesendet (1 API-Aufruf pro Zone). Deaktivieren, um Kontingent zu sparen.",
-              "suppress_redundant_calls": "Überspringe API-Aufrufe wenn Zielzustand dem Cache entspricht (Temperatur, Modus, Anwesenheit, Power). Spart Kontingent bei versehentlichem Doppelklick oder UI-Interaktionen. Sendet nur bei tatsächlicher Änderung. Werte die nicht im Cache sind werden immer gesendet.",
-              "suppress_redundant_buttons": "Überspringe auch Button-Aktionen (resume_all, boost_all, turn_off_all, set_mode_all) wenn alle Zonen bereits im Zielzustand. Benötigt 'Redundante API-Aufrufe unterdrücken'. Einzelne explizite Aktionen und Synchronisierungs-Buttons werden immer gesendet."
+              "scan_interval": "Intervall für Raumdaten (Temperatur, Feuchtigkeit, Heizleistung). WICHTIG: Bei aktivem automatischen API-Kontingent wird dieser Wert überschrieben. Er gilt nur als Ersatz, wenn das berechnete Kontingent aufgebraucht ist.",
+              "presence_poll_interval": "Wie oft Zuhause oder Abwesend geprüft wird. Ein hoher Wert (z. B. 43200 s / 12 h) spart API-Aufrufe, wenn die Anwesenheit aus Home Assistant kommt.",
+              "slow_poll_interval": "Wie oft Batterie, Firmware, Fähigkeiten und die Geräteliste geprüft werden. 86400 s (24 h) ist empfohlen."
             }
           },
           "reduced_polling": {
             "name": "Sparfenster",
             "data": {
-              "reduced_polling_active": "Reduziertes Polling aktiv",
+              "reduced_polling_active": "Reduzierte Abfrage aktiv",
               "reduced_polling_start": "Startzeit des Fensters",
               "reduced_polling_end": "Endzeit des Fensters",
               "reduced_polling_interval": "Intervall im Sparfenster (Sekunden)"
             },
             "data_description": {
-              "reduced_polling_active": "Aktiviert das zeitbasierte, gewichtete Polling-Profil.",
+              "reduced_polling_active": "Aktiviert das zeitbasierte, gewichtete Abfrageprofil.",
               "reduced_polling_start": "Zeitpunkt, an dem das Sparfenster beginnt (z. B. 22:00).",
               "reduced_polling_end": "Zeitpunkt, an dem das Sparfenster endet (z. B. 07:00).",
-              "reduced_polling_interval": "Polling-Intervall während des Sparfensters (z.B. 3600s = 1h). Auf 0 setzen für Pause."
+              "reduced_polling_interval": "Abfrageintervall im Sparfenster (z. B. 3600 s = 1 h). 0 pausiert die Abfrage."
+            }
+          },
+          "api_quota": {
+            "name": "Auto-API-Kontingent und Reserve",
+            "data": {
+              "auto_api_quota_percent": "Auto-API-Kontingent (%)",
+              "throttle_threshold": "Drosselungs-Schwelle (Sicherheits-Puffer)",
+              "quota_safety_reserve": "Kontingent-Sicherheitsreserve",
+              "min_auto_quota_interval_s": "Kürzestes Intervall des automatischen Kontingents",
+              "disable_polling_when_throttled": "Abfrage stoppen, wenn gedrosselt",
+              "suppress_redundant_calls": "Redundante API-Aufrufe unterdrücken",
+              "suppress_redundant_buttons": "Redundante Schaltflächen unterdrücken"
+            },
+            "data_description": {
+              "auto_api_quota_percent": "Nutze X % des freien Tageskontingents für Statusabfragen (0 = aus). Frei = Limit minus Reserve für den Hintergrund (Synchronisation) minus Aktivität von außen (Automatisierungen, App über dem Puffer). Es gilt der größere Wert aus (Tagesbudget minus bereits verbraucht) und (verbleibend mal X %). Die Abfrage läuft weiter, auch wenn das Tagesbudget überschritten ist.",
+              "throttle_threshold": "Reserviert N Aufrufe für alles außerhalb der Hintergrundabfrage (Automatisierungen, Skripte, App). Die Abfrage stoppt an dieser Schwelle, damit diese Aufrufe noch durchkommen. Empfohlen: 20. 0 = aus.",
+              "quota_safety_reserve": "API-Aufrufe für das selbstlernende Rücksetzfenster. Der Zeitpunkt der Rücksetzung wird gelernt und die Reserve in diesem Fenster verteilt, um Schwankungen der Cloud abzufangen. 0 = aus (nicht empfohlen). Standard: 2.",
+              "min_auto_quota_interval_s": "Kürzestes Abfrageintervall in Sekunden (5 bis 43200, also höchstens 12 Stunden). Normale API: mindestens 5 s. Proxy: mindestens 120 s. Kürzer heißt schnellere Updates und mehr API-Aufrufe. Standard: 20 s.",
+              "disable_polling_when_throttled": "Stoppt die regelmäßige Abfrage ganz, wenn das verbleibende Kontingent den Puffer erreicht.",
+              "suppress_redundant_calls": "API-Aufrufe überspringen, wenn der Zielzustand dem Zwischenspeicher entspricht (Temperatur, Modus, Anwesenheit, Leistung). Spart Kontingent bei einem Doppelklick oder bei Bedienung in der Oberfläche. Gesendet wird nur bei einer echten Änderung. Werte, die nicht im Zwischenspeicher stehen, werden immer gesendet.",
+              "suppress_redundant_buttons": "Auch Schaltflächen-Aktionen überspringen (resume_all, boost_all, turn_off_all, set_mode_all), wenn alle Zonen schon im Zielzustand sind. Benötigt „Redundante API-Aufrufe unterdrücken“. Einzelne ausdrückliche Aktionen und die Aktualisieren-Schaltflächen werden immer gesendet."
+            }
+          },
+          "window": {
+            "name": "Fenster",
+            "data": {
+              "window_resume_batch": "„Zeitplan fortsetzen“ sammeln und verzögert senden",
+              "window_resume_batch_s": "Wartezeit, bevor das Fortsetzen gesendet wird",
+              "offset_cal_window_settle_s": "Pause nach Fenster zu"
+            },
+            "data_description": {
+              "window_resume_batch": "Beim Schließen oder wenn das Zeitlimit des offenen Fensters endet, wird die Temperatur von vor dem Öffnen sofort am lokalen HomeKit- oder Matter-Klima gesetzt. Lief ein Zeitplan, wartet das Senden an die Cloud, damit Zonen im selben Zeitraum zusammen rausgehen. Lief keiner, wird nur lokal gesetzt. Standard: an.",
+              "window_resume_batch_s": "Sekunden, die das Senden an die Cloud wartet. Räume, die in dieser Zeit zugehen oder deren Zeitlimit endet, teilen sich einen Aufruf. Standard: 120. 0 sendet beim nächsten Durchlauf. Nur wenn Sammeln und Verzögern an ist.",
+              "offset_cal_window_settle_s": "Im Modus Schwelle wird eine Zone ignoriert, solange ihr Fenstersensor offen ist. Nach dem Schließen so lange warten, bis Heizkörper und Raumfühler sich angeglichen haben. Standard: 300 Sekunden."
+            }
+          },
+          "offset": {
+            "name": "Offset-Kalibrierung",
+            "data": {
+              "offset_poll_interval": "Abfrageintervall Temperatur-Offset (Sekunden)",
+              "offset_cal_send_cooldown_s": "Pause nach dem Schreiben eines Offsets (Schwelle)"
+            },
+            "data_description": {
+              "offset_poll_interval": "Wie oft Temperatur-Offsets abgerufen werden. Kostet 1 API-Aufruf pro Ventil. 0 = aus.",
+              "offset_cal_send_cooldown_s": "Nach einem Offset-Schreiben im Modus Schwelle so lange warten, bevor erneut geschrieben wird. Verhindert einen zweiten Aufruf, solange die Messung hinterherhinkt. Standard: 300 Sekunden."
+            }
+          },
+          "recovery": {
+            "name": "Wiederherstellung und Zeitplan",
+            "data": {
+              "recovery_cloud_replay": "Cloud-Funktionen bei Wiederkehr nachsenden",
+              "refresh_after_resume": "Status nach Zeitplan-Fortsetzung abrufen"
+            },
+            "data_description": {
+              "recovery_cloud_replay": "Kommt ein TRV (HomeKit oder Matter) nach einem Offline-Zustand wieder online, lassen sich Funktionen, die nur die Cloud kann (zum Beispiel Zeitplan fortsetzen), nicht lokal nachholen. Wenn an, gehen diese Befehle zusätzlich an die Tado-Cloud (1 API-Aufruf pro Zone). Aus, um Kontingent zu sparen.",
+              "refresh_after_resume": "Nach dem Fortsetzen des Zeitplans bei Klima oder Warmwasser die Zonen einmal lesen, damit die Zieltemperatur da ist. Heizkörper nicht. Mehrere Fortsetzungen kurz nacheinander teilen sich diese Abfrage. Kostet 1 API-Aufruf."
             }
           },
           "features": {
-            "name": "Features",
+            "name": "Funktionen",
             "data": {
               "feature_dew_point": "Taupunkt-Sensor",
               "feature_flow_temperature_optimization": "Vorlauftemperatur-Optimierung",
@@ -493,8 +608,8 @@
             },
             "data_description": {
               "feature_dew_point": "Erstellt einen Taupunkt-Sensor pro Zone. Berechnet aus Raumtemperatur und Luftfeuchtigkeit. WICHTIG für Tado X: Erfordert zwingend eine verknüpfte Temperaturquelle am Zonen-Gerät, da die Cloud-API für Tado X keine Temperatur liefert.",
-              "feature_flow_temperature_optimization": "Fragt die Tado-X-Einstellungen zur Vorlauftemperatur-Optimierung ab (benötigt ein OpenTherm-Kesselregelungsgerät) und stellt eine Max.-Vorlauftemperatur-Zahlenentität sowie einen Schalter für die automatische Anpassung bereit. Kostet 1 API-Aufruf pro Metadaten-Poll. Standardmäßig deaktiviert, um API-Quota zu sparen.",
-              "feature_mold_detection": "Erstellt Schimmelrisiko-Sensoren pro Zone. Enthält ein Risikolevel (keins/niedrig/mittel/hoch) und einen binären Sensor für akutes Schimmelrisiko. WICHTIG für Tado X: Erfordert zwingend eine verknüpfte Temperaturquelle am Zonen-Gerät.",
+              "feature_flow_temperature_optimization": "Fragt die Tado-X-Einstellungen zur Vorlauftemperatur-Optimierung ab (benötigt ein OpenTherm-Kesselregelungsgerät) und stellt eine Zahl für die maximale Vorlauftemperatur sowie einen Schalter für die automatische Anpassung bereit. Kostet 1 API-Aufruf pro Metadaten-Abfrage. Standardmäßig aus, um API-Kontingent zu sparen.",
+              "feature_mold_detection": "Erstellt Schimmelrisiko-Sensoren pro Zone. Enthält eine Risikostufe (keins/niedrig/mittel/hoch) und einen binären Sensor für akutes Schimmelrisiko. WICHTIG für Tado X: Erfordert eine verknüpfte Temperaturquelle am Zonen-Gerät.",
               "outdoor_weather_entity": "Wähle eine Wetter-Entität (z. B. weather.home) aus, die Außentemperatur und Luftfeuchtigkeit bereitstellt. Dies wird benötigt, um die absolute Luftfeuchtigkeit innen zu berechnen und 'Lüften empfohlen'-Sensoren zu aktivieren. Der Sensor meldet 'Ja', wenn Lüften die Feuchtigkeit im Raum effektiv senkt.",
               "ventilation_ah_threshold": "Mindest-Differenz der absoluten Luftfeuchtigkeit zwischen innen und außen, ab der 'Lüften empfohlen' auf 'Ja' springt. Ein Wert von 1,0 g/m³ (Gramm Wasser pro Kubikmeter Luft) bedeutet, dass die Außenluft deutlich trockener sein muss als die Innenluft, bevor eine Empfehlung erfolgt. Verhindert flatternde Sensoren bei minimalen Unterschieden. Standard: 1,0."
             }
@@ -504,20 +619,20 @@
             "data": {
               "api_proxy_url": "API-Proxy-URL (Optional)",
               "proxy_token": "API-Proxy-Token (Optional)",
-              "call_jitter_enabled": "Call-Jitter aktivieren (Proxy)",
-              "jitter_percent": "Jitter-Stärke (+/- %)",
-              "debounce_time": "Debounce-Zeit (Sekunden)",
-              "log_level": "Log-Level",
-              "log_version_prefix": "Version in Logs anzeigen"
+              "call_jitter_enabled": "Zufällige Verzögerung aktivieren (Proxy)",
+              "jitter_percent": "Stärke der Zufallsabweichung (+/- %)",
+              "debounce_time": "Entprellzeit (Sekunden)",
+              "log_level": "Protokollstufe",
+              "log_version_prefix": "Version im Protokoll anzeigen"
             },
             "data_description": {
               "api_proxy_url": "Fortgeschritten: Basis-URL einer lokalen tado-api-proxy Instanz (z.B. http://192.168.1.5:8080). NICHT /api/v2 anhängen. Repo: https://github.com/s1adem4n/tado-api-proxy",
               "proxy_token": "Optional: Authentifizierungs-Token für den Proxy. Wird automatisch in den URL-Pfad eingebaut (base_url/token/api/v2).",
-              "call_jitter_enabled": "Fügt zufällige Verzögerungen vor API-Aufrufen ein, um Automations-Muster zu verschleiern. Nur bei Proxy-Nutzung wirksam.",
-              "jitter_percent": "Stärke der zufälligen Abweichung für Polls und Calls. Standard 10% (z.B. 60s -> 54-66s).",
-              "debounce_time": "Zeitfenster um schnelle Änderungen zu sammeln bevor sie gesendet werden. Standard 5s.",
-              "log_level": "Steuert die Detailtiefe der Protokollierung. DEBUG zeigt alle API-Details (maskiert), INFO zeigt wichtige System-Events.",
-              "log_version_prefix": "Fügt [vX.Y.Z] als Präfix zu jeder Log-Nachricht der Integration hinzu. Ermöglicht sofortige Versionserkennung in jedem Log-Ausschnitt."
+              "call_jitter_enabled": "Fügt zufällige Verzögerungen vor API-Aufrufen ein, um Muster von Automatisierungen zu verwischen. Nur bei Proxy-Nutzung wirksam.",
+              "jitter_percent": "Stärke der zufälligen Abweichung für Abfragen und Aufrufe. Standard: 10 % (z. B. aus 60 s werden 54-66 s).",
+              "debounce_time": "Zeitfenster, in dem schnelle Änderungen gesammelt werden, bevor sie gesendet werden. Standard: 5 s.",
+              "log_level": "Steuert, wie ausführlich protokolliert wird. DEBUG zeigt alle API-Details (maskiert), INFO wichtige Ereignisse.",
+              "log_version_prefix": "Setzt [vX.Y.Z] vor jede Protokollzeile dieser Integration. Die laufende Version ist dann in jedem Ausschnitt sichtbar."
             }
           }
         }
@@ -539,62 +654,91 @@
         "description": "Alle Einstellungen über aufklappbare Bereiche konfigurieren.",
         "sections": {
           "general_polling": {
-            "name": "Allgemeine Polling-Intervalle",
+            "name": "Allgemeine Abfrageintervalle",
             "data": {
-              "scan_interval": "Status Polling Intervall (Sekunden)",
-              "presence_poll_interval": "Anwesenheits Polling Intervall (Sekunden)",
-              "slow_poll_interval": "Hardware-Sync Intervall (Sekunden)",
-              "offset_poll_interval": "Offset Update Intervall (Sekunden)"
+              "scan_interval": "Abfrageintervall Status (Sekunden)",
+              "presence_poll_interval": "Abfrageintervall Anwesenheit (Sekunden)",
+              "slow_poll_interval": "Hardware-Sync Intervall (Sekunden)"
             },
             "data_description": {
-              "scan_interval": "Intervall für Raumdaten (Temp, Feuchtigkeit, Heizleistung). WICHTIG: Wird bei aktiver 'Auto API Quota' dynamisch überschrieben und dient dann nur als Fallback bei Erschöpfung des berechneten Auto-Quota-Budgets.",
-              "presence_poll_interval": "Wie oft der Home/Away Status geprüft wird. Ein hoher Wert (z.B. 43200s/12h) spart API-Quota, falls HA-Anwesenheit genutzt wird.",
-              "slow_poll_interval": "Wie oft Batterien, Firmware, Fähigkeiten und die Geräteliste geprüft werden. 86400s (24h) wird dringend empfohlen.",
-              "offset_poll_interval": "Wie oft Temperatur-Offsets abgerufen werden. Kostet 1 API-Aufruf PRO VENTIL. 0 = deaktiviert."
-            }
-          },
-          "api_quota": {
-            "name": "Auto-API-Kontingent & Sicherheit",
-            "data": {
-              "auto_api_quota_percent": "Auto-API-Kontingent (%)",
-              "throttle_threshold": "Drosselungs-Schwelle (Sicherheits-Puffer)",
-              "quota_safety_reserve": "Kontingent-Sicherheitsreserve",
-              "min_auto_quota_interval_s": "Minimales Auto-Quota-Intervall",
-              "disable_polling_when_throttled": "Polling stoppen wenn gedrosselt",
-              "refresh_after_resume": "Status nach Zeitplan-Fortsetzung abrufen",
-              "recovery_cloud_replay": "Cloud-only-Features bei Wiederherstellung nachsenden",
-              "suppress_redundant_calls": "Redundante API-Aufrufe unterdrücken",
-              "suppress_redundant_buttons": "Redundante Button-Aktionen unterdrücken"
-            },
-            "data_description": {
-              "auto_api_quota_percent": "Nutze X% des FREIEN Tageskontingents für Status-Abfragen (0 = deaktiviert). FREI = Limit - Hintergrund-Reserve (Syncs) - Externe-Aktivität (Automationen, App-Nutzung über dem Puffer). Hybrid-Strategie: Nutzt MAX(Tagesbudget - Verbraucht, Verbleibend * X%) → System fragt IMMER weiter ab, auch wenn Tagesbudget überschritten.",
-              "throttle_threshold": "Reserviert N Aufrufe für ALLES außerhalb des Hijack-Hintergrund-Pollings (Automationen, Skripte, manuelle App-Nutzung). Die Abfrage stoppt bei Erreichen dieser Schwelle (throttle_threshold), um deren Funktion zu sichern. Empfohlen: 20. 0 = deaktiviert.",
-              "quota_safety_reserve": "API-Aufrufe, die für das selbstlernende Reset-Fenster reserviert werden. Das System lernt den Reset-Zeitpunkt automatisch und verteilt diese Reserve adaptiv während des Fensters, um Cloud-Schwankungen zu überbrücken. 0 = deaktiviert (nicht empfohlen). Standard: 2.",
-              "min_auto_quota_interval_s": "Minimales Abfrage-Intervall in Sekunden (5-43200 = 12h max). Standard-API: 5s Minimum. Proxy: 120s Minimum erzwungen. Niedriger = schnellere Updates aber höherer API-Verbrauch. Standard 20s.",
-              "disable_polling_when_throttled": "Stoppt die periodische Abfrage vollständig, wenn das verbleibende Kontingent den Puffer (throttle_threshold) erreicht.",
-              "refresh_after_resume": "Automatisch Zieltemperatur/Status abrufen nach 'resume_schedule' (HVAC AUTO). Notwendig, da Zeitpläne Tado-Cloud-seitig verwaltet werden. Nutzt 1s Karenzzeit (Grace-Period), um mehrere Fortsetzungen zusammenzufassen. Kostet 1 API-Aufruf.",
-              "recovery_cloud_replay": "Wird ein offlinees TRV (HomeKit oder Matter) wieder verfügbar, lassen sich Cloud-only-Features (z. B. Resume Schedule) nicht lokal wiedergeben. Falls aktiviert, werden diese Befehle zusätzlich an die Tado-Cloud gesendet (1 API-Aufruf pro Zone). Deaktivieren, um Kontingent zu sparen.",
-              "suppress_redundant_calls": "Überspringe API-Aufrufe wenn Zielzustand dem Cache entspricht (Temperatur, Modus, Anwesenheit, Power). Spart Kontingent bei versehentlichem Doppelklick oder UI-Interaktionen. Sendet nur bei tatsächlicher Änderung. Werte die nicht im Cache sind werden immer gesendet.",
-              "suppress_redundant_buttons": "Überspringe auch Button-Aktionen (resume_all, boost_all, turn_off_all, set_mode_all) wenn alle Zonen bereits im Zielzustand. Benötigt 'Redundante API-Aufrufe unterdrücken'. Einzelne explizite Aktionen und Synchronisierungs-Buttons werden immer gesendet."
+              "scan_interval": "Intervall für Raumdaten (Temperatur, Feuchtigkeit, Heizleistung). WICHTIG: Bei aktivem automatischen API-Kontingent wird dieser Wert überschrieben. Er gilt nur als Ersatz, wenn das berechnete Kontingent aufgebraucht ist.",
+              "presence_poll_interval": "Wie oft Zuhause oder Abwesend geprüft wird. Ein hoher Wert (z. B. 43200 s / 12 h) spart API-Aufrufe, wenn die Anwesenheit aus Home Assistant kommt.",
+              "slow_poll_interval": "Wie oft Batterie, Firmware, Fähigkeiten und die Geräteliste geprüft werden. 86400 s (24 h) ist empfohlen."
             }
           },
           "reduced_polling": {
             "name": "Sparfenster",
             "data": {
-              "reduced_polling_active": "Reduziertes Polling aktiv",
+              "reduced_polling_active": "Reduzierte Abfrage aktiv",
               "reduced_polling_start": "Startzeit des Fensters",
               "reduced_polling_end": "Endzeit des Fensters",
               "reduced_polling_interval": "Intervall im Sparfenster (Sekunden)"
             },
             "data_description": {
-              "reduced_polling_active": "Aktiviert das zeitbasierte, gewichtete Polling-Profil.",
+              "reduced_polling_active": "Aktiviert das zeitbasierte, gewichtete Abfrageprofil.",
               "reduced_polling_start": "Zeitpunkt, an dem das Sparfenster beginnt (z. B. 22:00).",
               "reduced_polling_end": "Zeitpunkt, an dem das Sparfenster endet (z. B. 07:00).",
-              "reduced_polling_interval": "Polling-Intervall während des Sparfensters (z.B. 3600s = 1h). Auf 0 setzen für Pause."
+              "reduced_polling_interval": "Abfrageintervall im Sparfenster (z. B. 3600 s = 1 h). 0 pausiert die Abfrage."
+            }
+          },
+          "api_quota": {
+            "name": "Auto-API-Kontingent und Reserve",
+            "data": {
+              "auto_api_quota_percent": "Auto-API-Kontingent (%)",
+              "throttle_threshold": "Drosselungs-Schwelle (Sicherheits-Puffer)",
+              "quota_safety_reserve": "Kontingent-Sicherheitsreserve",
+              "min_auto_quota_interval_s": "Kürzestes Intervall des automatischen Kontingents",
+              "disable_polling_when_throttled": "Abfrage stoppen, wenn gedrosselt",
+              "suppress_redundant_calls": "Redundante API-Aufrufe unterdrücken",
+              "suppress_redundant_buttons": "Redundante Schaltflächen unterdrücken"
+            },
+            "data_description": {
+              "auto_api_quota_percent": "Nutze X % des freien Tageskontingents für Statusabfragen (0 = aus). Frei = Limit minus Reserve für den Hintergrund (Synchronisation) minus Aktivität von außen (Automatisierungen, App über dem Puffer). Es gilt der größere Wert aus (Tagesbudget minus bereits verbraucht) und (verbleibend mal X %). Die Abfrage läuft weiter, auch wenn das Tagesbudget überschritten ist.",
+              "throttle_threshold": "Reserviert N Aufrufe für alles außerhalb der Hintergrundabfrage (Automatisierungen, Skripte, App). Die Abfrage stoppt an dieser Schwelle, damit diese Aufrufe noch durchkommen. Empfohlen: 20. 0 = aus.",
+              "quota_safety_reserve": "API-Aufrufe für das selbstlernende Rücksetzfenster. Der Zeitpunkt der Rücksetzung wird gelernt und die Reserve in diesem Fenster verteilt, um Schwankungen der Cloud abzufangen. 0 = aus (nicht empfohlen). Standard: 2.",
+              "min_auto_quota_interval_s": "Kürzestes Abfrageintervall in Sekunden (5 bis 43200, also höchstens 12 Stunden). Normale API: mindestens 5 s. Proxy: mindestens 120 s. Kürzer heißt schnellere Updates und mehr API-Aufrufe. Standard: 20 s.",
+              "disable_polling_when_throttled": "Stoppt die regelmäßige Abfrage ganz, wenn das verbleibende Kontingent den Puffer erreicht.",
+              "suppress_redundant_calls": "API-Aufrufe überspringen, wenn der Zielzustand dem Zwischenspeicher entspricht (Temperatur, Modus, Anwesenheit, Leistung). Spart Kontingent bei einem Doppelklick oder bei Bedienung in der Oberfläche. Gesendet wird nur bei einer echten Änderung. Werte, die nicht im Zwischenspeicher stehen, werden immer gesendet.",
+              "suppress_redundant_buttons": "Auch Schaltflächen-Aktionen überspringen (resume_all, boost_all, turn_off_all, set_mode_all), wenn alle Zonen schon im Zielzustand sind. Benötigt „Redundante API-Aufrufe unterdrücken“. Einzelne ausdrückliche Aktionen und die Aktualisieren-Schaltflächen werden immer gesendet."
+            }
+          },
+          "window": {
+            "name": "Fenster",
+            "data": {
+              "window_resume_batch": "„Zeitplan fortsetzen“ sammeln und verzögert senden",
+              "window_resume_batch_s": "Wartezeit, bevor das Fortsetzen gesendet wird",
+              "offset_cal_window_settle_s": "Pause nach Fenster zu"
+            },
+            "data_description": {
+              "window_resume_batch": "Beim Schließen oder wenn das Zeitlimit des offenen Fensters endet, wird die Temperatur von vor dem Öffnen sofort am lokalen HomeKit- oder Matter-Klima gesetzt. Lief ein Zeitplan, wartet das Senden an die Cloud, damit Zonen im selben Zeitraum zusammen rausgehen. Lief keiner, wird nur lokal gesetzt. Standard: an.",
+              "window_resume_batch_s": "Sekunden, die das Senden an die Cloud wartet. Räume, die in dieser Zeit zugehen oder deren Zeitlimit endet, teilen sich einen Aufruf. Standard: 120. 0 sendet beim nächsten Durchlauf. Nur wenn Sammeln und Verzögern an ist.",
+              "offset_cal_window_settle_s": "Im Modus Schwelle wird eine Zone ignoriert, solange ihr Fenstersensor offen ist. Nach dem Schließen so lange warten, bis Heizkörper und Raumfühler sich angeglichen haben. Standard: 300 Sekunden."
+            }
+          },
+          "offset": {
+            "name": "Offset-Kalibrierung",
+            "data": {
+              "offset_poll_interval": "Abfrageintervall Temperatur-Offset (Sekunden)",
+              "offset_cal_send_cooldown_s": "Pause nach dem Schreiben eines Offsets (Schwelle)"
+            },
+            "data_description": {
+              "offset_poll_interval": "Wie oft Temperatur-Offsets abgerufen werden. Kostet 1 API-Aufruf pro Ventil. 0 = aus.",
+              "offset_cal_send_cooldown_s": "Nach einem Offset-Schreiben im Modus Schwelle so lange warten, bevor erneut geschrieben wird. Verhindert einen zweiten Aufruf, solange die Messung hinterherhinkt. Standard: 300 Sekunden."
+            }
+          },
+          "recovery": {
+            "name": "Wiederherstellung und Zeitplan",
+            "data": {
+              "recovery_cloud_replay": "Cloud-Funktionen bei Wiederkehr nachsenden",
+              "refresh_after_resume": "Status nach Zeitplan-Fortsetzung abrufen"
+            },
+            "data_description": {
+              "recovery_cloud_replay": "Kommt ein TRV (HomeKit oder Matter) nach einem Offline-Zustand wieder online, lassen sich Funktionen, die nur die Cloud kann (zum Beispiel Zeitplan fortsetzen), nicht lokal nachholen. Wenn an, gehen diese Befehle zusätzlich an die Tado-Cloud (1 API-Aufruf pro Zone). Aus, um Kontingent zu sparen.",
+              "refresh_after_resume": "Nach dem Fortsetzen des Zeitplans bei Klima oder Warmwasser die Zonen einmal lesen, damit die Zieltemperatur da ist. Heizkörper nicht. Mehrere Fortsetzungen kurz nacheinander teilen sich diese Abfrage. Kostet 1 API-Aufruf."
             }
           },
           "features": {
-            "name": "Features",
+            "name": "Funktionen",
             "data": {
               "feature_dew_point": "Taupunkt-Sensor",
               "feature_flow_temperature_optimization": "Vorlauftemperatur-Optimierung",
@@ -604,8 +748,8 @@
             },
             "data_description": {
               "feature_dew_point": "Erstellt einen Taupunkt-Sensor pro Zone. Berechnet aus Raumtemperatur und Luftfeuchtigkeit. WICHTIG für Tado X: Erfordert zwingend eine verknüpfte Temperaturquelle am Zonen-Gerät, da die Cloud-API für Tado X keine Temperatur liefert.",
-              "feature_flow_temperature_optimization": "Fragt die Tado-X-Einstellungen zur Vorlauftemperatur-Optimierung ab (benötigt ein OpenTherm-Kesselregelungsgerät) und stellt eine Max.-Vorlauftemperatur-Zahlenentität sowie einen Schalter für die automatische Anpassung bereit. Kostet 1 API-Aufruf pro Metadaten-Poll. Standardmäßig deaktiviert, um API-Quota zu sparen.",
-              "feature_mold_detection": "Erstellt Schimmelrisiko-Sensoren pro Zone. Enthält ein Risikolevel (keins/niedrig/mittel/hoch) und einen binären Sensor für akutes Schimmelrisiko. WICHTIG für Tado X: Erfordert zwingend eine verknüpfte Temperaturquelle am Zonen-Gerät.",
+              "feature_flow_temperature_optimization": "Fragt die Tado-X-Einstellungen zur Vorlauftemperatur-Optimierung ab (benötigt ein OpenTherm-Kesselregelungsgerät) und stellt eine Zahl für die maximale Vorlauftemperatur sowie einen Schalter für die automatische Anpassung bereit. Kostet 1 API-Aufruf pro Metadaten-Abfrage. Standardmäßig aus, um API-Kontingent zu sparen.",
+              "feature_mold_detection": "Erstellt Schimmelrisiko-Sensoren pro Zone. Enthält eine Risikostufe (keins/niedrig/mittel/hoch) und einen binären Sensor für akutes Schimmelrisiko. WICHTIG für Tado X: Erfordert eine verknüpfte Temperaturquelle am Zonen-Gerät.",
               "outdoor_weather_entity": "Wähle eine Wetter-Entität (z. B. weather.home) aus, die Außentemperatur und Luftfeuchtigkeit bereitstellt. Dies wird benötigt, um die absolute Luftfeuchtigkeit innen zu berechnen und 'Lüften empfohlen'-Sensoren zu aktivieren. Der Sensor meldet 'Ja', wenn Lüften die Feuchtigkeit im Raum effektiv senkt.",
               "ventilation_ah_threshold": "Mindest-Differenz der absoluten Luftfeuchtigkeit zwischen innen und außen, ab der 'Lüften empfohlen' auf 'Ja' springt. Ein Wert von 1,0 g/m³ (Gramm Wasser pro Kubikmeter Luft) bedeutet, dass die Außenluft deutlich trockener sein muss als die Innenluft, bevor eine Empfehlung erfolgt. Verhindert flatternde Sensoren bei minimalen Unterschieden. Standard: 1,0."
             }
@@ -615,20 +759,20 @@
             "data": {
               "api_proxy_url": "API-Proxy-URL (Optional)",
               "proxy_token": "API-Proxy-Token (Optional)",
-              "call_jitter_enabled": "Call-Jitter aktivieren (Proxy)",
-              "jitter_percent": "Jitter-Stärke (+/- %)",
-              "debounce_time": "Debounce-Zeit (Sekunden)",
-              "log_level": "Log-Level",
-              "log_version_prefix": "Version in Logs anzeigen"
+              "call_jitter_enabled": "Zufällige Verzögerung aktivieren (Proxy)",
+              "jitter_percent": "Stärke der Zufallsabweichung (+/- %)",
+              "debounce_time": "Entprellzeit (Sekunden)",
+              "log_level": "Protokollstufe",
+              "log_version_prefix": "Version im Protokoll anzeigen"
             },
             "data_description": {
               "api_proxy_url": "Fortgeschritten: Basis-URL einer lokalen tado-api-proxy Instanz (z.B. http://192.168.1.5:8080). NICHT /api/v2 anhängen. Repo: https://github.com/s1adem4n/tado-api-proxy",
               "proxy_token": "Optional: Authentifizierungs-Token für den Proxy. Wird automatisch in den URL-Pfad eingebaut (base_url/token/api/v2).",
-              "call_jitter_enabled": "Fügt zufällige Verzögerungen vor API-Aufrufen ein, um Automations-Muster zu verschleiern. Nur bei Proxy-Nutzung wirksam.",
-              "jitter_percent": "Stärke der zufälligen Abweichung für Polls und Calls. Standard 10% (z.B. 60s -> 54-66s).",
-              "debounce_time": "Zeitfenster um schnelle Änderungen zu sammeln bevor sie gesendet werden. Standard 5s.",
-              "log_level": "Steuert die Detailtiefe der Protokollierung. DEBUG zeigt alle API-Details (maskiert), INFO zeigt wichtige System-Events.",
-              "log_version_prefix": "Fügt [vX.Y.Z] als Präfix zu jeder Log-Nachricht der Integration hinzu. Ermöglicht sofortige Versionserkennung in jedem Log-Ausschnitt."
+              "call_jitter_enabled": "Fügt zufällige Verzögerungen vor API-Aufrufen ein, um Muster von Automatisierungen zu verwischen. Nur bei Proxy-Nutzung wirksam.",
+              "jitter_percent": "Stärke der zufälligen Abweichung für Abfragen und Aufrufe. Standard: 10 % (z. B. aus 60 s werden 54-66 s).",
+              "debounce_time": "Zeitfenster, in dem schnelle Änderungen gesammelt werden, bevor sie gesendet werden. Standard: 5 s.",
+              "log_level": "Steuert, wie ausführlich protokolliert wird. DEBUG zeigt alle API-Details (maskiert), INFO wichtige Ereignisse.",
+              "log_version_prefix": "Setzt [vX.Y.Z] vor jede Protokollzeile dieser Integration. Die laufende Version ist dann in jedem Ausschnitt sichtbar."
             }
           }
         }
@@ -638,29 +782,29 @@
   "services": {
     "manual_poll": {
       "name": "Manueller Abruf",
-      "description": "Erzwingt eine sofortige Aktualisierung der Daten von der Tado API. Mit entity_id wird nur das einzelne Gerät/Zone abgerufen (spart API-Quota).",
+      "description": "Erzwingt eine sofortige Aktualisierung von der Tado-API. Mit entity_id wird nur dieses Gerät oder diese Zone abgerufen (spart API-Aufrufe).",
       "fields": {
         "refresh_type": {
           "name": "Abruf-Typ",
           "description": "Welche Daten aktualisiert werden sollen. Gezielte Typen (offsets, away, capabilities, timetable, schedule) unterstützen entity_id für einen günstigeren Einzelabruf."
         },
         "entity_id": {
-          "name": "Entity (optional)",
-          "description": "Schränkt den Abruf auf eine einzelne Entity ein. Unterstützt für: offsets, away, capabilities, timetable, schedule. Andere Typen fallen auf einen vollständigen Refresh zurück."
+          "name": "Entität (optional)",
+          "description": "Schränkt den Abruf auf eine Entität ein. Unterstützt für: offsets, away, capabilities, timetable, schedule. Andere Typen laden alles neu."
         },
         "config_entry": {
           "name": "Tado-Zuhause (optional)",
-          "description": "Wählt ein bestimmtes Tado-Zuhause aus. Ohne Auswahl und ohne Entität werden alle konfigurierten Zuhause aktualisiert."
+          "description": "Wählt ein bestimmtes Tado-Zuhause aus. Ohne Auswahl und ohne Entität werden alle eingerichteten Häuser aktualisiert."
         }
       }
     },
     "resume_all_schedules": {
       "name": "Zeitpläne fortsetzen",
-      "description": "Entfernt alle manuellen Änderungen in allen Zonen und kehrt zum Smart Schedule zurück.",
+      "description": "Entfernt alle manuellen Änderungen in allen Zonen und kehrt zum intelligenten Zeitplan zurück.",
       "fields": {
         "config_entry": {
           "name": "Tado-Zuhause (optional)",
-          "description": "Wählt ein bestimmtes Tado-Zuhause aus. Ohne Auswahl gilt die Aktion für alle konfigurierten Zuhause."
+          "description": "Wählt ein bestimmtes Tado-Zuhause aus. Ohne Auswahl gilt die Aktion für alle eingerichteten Häuser."
         }
       }
     },
@@ -670,7 +814,7 @@
       "fields": {
         "config_entry": {
           "name": "Tado-Zuhause (optional)",
-          "description": "Wählt ein bestimmtes Tado-Zuhause aus. Ohne Auswahl gilt die Aktion für alle konfigurierten Zuhause."
+          "description": "Wählt ein bestimmtes Tado-Zuhause aus. Ohne Auswahl gilt die Aktion für alle eingerichteten Häuser."
         }
       }
     },
@@ -680,7 +824,7 @@
       "fields": {
         "config_entry": {
           "name": "Tado-Zuhause (optional)",
-          "description": "Wählt ein bestimmtes Tado-Zuhause aus. Ohne Auswahl gilt die Aktion für alle konfigurierten Zuhause."
+          "description": "Wählt ein bestimmtes Tado-Zuhause aus. Ohne Auswahl gilt die Aktion für alle eingerichteten Häuser."
         }
       }
     },
@@ -720,7 +864,7 @@
       "fields": {
         "config_entry": {
           "name": "Tado-Zuhause (optional)",
-          "description": "Wählt ein bestimmtes Tado-Zuhause aus. Ohne Auswahl gilt die Aktion für alle konfigurierten Zuhause."
+          "description": "Wählt ein bestimmtes Tado-Zuhause aus. Ohne Auswahl gilt die Aktion für alle eingerichteten Häuser."
         },
         "include_heating": {
           "name": "Heizung einbeziehen",
@@ -802,19 +946,19 @@
     },
     "set_schedule": {
       "name": "Zeitplan setzen",
-      "description": "Schreibt Tado-Smart-Schedule-Zeitblöcke für eine Zone. Ersetzt den ganzen Tag. all_days schreibt alle Tage des Zeitplantyps, days nur bestimmte Tage. Entweder blocks oder ein HA-Schedule-Helfer.",
+      "description": "Schreibt die Zeitblöcke des intelligenten Tado-Zeitplans für eine Zone. Ersetzt den ganzen Tag. all_days schreibt alle Tage dieses Zeitplantyps, days nur bestimmte Tage. Entweder blocks oder ein Zeitplan-Helfer von Home Assistant.",
       "fields": {
         "entity_id": {
           "name": "Entität",
-          "description": "Climate- oder Warmwasser-Zone."
+          "description": "Klima- oder Warmwasserzone."
         },
         "all_days": {
           "name": "Alle Tage",
-          "description": "Jeden Slot des Zeitplantyps schreiben. Bei one_day ignoriert (keine Tagesauswahl)."
+          "description": "Jedes Zeitfenster dieses Zeitplantyps schreiben. Bei one_day ignoriert (keine Tagesauswahl)."
         },
         "days": {
           "name": "Tage",
-          "description": "Nur Slots des gewählten Typs. one_day: weglassen. three_day: Mo-Fr, Samstag, Sonntag. seven_day: Mo..So (z. B. Di+Mi). Dienstag bei one_day ist ein Fehler."
+          "description": "Nur die Zeitfenster des gewählten Typs. one_day: weglassen. three_day: Mo-Fr, Samstag, Sonntag. seven_day: Mo bis So (z. B. Di+Mi). Dienstag bei one_day ist ein Fehler."
         },
         "timetable": {
           "name": "Zeitplantyp",
@@ -829,12 +973,12 @@
           "description": "Liste aus start, end, temperature und power. Muss 00:00-24:00 abdecken; Lücken werden als AUS gefüllt."
         },
         "schedule_entity": {
-          "name": "Schedule-Helfer",
-          "description": "Home-Assistant-Schedule statt blocks. Extra-Daten: temperature, power."
+          "name": "Zeitplan-Helfer",
+          "description": "Zeitplan-Helfer von Home Assistant statt blocks. Zusatzdaten: temperature, power."
         },
         "geolocation_override": {
           "name": "Abwesenheit ignorieren",
-          "description": "Wenn an, gelten die Blöcke auch im Away-Modus."
+          "description": "Wenn an, gelten die Blöcke auch bei Abwesenheit."
         }
       }
     }

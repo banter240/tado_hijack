@@ -67,13 +67,25 @@ WINDOW_MODE_OPTIONS: Final[list[str]] = [
     WINDOW_MODE_DIRECT,
     WINDOW_MODE_TIMEOUT,
 ]
+CONF_WINDOW_RESUME_BATCH: Final = "window_resume_batch"
+CONF_WINDOW_RESUME_BATCH_S: Final = "window_resume_batch_s"
+DEFAULT_WINDOW_RESUME_BATCH: Final = True
+DEFAULT_WINDOW_RESUME_BATCH_S: Final = 120
+MIN_WINDOW_RESUME_BATCH_S: Final = 0
+MAX_WINDOW_RESUME_BATCH_S: Final = 3600
 CONF_OFFSET_CAL_INTERVAL: Final = "offset_cal_interval"
 CONF_OFFSET_CAL_SPREAD_THRESHOLD: Final = "offset_cal_spread_threshold"
 CONF_ZONE_OFFSET_CAL_INTERVALS: Final = "zone_offset_cal_intervals"
 CONF_ZONE_OFFSET_CAL_THRESHOLDS: Final = "zone_offset_cal_thresholds"
+CONF_OFFSET_CAL_SEND_COOLDOWN_S: Final = "offset_cal_send_cooldown_s"
+CONF_OFFSET_CAL_WINDOW_SETTLE_S: Final = "offset_cal_window_settle_s"
 
 # Offset auto-calibration defaults
 DEFAULT_OFFSET_CAL_SPREAD_THRESHOLD: Final = 0.5  # deg C min deviation before write
+DEFAULT_OFFSET_CAL_SEND_COOLDOWN_S: Final = 300
+DEFAULT_OFFSET_CAL_WINDOW_SETTLE_S: Final = 300
+MIN_OFFSET_CAL_COOLDOWN_S: Final = 0
+MAX_OFFSET_CAL_COOLDOWN_S: Final = 3600
 
 # Logging Levels
 LOG_LEVELS: Final[list[str]] = ["DEBUG", "INFO", "WARNING", "ERROR"]

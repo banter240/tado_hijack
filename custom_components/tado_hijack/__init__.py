@@ -28,6 +28,11 @@ from .const import (
 )
 from .coordinator import TadoDataUpdateCoordinator
 from .helpers.client import TadoHijackClient
+from .helpers.device_linker import (
+    detach_home_from_local_bridges,
+    ensure_bridge_devices,
+    retire_empty_home_device,
+)
 from .helpers.logging_utils import (
     INTEGRATION_VERSION,
     TadoRedactionFilter,
@@ -36,6 +41,7 @@ from .helpers.logging_utils import (
     set_version_prefix_enabled,
 )
 from .lib.patches import apply_patches
+from .select import migrate_legacy_source_sentinels
 from .services import async_setup_services, async_unload_services
 
 if TYPE_CHECKING:
@@ -175,8 +181,34 @@ async def async_setup_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bool
         hass.config_entries.async_update_entry(entry, data=new_data)
 
     entry.runtime_data = coordinator
+    migrate_legacy_source_sentinels(hass, entry)
+
+    bridge_serials = [
+        str(serial)
+        for bridge in coordinator.bridges
+        if (serial := getattr(bridge, "serial_no", None))
+    ]
+    detach_home_from_local_bridges(
+        hass,
+        entry_id=entry.entry_id,
+        home_key=entry.unique_id or entry.entry_id,
+        bridge_serials=bridge_serials,
+        generation=coordinator.generation,
+    )
+    ensure_bridge_devices(
+        hass,
+        entry_id=entry.entry_id,
+        bridges=list(coordinator.bridges),
+        generation=coordinator.generation,
+    )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    if bridge_serials:
+        retire_empty_home_device(
+            hass,
+            entry_id=entry.entry_id,
+            home_key=entry.unique_id or entry.entry_id,
+        )
 
     await async_setup_services(hass)
 

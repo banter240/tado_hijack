@@ -282,6 +282,12 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         self.api_manager = TadoApiManager(hass, self, self._debounce_time)
         self._zone_plan_locks: dict[int, asyncio.Lock] = {}
         self._offset_cal_unsub: Callable[[], None] | None = None
+        self._offset_cal_threshold_unsubs: list[Callable[[], None]] = []
+        self._offset_cal_threshold_handle: Callable[[], None] | None = None
+        self._offset_cal_threshold_retry: Callable[[], None] | None = None
+        self._offset_cal_send_ready_at: dict[int, datetime] = {}
+        self._offset_cal_window_settle_until: dict[int, datetime] = {}
+        self._offset_cal_window_was_open: set[int] = set()
         self._last_offset_cal_at: datetime | None = None
         self._offset_cal_lock = asyncio.Lock()
         # [DUMMY_HOOK]
@@ -539,6 +545,9 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
                 self.hass.async_create_task(self._async_start_recovery_stack())
             else:
                 self.availability_tracker.refresh()
+
+            if self._zones_on_threshold():
+                self._on_threshold_sensor(None)
 
             return cast(TadoData, data)
         except (TimeoutError, TadoError, aiohttp.ClientError) as err:
@@ -821,6 +830,15 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         if self._offset_cal_unsub:
             self._offset_cal_unsub()
             self._offset_cal_unsub = None
+        for unsub in self._offset_cal_threshold_unsubs:
+            unsub()
+        self._offset_cal_threshold_unsubs = []
+        if self._offset_cal_threshold_handle:
+            self._offset_cal_threshold_handle()
+            self._offset_cal_threshold_handle = None
+        if self._offset_cal_threshold_retry:
+            self._offset_cal_threshold_retry()
+            self._offset_cal_threshold_retry = None
         self.window_controller.shutdown()
         self.recovery_listener.shutdown()
         self.availability_tracker.shutdown()
@@ -1558,14 +1576,14 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
 
     async def async_calibrate_offsets(
         self, reason: str, zone_id: int | None = None
-    ) -> None:
+    ) -> int:
         """Write TRV offset = linked thermostat minus Tado raw, then hold."""
         if self.rate_limit.is_throttled and reason != "quota_reset":
             self._log_offset_cal_skip(reason, "API throttled")
-            return
+            return 0
         linked = self._linked_zone_temp_sources(reason, zone_id)
         if linked is None:
-            return
+            return 0
 
         async with self._offset_cal_lock:
             if (
@@ -1574,15 +1592,16 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
                 and self._last_quota_reset
                 and self._last_offset_cal_at >= self._last_quota_reset
             ):
-                return
+                return 0
             wrote = await self._queue_offset_cal_writes(reason, linked, zone_id)
-            if reason != "manual":
+            if reason not in {"manual", "threshold"}:
                 self._last_offset_cal_at = dt_util.now()
             if wrote:
                 _LOGGER.info("Offset auto-cal (%s) queued %d device(s)", reason, wrote)
             elif reason == "manual":
                 target = f"zone {zone_id}" if zone_id is not None else "home"
                 _LOGGER.info("Offset cal (manual %s): no device needed a write", target)
+            return wrote
 
     async def _queue_offset_cal_writes(
         self,

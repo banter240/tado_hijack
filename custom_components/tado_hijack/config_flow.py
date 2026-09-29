@@ -44,6 +44,8 @@ from .const import (
     CONF_LOG_LEVEL,
     CONF_LOG_VERSION_PREFIX,
     CONF_MIN_AUTO_QUOTA_INTERVAL_S,
+    CONF_OFFSET_CAL_SEND_COOLDOWN_S,
+    CONF_OFFSET_CAL_WINDOW_SETTLE_S,
     CONF_OFFSET_POLL_INTERVAL,
     CONF_OUTDOOR_WEATHER_ENTITY,
     CONF_PRESENCE_POLL_INTERVAL,
@@ -61,6 +63,8 @@ from .const import (
     CONF_SUPPRESS_REDUNDANT_CALLS,
     CONF_THROTTLE_THRESHOLD,
     CONF_VENTILATION_AH_THRESHOLD,
+    CONF_WINDOW_RESUME_BATCH,
+    CONF_WINDOW_RESUME_BATCH_S,
     DEFAULT_AUTO_API_QUOTA_PERCENT,
     DEFAULT_DEBOUNCE_TIME,
     DEFAULT_FEATURE_DEW_POINT,
@@ -70,6 +74,8 @@ from .const import (
     DEFAULT_LOG_LEVEL,
     DEFAULT_LOG_VERSION_PREFIX,
     DEFAULT_MIN_AUTO_QUOTA_INTERVAL_S,
+    DEFAULT_OFFSET_CAL_SEND_COOLDOWN_S,
+    DEFAULT_OFFSET_CAL_WINDOW_SETTLE_S,
     DEFAULT_OFFSET_POLL_INTERVAL,
     DEFAULT_PRESENCE_POLL_INTERVAL,
     DEFAULT_QUOTA_SAFETY_RESERVE,
@@ -84,19 +90,24 @@ from .const import (
     DEFAULT_SUPPRESS_REDUNDANT_CALLS,
     DEFAULT_THROTTLE_THRESHOLD,
     DEFAULT_VENTILATION_AH_THRESHOLD,
+    DEFAULT_WINDOW_RESUME_BATCH,
+    DEFAULT_WINDOW_RESUME_BATCH_S,
     DOMAIN,
     GEN_CLASSIC,
     GEN_X,
     LOG_LEVELS,
     MAX_API_QUOTA,
     MAX_AUTO_QUOTA_INTERVAL_S,
+    MAX_OFFSET_CAL_COOLDOWN_S,
     MAX_QUOTA_SAFETY_RESERVE,
+    MAX_WINDOW_RESUME_BATCH_S,
     MIN_AUTO_QUOTA_INTERVAL_S,
     MIN_DEBOUNCE_TIME,
     MIN_OFFSET_POLL_INTERVAL,
     MIN_QUOTA_SAFETY_RESERVE,
     MIN_SCAN_INTERVAL,
     MIN_SLOW_POLL_INTERVAL,
+    MIN_WINDOW_RESUME_BATCH_S,
 )
 from .helpers.logging_utils import get_redacted_logger
 from .lib.patches import apply_patches
@@ -162,24 +173,41 @@ class TadoHijackCommonFlow:
                 CONF_SCAN_INTERVAL,
                 CONF_PRESENCE_POLL_INTERVAL,
                 CONF_SLOW_POLL_INTERVAL,
-                CONF_OFFSET_POLL_INTERVAL,
-            ],
-            "api_quota": [
-                CONF_AUTO_API_QUOTA_PERCENT,
-                CONF_THROTTLE_THRESHOLD,
-                CONF_DISABLE_POLLING_WHEN_THROTTLED,
-                CONF_REFRESH_AFTER_RESUME,
-                CONF_RECOVERY_CLOUD_REPLAY,
-                CONF_SUPPRESS_REDUNDANT_CALLS,
-                CONF_SUPPRESS_REDUNDANT_BUTTONS,
-                CONF_MIN_AUTO_QUOTA_INTERVAL_S,
-                CONF_QUOTA_SAFETY_RESERVE,
             ],
             "reduced_polling": [
                 CONF_REDUCED_POLLING_ACTIVE,
                 CONF_REDUCED_POLLING_START,
                 CONF_REDUCED_POLLING_END,
                 CONF_REDUCED_POLLING_INTERVAL,
+            ],
+            "api_quota": [
+                CONF_AUTO_API_QUOTA_PERCENT,
+                CONF_THROTTLE_THRESHOLD,
+                CONF_DISABLE_POLLING_WHEN_THROTTLED,
+                CONF_SUPPRESS_REDUNDANT_CALLS,
+                CONF_SUPPRESS_REDUNDANT_BUTTONS,
+                CONF_MIN_AUTO_QUOTA_INTERVAL_S,
+                CONF_QUOTA_SAFETY_RESERVE,
+            ],
+            "window": [
+                CONF_WINDOW_RESUME_BATCH,
+                CONF_WINDOW_RESUME_BATCH_S,
+                CONF_OFFSET_CAL_WINDOW_SETTLE_S,
+            ],
+            "offset": [
+                CONF_OFFSET_POLL_INTERVAL,
+                CONF_OFFSET_CAL_SEND_COOLDOWN_S,
+            ],
+            "recovery": [
+                CONF_RECOVERY_CLOUD_REPLAY,
+                CONF_REFRESH_AFTER_RESUME,
+            ],
+            "features": [
+                CONF_FEATURE_DEW_POINT,
+                CONF_FEATURE_FLOW_TEMP,
+                CONF_FEATURE_MOLD_DETECTION,
+                CONF_OUTDOOR_WEATHER_ENTITY,
+                CONF_VENTILATION_AH_THRESHOLD,
             ],
             "advanced": [
                 CONF_API_PROXY_URL,
@@ -189,13 +217,6 @@ class TadoHijackCommonFlow:
                 CONF_DEBOUNCE_TIME,
                 CONF_LOG_LEVEL,
                 CONF_LOG_VERSION_PREFIX,
-            ],
-            "features": [
-                CONF_FEATURE_DEW_POINT,
-                CONF_FEATURE_FLOW_TEMP,
-                CONF_FEATURE_MOLD_DETECTION,
-                CONF_OUTDOOR_WEATHER_ENTITY,
-                CONF_VENTILATION_AH_THRESHOLD,
             ],
         }
 
@@ -250,16 +271,40 @@ class TadoHijackCommonFlow:
                                 vol.Coerce(int),
                                 vol.Range(min=MIN_SLOW_POLL_INTERVAL),
                             ),
+                        }
+                    ),
+                    {"collapsed": True},
+                ),
+                vol.Required("reduced_polling"): data_entry_flow.section(
+                    vol.Schema(
+                        {
                             vol.Optional(
-                                CONF_OFFSET_POLL_INTERVAL,
+                                CONF_REDUCED_POLLING_ACTIVE,
                                 default=self._get_current_data(
-                                    CONF_OFFSET_POLL_INTERVAL,
-                                    DEFAULT_OFFSET_POLL_INTERVAL,
+                                    CONF_REDUCED_POLLING_ACTIVE, False
                                 ),
-                            ): vol.All(
-                                vol.Coerce(int),
-                                vol.Range(min=MIN_OFFSET_POLL_INTERVAL),
-                            ),
+                            ): BooleanSelector(),
+                            vol.Optional(
+                                CONF_REDUCED_POLLING_START,
+                                default=self._get_current_data(
+                                    CONF_REDUCED_POLLING_START,
+                                    DEFAULT_REDUCED_POLLING_START,
+                                ),
+                            ): TimeSelector(),
+                            vol.Optional(
+                                CONF_REDUCED_POLLING_END,
+                                default=self._get_current_data(
+                                    CONF_REDUCED_POLLING_END,
+                                    DEFAULT_REDUCED_POLLING_END,
+                                ),
+                            ): TimeSelector(),
+                            vol.Optional(
+                                CONF_REDUCED_POLLING_INTERVAL,
+                                default=self._get_current_data(
+                                    CONF_REDUCED_POLLING_INTERVAL,
+                                    DEFAULT_REDUCED_POLLING_INTERVAL,
+                                ),
+                            ): vol.All(vol.Coerce(int), vol.Range(min=0)),
                         }
                     ),
                     {"collapsed": True},
@@ -299,20 +344,6 @@ class TadoHijackCommonFlow:
                                 CONF_DISABLE_POLLING_WHEN_THROTTLED,
                                 default=self._get_current_data(
                                     CONF_DISABLE_POLLING_WHEN_THROTTLED, False
-                                ),
-                            ): BooleanSelector(),
-                            vol.Optional(
-                                CONF_REFRESH_AFTER_RESUME,
-                                default=self._get_current_data(
-                                    CONF_REFRESH_AFTER_RESUME,
-                                    DEFAULT_REFRESH_AFTER_RESUME,
-                                ),
-                            ): BooleanSelector(),
-                            vol.Optional(
-                                CONF_RECOVERY_CLOUD_REPLAY,
-                                default=self._get_current_data(
-                                    CONF_RECOVERY_CLOUD_REPLAY,
-                                    DEFAULT_RECOVERY_CLOUD_REPLAY,
                                 ),
                             ): BooleanSelector(),
                             vol.Optional(
@@ -361,36 +392,99 @@ class TadoHijackCommonFlow:
                     ),
                     {"collapsed": True},
                 ),
-                vol.Required("reduced_polling"): data_entry_flow.section(
+                vol.Required("window"): data_entry_flow.section(
                     vol.Schema(
                         {
                             vol.Optional(
-                                CONF_REDUCED_POLLING_ACTIVE,
+                                CONF_WINDOW_RESUME_BATCH,
                                 default=self._get_current_data(
-                                    CONF_REDUCED_POLLING_ACTIVE, False
+                                    CONF_WINDOW_RESUME_BATCH,
+                                    DEFAULT_WINDOW_RESUME_BATCH,
                                 ),
                             ): BooleanSelector(),
                             vol.Optional(
-                                CONF_REDUCED_POLLING_START,
+                                CONF_WINDOW_RESUME_BATCH_S,
                                 default=self._get_current_data(
-                                    CONF_REDUCED_POLLING_START,
-                                    DEFAULT_REDUCED_POLLING_START,
+                                    CONF_WINDOW_RESUME_BATCH_S,
+                                    DEFAULT_WINDOW_RESUME_BATCH_S,
                                 ),
-                            ): TimeSelector(),
+                            ): NumberSelector(
+                                NumberSelectorConfig(
+                                    min=MIN_WINDOW_RESUME_BATCH_S,
+                                    max=MAX_WINDOW_RESUME_BATCH_S,
+                                    step=10,
+                                    unit_of_measurement="s",
+                                    mode=NumberSelectorMode.BOX,
+                                )
+                            ),
                             vol.Optional(
-                                CONF_REDUCED_POLLING_END,
+                                CONF_OFFSET_CAL_WINDOW_SETTLE_S,
                                 default=self._get_current_data(
-                                    CONF_REDUCED_POLLING_END,
-                                    DEFAULT_REDUCED_POLLING_END,
+                                    CONF_OFFSET_CAL_WINDOW_SETTLE_S,
+                                    DEFAULT_OFFSET_CAL_WINDOW_SETTLE_S,
                                 ),
-                            ): TimeSelector(),
+                            ): NumberSelector(
+                                NumberSelectorConfig(
+                                    min=0,
+                                    max=MAX_OFFSET_CAL_COOLDOWN_S,
+                                    step=30,
+                                    unit_of_measurement="s",
+                                    mode=NumberSelectorMode.BOX,
+                                )
+                            ),
+                        }
+                    ),
+                    {"collapsed": True},
+                ),
+                vol.Required("offset"): data_entry_flow.section(
+                    vol.Schema(
+                        {
                             vol.Optional(
-                                CONF_REDUCED_POLLING_INTERVAL,
+                                CONF_OFFSET_POLL_INTERVAL,
                                 default=self._get_current_data(
-                                    CONF_REDUCED_POLLING_INTERVAL,
-                                    DEFAULT_REDUCED_POLLING_INTERVAL,
+                                    CONF_OFFSET_POLL_INTERVAL,
+                                    DEFAULT_OFFSET_POLL_INTERVAL,
                                 ),
-                            ): vol.All(vol.Coerce(int), vol.Range(min=0)),
+                            ): vol.All(
+                                vol.Coerce(int),
+                                vol.Range(min=MIN_OFFSET_POLL_INTERVAL),
+                            ),
+                            vol.Optional(
+                                CONF_OFFSET_CAL_SEND_COOLDOWN_S,
+                                default=self._get_current_data(
+                                    CONF_OFFSET_CAL_SEND_COOLDOWN_S,
+                                    DEFAULT_OFFSET_CAL_SEND_COOLDOWN_S,
+                                ),
+                            ): NumberSelector(
+                                NumberSelectorConfig(
+                                    min=0,
+                                    max=MAX_OFFSET_CAL_COOLDOWN_S,
+                                    step=30,
+                                    unit_of_measurement="s",
+                                    mode=NumberSelectorMode.BOX,
+                                )
+                            ),
+                        }
+                    ),
+                    {"collapsed": True},
+                ),
+                vol.Required("recovery"): data_entry_flow.section(
+                    vol.Schema(
+                        {
+                            vol.Optional(
+                                CONF_RECOVERY_CLOUD_REPLAY,
+                                default=self._get_current_data(
+                                    CONF_RECOVERY_CLOUD_REPLAY,
+                                    DEFAULT_RECOVERY_CLOUD_REPLAY,
+                                ),
+                            ): BooleanSelector(),
+                            vol.Optional(
+                                CONF_REFRESH_AFTER_RESUME,
+                                default=self._get_current_data(
+                                    CONF_REFRESH_AFTER_RESUME,
+                                    DEFAULT_REFRESH_AFTER_RESUME,
+                                ),
+                            ): BooleanSelector(),
                         }
                     ),
                     {"collapsed": True},

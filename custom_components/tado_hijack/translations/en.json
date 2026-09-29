@@ -138,10 +138,19 @@
         "name": "Outdoor Weather Source"
       },
       "ventilation_ah_threshold": {
-        "name": "Ventilation AH Threshold"
+        "name": "Ventilation Threshold"
       },
       "scan_interval": {
         "name": "Scan Interval"
+      },
+      "window_resume_batch_s": {
+        "name": "Resume Schedule Batch Window"
+      },
+      "offset_cal_window_settle_s": {
+        "name": "Offset Pause After Window"
+      },
+      "offset_cal_send_cooldown_s": {
+        "name": "Offset Threshold Cooldown"
       },
       "zone_mode": {
         "name": "Zone Mode",
@@ -166,6 +175,73 @@
     "binary_sensor": {
       "presence_state": {
         "name": "Presence"
+      },
+      "heating_demand": {
+        "name": "Heating Demand"
+      },
+      "battery_state": {
+        "name": "Battery"
+      },
+      "connection_state": {
+        "name": "Cloud Connection"
+      },
+      "bridge_connection": {
+        "name": "Bridge Cloud Connection"
+      },
+      "overlay": {
+        "name": "Manual Change"
+      },
+      "power": {
+        "name": "Power"
+      },
+      "connectivity": {
+        "name": "Connection"
+      },
+      "mold_risk": {
+        "name": "Mold Risk",
+        "state": {
+          "on": "Yes",
+          "off": "No"
+        }
+      },
+      "ventilation_recommended": {
+        "name": "Ventilation Recommended"
+      },
+      "reduced_polling_active": {
+        "name": "Reduced Polling Active"
+      },
+      "call_jitter_enabled": {
+        "name": "Call Jitter Enabled"
+      },
+      "disable_polling_when_throttled": {
+        "name": "Stop Polling When Throttled"
+      },
+      "refresh_after_resume": {
+        "name": "Refresh After Resume"
+      },
+      "fetch_extended_data": {
+        "name": "Fetch Extended Data"
+      },
+      "feature_dew_point": {
+        "name": "Dew Point"
+      },
+      "feature_mold_detection": {
+        "name": "Mold Detection"
+      },
+      "full_cloud_mode": {
+        "name": "Full Cloud Mode"
+      },
+      "window_resume_batch": {
+        "name": "Queue Resume Schedule"
+      },
+      "recovery_cloud_replay": {
+        "name": "Replay Cloud Features on Recovery"
+      },
+      "feature_flow_temperature_optimization": {
+        "name": "Flow Temperature Optimization"
+      },
+      "log_version_prefix": {
+        "name": "Show Version in Logs"
       }
     },
     "switch": {
@@ -208,19 +284,19 @@
         "name": "Refresh Zones/Devices"
       },
       "refresh_capabilities": {
-        "name": "Refresh capabilities"
+        "name": "Refresh Capabilities"
       },
       "refresh_capability": {
-        "name": "Refresh capabilities"
+        "name": "Refresh Capabilities"
       },
       "refresh_offsets": {
         "name": "Refresh Offsets"
       },
       "calibrate_offsets": {
-        "name": "Calibrate offsets"
+        "name": "Calibrate Offsets"
       },
       "calibrate_offset": {
-        "name": "Calibrate offset"
+        "name": "Calibrate Offset"
       },
       "refresh_away": {
         "name": "Refresh Away Temperatures"
@@ -244,16 +320,16 @@
         "name": "Identify Device"
       },
       "refresh_timetable": {
-        "name": "Refresh timetable"
+        "name": "Refresh Timetable"
       },
       "refresh_all_timetables": {
-        "name": "Refresh all timetables"
+        "name": "Refresh All Timetables"
       },
       "refresh_zone_plan": {
-        "name": "Fetch weekly plan"
+        "name": "Fetch Weekly Plan"
       },
       "refresh_all_zone_plans": {
-        "name": "Fetch all weekly plans"
+        "name": "Fetch All Weekly Plans"
       }
     },
     "number": {
@@ -273,7 +349,7 @@
         "name": "Max Flow Temperature"
       },
       "offset_cal_spread_threshold": {
-        "name": "Offset Calibrate Threshold"
+        "name": "Offset Calibration Threshold"
       }
     },
     "select": {
@@ -286,19 +362,28 @@
         }
       },
       "zone_temp_source": {
-        "name": "Temperature Source"
+        "name": "Temperature Source",
+        "state": {
+          "device": "Device"
+        }
       },
       "zone_humidity_source": {
-        "name": "Humidity Source"
+        "name": "Humidity Source",
+        "state": {
+          "device": "Device"
+        }
       },
       "zone_window_sensor": {
-        "name": "Window Sensor"
+        "name": "Window Sensor",
+        "state": {
+          "none": "None"
+        }
       },
       "zone_window_mode": {
         "name": "Window Mode",
         "state": {
-          "direct": "Direct",
-          "timeout": "Off + auto-resume after timeout"
+          "direct": "Immediate",
+          "timeout": "Timeout"
         }
       },
       "fan_speed": {
@@ -327,7 +412,7 @@
         }
       },
       "timetable_type": {
-        "name": "Schedule mode",
+        "name": "Schedule Mode",
         "state": {
           "one_day": "Mon-Sun (same every day)",
           "three_day": "Mon-Fri / Sat / Sun",
@@ -347,7 +432,8 @@
           "21h": "Every 21 hours (from 00:00)",
           "24h": "Once a day (00:00)",
           "on_reset": "Once per quota reset",
-          "inherit": "Inherit (Bridge)"
+          "threshold": "When deviation reaches the threshold",
+          "inherit": "Default (Bridge)"
         }
       }
     },
@@ -432,39 +518,12 @@
             "data": {
               "scan_interval": "Status Polling Interval (Seconds)",
               "presence_poll_interval": "Presence Polling Interval (Seconds)",
-              "slow_poll_interval": "Hardware Sync Interval (Seconds)",
-              "offset_poll_interval": "Offset Update Interval (Seconds)"
+              "slow_poll_interval": "Hardware Sync Interval (Seconds)"
             },
             "data_description": {
               "scan_interval": "Interval for room data (temp, humidity, heating power). IMPORTANT: Dynamically overridden by 'Auto API Quota' when enabled; serves as fallback when calculated budget is exhausted.",
               "presence_poll_interval": "How often to check Home/Away status. Set to a higher value (e.g. 43200s/12h) to save quota.",
-              "slow_poll_interval": "How often to sync battery levels, firmware, capabilities and device list. 86400s (24h) is recommended.",
-              "offset_poll_interval": "How often to fetch temperature offsets. Costs 1 API call PER VALVE. 0 = disabled."
-            }
-          },
-          "api_quota": {
-            "name": "Auto API Quota & Safety",
-            "data": {
-              "auto_api_quota_percent": "Auto API Quota (%)",
-              "throttle_threshold": "Throttle Threshold (Safety Buffer)",
-              "quota_safety_reserve": "Quota Safety Reserve",
-              "min_auto_quota_interval_s": "Minimum Auto Quota Interval",
-              "disable_polling_when_throttled": "Disable polling when throttled",
-              "refresh_after_resume": "Refresh state after resume schedule",
-              "recovery_cloud_replay": "Replay Cloud-Only Features on Recovery",
-              "suppress_redundant_calls": "Suppress Redundant Calls",
-              "suppress_redundant_buttons": "Suppress Redundant Buttons"
-            },
-            "data_description": {
-              "auto_api_quota_percent": "Use X% of FREE daily quota for status polling (0 = disabled). FREE = Limit - Background Reserve (Syncs) - External Activity (Automations, App use beyond buffer). Hybrid strategy: Uses MAX(Daily Budget - Used, Remaining * X%) → System ALWAYS continues polling even when over daily budget.",
-              "throttle_threshold": "Reserve N calls for EVERYTHING outside of Hijack's periodic background polling (Automations, Scripts, Manual App use). Polling stops at this floor to ensure your automations never stall. Recommended: 20.",
-              "quota_safety_reserve": "API calls reserved for the self-learning reset window. The system automatically learns the reset time and adaptively distributes this reserve to bridge cloud-side variations. 0 = disabled (not recommended). Default: 2.",
-              "min_auto_quota_interval_s": "Minimum polling interval in seconds (5-43200 = 12h max). Standard API: 5s minimum. Proxy: 120s minimum enforced. Lower = faster updates but higher API usage. Default 20s.",
-              "disable_polling_when_throttled": "Stop periodic polling entirely when remaining quota hits the safety buffer.",
-              "refresh_after_resume": "Automatically fetch target temperature/state after resume schedule (HVAC AUTO). Required because schedules are managed Tado cloud-side. Costs 1 API call.",
-              "recovery_cloud_replay": "When an offline TRV (HomeKit or Matter) becomes available again, cloud-only features (e.g. Resume Schedule) cannot be replayed locally. If enabled, these commands are additionally resent to the Tado cloud (1 API call per zone). Disable to save quota.",
-              "suppress_redundant_calls": "Skip API calls when target state matches cached state (temperature, mode, presence, power). Saves quota on accidental double-clicks or UI interactions. Only sends when actual change detected. Values not in cache always send.",
-              "suppress_redundant_buttons": "Also skip button actions (resume_all, boost_all, turn_off_all, set_mode_all) when ALL zones already match target state. Requires 'Suppress Redundant Calls' to be enabled. Individual explicit actions and sync buttons (manual_poll, refresh) always send."
+              "slow_poll_interval": "How often to sync battery levels, firmware, capabilities and device list. 86400s (24h) is recommended."
             }
           },
           "reduced_polling": {
@@ -482,6 +541,62 @@
               "reduced_polling_interval": "Polling interval during the economy window (e.g. 3600s = 1h). Set to 0 to pause updates."
             }
           },
+          "api_quota": {
+            "name": "Auto API Quota and Reserve",
+            "data": {
+              "auto_api_quota_percent": "Auto API Quota (%)",
+              "throttle_threshold": "Throttle Threshold (Safety Buffer)",
+              "quota_safety_reserve": "Quota Safety Reserve",
+              "min_auto_quota_interval_s": "Minimum Auto Quota Interval",
+              "disable_polling_when_throttled": "Disable polling when throttled",
+              "suppress_redundant_calls": "Suppress Redundant Calls",
+              "suppress_redundant_buttons": "Suppress Redundant Buttons"
+            },
+            "data_description": {
+              "auto_api_quota_percent": "Use X% of FREE daily quota for status polling (0 = disabled). FREE = Limit - Background Reserve (Syncs) - External Activity (Automations, App use beyond buffer). Hybrid strategy: Uses MAX(Daily Budget - Used, Remaining * X%) → System ALWAYS continues polling even when over daily budget.",
+              "throttle_threshold": "Reserve N calls for EVERYTHING outside of Hijack's periodic background polling (Automations, Scripts, Manual App use). Polling stops at this floor to ensure your automations never stall. Recommended: 20.",
+              "quota_safety_reserve": "API calls reserved for the self-learning reset window. The system automatically learns the reset time and adaptively distributes this reserve to bridge cloud-side variations. 0 = disabled (not recommended). Default: 2.",
+              "min_auto_quota_interval_s": "Minimum polling interval in seconds (5-43200 = 12h max). Standard API: 5s minimum. Proxy: 120s minimum enforced. Lower = faster updates but higher API usage. Default 20s.",
+              "disable_polling_when_throttled": "Stop periodic polling entirely when remaining quota hits the safety buffer.",
+              "suppress_redundant_calls": "Skip API calls when target state matches cached state (temperature, mode, presence, power). Saves quota on accidental double-clicks or UI interactions. Only sends when actual change detected. Values not in cache always send.",
+              "suppress_redundant_buttons": "Also skip button actions (resume_all, boost_all, turn_off_all, set_mode_all) when ALL zones already match target state. Requires 'Suppress Redundant Calls' to be enabled. Individual explicit actions and sync buttons (manual_poll, refresh) always send."
+            }
+          },
+          "window": {
+            "name": "Windows",
+            "data": {
+              "window_resume_batch": "Queue and delay send of resume schedule",
+              "window_resume_batch_s": "Resume schedule batch window",
+              "offset_cal_window_settle_s": "Offset pause after window closes"
+            },
+            "data_description": {
+              "window_resume_batch": "On window close or window-timeout end, set the temperature from before the window opened on the local HomeKit or Matter climate immediately. If a schedule was running, hold the cloud resume so zones that resume within the batch window are sent together. If no schedule was running, restore the local climate and skip the cloud. Default on.",
+              "window_resume_batch_s": "Seconds to hold those cloud resumes. Rooms that close or time out within this window share one batch. Default 120. 0 sends on the next pass. Used only when queue-and-delay is on.",
+              "offset_cal_window_settle_s": "Threshold mode ignores a zone while its window sensor is open. After the window closes, wait this long before measuring again so the TRV and the room sensor can settle. Default 300 seconds."
+            }
+          },
+          "offset": {
+            "name": "Offset calibration",
+            "data": {
+              "offset_poll_interval": "Offset Update Interval (Seconds)",
+              "offset_cal_send_cooldown_s": "Offset threshold cooldown"
+            },
+            "data_description": {
+              "offset_poll_interval": "How often to fetch temperature offsets. Costs 1 API call PER VALVE. 0 = disabled.",
+              "offset_cal_send_cooldown_s": "After a threshold-mode offset write, wait this long before another one. Stops a lagging reading from sending again. Default 300 seconds."
+            }
+          },
+          "recovery": {
+            "name": "Recovery and resume",
+            "data": {
+              "recovery_cloud_replay": "Replay Cloud-Only Features on Recovery",
+              "refresh_after_resume": "Refresh state after resume schedule"
+            },
+            "data_description": {
+              "recovery_cloud_replay": "When an offline TRV (HomeKit or Matter) becomes available again, cloud-only features (e.g. Resume Schedule) cannot be replayed locally. If enabled, these commands are additionally resent to the Tado cloud (1 API call per zone). Disable to save quota.",
+              "refresh_after_resume": "After a schedule resume on air conditioning or hot water, read the zones once so the target temperature shows up. Heating zones skip this. Resumes close together share that read. Costs 1 API call."
+            }
+          },
           "features": {
             "name": "Features",
             "data": {
@@ -496,7 +611,7 @@
               "feature_flow_temperature_optimization": "Poll Tado X flow temperature optimization settings (requires an OpenTherm boiler control device) and expose a max flow temperature number entity and an auto adaptation switch. Costs 1 API call per metadata poll. Disabled by default to conserve API quota.",
               "feature_mold_detection": "Create mold risk sensors per zone. Includes a risk level (none/low/medium/high) and a binary sensor for acute mold risk. MANDATORY for Tado X: Requires a linked temperature source on the zone device.",
               "outdoor_weather_entity": "Select a weather entity (e.g., weather.home) that provides outdoor temperature and humidity. This is required to calculate indoor absolute humidity and to activate 'Ventilation Recommended' sensors. The sensor reports 'Yes' when opening windows effectively reduces indoor moisture.",
-              "ventilation_ah_threshold": "Minimum absolute humidity difference between indoor and outdoor required before 'Ventilation Recommended' turns to 'Yes'. A value of 1.0 g/m³ (grams of water per cubic meter of air) ensures that outdoor air is significantly dryer than indoor air before recommending ventilation. Prevents sensor chatter. Default: 1.0."
+              "ventilation_ah_threshold": "Minimum absolute humidity difference between indoor and outdoor required before 'Ventilation Recommended' turns to 'Yes'. A value of 1.0 g/m³ (grams of water per cubic meter of air) ensures that outdoor air is significantly drier than indoor air before recommending ventilation. Prevents sensor chatter. Default: 1.0."
             }
           },
           "advanced": {
@@ -543,39 +658,12 @@
             "data": {
               "scan_interval": "Status Polling Interval (Seconds)",
               "presence_poll_interval": "Presence Polling Interval (Seconds)",
-              "slow_poll_interval": "Hardware Sync Interval (Seconds)",
-              "offset_poll_interval": "Offset Update Interval (Seconds)"
+              "slow_poll_interval": "Hardware Sync Interval (Seconds)"
             },
             "data_description": {
               "scan_interval": "Interval for room data (temp, humidity, heating power). IMPORTANT: Dynamically overridden by 'Auto API Quota' when enabled; serves as fallback when calculated budget is exhausted.",
               "presence_poll_interval": "How often to check Home/Away status. Set to a higher value (e.g. 43200s/12h) to save quota.",
-              "slow_poll_interval": "How often to sync battery levels, firmware, capabilities and device list. 86400s (24h) is recommended.",
-              "offset_poll_interval": "How often to fetch temperature offsets. Costs 1 API call PER VALVE. 0 = disabled."
-            }
-          },
-          "api_quota": {
-            "name": "Auto API Quota & Safety",
-            "data": {
-              "auto_api_quota_percent": "Auto API Quota (%)",
-              "throttle_threshold": "Throttle Threshold (Safety Buffer)",
-              "quota_safety_reserve": "Quota Safety Reserve",
-              "min_auto_quota_interval_s": "Minimum Auto Quota Interval",
-              "disable_polling_when_throttled": "Disable polling when throttled",
-              "refresh_after_resume": "Refresh state after resume schedule",
-              "recovery_cloud_replay": "Replay Cloud-Only Features on Recovery",
-              "suppress_redundant_calls": "Suppress Redundant Calls",
-              "suppress_redundant_buttons": "Suppress Redundant Buttons"
-            },
-            "data_description": {
-              "auto_api_quota_percent": "Use X% of FREE daily quota for status polling (0 = disabled). FREE = Limit - Background Reserve (Syncs) - External Activity (Automations, App use beyond buffer). Hybrid strategy: Uses MAX(Daily Budget - Used, Remaining * X%) → System ALWAYS continues polling even when over daily budget.",
-              "throttle_threshold": "Reserve N calls for EVERYTHING outside of Hijack's periodic background polling (Automations, Scripts, Manual App use). Polling stops at this floor to ensure your automations never stall. Recommended: 20.",
-              "quota_safety_reserve": "API calls reserved for the self-learning reset window. The system automatically learns the reset time and adaptively distributes this reserve to bridge cloud-side variations. 0 = disabled (not recommended). Default: 2.",
-              "min_auto_quota_interval_s": "Minimum polling interval in seconds (5-43200 = 12h max). Standard API: 5s minimum. Proxy: 120s minimum enforced. Lower = faster updates but higher API usage. Default 20s.",
-              "disable_polling_when_throttled": "Stop periodic polling entirely when remaining quota hits the safety buffer.",
-              "refresh_after_resume": "Automatically fetch target temperature/state after resume schedule (HVAC AUTO). Required because schedules are managed Tado cloud-side. Costs 1 API call.",
-              "recovery_cloud_replay": "When an offline TRV (HomeKit or Matter) becomes available again, cloud-only features (e.g. Resume Schedule) cannot be replayed locally. If enabled, these commands are additionally resent to the Tado cloud (1 API call per zone). Disable to save quota.",
-              "suppress_redundant_calls": "Skip API calls when target state matches cached state (temperature, mode, presence, power). Saves quota on accidental double-clicks or UI interactions. Only sends when actual change detected. Values not in cache always send.",
-              "suppress_redundant_buttons": "Also skip button actions (resume_all, boost_all, turn_off_all, set_mode_all) when ALL zones already match target state. Requires 'Suppress Redundant Calls' to be enabled. Individual explicit actions and sync buttons (manual_poll, refresh) always send."
+              "slow_poll_interval": "How often to sync battery levels, firmware, capabilities and device list. 86400s (24h) is recommended."
             }
           },
           "reduced_polling": {
@@ -593,6 +681,62 @@
               "reduced_polling_interval": "Polling interval during the economy window (e.g. 3600s = 1h). Set to 0 to pause updates."
             }
           },
+          "api_quota": {
+            "name": "Auto API Quota and Reserve",
+            "data": {
+              "auto_api_quota_percent": "Auto API Quota (%)",
+              "throttle_threshold": "Throttle Threshold (Safety Buffer)",
+              "quota_safety_reserve": "Quota Safety Reserve",
+              "min_auto_quota_interval_s": "Minimum Auto Quota Interval",
+              "disable_polling_when_throttled": "Disable polling when throttled",
+              "suppress_redundant_calls": "Suppress Redundant Calls",
+              "suppress_redundant_buttons": "Suppress Redundant Buttons"
+            },
+            "data_description": {
+              "auto_api_quota_percent": "Use X% of FREE daily quota for status polling (0 = disabled). FREE = Limit - Background Reserve (Syncs) - External Activity (Automations, App use beyond buffer). Hybrid strategy: Uses MAX(Daily Budget - Used, Remaining * X%) → System ALWAYS continues polling even when over daily budget.",
+              "throttle_threshold": "Reserve N calls for EVERYTHING outside of Hijack's periodic background polling (Automations, Scripts, Manual App use). Polling stops at this floor to ensure your automations never stall. Recommended: 20.",
+              "quota_safety_reserve": "API calls reserved for the self-learning reset window. The system automatically learns the reset time and adaptively distributes this reserve to bridge cloud-side variations. 0 = disabled (not recommended). Default: 2.",
+              "min_auto_quota_interval_s": "Minimum polling interval in seconds (5-43200 = 12h max). Standard API: 5s minimum. Proxy: 120s minimum enforced. Lower = faster updates but higher API usage. Default 20s.",
+              "disable_polling_when_throttled": "Stop periodic polling entirely when remaining quota hits the safety buffer.",
+              "suppress_redundant_calls": "Skip API calls when target state matches cached state (temperature, mode, presence, power). Saves quota on accidental double-clicks or UI interactions. Only sends when actual change detected. Values not in cache always send.",
+              "suppress_redundant_buttons": "Also skip button actions (resume_all, boost_all, turn_off_all, set_mode_all) when ALL zones already match target state. Requires 'Suppress Redundant Calls' to be enabled. Individual explicit actions and sync buttons (manual_poll, refresh) always send."
+            }
+          },
+          "window": {
+            "name": "Windows",
+            "data": {
+              "window_resume_batch": "Queue and delay send of resume schedule",
+              "window_resume_batch_s": "Resume schedule batch window",
+              "offset_cal_window_settle_s": "Offset pause after window closes"
+            },
+            "data_description": {
+              "window_resume_batch": "On window close or window-timeout end, set the temperature from before the window opened on the local HomeKit or Matter climate immediately. If a schedule was running, hold the cloud resume so zones that resume within the batch window are sent together. If no schedule was running, restore the local climate and skip the cloud. Default on.",
+              "window_resume_batch_s": "Seconds to hold those cloud resumes. Rooms that close or time out within this window share one batch. Default 120. 0 sends on the next pass. Used only when queue-and-delay is on.",
+              "offset_cal_window_settle_s": "Threshold mode ignores a zone while its window sensor is open. After the window closes, wait this long before measuring again so the TRV and the room sensor can settle. Default 300 seconds."
+            }
+          },
+          "offset": {
+            "name": "Offset calibration",
+            "data": {
+              "offset_poll_interval": "Offset Update Interval (Seconds)",
+              "offset_cal_send_cooldown_s": "Offset threshold cooldown"
+            },
+            "data_description": {
+              "offset_poll_interval": "How often to fetch temperature offsets. Costs 1 API call PER VALVE. 0 = disabled.",
+              "offset_cal_send_cooldown_s": "After a threshold-mode offset write, wait this long before another one. Stops a lagging reading from sending again. Default 300 seconds."
+            }
+          },
+          "recovery": {
+            "name": "Recovery and resume",
+            "data": {
+              "recovery_cloud_replay": "Replay Cloud-Only Features on Recovery",
+              "refresh_after_resume": "Refresh state after resume schedule"
+            },
+            "data_description": {
+              "recovery_cloud_replay": "When an offline TRV (HomeKit or Matter) becomes available again, cloud-only features (e.g. Resume Schedule) cannot be replayed locally. If enabled, these commands are additionally resent to the Tado cloud (1 API call per zone). Disable to save quota.",
+              "refresh_after_resume": "After a schedule resume on air conditioning or hot water, read the zones once so the target temperature shows up. Heating zones skip this. Resumes close together share that read. Costs 1 API call."
+            }
+          },
           "features": {
             "name": "Features",
             "data": {
@@ -607,7 +751,7 @@
               "feature_flow_temperature_optimization": "Poll Tado X flow temperature optimization settings (requires an OpenTherm boiler control device) and expose a max flow temperature number entity and an auto adaptation switch. Costs 1 API call per metadata poll. Disabled by default to conserve API quota.",
               "feature_mold_detection": "Create mold risk sensors per zone. Includes a risk level (none/low/medium/high) and a binary sensor for acute mold risk. MANDATORY for Tado X: Requires a linked temperature source on the zone device.",
               "outdoor_weather_entity": "Select a weather entity (e.g., weather.home) that provides outdoor temperature and humidity. This is required to calculate indoor absolute humidity and to activate 'Ventilation Recommended' sensors. The sensor reports 'Yes' when opening windows effectively reduces indoor moisture.",
-              "ventilation_ah_threshold": "Minimum absolute humidity difference between indoor and outdoor required before 'Ventilation Recommended' turns to 'Yes'. A value of 1.0 g/m³ (grams of water per cubic meter of air) ensures that outdoor air is significantly dryer than indoor air before recommending ventilation. Prevents sensor chatter. Default: 1.0."
+              "ventilation_ah_threshold": "Minimum absolute humidity difference between indoor and outdoor required before 'Ventilation Recommended' turns to 'Yes'. A value of 1.0 g/m³ (grams of water per cubic meter of air) ensures that outdoor air is significantly drier than indoor air before recommending ventilation. Prevents sensor chatter. Default: 1.0."
             }
           },
           "advanced": {
@@ -649,7 +793,7 @@
           "description": "Restrict the refresh to a single entity. Supported for: offsets, away, capabilities, timetable, schedule. Other types fall back to a full refresh."
         },
         "config_entry": {
-          "name": "Tado home (optional)",
+          "name": "Tado Home (optional)",
           "description": "Target a specific Tado home. If omitted and no entity is selected, all configured homes are refreshed."
         }
       }
@@ -659,7 +803,7 @@
       "description": "Remove all manual overlays in all zones and return to Smart Schedule.",
       "fields": {
         "config_entry": {
-          "name": "Tado home (optional)",
+          "name": "Tado Home (optional)",
           "description": "Target a specific Tado home. If omitted, the action applies to all configured homes."
         }
       }
@@ -669,17 +813,17 @@
       "description": "Turn off heating in all zones.",
       "fields": {
         "config_entry": {
-          "name": "Tado home (optional)",
+          "name": "Tado Home (optional)",
           "description": "Target a specific Tado home. If omitted, the action applies to all configured homes."
         }
       }
     },
     "boost_all_zones": {
       "name": "Boost All Zones",
-      "description": "Boost heating in all zones to 25°C.",
+      "description": "Heat all zones to 25°C.",
       "fields": {
         "config_entry": {
-          "name": "Tado home (optional)",
+          "name": "Tado Home (optional)",
           "description": "Target a specific Tado home. If omitted, the action applies to all configured homes."
         }
       }
@@ -719,7 +863,7 @@
       "description": "Set a manual mode for all heating and/or air-conditioning zones at once.",
       "fields": {
         "config_entry": {
-          "name": "Tado home (optional)",
+          "name": "Tado Home (optional)",
           "description": "Target a specific Tado home. If omitted, the action applies to all configured homes."
         },
         "include_heating": {
