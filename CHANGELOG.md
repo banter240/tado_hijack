@@ -1,3 +1,22 @@
+## [5.10.0-dev.8](https://github.com/banter240/tado_hijack/compare/v5.10.0-dev.7...v5.10.0-dev.8) (2026-09-29)
+
+### 🐛 Bug Fixes
+
+* fix(offset-cal): show Default (Bridge) when a zone inherits
+
+  A zone with no stored interval copied the bridge value, so the select
+  looked like an explicit choice. Unset stays inherit. Scheduling still
+  uses the bridge interval.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🐛 FIXED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - zone offset auto-calibrate shows Default (Bridge), Standard (Bridge),
+    or Výchozí (Bridge) until that zone sets its own interval
+  - clock, threshold, and the quota estimate still resolve inherit to the
+    bridge interval
+
 ## [5.10.0-dev.7](https://github.com/banter240/tado_hijack/compare/v5.10.0-dev.6...v5.10.0-dev.7) (2026-09-29)
 
 ### ✨ New Features
