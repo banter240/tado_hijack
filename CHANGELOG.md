@@ -1,3 +1,264 @@
+## [5.10.0-dev.7](https://github.com/banter240/tado_hijack/compare/v5.10.0-dev.6...v5.10.0-dev.7) (2026-09-29)
+
+### ✨ New Features
+
+* feat: batch window resumes, threshold offsets, and bridge placement
+
+  Window closes share one cloud resume, offset calibration can write as
+  soon as the deviation is large enough, and home controls sit on the
+  Internet Bridge. The options form and the translations match that.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🔧 CHANGED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - A window close or timeout holds the cloud resume (default 120 s) so
+    nearby rooms leave as one batch. The setpoint from before the window
+    opened is set on the linked climate at once. If no schedule was running,
+    only that local climate is restored.
+  - Offset calibration can watch the linked sensor and write when the
+    deviation reaches the threshold, then wait. An open window is ignored
+    until the room has settled. Clock intervals are unchanged.
+  - Temperature and humidity source Automatic is now Device. Stored
+    Automatic, Auto, and Device values are cleared on setup.
+  - Hijack always registers its Internet Bridge. Home controls stay on it.
+    When HomeKit or Matter already has that bridge, they move there and
+    the Hijack device stays empty.
+  - Config and options share one layout: polling, economy window, quota,
+    windows, offset, recovery, features, advanced. Stored keys are the
+    same. Diagnostics cover the options that had no sensor.
+  - README, FEATURES, and ARCHITECTURE describe the window hold and the
+    threshold mode.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🐛 FIXED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - All-zones schedule mode no longer sits on the Internet Bridge. A
+    bridge has no schedule, so that select stays on the home device.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🌐 TRANSLATIONS
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - Fixed en, de, and cs, including both the config and options copies.
+  - German and Czech are real sentences now, not English left in place.
+    English names that existed only in Czech are filled in.
+  - Offset inherit is Default (Bridge), Standard (Bridge), Výchozí (Bridge).
+  - Window mode is Immediate, Sofort, Ihned, and Timeout. No window sensor
+    is None, Keiner, Žádný.
+  - The quota section is a reserve, not safety. Recovery no longer says
+    cloud-only. The resume refresh text says air conditioning and hot
+    water are read once, and heating is skipped.
+
+  Translations: en, de, cs.
+* feat(entity): attach bridge entities like TRVs
+
+  Bridge entities follow the same rule as valves. If HomeKit or Matter
+  already has the Internet Bridge, the entities are created on that
+  device. If it does not, Hijack creates its own Internet Bridge device.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  📊 DEVICE
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - TadoBridgeEntity attaches via the local device linker. A match returns
+    no device_info, so HA keeps the entity on the HomeKit or Matter bridge
+  - without a match, device_info is an Internet Bridge device: serial,
+    model and firmware from BridgeInfo
+  - the home device no longer collects bridge serials into its own
+    identifiers. Home controls stay on the home device
+* feat(offset-cal): per-zone interval and threshold overrides
+
+  Offset calibration compares a linked room sensor with the TRV and writes
+  the difference back as the Tado offset, so HomeKit and Matter show the
+  real room temperature. The bridge setting is the default. A room can
+  run tighter, or only once a day.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ⚙️ CONFIGURATION
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - home select and number are the master interval and spread threshold
+  - each heating zone can override the interval, or pick inherit
+  - a zone threshold of 0 clears the override and falls back to the master
+  - offsets are written only when the delta is above that threshold
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  📊 SCHEDULER
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - one timer at the union of every configured hour
+  - a tick calibrates only the zones whose own interval includes that hour
+  - 24h is midnight only, 3h is every three hours
+  - still one PUT per measuring device that actually changes. No bulk
+    offset endpoint
+
+  Translations: en, de, cs.
+* feat(presence): split presence mode from effective home/away state
+
+  The presence select used to follow geofencing, so AUTO was invisible.
+  Tado reports two different things: who is in control, and whether anyone
+  is home. Keep both.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  📊 PRESENCE
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - mappers keep the full HomeState, including presence_locked, for v3 and
+    Tado X
+  - presence_mode stays on AUTO, HOME or AWAY. It does not flip when
+    geofencing changes the effective state
+  - new presence_state binary sensor: on = home, off = away
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🔧 PIPELINE
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - switching to AUTO queues a presence refresh on the normal debounce
+    pipeline, no extra immediate call
+  - while a presence command is pending, polls cannot overwrite presence
+    or presence_locked
+  - rollback restores both. Both executors pass old_locked through
+* feat(recovery): replay the intended state when a local TRV returns
+
+  Cloud commands are still sent. A HomeKit or Matter valve that was
+  unavailable missed the local update. Remember the last intent and apply
+  it when that climate entity is reachable again. Do not spend an extra
+  API call unless the intent is a schedule resume and the option is on.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  📊 REPLAY
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - AvailabilityTracker reads the current state when it maps a serial, and
+    picks up climate entities that appear later
+  - only unavailable serials are queued. A newer intent replaces the old
+    one. trv_serials() is shared with the queue
+  - a temperature or off is applied on the local climate entity, not via
+    another cloud call
+  - an expired window-off or timer becomes a schedule resume instead of a
+    stale overlay
+  - resume is cloud-only. With recovery_cloud_replay it is queued through
+    the normal merger, one resume per zone, so several zones still batch
+  - TRVs that return within 0.2 s are handled as one batch
+  - bulk resume, boost and all-off capture the same way
+  - Tado X hot water captures only after the programmer call succeeds.
+    That zone has no TRV serials, so nothing is stored unless a local
+    device is mapped
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🔧 ALSO
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - RECOVERY_BATCH_DEBOUNCE_S and PROTECTION_MODE_TEMP live in const.py
+  - window-off in timeout mode stores the open-window duration as the
+    intent expiry
+  - Czech strings for presence state and flow temperature
+
+  Translations: en, de, cs.
+* feat(tadox): add flow temperature optimization for OpenTherm homes
+
+  Tado X homes with an OpenTherm boiler control can read and set the max
+  flow temperature and auto adaptation. Off unless the option is enabled,
+  so homes without that hardware do not spend quota.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  📊 API
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - GET and PATCH settings/flowTemperatureOptimization on the Hops client
+  - pydantic models for the settings and the min/max constraints
+  - 404 is cached as "not installed". A later transient error keeps the
+    last good settings
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🛠️ ENTITIES
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - max flow temperature number, min/max taken from the API
+  - auto adaptation switch
+  - created only for GEN_X, and only after a successful fetch
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🔧 PIPELINE
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - both writes use SET_FLOW_TEMP and the shared flow_temp queue key
+  - a second edit inside the debounce window is merged field by field,
+    so temperature and auto adaptation survive together in one PATCH
+  - rollback keeps the first server value per field and reads
+    autoAdaptation.enabled
+
+  Translations: en, de.
+* feat(water_heater): add hot water boost control for Tado X
+
+  The Tado X water heater can be boosted from Home Assistant. heat turns
+  the boost on, off forces hot water off, auto resumes the schedule and
+  that cancels a running boost.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🔧 PATH
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - direct Hops programmer calls, same path as the existing Tado X hot
+    water off and resume. Not the zone overlay queue
+  - optimistic state, redundancy check and overlay validator before the
+    call
+  - dummy handler covers the same three actions for test setups
+* feat(window): external window sensors with direct or timeout mode
+
+  A zone can use an external contact sensor as its window. Open turns the
+  zone off through the command queue. Close resumes the schedule. The
+  mode is per zone.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  📊 BEHAVIOUR
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - direct: off on open, resume on close
+  - timeout: off on open, and if the window is still open when the zone's
+    open-window timer ends, heating resumes anyway. A dead sensor cannot
+    hold the room off. The next cycle starts only on close -> open
+  - a window that is already open at startup, or when the sensor is first
+    linked, is applied immediately
+  - if open-window detection is disabled, timeout behaves like direct
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🔧 FILES
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - const.py: CONF_ZONE_WINDOW_ENTITIES, CONF_ZONE_WINDOW_MODES
+  - helpers/window_controller.py
+  - select entities for the sensor and the mode
+  - coordinator starts the controller after the first zone fetch
+  - translations en, de, cs
+
+### 📚 Documentation
+
+* docs: verify and rewrite documentation against verified code
+
+  Rewrite the docs from the code, not from memory.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  📖 TADO_API.md
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - the API surface Hijack actually calls: tadoasync patches, Hops
+    endpoints, rate-limit handling, and where that differs from the
+    kritsel v2 spec
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  📖 GUIDES
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - DESIGN, ARCHITECTURE, FEATURES and COMPATIBILITY checked against the
+    code. COMPATIBILITY states the request handler does browser mimicry
+    and proxy routing, not a retry loop
+  - README and the guides also describe presence state, flow temperature,
+    per-zone offset, the Internet Bridge attachment, the window handler
+    and local TRV recovery
+
 ## [5.10.0-dev.7](https://github.com/banter240/tado_hijack/compare/v5.10.0-dev.6...v5.10.0-dev.7) (2026-09-28)
 
 ### ✨ New Features
