@@ -100,7 +100,7 @@ from .helpers.climate_physics import (
     compute_mold_risk_level,
     compute_ventilation_beneficial,
 )
-from .helpers.offset_calibrate import OFFSET_CAL_OPTIONS
+from .helpers.offset_calibrate import OFFSET_CAL_INHERIT, OFFSET_CAL_OPTIONS
 from .helpers.parsers import get_ac_capabilities
 from .helpers.schedule import zone_supports_schedule
 from .helpers.tadov3 import parsers as v3_parsers
@@ -2106,7 +2106,7 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     create_zone_select(
         key="offset_cal_interval",
         value_fn=lambda c, zid: c.get_zone_offset_cal_interval(zid),
-        options_fn=lambda c, zid: ["inherit", *list(OFFSET_CAL_OPTIONS)],
+        options_fn=lambda c, zid: [OFFSET_CAL_INHERIT, *list(OFFSET_CAL_OPTIONS)],
         select_option_fn=lambda c, zid, val: c.async_set_zone_offset_cal_interval(
             zid, val
         ),

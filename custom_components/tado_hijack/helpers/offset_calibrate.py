@@ -17,6 +17,7 @@ OFFSET_STEP = 0.1
 OFFSET_CAL_OFF = "off"
 OFFSET_CAL_ON_RESET = "on_reset"
 OFFSET_CAL_THRESHOLD = "threshold"
+OFFSET_CAL_INHERIT = "inherit"
 OFFSET_CAL_HOUR_STEPS: tuple[int, ...] = (3, 6, 9, 12, 15, 18, 21, 24)
 OFFSET_CAL_INTERVALS: tuple[str, ...] = tuple(
     f"{hours}h" for hours in OFFSET_CAL_HOUR_STEPS
@@ -68,9 +69,10 @@ def daily_offset_cal_puts(coordinator: TadoDataUpdateCoordinator) -> int:
         if not linked.get(zid_str):
             continue
 
-        # Use mixin method if available, else fallback to bridge
-        if hasattr(coordinator, "get_zone_offset_cal_interval"):
-            option = coordinator.get_zone_offset_cal_interval(zone_id)
+        # Resolved interval. inherit counts as the bridge option.
+        resolver = getattr(coordinator, "effective_zone_offset_cal_interval", None)
+        if resolver is not None:
+            option = resolver(zone_id)
         else:
             option = str(
                 coordinator.config_entry.data.get(

@@ -73,11 +73,19 @@ class OffsetCalConfigMixin:
         )
 
     def get_zone_offset_cal_interval(self, zone_id: int) -> str:
+        # Unset stays inherit so the select does not copy the bridge interval.
+        from .offset_calibrate import OFFSET_CAL_INHERIT
+
         overrides = self.config_entry.data.get(CONF_ZONE_OFFSET_CAL_INTERVALS) or {}
-        if isinstance(overrides, dict):
-            if value := overrides.get(str(zone_id)):
-                return str(value)
-        return self._offset_cal_option()
+        if isinstance(overrides, dict) and (value := overrides.get(str(zone_id))):
+            return str(value)
+        return OFFSET_CAL_INHERIT
+
+    def effective_zone_offset_cal_interval(self, zone_id: int) -> str:
+        from .offset_calibrate import OFFSET_CAL_INHERIT
+
+        option = self.get_zone_offset_cal_interval(zone_id)
+        return self._offset_cal_option() if option == OFFSET_CAL_INHERIT else option
 
     def get_zone_offset_cal_threshold(self, zone_id: int) -> float:
         overrides = self.config_entry.data.get(CONF_ZONE_OFFSET_CAL_THRESHOLDS) or {}
@@ -90,7 +98,9 @@ class OffsetCalConfigMixin:
     def zone_offset_cal_hours(self, zone_id: int) -> list[int]:
         from .offset_calibrate import hours_from_midnight
 
-        return hours_from_midnight(self.get_zone_offset_cal_interval(zone_id)) or []
+        return (
+            hours_from_midnight(self.effective_zone_offset_cal_interval(zone_id)) or []
+        )
 
     def _linked_zone_ids(self) -> list[int]:
         linked = self.config_entry.data.get(CONF_ZONE_TEMP_ENTITIES) or {}
@@ -145,7 +155,7 @@ class OffsetCalSchedulerMixin(OffsetCalConfigMixin):
         return [
             zone_id
             for zone_id in self._linked_zone_ids()
-            if self.get_zone_offset_cal_interval(zone_id) == OFFSET_CAL_THRESHOLD
+            if self.effective_zone_offset_cal_interval(zone_id) == OFFSET_CAL_THRESHOLD
         ]
 
     def _schedule_offset_cal_threshold_watch(self) -> None:
@@ -276,15 +286,15 @@ class OffsetCalSchedulerMixin(OffsetCalConfigMixin):
     async def async_set_zone_offset_cal_interval(
         self, zone_id: int, option: str
     ) -> None:
-        from .offset_calibrate import OFFSET_CAL_OPTIONS
+        from .offset_calibrate import OFFSET_CAL_INHERIT, OFFSET_CAL_OPTIONS
 
         key = option.strip().lower()
-        if key != "inherit" and key not in OFFSET_CAL_OPTIONS:
+        if key != OFFSET_CAL_INHERIT and key not in OFFSET_CAL_OPTIONS:
             raise HomeAssistantError(f"Unknown offset cal interval '{option}'.")
         overrides = dict(
             self.config_entry.data.get(CONF_ZONE_OFFSET_CAL_INTERVALS) or {}
         )
-        if key == "inherit":
+        if key == OFFSET_CAL_INHERIT:
             overrides.pop(str(zone_id), None)
         else:
             overrides[str(zone_id)] = key
