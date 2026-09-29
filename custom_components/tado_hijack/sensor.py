@@ -14,6 +14,7 @@ from .const import (
     GEN_X,
     ZONE_TYPE_HOT_WATER,
 )
+from .definitions import home_mode_room_attributes
 from .entity import (
     TadoGenericEntityMixin,
     TadoHomeEntity,
@@ -70,10 +71,12 @@ class TadoGenericHomeSensor(TadoHomeEntity, TadoGenericEntityMixin, SensorEntity
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return entity specific state attributes."""
-        attrs = super().extra_state_attributes or {}
+        attrs: dict[str, Any] = dict(super().extra_state_attributes or {})
 
         if self._definition["key"] == "quota_reset_next":
             attrs["learned"] = self.coordinator.reset_tracker.is_learned
+        elif self._definition["key"] == "home_mode":
+            attrs |= home_mode_room_attributes(self.coordinator)
 
         return attrs
 
