@@ -443,6 +443,10 @@ Tado Hijack is now an **official HACS integration**! No custom repository needed
 | **Offset Update**                  | `0` (Off) | Interval for temperature offsets. Costs 1 API call per valve.                                                                                                                                                                                              |
 | **Flow Temperature Optimization**  | `Off`     | Tado X only. Poll OpenTherm flow-temperature settings (1 call per metadata poll) and expose max flow temperature plus auto adaptation. A 404 is remembered, so homes without that device are not polled again.                                             |
 | **Replay Cloud-Only On Recovery**  | `On`      | When an offline TRV returns, resume-schedule cannot be replayed on the local climate entity. If on, that resume is sent to the Tado cloud again (1 call per zone).                                                                                          |
+| **Queue and delay resume schedule** | `On`    | Window close and window-timeout end. Behavior is in the window section below.                                                                                                                                                                              |
+| **Resume schedule batch window**   | `120s`    | How long those cloud resumes wait so nearby rooms share one batch. `0` sends on the next pass.                                                                                                                                                             |
+| **Offset threshold cooldown**      | `300` s   | Threshold mode only. After an offset write, wait this long before another one.                                                                                                                                                                              |
+| **Offset pause after window**      | `300` s   | Threshold mode only. Ignore the zone while its window sensor is open, then wait this long after it closes before measuring again.                                                                                                                           |
 | **Min Polling Window**             | `20s`     | **Performance Floor:** The absolute fastest speed Auto Quota will poll (5s-12h, default: 20s).                                                                                                                                                                          |
 | **Debounce Time**                  | `5s`      | **Batching Window:** Fuses actions into single calls.                                                                                                                                                                                                      |
 | **Refresh After Resume**           | `On`      | Auto-refresh target temperature/state after resume schedule (HVAC AUTO). Required because schedules are Tado cloud-side. Uses 1s grace period to merge multiple resumes. Costs 1 API call.                                                                 |
@@ -462,8 +466,8 @@ Tado Hijack is now an **official HACS integration**! No custom repository needed
 | **Extended Data Fetch**            | `On`      | Fetch extended zone data (e.g. additional capabilities) during polling. Disable to reduce API payload size. |
 | **Outdoor Weather Entity**         | `None`    | Select a weather entity providing outdoor temperature + humidity. When set, creates an indoor absolute humidity sensor (g/m³) and a ventilation recommendation binary sensor per zone. |
 | **Ventilation Threshold**          | `1.0 g/m³`| Minimum indoor-outdoor AH difference required before _Ventilation Recommended_ turns ON. Prevents automation chatter from negligible differences. |
-| **Temperature Source** _(per zone)_| `Automatic`  | Optional: link a temperature `sensor` or `climate` entity as the data source for indoor climate sensors. Set via `select.zone_temp_source` on each zone device. Required for Tado X (cloud has no temp in Full-Matter mode). |
-| **Humidity Source** _(per zone)_   | `Automatic`  | Optional: link a `climate` entity (reads `current_humidity`) or a humidity `sensor` as the data source for indoor climate sensors. Set via `select.zone_humidity_source` on each zone device. Fallback: cloud zone state humidity. |
+| **Temperature Source** _(per zone)_| `Device`  | Optional: link a temperature `sensor` or `climate` entity as the data source for indoor climate sensors. `Device` keeps the Tado device's own reading. Set via `select.zone_temp_source` on each zone device. Required for Tado X (cloud has no temp in Full-Matter mode). |
+| **Humidity Source** _(per zone)_   | `Device`  | Optional: link a `climate` entity (reads `current_humidity`) or a humidity `sensor` as the data source for indoor climate sensors. `Device` keeps the Tado device's own reading. Set via `select.zone_humidity_source` on each zone device. |
 | **Window Sensor** _(per zone)_    | `none`       | Optional: link an external contact `binary_sensor` as the zone's window state. When open, the zone turns off; when closed, the schedule resumes. Set via `select.zone_window_sensor` on each zone device. |
 | **Window Mode** _(per zone)_       | `direct`     | Reaction mode for the linked window sensor: `direct` (immediate off/resume), `timeout` (immediate off + self-healing resume after the open window detection timeout even if the window is still open — protects against a stuck sensor or dead battery). Set via `select.zone_window_mode`. |
 
@@ -513,12 +517,20 @@ Each zone device exposes two optional selectors that connect external contact se
 
 | Mode                | Window opens                                      | Window closes before timer fires     | Timer fires |
 | :------------------ | :------------------------------------------------ | :----------------------------------- | :---------- |
-| `direct`            | Zone OFF immediately                             | Schedule resumes immediately         | —           |
-| `timeout`           | Zone OFF immediately + self-heal timer armed     | Timer cancelled, schedule resumes   | Zone resumes immediately (even if the window is still open) |
+| `direct`            | Zone off                                         | Schedule resumes                     | —           |
+| `timeout`           | Zone off + self-heal timer armed                | Timer cancelled, schedule resumes    | Schedule resumes (window may still be open) |
 
 After a timer-triggered resume the cycle is complete: staying open without a new `close -> open` transition does not re-fire, so a stuck sensor cannot keep the zone off forever.
 
-Commands flow through the coordinator's command queue, so batching, redundancy suppression and optimistic patches apply. On Home Assistant start (or when a sensor is first linked), an already-open window takes effect immediately without waiting for a transition. Each zone uses its own open window detection timeout (`zone.open_window_detection.timeout_in_seconds`); if open window detection is disabled for a zone, timeout modes behave like `direct` for that zone.
+**Queue and delay send of resume schedule** (default on, 120 seconds) changes only the cloud half of that resume:
+
+- The setpoint from **before** the window opened is set at once on the linked HomeKit or Matter climate. The room does not wait for the cloud.
+- If a schedule was running, the cloud resume waits. Every zone that closes or whose timeout ends inside that window is one batch. On v3 that is one call. On Tado X it is one call per room, or one quick action when every heating room is in the batch.
+- If no schedule was running, the cloud is left alone and only the local climate is restored. There is no resume, so a manual setpoint is not replaced by the schedule. Without a local climate the manual setpoint is sent in the same batch, because the open already sent off to the cloud.
+- Cloud off on open is still immediate. A running schedule would otherwise turn the room back on. The pre-open snapshot is stored and kept across a restart.
+- Turn the option off to get the previous behavior: cloud resume as soon as the window closes or the timeout ends.
+
+Commands flow through the coordinator's command queue, so batching, redundancy suppression and optimistic patches apply. On Home Assistant start (or when a sensor is first linked), an already-open window takes effect without waiting for a transition. A window that was already open at startup and has no stored snapshot resumes the schedule on close, same as before. Each zone uses its own open window detection timeout (`zone.open_window_detection.timeout_in_seconds`); if open window detection is disabled for a zone, timeout modes behave like `direct` for that zone.
 
 Changes take effect immediately — no integration reload required.
 
@@ -590,7 +602,7 @@ Global controls and elite transparency for your home. _Linked to your Internet B
 | `switch.tado_{home}_flow_auto_adaptation`  | Switch | Tado X OpenTherm only. Flow temperature auto adaptation. |
 | `switch.tado_{home}_polling_active`        | Switch | **Master Switch:** Instantly stop/start all periodic API polls.   |
 | `switch.tado_{home}_reduced_polling_logic` | Switch | **Logic Switch:** Toggle the timed "Economy" profile.             |
-| `select.tado_{home}_offset_cal_interval`   | Select | Default auto-calibrate interval against a linked `zone_temp_source`. Slots from local 00:00 in 3h steps (`3h`..`24h`), or `on_reset`. Off by default. Zones can override this on their own select (`inherit` uses this value). |
+| `select.tado_{home}_offset_cal_interval`   | Select | When to compare the linked sensor with the TRV: a clock slot, `on_reset`, or `threshold` (keep watching). A write still needs the deviation in the row below. Off by default. Zones can override (`inherit` uses this value). Cooldown and window pause are the two config rows above. |
 | `number.tado_{home}_offset_cal_spread_threshold` | Number | Default minimum delta (°C) before an offset is written. Zones can override it; `0` on the zone number clears the override. |
 | `button.tado_{home}_calibrate_offsets`     | Button | Run that calibration now (same formula, same linked thermostats). Works even if the interval is `off`. 1 PUT per measuring device that needs a change. |
 | `button.tado_{home}_resume_all_schedules`  | Button | Restore Smart Schedule across all zones (1 bulk call).            |

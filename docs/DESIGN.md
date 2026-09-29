@@ -228,5 +228,9 @@ dew_point = (243.5 * gamma) / (17.67 - gamma)
 | `DEFAULT_PRESENCE_POLL_INTERVAL` | 43200 s | presence track (12 h) |
 | `DEFAULT_SLOW_POLL_INTERVAL` | 86400 s | hardware metadata track (24 h) |
 | `DEFAULT_OFFSET_POLL_INTERVAL` | 0 | offset calibration track (disabled) |
+| `DEFAULT_OFFSET_CAL_SEND_COOLDOWN_S` | 300 s | threshold mode: wait after an offset write |
+| `DEFAULT_OFFSET_CAL_WINDOW_SETTLE_S` | 300 s | threshold mode: wait after the window closes |
+| `DEFAULT_WINDOW_RESUME_BATCH` | on | hold cloud resume after a window; local setpoint is immediate |
+| `DEFAULT_WINDOW_RESUME_BATCH_S` | 120 s | how long that hold lasts (0 sends on the next pass) |
 | `RECOVERY_BATCH_DEBOUNCE_S` | 0.2 s | window for grouping TRVs that recover together |
 | `DEFAULT_RECOVERY_CLOUD_REPLAY` | on | resend cloud-only resume when a TRV returns |

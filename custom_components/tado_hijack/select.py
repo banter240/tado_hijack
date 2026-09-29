@@ -27,8 +27,31 @@ if TYPE_CHECKING:
 
 _LOGGER = get_redacted_logger(__name__)
 
-# Sentinel value displayed when no source entity is linked.
-_SOURCE_NONE: Final = "Automatic"
+# No linked sensor. Translated via select state "device" (Device / Gerät).
+_SOURCE_NONE: Final = "device"
+_LEGACY_SOURCE_SENTINELS: Final = frozenset(
+    {"automatic", "auto", "device", "gerät", "gerat"}
+)
+
+
+def migrate_legacy_source_sentinels(hass: Any, entry: TadoConfigEntry) -> None:
+    """Drop stored Automatic/Device sentinels. Those mean 'use the device'."""
+    data = dict(entry.data)
+    changed = False
+    for key in (CONF_ZONE_TEMP_ENTITIES, CONF_ZONE_HUMIDITY_ENTITIES):
+        raw = data.get(key)
+        if not isinstance(raw, dict):
+            continue
+        cleaned = {
+            zone_id: entity_id
+            for zone_id, entity_id in raw.items()
+            if str(entity_id).strip().lower() not in _LEGACY_SOURCE_SENTINELS
+        }
+        if cleaned != raw:
+            data[key] = cleaned
+            changed = True
+    if changed:
+        hass.config_entries.async_update_entry(entry, data=data)
 
 
 async def async_setup_entry(
@@ -218,6 +241,8 @@ class TadoZoneSourceSelectBase(TadoZoneEntity, SelectEntity):
             entry,
             data={**entry.data, self._config_key: current_map},
         )
+        if self._config_key == CONF_ZONE_TEMP_ENTITIES:
+            self.coordinator.note_offset_sources_changed()
         self.async_write_ha_state()
 
 

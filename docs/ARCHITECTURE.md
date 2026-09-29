@@ -124,7 +124,7 @@ graph TD
 
 ### `WindowController`
 
-`helpers/window_controller.py` — links an external contact `binary_sensor` per zone. Open turns the zone off, close resumes the schedule, both through the command queue. `timeout` also resumes when the zone's open-window timer expires while the sensor is still open. Already-open windows are applied once at startup.
+`helpers/window_controller.py` — links an external contact `binary_sensor` per zone. Open turns the zone off, close resumes the schedule. Cloud calls go through the command queue. With the resume hold on, the linked climate is set at once and the cloud resume waits (see the README). `timeout` also resumes when the zone's open-window timer expires while the sensor is still open. Already-open windows are applied once at startup.
 
 ### Local recovery
 
@@ -138,7 +138,7 @@ Offline HomeKit and Matter TRVs do not see a cloud write. Three pieces remember 
 
 ### `OffsetCalSchedulerMixin`
 
-`helpers/offset_cal_config.py` — bridge-level interval and threshold, with per-zone overrides (`inherit` or `0` clears the zone value). One clock timer fires at the union of all configured hours and calibrates only the zones due in that hour.
+`helpers/offset_cal_config.py` — bridge default plus per-zone interval and threshold (`inherit`, or threshold `0`, clears the override). Clock modes share one timer. `threshold` watches the linked sensor instead. User-facing rules are in `docs/FEATURES.md`.
 
 ---
 

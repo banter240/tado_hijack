@@ -7,17 +7,6 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.components.climate import (
-    ATTR_HVAC_MODE,
-    ATTR_HVAC_MODES,
-    SERVICE_SET_HVAC_MODE,
-    SERVICE_SET_TEMPERATURE,
-    HVACMode,
-)
-from homeassistant.components.climate import (
-    DOMAIN as CLIMATE_DOMAIN,
-)
-from homeassistant.const import ATTR_ENTITY_ID, ATTR_TEMPERATURE
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.event import async_call_later
 
@@ -25,9 +14,9 @@ from ..const import (
     OFF_MAGIC_TEMP,
     POWER_OFF,
     POWER_ON,
-    PROTECTION_MODE_TEMP,
     RECOVERY_BATCH_DEBOUNCE_S,
 )
+from .local_climate import async_set_off, async_set_temperature
 from .logging_utils import get_redacted_logger
 
 if TYPE_CHECKING:
@@ -166,13 +155,10 @@ class LocalRecoveryListener:
         if intent.power == POWER_OFF or (
             intent.power == POWER_ON and intent.temperature == OFF_MAGIC_TEMP
         ):
-            await self._async_apply_off(entity_id)
+            await async_set_off(self._hass, entity_id, blocking=True)
         elif intent.temperature is not None:
-            await self._hass.services.async_call(
-                CLIMATE_DOMAIN,
-                SERVICE_SET_TEMPERATURE,
-                {ATTR_ENTITY_ID: entity_id, ATTR_TEMPERATURE: intent.temperature},
-                blocking=True,
+            await async_set_temperature(
+                self._hass, entity_id, intent.temperature, blocking=True
             )
         else:
             _LOGGER.debug(
@@ -180,26 +166,3 @@ class LocalRecoveryListener:
                 serial,
                 intent.power,
             )
-
-    async def _async_apply_off(self, entity_id: str) -> None:
-        """Express an OFF intent on the local climate entity."""
-        state = self._hass.states.get(entity_id)
-        hvac_modes = state.attributes.get(ATTR_HVAC_MODES) if state else None
-        if HVACMode.OFF in (hvac_modes or []):
-            await self._hass.services.async_call(
-                CLIMATE_DOMAIN,
-                SERVICE_SET_HVAC_MODE,
-                {ATTR_ENTITY_ID: entity_id, ATTR_HVAC_MODE: HVACMode.OFF},
-                blocking=True,
-            )
-            return
-        # Entities without an OFF mode only close the valve via a low setpoint.
-        min_temp = (
-            state.attributes.get("min_temp") if state else None
-        ) or PROTECTION_MODE_TEMP
-        await self._hass.services.async_call(
-            CLIMATE_DOMAIN,
-            SERVICE_SET_TEMPERATURE,
-            {ATTR_ENTITY_ID: entity_id, ATTR_TEMPERATURE: min_temp},
-            blocking=True,
-        )

@@ -89,6 +89,7 @@ class TadoEntityDefinition(TypedDict, total=False):
     use_legacy_unique_id_format: bool | None
     platform: str  # "sensor", "binary_sensor", etc.
     scope: str  # "home", "zone", "device", "hot_water", "bridge"
+    on_bridge: bool | None  # False keeps a home entity off the Internet Bridge
 
     # Function to extract value.
     # Signature depends on scope:

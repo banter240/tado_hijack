@@ -18,18 +18,23 @@ from .const import (
     CONF_DEBOUNCE_TIME,
     CONF_DISABLE_POLLING_WHEN_THROTTLED,
     CONF_FEATURE_DEW_POINT,
+    CONF_FEATURE_FLOW_TEMP,
     CONF_FEATURE_MOLD_DETECTION,
     CONF_FETCH_EXTENDED_DATA,
     CONF_FULL_CLOUD_MODE,
     CONF_JITTER_PERCENT,
     CONF_LOG_LEVEL,
+    CONF_LOG_VERSION_PREFIX,
     CONF_MIN_AUTO_QUOTA_INTERVAL_S,
     CONF_OFFSET_CAL_INTERVAL,
+    CONF_OFFSET_CAL_SEND_COOLDOWN_S,
+    CONF_OFFSET_CAL_WINDOW_SETTLE_S,
     CONF_OFFSET_POLL_INTERVAL,
     CONF_OUTDOOR_WEATHER_ENTITY,
     CONF_PRESENCE_POLL_INTERVAL,
     CONF_PROXY_TOKEN,
     CONF_QUOTA_SAFETY_RESERVE,
+    CONF_RECOVERY_CLOUD_REPLAY,
     CONF_REDUCED_POLLING_ACTIVE,
     CONF_REDUCED_POLLING_END,
     CONF_REDUCED_POLLING_INTERVAL,
@@ -41,19 +46,26 @@ from .const import (
     CONF_SUPPRESS_REDUNDANT_CALLS,
     CONF_THROTTLE_THRESHOLD,
     CONF_VENTILATION_AH_THRESHOLD,
+    CONF_WINDOW_RESUME_BATCH,
+    CONF_WINDOW_RESUME_BATCH_S,
     CONF_ZONE_HUMIDITY_ENTITIES,
     CONF_ZONE_TEMP_ENTITIES,
     DEFAULT_AUTO_API_QUOTA_PERCENT,
     DEFAULT_DEBOUNCE_TIME,
     DEFAULT_FEATURE_DEW_POINT,
+    DEFAULT_FEATURE_FLOW_TEMP,
     DEFAULT_FEATURE_MOLD_DETECTION,
     DEFAULT_JITTER_PERCENT,
     DEFAULT_LOG_LEVEL,
+    DEFAULT_LOG_VERSION_PREFIX,
     DEFAULT_MIN_AUTO_QUOTA_INTERVAL_S,
     DEFAULT_OFFSET_CAL_INTERVAL,
+    DEFAULT_OFFSET_CAL_SEND_COOLDOWN_S,
+    DEFAULT_OFFSET_CAL_WINDOW_SETTLE_S,
     DEFAULT_OFFSET_POLL_INTERVAL,
     DEFAULT_PRESENCE_POLL_INTERVAL,
     DEFAULT_QUOTA_SAFETY_RESERVE,
+    DEFAULT_RECOVERY_CLOUD_REPLAY,
     DEFAULT_REDUCED_POLLING_END,
     DEFAULT_REDUCED_POLLING_INTERVAL,
     DEFAULT_REDUCED_POLLING_START,
@@ -63,6 +75,8 @@ from .const import (
     DEFAULT_SUPPRESS_REDUNDANT_CALLS,
     DEFAULT_THROTTLE_THRESHOLD,
     DEFAULT_VENTILATION_AH_THRESHOLD,
+    DEFAULT_WINDOW_RESUME_BATCH,
+    DEFAULT_WINDOW_RESUME_BATCH_S,
     GEN_CLASSIC,
     GEN_X,
     MIN_OWD_TIMEOUT_MIN,
@@ -373,6 +387,7 @@ def _create_definition(
     use_legacy_unique_id_format: bool | None = None,
     optimistic_value_map: dict[str, bool] | None = None,
     suggested_display_precision: int | None = None,
+    on_bridge: bool | None = None,
 ) -> TadoEntityDefinition:
     """Create a TadoEntityDefinition."""
     return cast(
@@ -401,6 +416,7 @@ def _create_definition(
             "entity_registry_enabled_default": enabled_default,
             "supported_zone_types": supported_zone_types,
             "supported_generations": supported_generations,
+            "on_bridge": on_bridge,
             "required_device_capabilities": required_device_capabilities,
             "min_value": min_value,
             "max_value": max_value,
@@ -971,6 +987,7 @@ def create_home_select(
     unique_id_suffix: str | None = None,
     supported_generations: set[str] | None = None,
     translation_key: str | None = None,
+    on_bridge: bool | None = None,
 ) -> TadoEntityDefinition:
     """Create a select entity for the Tado Home."""
     return _create_definition(
@@ -985,6 +1002,7 @@ def create_home_select(
         unique_id_suffix=unique_id_suffix,
         supported_generations=supported_generations,
         translation_key=translation_key,
+        on_bridge=on_bridge,
     )
 
 
@@ -1629,6 +1647,80 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         unit="s",
         state_class=SensorStateClass.MEASUREMENT,
     ),
+    create_home_binary_sensor(
+        key="window_resume_batch",
+        value_fn=lambda c: bool(
+            c.config_entry.data.get(
+                CONF_WINDOW_RESUME_BATCH, DEFAULT_WINDOW_RESUME_BATCH
+            )
+        ),
+        icon="mdi:calendar-clock",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    create_diagnostic_sensor(
+        key="window_resume_batch_s",
+        value_fn=lambda c: int(
+            c.config_entry.data.get(
+                CONF_WINDOW_RESUME_BATCH_S, DEFAULT_WINDOW_RESUME_BATCH_S
+            )
+        ),
+        icon="mdi:timer-outline",
+        unit="s",
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    create_diagnostic_sensor(
+        key="offset_cal_window_settle_s",
+        value_fn=lambda c: int(
+            c.config_entry.data.get(
+                CONF_OFFSET_CAL_WINDOW_SETTLE_S, DEFAULT_OFFSET_CAL_WINDOW_SETTLE_S
+            )
+        ),
+        icon="mdi:window-closed",
+        unit="s",
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    create_diagnostic_sensor(
+        key="offset_cal_send_cooldown_s",
+        value_fn=lambda c: int(
+            c.config_entry.data.get(
+                CONF_OFFSET_CAL_SEND_COOLDOWN_S, DEFAULT_OFFSET_CAL_SEND_COOLDOWN_S
+            )
+        ),
+        icon="mdi:timer-cog",
+        unit="s",
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    create_home_binary_sensor(
+        key="recovery_cloud_replay",
+        value_fn=lambda c: bool(
+            c.config_entry.data.get(
+                CONF_RECOVERY_CLOUD_REPLAY, DEFAULT_RECOVERY_CLOUD_REPLAY
+            )
+        ),
+        icon="mdi:cloud-refresh",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    create_home_binary_sensor(
+        key="feature_flow_temperature_optimization",
+        value_fn=lambda c: bool(
+            c.config_entry.data.get(CONF_FEATURE_FLOW_TEMP, DEFAULT_FEATURE_FLOW_TEMP)
+        ),
+        icon="mdi:water-boiler",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    create_home_binary_sensor(
+        key="log_version_prefix",
+        value_fn=lambda c: bool(
+            c.config_entry.options.get(
+                CONF_LOG_VERSION_PREFIX,
+                c.config_entry.data.get(
+                    CONF_LOG_VERSION_PREFIX, DEFAULT_LOG_VERSION_PREFIX
+                ),
+            )
+        ),
+        icon="mdi:tag-text",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
     create_device_binary_sensor(
         key="battery_state",
         value_fn=lambda c, serial: bool(
@@ -2192,6 +2284,7 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         unique_id_suffix="timetable_type_all",
         supported_generations={GEN_CLASSIC, GEN_X},
         translation_key="timetable_type",
+        on_bridge=False,
     ),
     create_home_button(
         key="refresh_all_timetables",

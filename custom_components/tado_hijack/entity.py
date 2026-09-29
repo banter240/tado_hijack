@@ -40,6 +40,11 @@ class TadoDefinitionMixin:
             self._attr_entity_category = category
         if (enabled := definition.get("entity_registry_enabled_default")) is not None:
             self._attr_entity_registry_enabled_default = enabled
+        if definition.get("on_bridge") is False:
+            # A direct assignment here is a mixin attribute, and mypy rejects it.
+            keep_off_bridge = getattr(self, "_keep_off_bridge", None)
+            if callable(keep_off_bridge):
+                keep_off_bridge()
 
     def _get_unique_id_suffix(self) -> str:
         """Return the unique ID suffix (legacy compatibility)."""
@@ -294,11 +299,57 @@ class TadoEntity(CoordinatorEntity):
 
 
 class TadoHomeEntity(TadoEntity):
-    """Entity belonging to the Tado Home device."""
+    """Home-wide entity. It lives on the Internet Bridge once one is known."""
+
+    _bridge_serial: str | None
+
+    def __init__(
+        self,
+        coordinator: TadoDataUpdateCoordinator,
+        translation_key: str | None,
+    ) -> None:
+        super().__init__(coordinator, translation_key)
+        self._bridge_serial = self._primary_bridge_serial()
+        if self._bridge_serial:
+            self._attach_local_device(self._bridge_serial)
+
+    def _keep_off_bridge(self) -> None:
+        """Leave this entity on the home device. A bridge has no schedule."""
+        self.device_entry = None
+        self._bridge_serial = None
+
+    def _primary_bridge_serial(self) -> str | None:
+        serials = [
+            str(serial)
+            for bridge in self.tado_coordinator.bridges
+            if (serial := getattr(bridge, "serial_no", None))
+        ]
+        return min(serials, default=None)
+
+    def _bridge_device_info(self, serial_no: str) -> DeviceInfo:
+        bridge = next(
+            (b for b in self.tado_coordinator.bridges if b.serial_no == serial_no),
+            None,
+        )
+        short_serial = getattr(bridge, "short_serial_no", None) or serial_no[-4:]
+        return DeviceInfo(
+            identifiers={(DOMAIN, serial_no)},
+            name=f"tado Internet Bridge {short_serial}",
+            manufacturer="Tado",
+            model=getattr(bridge, "device_type", None) if bridge else None,
+            sw_version=(
+                getattr(bridge, "current_fw_version", None) if bridge else None
+            ),
+            serial_number=serial_no,
+        )
 
     @property
-    def device_info(self) -> DeviceInfo:
-        """Return device info for the home."""
+    def device_info(self) -> DeviceInfo | None:
+        if self.device_entry is not None and self._bridge_serial:
+            # None puts the entity on the linked HomeKit or Matter device.
+            return None
+        if self._bridge_serial:
+            return self._bridge_device_info(self._bridge_serial)
         if self.coordinator.config_entry is None:
             raise RuntimeError("Config entry not available")
 
@@ -318,7 +369,7 @@ class TadoHomeEntity(TadoEntity):
 
 
 class TadoBridgeEntity(TadoHomeEntity):
-    """Entity belonging to a Tado Internet Bridge."""
+    """Entity belonging to one Tado Internet Bridge."""
 
     _entity_id_prefix = "tado_ib"
     _entity_id_include_context = False
@@ -329,33 +380,12 @@ class TadoBridgeEntity(TadoHomeEntity):
         translation_key: str | None,
         serial_no: str,
     ) -> None:
-        """Initialize Tado bridge entity."""
+        """Initialize Tado bridge entity on this bridge, not the primary one."""
         super().__init__(coordinator, translation_key)
         self._serial_no = serial_no
+        self._bridge_serial = serial_no
+        self.device_entry = None
         self._attach_local_device(serial_no)
-
-    @property
-    def device_info(self) -> DeviceInfo | None:
-        """Return a dedicated Bridge device, or None when attached locally."""
-        if self.device_entry is not None:
-            return None
-
-        bridge = next(
-            (b for b in self.coordinator.bridges if b.serial_no == self._serial_no),
-            None,
-        )
-        short_serial = getattr(bridge, "short_serial_no", None) or self._serial_no[-4:]
-        return DeviceInfo(
-            # Same identifier the home device used to claim, so HA moves the device.
-            identifiers={(DOMAIN, self._serial_no)},
-            name=f"tado Internet Bridge {short_serial}",
-            manufacturer="Tado",
-            model=getattr(bridge, "device_type", None) if bridge else None,
-            sw_version=(
-                getattr(bridge, "current_fw_version", None) if bridge else None
-            ),
-            serial_number=self._serial_no,
-        )
 
     @property
     def _tado_entity_id(self) -> str:

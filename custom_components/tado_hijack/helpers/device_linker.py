@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator
+from typing import Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
-from ..const import GEN_X
+from ..const import DOMAIN, GEN_X
 from .device_link import identifier_pairs
 from .logging_utils import get_redacted_logger
 from .tadov3.device_link import matches_serial as matches_homekit
@@ -52,8 +53,20 @@ def _all_devices(hass: HomeAssistant) -> list[dr.DeviceEntry]:
     return _cached_devices
 
 
+def _device_for_identifier(
+    registry: dr.DeviceRegistry,
+    identifier: tuple[str, str],
+    entry_id: str,
+) -> dr.DeviceEntry | None:
+    """Look up one device. Identifiers are unique only inside a config entry."""
+    scoped = getattr(registry, "async_get_device_by_identifier", None)
+    if scoped is not None:
+        found = scoped(identifier, entry_id)
+        return found if isinstance(found, dr.DeviceEntry) else None
+    return registry.async_get_device(identifiers={identifier})
+
+
 def _owned_by(device: dr.DeviceEntry, entry_id: str) -> bool:
-    """Return True if the device belongs to this config entry."""
     if getattr(device, "config_entry_id", None) == entry_id:
         return True
     entries = getattr(device, "config_entries", None)
@@ -122,6 +135,106 @@ def get_local_device_identifiers(
 
 
 get_homekit_identifiers = get_local_device_identifiers
+
+
+def detach_home_from_local_bridges(
+    hass: HomeAssistant,
+    *,
+    entry_id: str,
+    home_key: str,
+    bridge_serials: list[str],
+    generation: str,
+) -> None:
+    """Take bridge serials and HomeKit ids off the home device.
+
+    The home device used to claim the Internet Bridge. While it still holds
+    that serial or the HomeKit accessory id, bridge entities cannot attach
+    to the real bridge and no bridge device shows up for this integration.
+    """
+    if not bridge_serials:
+        return
+    registry = dr.async_get(hass)
+    home_identifier = (DOMAIN, home_key)
+    home = _device_for_identifier(registry, home_identifier, entry_id)
+    if home is None:
+        return
+
+    drop = {(DOMAIN, serial) for serial in bridge_serials}
+    for serial in bridge_serials:
+        local = get_local_device(hass, serial, generation, exclude_entry_id=entry_id)
+        if local is not None:
+            drop.update(identifier_pairs(local.identifiers))
+    drop.discard(home_identifier)
+
+    kept = set(identifier_pairs(home.identifiers)) - drop
+    kept.add(home_identifier)
+    serial_is_bridge = home.serial_number in set(bridge_serials)
+    if kept == set(identifier_pairs(home.identifiers)) and not serial_is_bridge:
+        return
+
+    registry.async_update_device(
+        home.id,
+        new_identifiers=kept,
+        serial_number=None if serial_is_bridge else home.serial_number,
+    )
+    _LOGGER.info(
+        "Released %d bridge identifier(s) from the home device",
+        len(drop),
+    )
+
+
+def retire_empty_home_device(
+    hass: HomeAssistant,
+    *,
+    entry_id: str,
+    home_key: str,
+) -> None:
+    if not home_key:
+        return
+    registry = dr.async_get(hass)
+    home = _device_for_identifier(registry, (DOMAIN, home_key), entry_id)
+    if home is None:
+        return
+    if er.async_entries_for_device(
+        er.async_get(hass), home.id, include_disabled_entities=True
+    ):
+        return
+    registry.async_remove_device(home.id)
+    _LOGGER.debug("Removed empty home device %s", home_key)
+
+
+def ensure_bridge_devices(
+    hass: HomeAssistant,
+    *,
+    entry_id: str,
+    bridges: list[Any],
+    generation: str,
+) -> None:
+    """Create the Hijack Internet Bridge device, even when HomeKit has one.
+
+    Entities still move onto the HomeKit or Matter bridge when that device
+    exists. The empty Hijack device is the proof the bridge was registered,
+    same as a TRV whose sensors live on the local device.
+    """
+    registry = dr.async_get(hass)
+    for bridge in bridges:
+        serial = getattr(bridge, "serial_no", None)
+        if not serial:
+            continue
+        serial = str(serial)
+        short = getattr(bridge, "short_serial_no", None) or serial[-4:]
+        registry.async_get_or_create(
+            config_entry_id=entry_id,
+            identifiers={(DOMAIN, serial)},
+            name=f"tado Internet Bridge {short}",
+            manufacturer="Tado",
+            model=getattr(bridge, "device_type", None),
+            sw_version=getattr(bridge, "current_fw_version", None),
+            serial_number=serial,
+        )
+        local = get_local_device(hass, serial, generation, exclude_entry_id=entry_id)
+        if local is not None and entry_id not in local.config_entries:
+            registry.async_update_device(local.id, add_config_entry_id=entry_id)
 
 
 def get_climate_entity_id(
