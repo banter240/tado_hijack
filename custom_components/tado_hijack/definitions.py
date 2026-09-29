@@ -90,6 +90,7 @@ from .const import (
     TIMETABLE_SELECT_OPTIONS,
     TIMETABLE_ZONE_TYPES,
     ZONE_MODE_MIXED,
+    ZONE_MODE_SCHEDULE,
     ZONE_TYPE_AIR_CONDITIONING,
     ZONE_TYPE_HEATING,
     ZONE_TYPE_HOT_WATER,
@@ -1071,31 +1072,72 @@ def create_zone_sensor(
     )
 
 
-def _parse_home_zone_mode(c: Any) -> str | None:
-    """Return the combined zone mode across all heating/AC zones."""
-    zone_states = c.data.zone_states
-    if not zone_states:
-        return None
+def _zone_room_label(zmeta: Any, zid: int) -> str:
+    """Room name as shown in Tado. Classic uses name, Tado X uses room_name."""
+    name = getattr(zmeta, "name", None) or getattr(zmeta, "room_name", None)
+    return str(name) if name else str(zid)
+
+
+def _home_zone_modes(c: Any) -> list[tuple[str, str]]:
+    """Heating and AC rooms with a known mode, sorted by room name.
+
+    Same rooms as the home mode aggregate. A repeated name keeps the zone id
+    so two rooms cannot collapse into one attribute entry.
+    """
+    zone_states = getattr(getattr(c, "data", None), "zone_states", None)
+    zones_meta = getattr(c, "zones_meta", None)
+    if not zone_states or not zones_meta:
+        return []
 
     parse_fn = (
         tadox_parsers.parse_zone_mode
         if c.generation == GEN_X
         else v3_parsers.parse_zone_mode
     )
+    pending: list[tuple[int, str, str]] = []
+    for zid, zmeta in zones_meta.items():
+        if getattr(zmeta, "type", ZONE_TYPE_HEATING) not in {
+            ZONE_TYPE_HEATING,
+            ZONE_TYPE_AIR_CONDITIONING,
+        }:
+            continue
+        mode = parse_fn(zone_states.get(str(zid)))
+        if mode is None:
+            continue
+        pending.append((int(zid), _zone_room_label(zmeta, int(zid)), str(mode)))
 
-    relevant_ids = [
-        zid
-        for zid, zmeta in c.zones_meta.items()
-        if getattr(zmeta, "type", ZONE_TYPE_HEATING)
-        in {ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING}
+    pending.sort(key=lambda row: (row[1].casefold(), row[0]))
+    counts: dict[str, int] = {}
+    for _zid, label, _mode in pending:
+        counts[label] = counts.get(label, 0) + 1
+    return [
+        (f"{label} ({zid})" if counts[label] > 1 else label, mode)
+        for zid, label, mode in pending
     ]
-    if not relevant_ids:
-        return None
 
-    if modes := {parse_fn(zone_states.get(str(zid))) for zid in relevant_ids} - {None}:
+
+def _parse_home_zone_mode(c: Any) -> str | None:
+    """Return the combined zone mode across all heating/AC zones."""
+    if modes := {mode for _name, mode in _home_zone_modes(c)}:
         return next(iter(modes)) if len(modes) == 1 else ZONE_MODE_MIXED
-    else:
-        return None
+    return None
+
+
+def home_mode_room_attributes(c: Any) -> dict[str, Any]:
+    """Per-room split behind a mixed home mode.
+
+    The state stays `mixed`. These attributes name the rooms still on the
+    schedule and the rooms that left it, with that room's own mode.
+    """
+    rows = _home_zone_modes(c)
+    if not rows or all(mode == rows[0][1] for _name, mode in rows):
+        return {}
+    return {
+        "on_schedule": [name for name, mode in rows if mode == ZONE_MODE_SCHEDULE],
+        "off_schedule": {
+            name: mode for name, mode in rows if mode != ZONE_MODE_SCHEDULE
+        },
+    }
 
 
 def _parse_zone_heating_power(c: Any, zid: int) -> float:

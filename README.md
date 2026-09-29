@@ -612,7 +612,7 @@ Global controls and elite transparency for your home. _Linked to your Internet B
 | `sensor.tado_{home}_api_limit`             | Sensor | Total daily API quota limit (1000 standard, 3000 with proxy).     |
 | `sensor.tado_{home}_api_remaining`         | Sensor | **API Gold:** Your remaining daily call budget.                   |
 | `sensor.tado_{home}_api_status`            | Sensor | Real-time health (`connected`, `throttled`, `rate_limited`).      |
-| `sensor.tado_{home}_home_mode`             | Sensor | Aggregate zone mode across all heating/AC zones: `schedule`, `manual`, `boost`, `off`, or `mixed` (zones differ). Useful for automations — e.g. trigger "resume schedule" when `mixed`. |
+| `sensor.tado_{home}_home_mode`             | Sensor | Aggregate zone mode across all heating/AC zones: `schedule`, `manual`, `boost`, `off`, or `mixed` (zones differ). When `mixed`, attributes name the rooms: `on_schedule` is the room list still following the schedule, `off_schedule` maps each other room to `manual`, `off`, or `boost`. |
 | `binary_sensor.tado_{home}_heating_demand` | Binary Sensor | **ON** if any heating zone reports heating power above 0%. Derived from polled zone data (v3 + Tado X) - not a physical thermostat relay. Handy for boiler automations. |
 
 <br>
