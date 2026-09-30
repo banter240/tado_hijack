@@ -11,7 +11,15 @@ from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import slugify
 
-from .const import DEVICE_TYPE_MAP, DOMAIN, GEN_X, ZONE_TYPE_HOT_WATER
+from .const import (
+    DEVICE_TYPE_MAP,
+    DOMAIN,
+    GEN_X,
+    INTERNET_BRIDGE_DEVICE_TYPES,
+    ZONE_TYPE_HOT_WATER,
+    bridge_display_name,
+    bridge_model_name,
+)
 from .helpers.device_linker import get_local_device
 from .models import TadoEntityDefinition
 
@@ -299,7 +307,10 @@ class TadoEntity(CoordinatorEntity):
 
 
 class TadoHomeEntity(TadoEntity):
-    """Home-wide entity. It lives on the Internet Bridge once one is known."""
+    """Home-wide entity.
+
+    Classic lives on the Internet Bridge. Tado X stays on the home device.
+    """
 
     _bridge_serial: str | None
 
@@ -309,6 +320,9 @@ class TadoHomeEntity(TadoEntity):
         translation_key: str | None,
     ) -> None:
         super().__init__(coordinator, translation_key)
+        self._bridge_serial = None
+        if self.tado_coordinator.generation == GEN_X:
+            return
         self._bridge_serial = self._primary_bridge_serial()
         if self._bridge_serial:
             self._attach_local_device(self._bridge_serial)
@@ -323,6 +337,7 @@ class TadoHomeEntity(TadoEntity):
             str(serial)
             for bridge in self.tado_coordinator.bridges
             if (serial := getattr(bridge, "serial_no", None))
+            and getattr(bridge, "device_type", None) in INTERNET_BRIDGE_DEVICE_TYPES
         ]
         return min(serials, default=None)
 
@@ -331,12 +346,13 @@ class TadoHomeEntity(TadoEntity):
             (b for b in self.tado_coordinator.bridges if b.serial_no == serial_no),
             None,
         )
+        device_type = getattr(bridge, "device_type", None) if bridge else None
         short_serial = getattr(bridge, "short_serial_no", None) or serial_no[-4:]
         return DeviceInfo(
             identifiers={(DOMAIN, serial_no)},
-            name=f"tado Internet Bridge {short_serial}",
+            name=bridge_display_name(device_type, short_serial),
             manufacturer="Tado",
-            model=getattr(bridge, "device_type", None) if bridge else None,
+            model=bridge_model_name(device_type),
             sw_version=(
                 getattr(bridge, "current_fw_version", None) if bridge else None
             ),
@@ -369,7 +385,7 @@ class TadoHomeEntity(TadoEntity):
 
 
 class TadoBridgeEntity(TadoHomeEntity):
-    """Entity belonging to one Tado Internet Bridge."""
+    """Entity belonging to one bridge-scoped device."""
 
     _entity_id_prefix = "tado_ib"
     _entity_id_include_context = False
@@ -386,6 +402,16 @@ class TadoBridgeEntity(TadoHomeEntity):
         self._bridge_serial = serial_no
         self.device_entry = None
         self._attach_local_device(serial_no)
+        bridge = next(
+            (
+                item
+                for item in coordinator.bridges
+                if getattr(item, "serial_no", None) == serial_no
+            ),
+            None,
+        )
+        if getattr(bridge, "device_type", None) not in INTERNET_BRIDGE_DEVICE_TYPES:
+            self._entity_id_include_context = True
 
     @property
     def _tado_entity_id(self) -> str:

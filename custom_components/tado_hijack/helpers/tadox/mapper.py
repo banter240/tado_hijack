@@ -168,7 +168,9 @@ class TadoXMapper:
 
     def get_bridge_device_types(self) -> set[str]:
         """Get bridge device types for Tado X."""
-        return {"IB02"}
+        from ...const import TADOX_BRIDGE_DEVICE_TYPES
+
+        return set(TADOX_BRIDGE_DEVICE_TYPES)
 
     def get_rate_limit_source(self) -> TadoXApi:
         """Return the Hops API bridge as the rate limit data source."""

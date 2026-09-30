@@ -65,28 +65,20 @@ def get_bridges(
     devices: dict[str, Any] | list[Any],
     generation: str,
 ) -> list[Any]:
-    """Get generation-specific bridges from device collection."""
+    """Return bridge-scoped devices for this generation."""
     from ..const import (
-        DEVICE_TYPE_GW,
-        DEVICE_TYPE_GW01,
-        DEVICE_TYPE_IB01,
-        DEVICE_TYPE_IB02,
+        CLASSIC_BRIDGE_DEVICE_TYPES,
         GEN_CLASSIC,
+        TADOX_BRIDGE_DEVICE_TYPES,
     )
 
     device_list = devices.values() if isinstance(devices, dict) else devices
-
-    if generation == GEN_CLASSIC:
-        return [
-            d
-            for d in device_list
-            if getattr(d, "device_type", "")
-            in [DEVICE_TYPE_GW, DEVICE_TYPE_IB01, DEVICE_TYPE_GW01]
-        ]
-    else:
-        return [
-            d for d in device_list if getattr(d, "device_type", "") == DEVICE_TYPE_IB02
-        ]
+    types = (
+        CLASSIC_BRIDGE_DEVICE_TYPES
+        if generation == GEN_CLASSIC
+        else TADOX_BRIDGE_DEVICE_TYPES
+    )
+    return [d for d in device_list if getattr(d, "device_type", "") in types]
 
 
 def _yield_devices_v3(

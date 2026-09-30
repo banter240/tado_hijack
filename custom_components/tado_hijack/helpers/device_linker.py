@@ -9,7 +9,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
-from ..const import DOMAIN, GEN_X
+from ..const import DOMAIN, GEN_X, bridge_display_name, bridge_model_name
 from .device_link import identifier_pairs
 from .logging_utils import get_redacted_logger
 from .tadov3.device_link import matches_serial as matches_homekit
@@ -210,9 +210,9 @@ def ensure_bridge_devices(
     entry_id: str,
     bridges: list[Any],
 ) -> None:
-    """Register the Hijack Internet Bridge device, even when HomeKit has one.
+    """Register each bridge-scoped device, even when HomeKit or Matter has one.
 
-    The empty Hijack device is the proof the bridge was registered. Entities
+    The empty Hijack device is the proof the device was registered. Entities
     link onto the HomeKit or Matter device themselves when the serial matches.
     """
     registry = dr.async_get(hass)
@@ -222,12 +222,13 @@ def ensure_bridge_devices(
             continue
         serial = str(serial)
         short = getattr(bridge, "short_serial_no", None) or serial[-4:]
+        device_type = getattr(bridge, "device_type", None)
         registry.async_get_or_create(
             config_entry_id=entry_id,
             identifiers={(DOMAIN, serial)},
-            name=f"tado Internet Bridge {short}",
+            name=bridge_display_name(device_type, short),
             manufacturer="Tado",
-            model=getattr(bridge, "device_type", None),
+            model=bridge_model_name(device_type),
             sw_version=getattr(bridge, "current_fw_version", None),
             serial_number=serial,
         )

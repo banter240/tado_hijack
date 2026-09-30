@@ -412,13 +412,13 @@ Tado Hijack is now an **official HACS integration**! No custom repository needed
 4. Go to **Settings** -> **Devices & Services** -> **Add Integration** -> Search for **"Tado Hijack"**.
 5. **Select your hardware generation** (determined by your physical Tado bridge):
    - **Tado v3 Classic** - If you own an **IB01** or **GW01** bridge (black square box)
-   - **Tado X** - If you own a **Bridge X (IB02)** (newer Matter-based system)
+   - **Tado X** - If you own a **Bridge X (IB02)** or a **Wireless Receiver X (PR04)** (newer Matter-based system)
 
 <br>
 
 > [!IMPORTANT]
 > **Hardware Generation:**
-> Select your generation during setup based on your physical bridge: IB01/GW01 = **v3 Classic**, IB02 = **Tado X**. If unsure, choose v3 Classic (most common). See [Generation Support](#generation-support-v3-classic--tado-x) for feature differences.
+> Select your generation during setup based on your physical bridge: IB01/GW01 = **v3 Classic**, IB02 or PR04 = **Tado X**. If unsure, choose v3 Classic (most common). See [Generation Support](#generation-support-v3-classic--tado-x) for feature differences.
 
 <br>
 
@@ -586,11 +586,11 @@ The tracker reads the current entity state at mapping time and watches the entit
 
 <br>
 
-### Home Device (Internet Bridge)
+### Home Device
 
 <br>
 
-Global controls and elite transparency for your home. _Linked to your Internet Bridge._
+Global controls for the home. Classic links them to the Internet Bridge. Tado X keeps them on this device. Each Bridge X and Wireless Receiver X only shows its name, firmware, serial, and connection.
 
 <br>
 
@@ -621,7 +621,7 @@ Global controls and elite transparency for your home. _Linked to your Internet B
 
 <br>
 
-Advanced monitoring sensors available under the Internet Bridge device diagnostics section:
+Advanced monitoring sensors in the diagnostics of that same home device:
 
 <br>
 
@@ -751,7 +751,7 @@ Hardware-specific entities. _Attached to the existing HomeKit (v3) or Matter (Ta
 | :-------------------------- | :------------ | :-------------------------------------------------- |
 | `binary_sensor.battery_state`     | Binary Sensor | Battery health (Normal/Low).                        |
 | `binary_sensor.connection_state`  | Binary Sensor | Device connectivity to Tado cloud.                  |
-| `binary_sensor.bridge_connection` | Binary Sensor | **Bridge:** Cloud connectivity status for the Internet Bridge.                  |
+| `binary_sensor.bridge_connection` | Binary Sensor | **Bridge:** Cloud connectivity for the Internet Bridge or a Wireless Receiver X. |
 | `switch.child_lock`         | Switch        | Toggle Child Lock on the device.                    |
 | `switch.dazzle_mode`        | Switch        | **v3 Only:** Control display brightness/behavior.   |
 | `number.temperature_offset` | Number        | Interactive temperature calibration (-10 to +10°C). |
