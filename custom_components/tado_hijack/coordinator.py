@@ -1634,7 +1634,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
                 zone_states.get(str(zid)) or zone_states.get(zid)
             )
             current = current_device_offset(self, serial)
-            if current is None and reason == "manual":
+            if current is None:
                 try:
                     await self.data_manager._fetch_offset_for(serial)
                 except Exception:

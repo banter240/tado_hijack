@@ -66,7 +66,7 @@ Tado Hijack conserves API quota with intelligent polling that balances responsiv
 
 ## 🔍 Advanced Diagnostics
 
-- **Offset Calibration:** Automatically adjusts TRV offsets based on external reference sensors (e.g., a high-precision thermostat). The home interval and spread threshold are the defaults. Each heating zone can override them (`inherit`, or threshold `0`, clears the override). Clock intervals (`3h`..`24h`, `on_reset`) only look at that time, and only write when the sensor and the Tado temperature differ by at least the threshold. `threshold` keeps watching and writes as soon as that deviation is reached. After a write it waits `offset_cal_send_cooldown_s` (default 300 s) before another PUT. While the zone's window sensor is open it does nothing. After the window closes it waits `offset_cal_window_settle_s` (default 300 s) so the TRV by the window and the room sensor can settle.
+- **Offset Calibration:** Automatically adjusts TRV offsets based on external reference sensors (e.g., a high-precision thermostat). The home interval and spread threshold are the defaults. Each heating zone can override them (`inherit`, or threshold `0`, clears the override). Clock intervals (`3h`..`24h`, `on_reset`) only look at that time, and only write when the sensor and the Tado temperature differ by at least the threshold. `threshold` keeps watching and writes as soon as that deviation is reached. After a write it waits `offset_cal_send_cooldown_s` (default 300 s) before another PUT. While the zone's window sensor is open it does nothing. After the window closes it waits `offset_cal_window_settle_s` (default 300 s) so the TRV by the window and the room sensor can settle. The offset is polled only when none is known.
 - **Presence mode vs presence state:** `select.presence_mode` shows who is in control: `auto` (geofencing, `presenceLocked` false) or a manual `home`/`away` lock. It no longer flips when geofencing changes the effective state. `binary_sensor.presence_state` is that effective state (`on` = home). Switching to `auto` queues a presence refresh through the normal debounce pipeline.
 - **Diagnostic Sensors:** Expose rate-limit state (`limit`, `remaining`, `api_status`), throttle threshold, learned reset windows, and daily quota usage.
 
@@ -120,5 +120,5 @@ The integration uses sophisticated math (`helpers/quota_math.py`) to plan daily 
 - `quota_safety_reserve` — Calls reserved for the reset safe window. Default 2.
 - `presence_poll_interval` — Poll interval for presence track. Default 43200 s (12 h).
 - `slow_poll_interval` — Poll interval for hardware metadata (capabilities, bridges). Default 86400 s (24 h).
-- `offset_poll_interval` — Poll interval for offset calibration. Default 0 (disabled).
+- `offset_poll_interval` — Poll interval for device offsets. Default 0 (off). Calibration polls only when no offset is known.
 - `reduced_polling_start/end/interval` — Economy window timing and reduced interval. Interval 0 pauses updates.

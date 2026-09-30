@@ -290,7 +290,7 @@ _Notes:_
 >
 > - **Zero Waste Writes:** Commands don't trigger a poll. We use Local State Patching to update the UI instantly without confirmation calls.
 > - **Throttled Mode:** When quota runs low, periodic polling auto-disables to preserve quota for your automations.
-> - **Granular Refresh:** Hardware configs (Offsets, Away Temps) are never fetched automatically — only on-demand when you need them.
+> - **Granular Refresh:** Hardware configs (Offsets, Away Temps) are on demand only. Calibration polls an offset only when none is known.
 
 <br>
 
@@ -440,7 +440,7 @@ Tado Hijack is now an **official HACS integration**! No custom repository needed
 | **Reduced Polling End**            | `07:00`   | End time for the economy window.                                                                                                                                                                                                                           |
 | **Reduced Polling Interval**       | `3600s`   | Polling interval during the economy window. Set to **0** to pause polling entirely.                                                                                                                                                                        |
 | **Hardware Sync**                  | `86400s`  | Interval for battery, firmware and device metadata. Set to 0 for initial load only.                                                                                                                                                                        |
-| **Offset Update**                  | `0` (Off) | Interval for temperature offsets. Costs 1 API call per valve.                                                                                                                                                                                              |
+| **Offset Update**                  | `0` (Off) | Interval for temperature offsets. Costs 1 API call per valve. Calibration polls only when no offset is known. |
 | **Flow Temperature Optimization**  | `Off`     | Tado X only. Poll OpenTherm flow-temperature settings (1 call per metadata poll) and expose max flow temperature plus auto adaptation. A 404 is remembered, so homes without that device are not polled again.                                             |
 | **Replay Cloud-Only On Recovery**  | `On`      | When an offline TRV returns, resume-schedule cannot be replayed on the local climate entity. If on, that resume is sent to the Tado cloud again (1 call per zone).                                                                                          |
 | **Queue and delay resume schedule** | `On`    | Window close and window-timeout end. Behavior is in the window section below.                                                                                                                                                                              |
@@ -604,7 +604,7 @@ Global controls and elite transparency for your home. _Linked to your Internet B
 | `switch.tado_{home}_reduced_polling_logic` | Switch | **Logic Switch:** Toggle the timed "Economy" profile.             |
 | `select.tado_{home}_offset_cal_interval`   | Select | When to compare the linked sensor with the TRV: a clock slot, `on_reset`, or `threshold` (keep watching). A write still needs the deviation in the row below. Off by default. Zones can override (`inherit` uses this value). Cooldown and window pause are the two config rows above. |
 | `number.tado_{home}_offset_cal_spread_threshold` | Number | Default minimum delta (°C) before an offset is written. Zones can override it; `0` on the zone number clears the override. |
-| `button.tado_{home}_calibrate_offsets`     | Button | Run that calibration now (same formula, same linked thermostats). Works even if the interval is `off`. 1 PUT per measuring device that needs a change. |
+| `button.tado_{home}_calibrate_offsets`     | Button | Run that calibration now (same formula, same linked thermostats). Works even if the interval is `off`. 1 PUT per measuring device that needs a change, and a GET only when no offset is known. |
 | `button.tado_{home}_resume_all_schedules`  | Button | Restore Smart Schedule across all zones (1 bulk call).            |
 | `button.tado_{home}_turn_off_all_zones`    | Button | Turn off all zones instantly (1 bulk call).                       |
 | `button.tado_{home}_boost_all_zones`       | Button | Boost all zones to 25°C (1 bulk call).                            |
@@ -665,7 +665,7 @@ Advanced monitoring sensors available under the Internet Bridge device diagnosti
 - `button.refresh_metadata` - Force hardware sync (zones/devices)
 - `button.refresh_capabilities` - Refetch zone capabilities (1 GET per zone; no bulk endpoint)
 - `button.refresh_offsets` - GET current offsets from Tado (not calibrate)
-- `button.calibrate_offsets` - Write offsets from linked `zone_temp_source` now
+- `button.calibrate_offsets` - Write offsets from linked `zone_temp_source` now (GET only when no offset is known)
 - `button.refresh_away` - Force away config sync
 - `button.refresh_presence` - Force presence sync
 - `button.refresh_all_zone_plans` - Fetch every room's weekly plan (calendar cache)
@@ -709,7 +709,7 @@ Cloud-only features that HomeKit does not support.
 | `number.target_temperature`         | Number        | **HW & AC:** Set target temperature for hot water (manual mode) or AC zones.                                            |
 | `number.away_temperature`           | Number        | **v3 Only:** Set away mode temperature.                                                         |
 | `select.zone_temp_source`           | Select        | **Config:** Optional temperature source for indoor climate sensors. Link any `climate` or temperature `sensor`. Required for Tado X (no cloud temp in Full-Matter mode). |
-| `button.calibrate_offset`           | Button        | **Config:** Calibrate this room's TRV offset against the linked `zone_temp_source` now. 1 PUT per measuring device in the room that needs a change. |
+| `button.calibrate_offset`           | Button        | **Config:** Calibrate this room's TRV offset against the linked `zone_temp_source` now. 1 PUT per measuring device in the room that needs a change, and a GET only when no offset is known. |
 | `button.refresh_capability`         | Button        | **Config:** Refetch this zone's capabilities (1 GET; no bulk endpoint). |
 | `select.zone_humidity_source`       | Select        | **Config:** Optional humidity source for indoor climate sensors. Link a `climate` entity (reads `current_humidity`) or a humidity `sensor`. Fallback: cloud zone state. |
 | `select.fan_speed`                  | Select        | **v3 AC Only:** Full fan speed control.                                                         |

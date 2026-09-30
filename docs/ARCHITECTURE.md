@@ -138,7 +138,7 @@ Offline HomeKit and Matter TRVs do not see a cloud write. Three pieces remember 
 
 ### `OffsetCalSchedulerMixin`
 
-`helpers/offset_cal_config.py` — bridge default plus per-zone interval and threshold (`inherit`, or threshold `0`, clears the override). Clock modes share one timer. `threshold` watches the linked sensor instead. User-facing rules are in `docs/FEATURES.md`.
+`helpers/offset_cal_config.py` — bridge default plus per-zone interval and threshold (`inherit`, or threshold `0`, clears the override). Clock modes share one timer. `threshold` watches the linked sensor instead. Calibration polls an offset only when none is known. User-facing rules are in `docs/FEATURES.md`.
 
 ---
 

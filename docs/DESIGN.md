@@ -227,7 +227,7 @@ dew_point = (243.5 * gamma) / (17.67 - gamma)
 | `API_RESET_DEFAULT_UTC_HOUR` | 11 | fallback reset hour (UTC) |
 | `DEFAULT_PRESENCE_POLL_INTERVAL` | 43200 s | presence track (12 h) |
 | `DEFAULT_SLOW_POLL_INTERVAL` | 86400 s | hardware metadata track (24 h) |
-| `DEFAULT_OFFSET_POLL_INTERVAL` | 0 | offset calibration track (disabled) |
+| `DEFAULT_OFFSET_POLL_INTERVAL` | 0 | device offset poll (off). Calibration polls only when unknown. |
 | `DEFAULT_OFFSET_CAL_SEND_COOLDOWN_S` | 300 s | threshold mode: wait after an offset write |
 | `DEFAULT_OFFSET_CAL_WINDOW_SETTLE_S` | 300 s | threshold mode: wait after the window closes |
 | `DEFAULT_WINDOW_RESUME_BATCH` | on | hold cloud resume after a window; local setpoint is immediate |
