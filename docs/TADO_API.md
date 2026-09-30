@@ -482,6 +482,8 @@ GET: programmer/domesticHotWater/state
 
 POST: programmer/domesticHotWater/boost
 
+Payload: {"boost": "ON"} or {"boost": "OFF"}. With a duration, also {"termination": {"typeSkillBasedApp": "TIMER", "durationInSeconds": seconds}}, the same termination v3 hot water sends.
+
 #### async_resume_programmer_schedule() -> None
 
 POST: programmer/domesticHotWater/resumeSchedule

@@ -1111,11 +1111,11 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             self._schedule_queued_refresh()
 
     async def async_set_hot_water_off(
-        self, zone_id: int, refresh_after: bool = False
+        self, zone_id: int, refresh_after: bool = False, duration: int | None = None
     ) -> None:
         """Set hot water zone to off (manual overlay)."""
         if self._is_tadox_hot_water_zone(zone_id):
-            await self._async_set_hot_water_tadox_off()
+            await self._async_set_hot_water_tadox_off(duration)
             return
 
         data = build_overlay_data(
@@ -1196,7 +1196,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         self.recovery_queue.capture_resume(zid)
         self._schedule_queued_refresh()
 
-    async def _async_set_hot_water_tadox_off(self) -> None:
+    async def _async_set_hot_water_tadox_off(self, duration: int | None = None) -> None:
         from .helpers.overlay_validator import validate_tadox_hot_water_boost_off
         from .helpers.redundancy_checker import should_skip_hot_water_off
 
@@ -1207,7 +1207,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             _LOGGER.error("TadoX hot water boost OFF validation failed: %s", error)
             return
 
-        if should_skip_hot_water_off(
+        if duration is None and should_skip_hot_water_off(
             zid, self.data.zone_states, self._suppress_redundant_buttons
         ):
             _LOGGER.debug(
@@ -1242,7 +1242,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
 
         _LOGGER.debug("Sending TadoX hot water boost OFF for zone %s", zid)
         try:
-            await self.tadox_bridge.async_set_hot_water_off()
+            await self.tadox_bridge.async_set_hot_water_off(duration_minutes=duration)
         except Exception as e:
             _LOGGER.error("Failed to set Tado X hot water OFF: %s", e)
             self.optimistic.clear_zone(zid)
@@ -1250,7 +1250,9 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         self.recovery_queue.capture_overlay(zid, power="OFF", temperature=None)
         self._schedule_queued_refresh()
 
-    async def _async_set_hot_water_tadox_boost(self) -> None:
+    async def _async_set_hot_water_tadox_boost(
+        self, duration: int | None = None
+    ) -> None:
         """Boost hot water ON via the TadoX programmer (Hops boost endpoint)."""
         from .helpers.overlay_validator import validate_tadox_hot_water_boost_on
         from .helpers.redundancy_checker import should_skip_hot_water_boost_on
@@ -1262,7 +1264,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             _LOGGER.error("TadoX hot water boost ON validation failed: %s", error)
             return
 
-        if should_skip_hot_water_boost_on(
+        if duration is None and should_skip_hot_water_boost_on(
             zid, self.data.zone_states, self._suppress_redundant_buttons
         ):
             _LOGGER.debug(
@@ -1297,7 +1299,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
 
         _LOGGER.debug("Sending TadoX hot water boost ON for zone %s", zid)
         try:
-            await self.tadox_bridge.async_set_hot_water_on()
+            await self.tadox_bridge.async_set_hot_water_on(duration_minutes=duration)
         except Exception as e:
             _LOGGER.error("Failed to boost Tado X hot water ON: %s", e)
             self.optimistic.clear_zone(zid)
@@ -1306,11 +1308,14 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         self._schedule_queued_refresh()
 
     async def async_set_hot_water_heat(
-        self, zone_id: int, temperature: float | None = None
+        self,
+        zone_id: int,
+        temperature: float | None = None,
+        duration: int | None = None,
     ) -> None:
         """Set hot water zone to heat mode (manual overlay)."""
         if self._is_tadox_hot_water_zone(zone_id):
-            await self._async_set_hot_water_tadox_boost()
+            await self._async_set_hot_water_tadox_boost(duration)
             return
 
         state = self.data.zone_states.get(str(zone_id))

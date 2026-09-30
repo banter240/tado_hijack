@@ -18,10 +18,10 @@ import http
 import time
 from typing import TYPE_CHECKING, Any, cast
 
-from aiohttp import ClientTimeout
+from aiohttp import ClientResponseError, ClientTimeout
 
-from ..const import HTTP_BAD_REQUEST
-from ..helpers.logging_utils import get_redacted_logger
+from ..const import HTTP_BAD_REQUEST, TERMINATION_TIMER
+from ..helpers.logging_utils import get_redacted_logger, redact
 from ..helpers.parsers import parse_ratelimit_headers
 from ..helpers.tadox.const import HOPS_BASE_URL
 from .tadox_models import (
@@ -35,6 +35,13 @@ if TYPE_CHECKING:
     from tadoasync import Tado
 
 _LOGGER = get_redacted_logger(__name__)
+
+
+class _HopsResponseError(ClientResponseError):
+    """HTTP error whose log text is redacted, including the request URL."""
+
+    def __str__(self) -> str:
+        return str(redact(super().__str__()))
 
 
 class TadoXApi:
@@ -128,14 +135,21 @@ class TadoXApi:
 
                 if response.status >= HTTP_BAD_REQUEST:
                     body = await response.text()
+                    detail = redact(f"sent={json_data} response={body}")
                     _LOGGER.error(
-                        "Hops API Error %d: %s. Response: %s",
+                        "Hops API Error %d on %s %s. %s",
                         response.status,
-                        endpoint,
-                        body,
+                        method,
+                        redact(endpoint),
+                        detail,
                     )
-                    # Re-raise with proper status (matches behavior of v2 error handler)
-                    response.raise_for_status()
+                    raise _HopsResponseError(
+                        response.request_info,
+                        response.history,
+                        status=response.status,
+                        message=str(detail),
+                        headers=response.headers,
+                    )
 
                 self._capture_rate_limit_headers(response.headers)
 
@@ -145,6 +159,8 @@ class TadoXApi:
                     return await response.json(content_type=None)
                 except Exception:
                     return {"success": True}
+        except ClientResponseError:
+            raise
         except Exception as err:
             _LOGGER.error("Hops API Error on %s: %s", endpoint, err)
             raise
@@ -294,21 +310,29 @@ class TadoXApi:
         """Resume hot water schedule (clear boost override)."""
         return await self._request("POST", "programmer/domesticHotWater/resumeSchedule")
 
-    async def async_set_hot_water_off(self) -> Any:
-        """Force hot water OFF via boost override."""
+    async def _async_set_hot_water_boost(
+        self, boost: str, duration_minutes: int | None
+    ) -> Any:
+        """POST domesticHotWater/boost. A duration adds the v3 TIMER termination."""
+        payload: dict[str, Any] = {"boost": boost}
+        if duration_minutes:
+            payload["termination"] = {
+                "typeSkillBasedApp": TERMINATION_TIMER,
+                "durationInSeconds": duration_minutes * 60,
+            }
         return await self._request(
             "POST",
             "programmer/domesticHotWater/boost",
-            json_data={"boost": "OFF"},
+            json_data=payload,
         )
 
-    async def async_set_hot_water_on(self) -> Any:
-        """Boost hot water ON via the programmer boost endpoint."""
-        return await self._request(
-            "POST",
-            "programmer/domesticHotWater/boost",
-            json_data={"boost": "ON"},
-        )
+    async def async_set_hot_water_off(self, duration_minutes: int | None = None) -> Any:
+        """Force hot water off."""
+        return await self._async_set_hot_water_boost("OFF", duration_minutes)
+
+    async def async_set_hot_water_on(self, duration_minutes: int | None = None) -> Any:
+        """Boost hot water on."""
+        return await self._async_set_hot_water_boost("ON", duration_minutes)
 
     async def async_set_open_window_detection(self, room_id: int, enabled: bool) -> Any:
         """Enable or disable open window detection."""
