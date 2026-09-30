@@ -288,6 +288,12 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         self._offset_cal_send_ready_at: dict[int, datetime] = {}
         self._offset_cal_window_settle_until: dict[int, datetime] = {}
         self._offset_cal_window_was_open: set[int] = set()
+        self._offset_cal_interval_pending: set[int] = set()
+        self._offset_cal_interval_unsubs: list[Callable[[], None]] = []
+        self._offset_cal_interval_watched: tuple[str, ...] = ()
+        self._offset_cal_interval_retry: Callable[[], None] | None = None
+        self._offset_cal_interval_flushing = False
+        self._offset_cal_interval_flush_again = False
         self._last_offset_cal_at: datetime | None = None
         self._offset_cal_lock = asyncio.Lock()
         # [DUMMY_HOOK]
@@ -839,6 +845,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         if self._offset_cal_threshold_retry:
             self._offset_cal_threshold_retry()
             self._offset_cal_threshold_retry = None
+        self._cancel_interval_cal_hold()
         self.window_controller.shutdown()
         self.recovery_listener.shutdown()
         self.availability_tracker.shutdown()

@@ -199,7 +199,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bool
         hass,
         entry_id=entry.entry_id,
         bridges=list(coordinator.bridges),
-        generation=coordinator.generation,
     )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

@@ -572,7 +572,7 @@
             "data_description": {
               "window_resume_batch": "On window close or window-timeout end, set the temperature from before the window opened on the local HomeKit or Matter climate immediately. If a schedule was running, hold the cloud resume so zones that resume within the batch window are sent together. If no schedule was running, restore the local climate and skip the cloud. Default on.",
               "window_resume_batch_s": "Seconds to hold those cloud resumes. Rooms that close or time out within this window share one batch. Default 120. 0 sends on the next pass. Used only when queue-and-delay is on.",
-              "offset_cal_window_settle_s": "Threshold mode ignores a zone while its window sensor is open. After the window closes, wait this long before measuring again so the TRV and the room sensor can settle. Default 300 seconds."
+              "offset_cal_window_settle_s": "Threshold mode skips the zone while its window sensor is open. A calibration on an hour interval that comes due in that time waits as well. After the window closes, wait this long before measuring again so the TRV and the room sensor can settle. Default 300 seconds."
             }
           },
           "offset": {
@@ -583,7 +583,7 @@
             },
             "data_description": {
               "offset_poll_interval": "How often to fetch temperature offsets. Costs 1 API call PER VALVE. 0 = disabled.",
-              "offset_cal_send_cooldown_s": "After a threshold-mode offset write, wait this long before another one. Stops a lagging reading from sending again. Default 300 seconds."
+              "offset_cal_send_cooldown_s": "After a threshold-mode offset write, wait this long before another one. Stops a lagging reading from sending again. A calibration that waited because the window was open also waits out this cooldown. Default 300 seconds."
             }
           },
           "recovery": {
@@ -712,7 +712,7 @@
             "data_description": {
               "window_resume_batch": "On window close or window-timeout end, set the temperature from before the window opened on the local HomeKit or Matter climate immediately. If a schedule was running, hold the cloud resume so zones that resume within the batch window are sent together. If no schedule was running, restore the local climate and skip the cloud. Default on.",
               "window_resume_batch_s": "Seconds to hold those cloud resumes. Rooms that close or time out within this window share one batch. Default 120. 0 sends on the next pass. Used only when queue-and-delay is on.",
-              "offset_cal_window_settle_s": "Threshold mode ignores a zone while its window sensor is open. After the window closes, wait this long before measuring again so the TRV and the room sensor can settle. Default 300 seconds."
+              "offset_cal_window_settle_s": "Threshold mode skips the zone while its window sensor is open. A calibration on an hour interval that comes due in that time waits as well. After the window closes, wait this long before measuring again so the TRV and the room sensor can settle. Default 300 seconds."
             }
           },
           "offset": {
@@ -723,7 +723,7 @@
             },
             "data_description": {
               "offset_poll_interval": "How often to fetch temperature offsets. Costs 1 API call PER VALVE. 0 = disabled.",
-              "offset_cal_send_cooldown_s": "After a threshold-mode offset write, wait this long before another one. Stops a lagging reading from sending again. Default 300 seconds."
+              "offset_cal_send_cooldown_s": "After a threshold-mode offset write, wait this long before another one. Stops a lagging reading from sending again. A calibration that waited because the window was open also waits out this cooldown. Default 300 seconds."
             }
           },
           "recovery": {

@@ -572,7 +572,7 @@
             "data_description": {
               "window_resume_batch": "Beim Schließen oder wenn das Zeitlimit des offenen Fensters endet, wird die Temperatur von vor dem Öffnen sofort am lokalen HomeKit- oder Matter-Klima gesetzt. Lief ein Zeitplan, wartet das Senden an die Cloud, damit Zonen im selben Zeitraum zusammen rausgehen. Lief keiner, wird nur lokal gesetzt. Standard: an.",
               "window_resume_batch_s": "Sekunden, die das Senden an die Cloud wartet. Räume, die in dieser Zeit zugehen oder deren Zeitlimit endet, teilen sich einen Aufruf. Standard: 120. 0 sendet beim nächsten Durchlauf. Nur wenn Sammeln und Verzögern an ist.",
-              "offset_cal_window_settle_s": "Im Modus Schwelle wird eine Zone ignoriert, solange ihr Fenstersensor offen ist. Nach dem Schließen so lange warten, bis Heizkörper und Raumfühler sich angeglichen haben. Standard: 300 Sekunden."
+              "offset_cal_window_settle_s": "Im Modus Schwelle bleibt die Zone aus, solange der Fenstersensor offen ist. Eine Kalibrierung nach Stundenintervall, die in dieser Zeit fällig wird, wartet ebenfalls. Nach dem Schließen so lange warten, bis Heizkörper und Raumfühler sich angeglichen haben. Standard: 300 Sekunden."
             }
           },
           "offset": {
@@ -583,7 +583,7 @@
             },
             "data_description": {
               "offset_poll_interval": "Wie oft Temperatur-Offsets abgerufen werden. Kostet 1 API-Aufruf pro Ventil. 0 = aus.",
-              "offset_cal_send_cooldown_s": "Nach einem Offset-Schreiben im Modus Schwelle so lange warten, bevor erneut geschrieben wird. Verhindert einen zweiten Aufruf, solange die Messung hinterherhinkt. Standard: 300 Sekunden."
+              "offset_cal_send_cooldown_s": "Nach einem Offset-Schreiben im Modus Schwelle so lange warten, bevor erneut geschrieben wird. Verhindert einen zweiten Aufruf, solange die Messung hinterherhinkt. Eine Kalibrierung, die wegen eines offenen Fensters wartet, wartet auch diese Pause ab. Standard: 300 Sekunden."
             }
           },
           "recovery": {
@@ -712,7 +712,7 @@
             "data_description": {
               "window_resume_batch": "Beim Schließen oder wenn das Zeitlimit des offenen Fensters endet, wird die Temperatur von vor dem Öffnen sofort am lokalen HomeKit- oder Matter-Klima gesetzt. Lief ein Zeitplan, wartet das Senden an die Cloud, damit Zonen im selben Zeitraum zusammen rausgehen. Lief keiner, wird nur lokal gesetzt. Standard: an.",
               "window_resume_batch_s": "Sekunden, die das Senden an die Cloud wartet. Räume, die in dieser Zeit zugehen oder deren Zeitlimit endet, teilen sich einen Aufruf. Standard: 120. 0 sendet beim nächsten Durchlauf. Nur wenn Sammeln und Verzögern an ist.",
-              "offset_cal_window_settle_s": "Im Modus Schwelle wird eine Zone ignoriert, solange ihr Fenstersensor offen ist. Nach dem Schließen so lange warten, bis Heizkörper und Raumfühler sich angeglichen haben. Standard: 300 Sekunden."
+              "offset_cal_window_settle_s": "Im Modus Schwelle bleibt die Zone aus, solange der Fenstersensor offen ist. Eine Kalibrierung nach Stundenintervall, die in dieser Zeit fällig wird, wartet ebenfalls. Nach dem Schließen so lange warten, bis Heizkörper und Raumfühler sich angeglichen haben. Standard: 300 Sekunden."
             }
           },
           "offset": {
@@ -723,7 +723,7 @@
             },
             "data_description": {
               "offset_poll_interval": "Wie oft Temperatur-Offsets abgerufen werden. Kostet 1 API-Aufruf pro Ventil. 0 = aus.",
-              "offset_cal_send_cooldown_s": "Nach einem Offset-Schreiben im Modus Schwelle so lange warten, bevor erneut geschrieben wird. Verhindert einen zweiten Aufruf, solange die Messung hinterherhinkt. Standard: 300 Sekunden."
+              "offset_cal_send_cooldown_s": "Nach einem Offset-Schreiben im Modus Schwelle so lange warten, bevor erneut geschrieben wird. Verhindert einen zweiten Aufruf, solange die Messung hinterherhinkt. Eine Kalibrierung, die wegen eines offenen Fensters wartet, wartet auch diese Pause ab. Standard: 300 Sekunden."
             }
           },
           "recovery": {

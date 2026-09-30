@@ -138,7 +138,7 @@ Offline HomeKit and Matter TRVs do not see a cloud write. Three pieces remember 
 
 ### `OffsetCalSchedulerMixin`
 
-`helpers/offset_cal_config.py` — bridge default plus per-zone interval and threshold (`inherit`, or threshold `0`, clears the override). Clock modes share one timer. `threshold` watches the linked sensor instead. Calibration polls an offset only when none is known. User-facing rules are in `docs/FEATURES.md`.
+`helpers/offset_cal_config.py` — bridge default plus per-zone interval and threshold (`inherit`, or threshold `0`, clears the override). Clock modes share one timer. An hour interval that falls during an open window waits until the window is closed and the pause and write cooldown have elapsed. `threshold` watches the linked sensor instead. Calibration polls an offset only when none is known. User-facing rules are in `docs/FEATURES.md`.
 
 ---
 
@@ -173,7 +173,7 @@ Two complementary utilities bridging Tado's cloud and Home Assistant's local reg
 
 **`EntityResolver`** (`helpers/entity_resolver.py`) resolves HA entity IDs to Tado zone IDs — caching lookups, parsing unique IDs, and performing deep registry scans, including resolving device entities (e.g. `child_lock_VA123`) back to their owning zone via serial number.
 
-**`DeviceLinker`** (`helpers/device_linker.py`) handles device unification. It builds a cache from the HA device registry keyed by `serial_number`, matching Tado devices regardless of platform (HomeKit or Matter). When a cloud serial matches a local device, cloud and local entities are linked so X-generation devices (not exposed as classic zones) map onto a single HA device.
+**`DeviceLinker`** (`helpers/device_linker.py`) handles device unification. It builds a cache from the HA device registry keyed by `serial_number`, matching Tado devices regardless of platform (HomeKit or Matter). When a cloud serial matches a local device, the cloud entities link to that device. Hijack still keeps its own device.
 
 ---
 
