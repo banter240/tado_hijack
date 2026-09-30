@@ -1,3 +1,46 @@
+## [5.10.0-dev.9](https://github.com/banter240/tado_hijack/compare/v5.10.0-dev.8...v5.10.0-dev.9) (2026-09-30)
+
+### ✨ New Features
+
+* feat(home-mode): list rooms behind a mixed home mode
+
+  Home mode stays mixed. The sensor attributes name which heating and
+  AC rooms are still on the schedule and which left it. Both lists are
+  read from the zone state already in memory.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🔧 CHANGED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - a mixed home mode lists on_schedule rooms and maps each other room
+    in off_schedule to manual, off, or boost
+  - the split uses the same cached zone state as the mixed check, so it
+    does not add an API call
+  - README describes the two attributes
+  - @semantic-release/github moves from 12.0.9 to 12.0.10, and
+    @octokit/plugin-paginate-rest moves to 15
+
+### 🐛 Bug Fixes
+
+* fix(offset-cal): use a stored offset, including 0
+
+  Calibration treated an empty offset cache as missing and skipped the
+  write. The offset number can already hold 0. That value is used, and
+  the offset endpoint is polled only when nothing is known.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🐛 FIXED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - a stored offset, including 0 from the offset number, is used for the
+    write. The cache, the device snapshot, and an in-flight value still
+    come first
+  - the offset is fetched only when none of those has a value, for every
+    calibration reason, not only the manual button
+  - a numeric 0 in the v3 offset cache stays 0
+  - README, FEATURES, ARCHITECTURE, and DESIGN say calibration polls only
+    when no offset is known
+
 ## [5.10.0-dev.8](https://github.com/banter240/tado_hijack/compare/v5.10.0-dev.7...v5.10.0-dev.8) (2026-09-29)
 
 ### 🐛 Bug Fixes
