@@ -30,7 +30,7 @@ from .const import (
     TADOX_VIRTUAL_HOT_WATER_ZONE_ID,
     ZONE_TYPE_HOT_WATER,
 )
-from .helpers.logging_utils import get_redacted_logger
+from .helpers.logging_utils import get_redacted_logger, redact
 from .helpers.schedule import as_day_list
 
 if TYPE_CHECKING:
@@ -380,7 +380,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:  # noqa: C901
                 for zone_id in zone_ids:
                     await coord.async_set_schedule(zone_id, **kwargs)
         except ValueError as err:
-            raise ServiceValidationError(str(err)) from err
+            raise ServiceValidationError(redact(str(err))) from None
 
     hass.services.async_register(DOMAIN, SERVICE_MANUAL_POLL, handle_manual_poll)
     hass.services.async_register(

@@ -11,17 +11,25 @@ from typing import Any, cast
 from aiohttp import ClientResponseError
 from tadoasync import Tado, TadoConnectionError
 from tadoasync.const import HttpMethod
+from tadoasync.exceptions import (
+    TadoAuthenticationError,
+    TadoBadRequestError,
+    TadoError,
+    TadoForbiddenError,
+)
 from tadoasync.tadoasync import (
     API_URL,
+    CLIENT_ID,
     EIQ_API_PATH,
     EIQ_HOST_URL,
     TADO_API_PATH,
     TADO_HOST_URL,
+    TOKEN_URL,
 )
 from yarl import URL
 
 from ..const import TADO_USER_AGENT
-from .logging_utils import get_redacted_logger
+from .logging_utils import get_redacted_logger, log_secrets, redact
 from .parsers import parse_ratelimit_headers
 
 _LOGGER = get_redacted_logger(__name__)
@@ -34,6 +42,7 @@ class TadoRequestHandler:
         """Initialize the handler."""
         # Shared storage for hijacked headers
         self.rate_limit_data: dict[str, Any] = {"limit": 0, "remaining": 0}
+        self._auth_lock = asyncio.Lock()
 
     async def robust_request(
         self,
@@ -60,13 +69,14 @@ class TadoRequestHandler:
         access_token = self._get_access_token(instance, proxy_url, is_auth_request)
         headers = self._build_headers(access_token, method, bool(proxy_url))
 
-        _LOGGER.debug(
-            "Tado Request: %s %s (Proxy: %s)", method.value, str(url), proxy_url
-        )
+        with log_secrets(proxy_token, access_token):
+            _LOGGER.debug(
+                "Tado Request: %s %s (Proxy: %s)", method.value, str(url), proxy_url
+            )
 
-        return await self._execute_request(
-            instance, url, headers, method, data, proxy_url
-        )
+            return await self._execute_request(
+                instance, url, headers, method, data, proxy_url
+            )
 
     async def _refresh_auth_if_needed(
         self, instance: Tado, proxy_url: str | None, is_auth_request: bool
@@ -75,12 +85,14 @@ class TadoRequestHandler:
         if proxy_url or is_auth_request:
             return
 
-        if hasattr(instance, "_refresh_auth"):
-            await instance._refresh_auth()
-        else:
-            _LOGGER.warning(
-                "_refresh_auth not found in Tado instance (library may have changed)"
-            )
+        if not hasattr(instance, "_token_expiry"):
+            _LOGGER.warning("Tado token expiry is missing (library may have changed)")
+            return
+
+        # One refresh at a time. A second caller with the same refresh token
+        # gets a 400 from Tado after the first caller rotates it.
+        async with self._auth_lock:
+            await self._refresh_auth(instance)
 
     def _get_access_token(
         self, instance: Tado, proxy_url: str | None, is_auth_request: bool
@@ -176,16 +188,60 @@ class TadoRequestHandler:
                 rl.limit,
             )
 
-    async def _handle_error_response(self, response: Any, url: Any) -> None:
-        """Handle error response by logging and raising."""
-        body = await response.text()
+    async def _refresh_auth(self, instance: Tado) -> None:
+        """Refresh the access token and keep Tado's error body."""
+        expiry = getattr(instance, "_token_expiry", None)
+        if expiry is not None and time.time() < float(expiry) - 30:
+            return
+
+        refresh_token = getattr(instance, "_refresh_token", None)
+        if not refresh_token:
+            raise TadoConnectionError("Cannot refresh Tado token")
+
+        timeout = getattr(instance, "_request_timeout", 10)
+        session = self._get_session(instance)
+        form = {
+            "client_id": CLIENT_ID,
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+        }
+        with log_secrets(refresh_token):
+            try:
+                async with asyncio.timeout(timeout):
+                    async with session.post(TOKEN_URL, data=form) as response:
+                        if response.status >= http.HTTPStatus.BAD_REQUEST:
+                            await self._raise_http_error(response, "oauth2/token")
+                        payload = await response.json(content_type=None)
+            except TimeoutError as err:
+                raise TadoConnectionError("Timeout connecting to Tado") from err
+
+        instance._access_token = payload["access_token"]
+        instance._token_expiry = time.time() + float(payload["expires_in"])
+        instance._refresh_token = payload["refresh_token"]
+
+    async def _raise_http_error(self, response: Any, where: str) -> None:
+        """Log and raise a Tado error that includes the redacted response body."""
+        body = str(redact(await response.text()) or "<empty>")
+        place = str(redact(where))
         _LOGGER.error(
             "Tado API Error %d: %s. Response: %s",
             response.status,
-            url.path,
+            place,
             body,
         )
-        response.raise_for_status()
+        message = f"HTTP {response.status} {place}. Response: {body}"
+        if response.status == http.HTTPStatus.UNAUTHORIZED:
+            raise TadoAuthenticationError(message)
+        if response.status == http.HTTPStatus.FORBIDDEN:
+            raise TadoForbiddenError(message)
+        if response.status == http.HTTPStatus.BAD_REQUEST:
+            raise TadoBadRequestError(message)
+        raise TadoError(message)
+
+    async def _handle_error_response(self, response: Any, url: Any) -> None:
+        """Handle error response by logging and raising."""
+        path = getattr(url, "path", None) or str(url)
+        await self._raise_http_error(response, path)
 
     def _build_url(
         self,

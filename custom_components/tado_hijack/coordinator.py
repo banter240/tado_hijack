@@ -95,7 +95,7 @@ from .helpers.data_manager import TadoDataManager, UnifiedDataProvider
 from .helpers.device_linker import get_climate_entity_id
 from .helpers.entity_resolver import EntityResolver
 from .helpers.event_handlers import TadoEventHandler
-from .helpers.logging_utils import get_redacted_logger
+from .helpers.logging_utils import get_redacted_logger, log_secrets, redact
 from .helpers.offset_cal_config import OffsetCalSchedulerMixin
 from .helpers.optimistic_manager import OptimisticManager, ZoneOverlayFields
 from .helpers.overlay_builder import build_overlay_data
@@ -465,6 +465,16 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
 
     async def _async_update_data(self) -> TadoData:
         """Fetch update via DataManager."""
+        client = self._tado
+        with log_secrets(
+            getattr(client, "proxy_token", None),
+            getattr(client, "_access_token", None),
+            getattr(client, "_refresh_token", None),
+        ):
+            return await self._fetch_tado_data()
+
+    async def _fetch_tado_data(self) -> TadoData:
+        """Fetch update via DataManager."""
         if not self.is_polling_enabled and not self._force_next_update:
             _LOGGER.debug("Polling globally disabled via switch.")
             if self.data:
@@ -563,13 +573,13 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
                 _LOGGER.warning("Tado API transient error, using cached data: %s", err)
                 return cast(TadoData, self.data)
 
-            raise UpdateFailed(f"Tado API error: {err}") from err
+            raise UpdateFailed(redact(f"Tado API error: {err}")) from None
         except Exception as err:
             self._force_next_update = False
             _LOGGER.error("Unexpected error fetching Tado data: %s", err, exc_info=True)
             if self.data:
                 return cast(TadoData, self.data)
-            raise UpdateFailed(f"Unexpected error: {err}") from err
+            raise UpdateFailed(redact(f"Unexpected error: {err}")) from None
 
     def _handle_throttled_interval(self, seconds_until_reset: int) -> int:
         """Handle polling interval when throttled."""
@@ -1887,8 +1897,8 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             except Exception as err:
                 self.update_rate_limit_local(silent=True)
                 raise HomeAssistantError(
-                    f"Could not read active timetable for zone {zone_id}: {err}"
-                ) from err
+                    redact(f"Could not read active timetable for zone {zone_id}: {err}")
+                ) from None
 
         timetable_type = resolve_timetable_type(timetable, cached_type)
         type_entry = entry_for_type(timetable_type)
@@ -2266,7 +2276,9 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             await self.client.set_meter_readings(reading=reading, date=reading_date)
         except Exception as e:
             _LOGGER.error("Failed to add meter reading: %s", e)
-            raise HomeAssistantError(f"Failed to add meter reading: {e}") from e
+            raise HomeAssistantError(
+                redact(f"Failed to add meter reading: {e}")
+            ) from None
 
     async def async_set_ac_setting(self, zone_id: int, key: str, value: str) -> None:
         """Set an AC specific setting (fan speed, swing, temperature, etc.)."""

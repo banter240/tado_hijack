@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import contextvars
 import json
 import logging
 import re
+import traceback
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
-
-from ..const import HOME_ID_MIN_DIGITS
 
 try:
     INTEGRATION_VERSION = json.loads(
@@ -17,73 +19,100 @@ try:
 except Exception:
     INTEGRATION_VERSION = "unknown"
 
-# Common sensitive URL parameter patterns for Tado
+# Query values that must not survive into a log line.
 _URL_PARAM_PATTERNS = [
-    re.compile(r"user_code=[^& ]+", re.IGNORECASE),
-    re.compile(r"access_token=[^& ]+", re.IGNORECASE),
-    re.compile(r"refresh_token=[^& ]+", re.IGNORECASE),
-    re.compile(r"password=[^& ]+", re.IGNORECASE),
-    re.compile(r"username=[^& ]+", re.IGNORECASE),
-    re.compile(r"email=[^& ]+", re.IGNORECASE),
+    re.compile(
+        r"(?:user_code|access_token|refresh_token|id_token|proxy_token|client_secret|"
+        r"device_code|password|username|email|authorization)=[^& ]+",
+        re.IGNORECASE,
+    ),
 ]
+
+_JSON_SECRET_KEYS = (
+    "user_code|password|access_token|refresh_token|id_token|proxy_token|"
+    "client_secret|device_code|authorization|username|email|serialNo|shortSerialNo"
+)
+
+# Token values currently in scope. Tracebacks are formatted later, so the value
+# itself has to be recognizable without a field name.
+_MIN_SECRET_LENGTH = 8
+_log_secrets: contextvars.ContextVar[tuple[str, ...]] = contextvars.ContextVar(
+    "tado_hijack_log_secrets",
+    default=(),
+)
+
+
+@contextmanager
+def log_secrets(*secrets: str | None) -> Iterator[None]:
+    """Hide concrete token values in logs emitted inside the block."""
+    current = _log_secrets.get()
+    extra = tuple(
+        secret
+        for secret in secrets
+        if secret and len(secret) >= _MIN_SECRET_LENGTH and secret not in current
+    )
+    if not extra:
+        yield
+        return
+    token = _log_secrets.set(current + extra)
+    try:
+        yield
+    finally:
+        _log_secrets.reset(token)
 
 
 def redact(data: Any) -> Any:
-    """Redact sensitive information from the input string or object.
-
-    Args:
-        data: Input to redact (string, int, float, bool, None, etc.)
-
-    Returns:
-        - Strings: Redacted string
-        - Other types: Passed through unchanged (int, float, bool, None, etc.)
-
-    This preserves type information for logging format strings (%d, %f, etc.)
-
-    """
+    """Redact secrets in a string. Other types pass through unchanged."""
     if isinstance(data, Exception):
         return redact(str(data))
 
     if not isinstance(data, str):
         return data
 
-    # URL Parameters
-    for p in _URL_PARAM_PATTERNS:
-        data = p.sub(lambda m: m.group(0).split("=")[0] + "=REDACTED", data)
+    for secret in _log_secrets.get():
+        if secret in data:
+            data = data.replace(secret, "REDACTED")
 
-    # Home IDs in URLs and error messages ("homes/12345" or "home 12345")
+    for pattern in _URL_PARAM_PATTERNS:
+        data = pattern.sub(lambda m: m.group(0).split("=")[0] + "=REDACTED", data)
+
+    # Home IDs in URLs, error text, and JSON ("homes/12345", "home 12345", homeId)
     data = re.sub(r"homes?/\d+", "homes/REDACTED", data, flags=re.IGNORECASE)
     data = re.sub(r"\bhome\s+\d{4,}", "home REDACTED", data, flags=re.IGNORECASE)
-
-    # Email addresses (inline, not just key=value form)
-    data = re.sub(r"[\w.+-]+@[\w.-]+\.\w+", "REDACTED@REDACTED", data)
-
-    # Serial Numbers (Tado format: 2 letters + 10 digits)
-    def partial_redact_sn(m: re.Match[str]) -> str:
-        sn = m[0]
-        prefix = ""
-        if sn.startswith("_"):
-            prefix = "_"
-            sn = sn[1:]
-        return f"{prefix}{sn[:2]}...{sn[-5:]}"
-
     data = re.sub(
-        r"(?:\b|_|^)[A-Z]{2,3}[A-Z0-9]{8,12}(?=\b|_|$)", partial_redact_sn, data
+        r'(["\'])(homeId|home_id)\1\s*[:=]\s*["\']?\d+["\']?',
+        r"\1\2\1: REDACTED",
+        data,
+        flags=re.IGNORECASE,
+    )
+    data = re.sub(
+        r"\b(homeId|home_id)\b\s*[:=]\s*[\"']?\d+[\"']?",
+        r"\1=REDACTED",
+        data,
+        flags=re.IGNORECASE,
     )
 
-    # JSON Keys and Values
-    json_keys = "user_code|password|access_token|refresh_token|username|email|serialNo|shortSerialNo"
+    data = re.sub(r"[\w.+-]+@[\w.-]+\.\w+", "REDACTED@REDACTED", data)
+    data = re.sub(r"Bearer\s+\S+", "Bearer REDACTED", data, flags=re.IGNORECASE)
+
+    def _redact_serial(match: re.Match[str]) -> str:
+        return "_REDACTED" if match.group(0).startswith("_") else "REDACTED"
+
+    # Tado serials are 2-3 letters plus 8-12 more characters. Zone ids stay.
     data = re.sub(
-        r'(["\'])(' + json_keys + r')\1\s*[:=]\s*(["\'])(.*?)\3',
+        r"(?:\b|_|^)[A-Z]{2,3}[A-Z0-9]{8,12}(?=\b|_|$)",
+        _redact_serial,
+        data,
+    )
+
+    data = re.sub(
+        r'(["\'])(' + _JSON_SECRET_KEYS + r')\1\s*[:=]\s*(["\'])(.*?)\3',
         r"\1\2\1: \3REDACTED\3",
         data,
         flags=re.IGNORECASE,
     )
 
     return data
-
-
-_LOGGER = logging.getLogger(__name__)
 
 
 _VERSION_PREFIX_ENABLED: bool = True
@@ -100,30 +129,34 @@ class TadoVersionFilter(logging.Filter):
         return True
 
 
+def _redact_record(record: logging.LogRecord) -> None:
+    """Redact the rendered line and any traceback attached to it."""
+    if record.args:
+        try:
+            rendered = record.getMessage()
+        except Exception:
+            rendered = str(record.msg)
+        record.msg = redact(rendered)
+        record.args = ()
+    elif isinstance(record.msg, str):
+        record.msg = redact(record.msg)
+
+    if record.exc_info and not record.exc_text:
+        record.exc_text = redact("".join(traceback.format_exception(*record.exc_info)))
+        record.exc_info = None
+    elif isinstance(record.exc_text, str):
+        record.exc_text = redact(record.exc_text)
+
+    if isinstance(record.stack_info, str):
+        record.stack_info = redact(record.stack_info)
+
+
 class TadoRedactionFilter(logging.Filter):
     """Filter to redact sensitive information from logs."""
 
     def filter(self, record: logging.LogRecord) -> bool:
-        """Redact sensitive info in the log record message and arguments."""
-        if isinstance(record.msg, str):
-            record.msg = redact(record.msg)
-
-        if record.args and isinstance(record.args, tuple):
-            # Check if format string contains home_id parameter
-            # If so, redact the corresponding arg (convert int to "REDACTED")
-            if isinstance(record.msg, str) and "home_id=" in record.msg:
-                redacted_args = []
-                for arg in record.args:
-                    # home_id is typically an integer - redact it
-                    if isinstance(arg, int) and len(str(arg)) >= HOME_ID_MIN_DIGITS:
-                        redacted_args.append("REDACTED")
-                    else:
-                        redacted_args.append(redact(arg))
-                record.args = tuple(redacted_args)
-            else:
-                # Redact all args normally (redact() handles type preservation)
-                record.args = tuple(redact(arg) for arg in record.args)
-
+        """Redact the rendered message, its arguments, and the traceback."""
+        _redact_record(record)
         return True
 
 
@@ -142,6 +175,9 @@ def get_redacted_logger(name: str) -> logging.Logger:
     if name.startswith("custom_components.tado_hijack"):
         logger.setLevel(_CURRENT_INTEGRATION_LOG_LEVEL)
     return logger
+
+
+_LOGGER = get_redacted_logger(__name__)
 
 
 def set_version_prefix_enabled(enabled: bool) -> None:

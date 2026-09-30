@@ -95,7 +95,7 @@ When proxy_url is set:
 
 - Wrapped in asyncio.timeout(instance._request_timeout) (tadoasync default 10s).
 - TimeoutError raises TadoConnectionError("Timeout connecting to Tado").
-- HTTP >= 400: response body is logged (redacted logger), raise_for_status().
+- HTTP >= 400: redacted response body is logged and put on the Tado exception.
 - ClientResponseError (no proxy): delegates to tadoasync's instance.check_request_status() (handles expired-token re-auth logic) before re-raising.
 - 204 No Content: returns "".
 

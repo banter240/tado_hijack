@@ -37,6 +37,8 @@ from .helpers.logging_utils import (
     INTEGRATION_VERSION,
     TadoRedactionFilter,
     get_redacted_logger,
+    log_secrets,
+    redact,
     set_redacted_log_level,
     set_version_prefix_enabled,
 )
@@ -132,37 +134,38 @@ async def async_setup_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bool
         proxy_token=proxy_token,
     )
 
-    try:
-        await client.async_init()
-        _LOGGER.debug(
-            "Client initialized: home_id=%s, token_status=%s",
-            getattr(client, "_home_id", None),
-            "SET" if getattr(client, "_access_token", None) else "NOT SET",
-        )
-    except TadoAuthenticationError as e:
-        _LOGGER.error("Authentication failed during setup: %s", e)
-        raise ConfigEntryAuthFailed from e
-    except Exception as e:
-        if "timeout" in str(e).lower():
-            _LOGGER.warning("Timeout connecting to Tado API, will retry: %s", e)
-            raise ConfigEntryNotReady from e
-
-        _LOGGER.error("Failed to initialize Tado API: %s", e)
-        error_str = str(e).lower()
-        if (
-            "bad request" in error_str
-            or str(HTTP_BAD_REQUEST) in error_str
-            or str(HTTP_UNAUTHORIZED) in error_str
-            or "unauthorized" in error_str
-            or ("invalid" in error_str and "token" in error_str)
-        ):
-            _LOGGER.warning(
-                "Token likely invalid (HTTP %s/%s or auth error), triggering reauth",
-                HTTP_BAD_REQUEST,
-                HTTP_UNAUTHORIZED,
+    with log_secrets(proxy_token, entry.data.get(CONF_REFRESH_TOKEN)):
+        try:
+            await client.async_init()
+            _LOGGER.debug(
+                "Client initialized: home_id=%s, token_status=%s",
+                getattr(client, "_home_id", None),
+                "SET" if getattr(client, "_access_token", None) else "NOT SET",
             )
-            raise ConfigEntryAuthFailed from e
-        raise ConfigEntryNotReady from e
+        except TadoAuthenticationError as e:
+            _LOGGER.error("Authentication failed during setup: %s", e)
+            raise ConfigEntryAuthFailed(redact(str(e))) from None
+        except Exception as e:
+            if "timeout" in str(e).lower():
+                _LOGGER.warning("Timeout connecting to Tado API, will retry: %s", e)
+                raise ConfigEntryNotReady(redact(str(e))) from None
+
+            _LOGGER.error("Failed to initialize Tado API: %s", e)
+            error_str = str(e).lower()
+            if (
+                "bad request" in error_str
+                or str(HTTP_BAD_REQUEST) in error_str
+                or str(HTTP_UNAUTHORIZED) in error_str
+                or "unauthorized" in error_str
+                or ("invalid" in error_str and "token" in error_str)
+            ):
+                _LOGGER.warning(
+                    "Token likely invalid (HTTP %s/%s or auth error), triggering reauth",
+                    HTTP_BAD_REQUEST,
+                    HTTP_UNAUTHORIZED,
+                )
+                raise ConfigEntryAuthFailed(redact(str(e))) from None
+            raise ConfigEntryNotReady(redact(str(e))) from None
 
     coordinator = TadoDataUpdateCoordinator(hass, entry, client, scan_interval)
     await coordinator.async_setup()
