@@ -51,6 +51,12 @@ class OffsetCalConfigMixin:
         _offset_cal_send_ready_at: dict[int, datetime]
         _offset_cal_window_settle_until: dict[int, datetime]
         _offset_cal_window_was_open: set[int]
+        _offset_cal_interval_pending: set[int]
+        _offset_cal_interval_unsubs: list[Callable[[], None]]
+        _offset_cal_interval_watched: tuple[str, ...]
+        _offset_cal_interval_retry: Callable[[], None] | None
+        _offset_cal_interval_flushing: bool
+        _offset_cal_interval_flush_again: bool
 
         def async_calibrate_offsets(
             self, trigger: str, zone_id: int | None = None
@@ -131,6 +137,7 @@ class OffsetCalSchedulerMixin(OffsetCalConfigMixin):
             self._offset_cal_unsub()
             self._offset_cal_unsub = None
         hours = sorted(self._all_offset_cal_hours())
+        self._drop_stale_interval_holds()
         if not hours:
             self._schedule_offset_cal_threshold_watch()
             return
@@ -145,9 +152,172 @@ class OffsetCalSchedulerMixin(OffsetCalConfigMixin):
         self._schedule_offset_cal_threshold_watch()
 
     async def _on_offset_cal_tick(self, now: datetime) -> None:
+        held = False
         for zone_id in self._linked_zone_ids():
-            if now.hour in self.zone_offset_cal_hours(zone_id):
-                await self.async_calibrate_offsets("interval", zone_id=zone_id)
+            if now.hour not in self.zone_offset_cal_hours(zone_id):
+                continue
+            if self._interval_cal_must_wait(zone_id):
+                self._hold_interval_cal(zone_id)
+                held = True
+                continue
+            await self.async_calibrate_offsets("interval", zone_id=zone_id)
+        if held:
+            self._sync_interval_window_watch()
+            await self._async_flush_interval_cal()
+
+    def _offset_cal_window_open(self, zone_id: int) -> bool:
+        window = getattr(self, "window_controller", None)
+        return bool(window and window.zone_window_is_open(zone_id))
+
+    def _interval_cal_must_wait(self, zone_id: int) -> bool:
+        if self._offset_cal_window_open(zone_id):
+            return True
+        now = dt_util.utcnow()
+        settle_until = self._offset_cal_window_settle_until.get(zone_id)
+        if settle_until is not None and now < settle_until:
+            return True
+        ready_at = self._offset_cal_send_ready_at.get(zone_id)
+        return ready_at is not None and now < ready_at
+
+    def _hold_interval_cal(self, zone_id: int) -> None:
+        if zone_id in self._offset_cal_interval_pending:
+            return
+        self._offset_cal_interval_pending.add(zone_id)
+        if self._offset_cal_window_open(zone_id):
+            self._offset_cal_window_was_open.add(zone_id)
+        _LOGGER.info(
+            "Offset auto-cal for zone %s waits for the window and cooldown",
+            zone_id,
+        )
+
+    def _drop_stale_interval_holds(self) -> None:
+        for zone_id in list(self._offset_cal_interval_pending):
+            if self.zone_offset_cal_hours(zone_id):
+                continue
+            self._offset_cal_interval_pending.discard(zone_id)
+            self._offset_cal_window_was_open.discard(zone_id)
+        if not self._offset_cal_interval_pending:
+            self._cancel_interval_cal_hold()
+            return
+        self._sync_interval_window_watch()
+
+    def _cancel_interval_cal_hold(self) -> None:
+        self._offset_cal_interval_pending.clear()
+        if self._offset_cal_interval_retry is not None:
+            self._offset_cal_interval_retry()
+            self._offset_cal_interval_retry = None
+        for unsub in self._offset_cal_interval_unsubs:
+            unsub()
+        self._offset_cal_interval_unsubs = []
+        self._offset_cal_interval_watched = ()
+
+    def _sync_interval_window_watch(self) -> None:
+        from homeassistant.helpers.event import async_track_state_change_event
+
+        windows = self.config_entry.data.get(CONF_ZONE_WINDOW_ENTITIES) or {}
+        wanted: list[str] = []
+        if isinstance(windows, dict):
+            for zone_id in sorted(self._offset_cal_interval_pending):
+                if entity_id := windows.get(str(zone_id)):
+                    wanted.append(str(entity_id))
+        watched = tuple(wanted)
+        if watched == self._offset_cal_interval_watched:
+            return
+        for unsub in self._offset_cal_interval_unsubs:
+            unsub()
+        self._offset_cal_interval_unsubs = []
+        self._offset_cal_interval_watched = watched
+        if not watched:
+            return
+        self._offset_cal_interval_unsubs.append(
+            async_track_state_change_event(
+                self.hass, list(watched), self._on_interval_window
+            )
+        )
+
+    def _on_interval_window(self, _event: Any) -> None:
+        self.hass.async_create_task(self._async_flush_interval_cal())
+
+    def _arm_interval_cal_retry(self, when: datetime | None) -> None:
+        if self._offset_cal_interval_retry is not None:
+            self._offset_cal_interval_retry()
+            self._offset_cal_interval_retry = None
+        if when is None:
+            return
+        delay = (when - dt_util.utcnow()).total_seconds()
+        if delay <= 0:
+            return
+        from homeassistant.helpers.event import async_call_later
+
+        self._offset_cal_interval_retry = async_call_later(
+            self.hass, delay, self._async_interval_cal_retry
+        )
+
+    async def _async_interval_cal_retry(self, _now: datetime) -> None:
+        self._offset_cal_interval_retry = None
+        await self._async_flush_interval_cal()
+
+    async def _async_flush_interval_cal(self, _now: datetime | None = None) -> None:
+        if self._offset_cal_interval_flushing:
+            self._offset_cal_interval_flush_again = True
+            return
+        self._offset_cal_interval_flushing = True
+        try:
+            await self._flush_interval_cal_once()
+        finally:
+            self._offset_cal_interval_flushing = False
+            if self._offset_cal_interval_flush_again:
+                self._offset_cal_interval_flush_again = False
+                await self._async_flush_interval_cal()
+
+    async def _flush_interval_cal_once(self) -> None:
+        now = dt_util.utcnow()
+        settle_wait = timedelta(
+            seconds=self._offset_cal_cooldown_s(
+                CONF_OFFSET_CAL_WINDOW_SETTLE_S, DEFAULT_OFFSET_CAL_WINDOW_SETTLE_S
+            )
+        )
+        retry_at: datetime | None = None
+        ready: list[int] = []
+        for zone_id in list(self._offset_cal_interval_pending):
+            if not self.zone_offset_cal_hours(zone_id):
+                self._offset_cal_interval_pending.discard(zone_id)
+                self._offset_cal_window_was_open.discard(zone_id)
+                continue
+            if self._offset_cal_window_open(zone_id):
+                self._offset_cal_window_was_open.add(zone_id)
+                continue
+            if zone_id in self._offset_cal_window_was_open:
+                self._offset_cal_window_was_open.discard(zone_id)
+                if settle_wait.total_seconds() > 0:
+                    settle_until = now + settle_wait
+                    self._offset_cal_window_settle_until[zone_id] = settle_until
+                    retry_at = (
+                        settle_until
+                        if retry_at is None
+                        else min(retry_at, settle_until)
+                    )
+                    continue
+            settle_until = self._offset_cal_window_settle_until.get(zone_id)
+            if settle_until is not None and now < settle_until:
+                retry_at = (
+                    settle_until if retry_at is None else min(retry_at, settle_until)
+                )
+                continue
+            send_ready = self._offset_cal_send_ready_at.get(zone_id)
+            if send_ready is not None and now < send_ready:
+                retry_at = send_ready if retry_at is None else min(retry_at, send_ready)
+                continue
+            ready.append(zone_id)
+        for zone_id in ready:
+            self._offset_cal_interval_pending.discard(zone_id)
+        for zone_id in ready:
+            await self.async_calibrate_offsets("interval", zone_id=zone_id)
+        if not self._offset_cal_interval_pending:
+            self._cancel_interval_cal_hold()
+            return
+        self._sync_interval_window_watch()
+        self._arm_interval_cal_retry(retry_at)
 
     def _zones_on_threshold(self) -> list[int]:
         from .offset_calibrate import OFFSET_CAL_THRESHOLD

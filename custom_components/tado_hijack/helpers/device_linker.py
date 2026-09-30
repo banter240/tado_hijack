@@ -67,8 +67,9 @@ def _device_for_identifier(
 
 
 def _owned_by(device: dr.DeviceEntry, entry_id: str) -> bool:
-    if getattr(device, "config_entry_id", None) == entry_id:
-        return True
+    if hasattr(device, "config_entry_id"):
+        owner: str | None = getattr(device, "config_entry_id", None)
+        return owner == entry_id
     entries = getattr(device, "config_entries", None)
     return bool(entries and entry_id in entries)
 
@@ -208,13 +209,11 @@ def ensure_bridge_devices(
     *,
     entry_id: str,
     bridges: list[Any],
-    generation: str,
 ) -> None:
-    """Create the Hijack Internet Bridge device, even when HomeKit has one.
+    """Register the Hijack Internet Bridge device, even when HomeKit has one.
 
-    Entities still move onto the HomeKit or Matter bridge when that device
-    exists. The empty Hijack device is the proof the bridge was registered,
-    same as a TRV whose sensors live on the local device.
+    The empty Hijack device is the proof the bridge was registered. Entities
+    link onto the HomeKit or Matter device themselves when the serial matches.
     """
     registry = dr.async_get(hass)
     for bridge in bridges:
@@ -232,9 +231,6 @@ def ensure_bridge_devices(
             sw_version=getattr(bridge, "current_fw_version", None),
             serial_number=serial,
         )
-        local = get_local_device(hass, serial, generation, exclude_entry_id=entry_id)
-        if local is not None and entry_id not in local.config_entries:
-            registry.async_update_device(local.id, add_config_entry_id=entry_id)
 
 
 def get_climate_entity_id(

@@ -113,8 +113,10 @@ def resolve_ac_mode(opt_mode: str | None, state: Any) -> str:
 
 def parse_temperature_offset(offset: Any) -> float | None:
     """Extract temperature offset from v3 offset cache entry."""
-    if not offset:
+    if offset is None or isinstance(offset, bool):
         return None
+    if isinstance(offset, int | float):
+        return float(offset)
     celsius = getattr(offset, "celsius", None)
     return float(celsius) if celsius is not None else None
 

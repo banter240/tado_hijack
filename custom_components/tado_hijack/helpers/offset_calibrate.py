@@ -152,10 +152,38 @@ def read_entity_temperature(hass: HomeAssistant, entity_id: str) -> float | None
         return None
 
 
+def _offset_number_state(
+    coordinator: TadoDataUpdateCoordinator, serial: str
+) -> float | None:
+    """State of this device's offset number."""
+    from homeassistant.helpers import entity_registry as er
+
+    from ..const import DOMAIN
+
+    reg = er.async_get(coordinator.hass)
+    unique_ids = [f"{serial}_temperature_offset"]
+    if coordinator.config_entry is not None:
+        entry_id = coordinator.config_entry.entry_id
+        unique_ids.append(f"{entry_id}_temperature_offset_{serial}")
+
+    for unique_id in unique_ids:
+        entity_id = reg.async_get_entity_id("number", DOMAIN, unique_id)
+        if entity_id is None:
+            continue
+        state = coordinator.hass.states.get(entity_id)
+        if state is None or state.state in {"unknown", "unavailable"}:
+            continue
+        try:
+            return float(state.state)
+        except TypeError, ValueError:
+            continue
+    return None
+
+
 def current_device_offset(
     coordinator: TadoDataUpdateCoordinator, serial: str
 ) -> float | None:
-    """Optimistic offset, then v3 cache, then Tado X device snapshot."""
+    """Optimistic offset, cache, device snapshot, or the offset number."""
     optimistic = coordinator.optimistic.get_offset(serial)
     if optimistic is not None:
         return float(optimistic)
@@ -164,14 +192,14 @@ def current_device_offset(
         celsius = getattr(cached, "celsius", None)
         if celsius is not None:
             return float(celsius)
-        if isinstance(cached, int | float):
+        if isinstance(cached, int | float) and not isinstance(cached, bool):
             return float(cached)
     device = coordinator.devices_meta.get(serial)
     if device is not None:
         value = getattr(device, "temperature_offset", None)
         if value is not None:
             return float(value)
-    return None
+    return _offset_number_state(coordinator, serial)
 
 
 def measuring_devices(

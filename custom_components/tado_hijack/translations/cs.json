@@ -572,7 +572,7 @@
             "data_description": {
               "window_resume_batch": "Při zavření okna nebo konci časového limitu se teplota z doby před otevřením hned nastaví na místní klima HomeKit nebo Matter. Pokud běžel plán, odeslání do cloudu počká, aby zóny ve stejném intervalu odešly společně. Pokud plán neběžel, nastaví se jen místně. Výchozí zapnuto.",
               "window_resume_batch_s": "Sekundy, po které se odeslání do cloudu drží. Místnosti, které se v této době zavřou nebo jim skončí časový limit, jdou v jednom odeslání. Výchozí 120. 0 odešle při dalším průchodu. Platí jen když je fronta zapnutá.",
-              "offset_cal_window_settle_s": "V režimu práh se zóna ignoruje, dokud je její okenní senzor otevřený. Po zavření počkat, než se ventil a čidlo v místnosti srovnají. Výchozí 300 sekund."
+              "offset_cal_window_settle_s": "V režimu práh se zóna ignoruje, dokud je její okenní senzor otevřený. Kalibrace podle hodinového intervalu, která v té době vyjde, také počká. Po zavření počkat, než se ventil a čidlo v místnosti srovnají. Výchozí 300 sekund."
             }
           },
           "offset": {
@@ -583,7 +583,7 @@
             },
             "data_description": {
               "offset_poll_interval": "Jak často stahovat teplotní odchylky. Stojí 1 dotaz API na každou hlavici. 0 = vypnuto.",
-              "offset_cal_send_cooldown_s": "Po zápisu teplotní odchylky v režimu práh počkat, než se smí zapsat znovu. Brání druhému odeslání, dokud měření dobíhá. Výchozí 300 sekund."
+              "offset_cal_send_cooldown_s": "Po zápisu teplotní odchylky v režimu práh počkat, než se smí zapsat znovu. Brání druhému odeslání, dokud měření dobíhá. Kalibrace, která čekala kvůli otevřenému oknu, počká i tuto pauzu. Výchozí 300 sekund."
             }
           },
           "recovery": {
@@ -712,7 +712,7 @@
             "data_description": {
               "window_resume_batch": "Při zavření okna nebo konci časového limitu se teplota z doby před otevřením hned nastaví na místní klima HomeKit nebo Matter. Pokud běžel plán, odeslání do cloudu počká, aby zóny ve stejném intervalu odešly společně. Pokud plán neběžel, nastaví se jen místně. Výchozí zapnuto.",
               "window_resume_batch_s": "Sekundy, po které se odeslání do cloudu drží. Místnosti, které se v této době zavřou nebo jim skončí časový limit, jdou v jednom odeslání. Výchozí 120. 0 odešle při dalším průchodu. Platí jen když je fronta zapnutá.",
-              "offset_cal_window_settle_s": "V režimu práh se zóna ignoruje, dokud je její okenní senzor otevřený. Po zavření počkat, než se ventil a čidlo v místnosti srovnají. Výchozí 300 sekund."
+              "offset_cal_window_settle_s": "V režimu práh se zóna ignoruje, dokud je její okenní senzor otevřený. Kalibrace podle hodinového intervalu, která v té době vyjde, také počká. Po zavření počkat, než se ventil a čidlo v místnosti srovnají. Výchozí 300 sekund."
             }
           },
           "offset": {
@@ -723,7 +723,7 @@
             },
             "data_description": {
               "offset_poll_interval": "Jak často stahovat teplotní odchylky. Stojí 1 dotaz API na každou hlavici. 0 = vypnuto.",
-              "offset_cal_send_cooldown_s": "Po zápisu teplotní odchylky v režimu práh počkat, než se smí zapsat znovu. Brání druhému odeslání, dokud měření dobíhá. Výchozí 300 sekund."
+              "offset_cal_send_cooldown_s": "Po zápisu teplotní odchylky v režimu práh počkat, než se smí zapsat znovu. Brání druhému odeslání, dokud měření dobíhá. Kalibrace, která čekala kvůli otevřenému oknu, počká i tuto pauzu. Výchozí 300 sekund."
             }
           },
           "recovery": {
