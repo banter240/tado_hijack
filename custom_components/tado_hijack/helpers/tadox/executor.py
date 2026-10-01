@@ -104,9 +104,8 @@ class TadoXExecutor(TadoExecutorBase):
                 ),
             )
 
-        # 6. Schedule blocks (Hops POST) then activeTimetable (classic v2)
+        # 6. Schedule blocks (Hops POST). Tado X has no activeTimetable.
         await self._execute_schedules(merged)
-        await self._execute_timetables(merged)
 
     def _on_flow_temp_success(self, payload: dict[str, Any]) -> None:
         """Apply optimistic state after a successful flow temp PATCH."""

@@ -23,8 +23,9 @@ Tado cloud surfaces plus local protocols:
 | Local HomeKit / Matter | (local network) | Heating setpoints, measured values | All (via device_linker) |
 
 **Why so many?** Tado X homes still use the classic v2 API for presence
-(/state, /presenceLock) and experimentally for activeTimetable, while all
-room-level heating state lives on Hops. Classic homes never touch Hops.
+(/state, /presenceLock). Room state, manual control, and the weekly
+schedule live on Hops. Classic homes never touch Hops. Tado X has no
+activeTimetable.
 
 ## 2. Library stack
 
@@ -450,15 +451,38 @@ Allowed actions: "BOOST", "ALL_OFF", "RESUME_SCHEDULE"
 
 Why: When the executor infers that all heating rooms share the same goal (see Part 5 Section 2), it issues ONE quick action instead of N manualControl requests — huge quota win.
 
-### 4.4 Schedule Writes
+### 4.4 Room schedule
+
+#### async_get_room_schedule(room_id: int)
+
+GET: rooms/{room_id}/schedule
+
+Returns the room and `schedule`, a list of blocks. Each block has `dayType`
+(`MONDAY` through `SUNDAY`), `start`, `end` (`00:00` to `24:00`), and
+`setting`. There is no ONE_DAY / THREE_DAY / SEVEN_DAY switch.
 
 #### async_set_room_schedule(room_id: int, payload: dict) -> None
 
 POST: rooms/{room_id}/schedule
 
-Payload: Weekly schedule in Hops format (list of day blocks with start/stop/setting).
+One weekday per call:
 
-Verification: Immediately follows up with a GET to validate persistence.
+```json
+{
+  "dayType": "TUESDAY",
+  "daySchedule": [
+    {
+      "start": "00:00",
+      "end": "24:00",
+      "dayType": "TUESDAY",
+      "setting": {"power": "ON", "temperature": {"value": 20}}
+    }
+  ]
+}
+```
+
+`set_schedule` with `all_days` posts that once per weekday. `days` posts
+only the named weekdays. `one_day`, `three_day`, and `activate` are classic.
 
 ### 4.5 Flow Temperature Optimization (Boiler)
 
@@ -642,13 +666,13 @@ Uses tadoasync methods plus custom client bulk calls:
 
 ### 2.3 Schedules & Timetables (Shared Logic in executor_base.py)
 
-For both generations, schedule writes go through _execute_schedules() and
-_execute_timetables():
+Schedule block writes go through `_execute_schedules()`. Classic also runs
+`_execute_timetables()` (`activeTimetable`). Tado X does not.
 
-- TadoX: bridge.async_set_room_schedule() (POST /rooms/{id}/schedule)
+- TadoX: bridge.async_set_room_schedule() (POST /rooms/{id}/schedule), one weekday
 - Classic: client.set_timetable_blocks() (PUT /schedule/timetables/.../blocks)
 
-After successful write, the coordinator marks the optimistic cache as synced.
+After a successful write, the zone plan cache stores that day.
 
 ### 2.4 Rollback Infrastructure
 
@@ -776,7 +800,8 @@ This header is non-negotiable.
 | Manual Control | POST | /rooms/{id}/manualControl | Set overlay |
 | Manual Control | DELETE | /rooms/{id}/manualControl | Resume schedule |
 | Quick Actions | POST | /quickActions | BOOST / ALL_OFF / RESUME_SCHEDULE |
-| Schedule | POST | /rooms/{id}/schedule | Write schedule |
+| Schedule | GET | /rooms/{id}/schedule | Read the week (seven weekdays) |
+| Schedule | POST | /rooms/{id}/schedule | Replace one weekday |
 | Boiler | GET/PATCH | /settings/flowTemperatureOptimization | Flow temp optimization |
 | Hot Water | GET | /programmer/domesticHotWater/state | HW programmer state |
 | Hot Water | POST | /programmer/domesticHotWater/boost | HW boost |

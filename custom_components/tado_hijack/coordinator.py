@@ -82,6 +82,7 @@ from .const import (
     TEMP_DEFAULT_HEATING,
     TEMP_DEFAULT_HOT_WATER,
     THROTTLE_RECOVERY_INTERVAL_S,
+    TIMETABLE_SEVEN_DAY,
     ZONE_TYPE_AIR_CONDITIONING,
     ZONE_TYPE_HEATING,
     ZONE_TYPE_HOT_WATER,
@@ -1812,7 +1813,9 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         return previous
 
     async def async_set_timetable(self, zone_id: int, timetable_type: str) -> None:
-        """Set the active timetable via classic v2 (experimental on Tado X)."""
+        """Set the active timetable via classic v2. Tado X has no switch."""
+        if self.generation == GEN_X:
+            return
         canonical = normalize_timetable_type(timetable_type)
         entry = entry_for_type(canonical) if canonical else None
         if entry is None:
@@ -1865,6 +1868,42 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             return blocks_from_schedule_state(state, source, geolocation_override)
         return ensure_full_day(parse_blocks(blocks or [], geolocation_override))
 
+    async def _timetable_type_for_schedule(
+        self, zone_id: int, timetable: str | None
+    ) -> str:
+        """Timetable type for one set_schedule call.
+
+        Tado X is always seven weekdays. Classic reads the active type when
+        the caller did not pass one and nothing is cached.
+        """
+        if self.generation == GEN_X:
+            if timetable is not None:
+                requested = normalize_timetable_type(timetable)
+                if requested is None:
+                    raise ValueError(f"Unknown timetable '{timetable}'.")
+                if requested != TIMETABLE_SEVEN_DAY:
+                    raise ValueError(
+                        "Tado X schedules are per weekday (Monday through Sunday). "
+                        "one_day and three_day are not available."
+                    )
+            return TIMETABLE_SEVEN_DAY
+
+        cached = self.data_manager.timetable_cache.get(zone_id)
+        cached_type = (cached or {}).get("type")
+        if timetable is None and not cached_type:
+            try:
+                raw = await self.client.get_active_timetable(zone_id)
+                self.update_rate_limit_local(silent=True)
+                fetched = normalize_api_entry(raw)
+                self._apply_timetable_cache(zone_id, fetched)
+                cached_type = fetched.get("type")
+            except Exception as err:
+                self.update_rate_limit_local(silent=True)
+                raise HomeAssistantError(
+                    redact(f"Could not read active timetable for zone {zone_id}: {err}")
+                ) from None
+        return resolve_timetable_type(timetable, cached_type)
+
     async def async_set_schedule(
         self,
         zone_id: int,
@@ -1885,22 +1924,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         if bool(blocks) == bool(schedule_entity):
             raise ValueError("Provide either blocks or schedule_entity.")
 
-        cached = self.data_manager.timetable_cache.get(zone_id)
-        cached_type = (cached or {}).get("type")
-        if timetable is None and not cached_type:
-            try:
-                raw = await self.client.get_active_timetable(zone_id)
-                self.update_rate_limit_local(silent=True)
-                fetched = normalize_api_entry(raw)
-                self._apply_timetable_cache(zone_id, fetched)
-                cached_type = fetched.get("type")
-            except Exception as err:
-                self.update_rate_limit_local(silent=True)
-                raise HomeAssistantError(
-                    redact(f"Could not read active timetable for zone {zone_id}: {err}")
-                ) from None
-
-        timetable_type = resolve_timetable_type(timetable, cached_type)
+        timetable_type = await self._timetable_type_for_schedule(zone_id, timetable)
         type_entry = entry_for_type(timetable_type)
         if type_entry is None:
             raise ValueError(f"Unknown timetable '{timetable_type}'.")
@@ -1953,7 +1977,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
                 ),
             )
 
-        if activate:
+        if activate and self.generation != GEN_X:
             await self.async_set_timetable(zone_id, timetable_type)
 
     def _save_schedule_blocks_cache(self) -> None:
@@ -2090,12 +2114,9 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
                     return
                 raw = await bridge.async_get_room_schedule(zone_id)
                 days = parse_x_plan(raw)
-                cached_type = (
-                    self.data_manager.timetable_cache.get(zone_id) or {}
-                ).get("type")
                 self.data_manager.schedule_blocks_cache[zone_id] = {
                     "timetable_id": None,
-                    "timetable_type": cached_type,
+                    "timetable_type": TIMETABLE_SEVEN_DAY,
                     "days": days,
                     "updated_at": dt_util.utcnow().isoformat(),
                 }
@@ -2135,6 +2156,8 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
 
     async def async_refresh_timetable(self, zone_id: int) -> None:
         """Queue a debounced activeTimetable GET for one zone."""
+        if self.generation == GEN_X:
+            return
         _LOGGER.info(
             "Queued timetable refresh for zone %s (generation=%s)",
             zone_id,
@@ -2147,6 +2170,8 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
 
     async def _execute_timetable_refresh(self, zone_id: int) -> None:
         """GET one zone's activeTimetable and update the cache (no listener notify)."""
+        if self.generation == GEN_X:
+            return
         if self.dummy_handler and self.dummy_handler.is_dummy_zone(zone_id):
             return
         if set_queue_key(zone_id) in self.api_manager.pending_keys:
@@ -2234,6 +2259,8 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
 
     async def async_refresh_all_timetables(self) -> None:
         """Queue a debounced activeTimetable GET for every compatible zone."""
+        if self.generation == GEN_X:
+            return
         zone_ids = self._compatible_timetable_zones(
             "Queued timetable refresh: no compatible zones found"
         )

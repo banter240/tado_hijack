@@ -946,7 +946,7 @@
     },
     "set_schedule": {
       "name": "Nastavit rozvrh",
-      "description": "Zapíše časové bloky chytrého plánu Tado pro zónu. Nahradí celý den. all_days zapíše všechny dny tohoto typu rozvrhu, days jen vybrané dny. Zadejte blocks nebo pomocníka plánu Home Assistant.",
+      "description": "Zapíše časové bloky chytrého plánu Tado pro zónu. Nahradí celý den. all_days zapíše všechny dny tohoto typu rozvrhu, days jen vybrané dny. Zadejte blocks nebo pomocníka plánu Home Assistant. Tado X zná jen pondělí až neděli. all_days zkopíruje bloky na každý den. one_day, three_day a activate platí jen pro Classic.",
       "fields": {
         "entity_id": {
           "name": "Entita",
@@ -954,19 +954,19 @@
         },
         "all_days": {
           "name": "Všechny dny",
-          "description": "Zapsat každé okno tohoto typu rozvrhu. U one_day se ignoruje (žádný výběr dne)."
+          "description": "Zapsat každé okno tohoto typu rozvrhu. U one_day se ignoruje (žádný výběr dne). U Tado X pondělí až neděle."
         },
         "days": {
           "name": "Dny",
-          "description": "Jen okna zvoleného typu. one_day: vynechat. three_day: Po-Pá, sobota, neděle. seven_day: Po až Ne (např. Út+St). Úterý u one_day je chyba."
+          "description": "Jen okna zvoleného typu. one_day: vynechat. three_day: Po-Pá, sobota, neděle. seven_day: Po až Ne (např. Út+St). Úterý u one_day je chyba. Tado X: pondělí až neděle."
         },
         "timetable": {
           "name": "Typ rozvrhu",
-          "description": "Který plán se zapisuje. Výchozí je právě aktivní typ zóny."
+          "description": "Classic: který plán se zapisuje. Výchozí je aktivní typ. Tado X je vždy po dnech. one_day a three_day se odmítnou."
         },
         "activate": {
           "name": "Aktivovat typ rozvrhu",
-          "description": "Po zápisu přepne zónu na tento typ rozvrhu."
+          "description": "Jen Classic: po zápisu přepne zónu na tento typ. U Tado X se ignoruje."
         },
         "blocks": {
           "name": "Bloky",

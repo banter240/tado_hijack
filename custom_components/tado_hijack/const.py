@@ -195,7 +195,7 @@ ZONE_TYPE_HOT_WATER: Final = "HOT_WATER"
 ZONE_TYPE_AIR_CONDITIONING: Final = "AIR_CONDITIONING"
 
 # Classic v2 active timetable (GET/PUT zones/{id}/schedule/activeTimetable).
-# Per-zone only. Same URI for Tado X rooms (experimental; Hops has no equivalent).
+# Per zone, classic only. Tado X has no switch; the week is seven weekdays.
 TIMETABLE_ONE_DAY: Final = "ONE_DAY"
 TIMETABLE_THREE_DAY: Final = "THREE_DAY"
 TIMETABLE_SEVEN_DAY: Final = "SEVEN_DAY"

@@ -946,7 +946,7 @@
     },
     "set_schedule": {
       "name": "Set schedule",
-      "description": "Write Tado Smart Schedule time blocks for a zone. Replaces the whole day. Use all_days for every day in the timetable, or days for specific days. Provide blocks or a Home Assistant schedule helper.",
+      "description": "Write Tado Smart Schedule time blocks for a zone. Replaces the whole day. Use all_days for every day in the timetable, or days for specific days. Provide blocks or a Home Assistant schedule helper. Tado X is always Monday through Sunday. all_days copies the blocks onto each weekday. one_day, three_day, and activate are classic only.",
       "fields": {
         "entity_id": {
           "name": "Entity",
@@ -954,19 +954,19 @@
         },
         "all_days": {
           "name": "All days",
-          "description": "Write every slot of the timetable. Ignored for one_day (that plan has no day picker)."
+          "description": "Write every slot of the timetable. Ignored for one_day (that plan has no day picker). On Tado X this is Monday through Sunday."
         },
         "days": {
           "name": "Days",
-          "description": "Slots of the selected timetable only. one_day: omit. three_day: Mon-Fri, Saturday, Sunday. seven_day: Mon..Sun (e.g. Tue+Wed). Tuesday on one_day fails."
+          "description": "Slots of the selected timetable only. one_day: omit. three_day: Mon-Fri, Saturday, Sunday. seven_day: Mon..Sun (e.g. Tue+Wed). Tuesday on one_day fails. Tado X: Monday through Sunday."
         },
         "timetable": {
           "name": "Timetable",
-          "description": "Which plan to write. Defaults to the zone's currently active timetable."
+          "description": "Classic timetable to write. Defaults to the zone's active timetable. Tado X is always per weekday. one_day and three_day are rejected."
         },
         "activate": {
           "name": "Activate timetable",
-          "description": "After writing, switch the zone to this timetable type."
+          "description": "Classic only: after writing, switch the zone to this timetable type. Ignored on Tado X."
         },
         "blocks": {
           "name": "Blocks",

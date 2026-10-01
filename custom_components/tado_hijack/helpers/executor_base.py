@@ -232,7 +232,9 @@ class TadoExecutorBase(ABC):
         )
 
     async def _execute_timetables(self, merged: dict[str, Any]) -> None:
-        """PUT classic v2 activeTimetable (v3 plus experimental Tado X)."""
+        """PUT classic v2 activeTimetable. Tado X has no timetable switch."""
+        if self.coordinator.generation == GEN_X:
+            return
         rollback_timetables = merged.get("rollback_timetables", {})
         for zid, timetable_id in merged.get("timetables", {}).items():
             if self._should_skip_zone(zid):  # [DUMMY_HOOK]

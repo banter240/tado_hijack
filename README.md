@@ -608,7 +608,7 @@ Global controls for the home. Classic links them to the Internet Bridge. Tado X 
 | `button.tado_{home}_resume_all_schedules`  | Button | Restore Smart Schedule across all zones (1 bulk call).            |
 | `button.tado_{home}_turn_off_all_zones`    | Button | Turn off all zones instantly (1 bulk call).                       |
 | `button.tado_{home}_boost_all_zones`       | Button | Boost all zones to 25°C (1 bulk call).                            |
-| `button.tado_{home}_full_manual_poll`      | Button | **Expensive:** Forced sync of metadata, states, offsets, away temps, active timetable types, and weekly plans (1 GET per compatible zone for each of those; no bulk timetable/plan endpoint). |
+| `button.tado_{home}_full_manual_poll`      | Button | **Expensive:** Forced sync of metadata, states, offsets, away temps, active timetable types (classic), and weekly plans (1 GET per compatible zone for each of those; no bulk timetable/plan endpoint). |
 | `sensor.tado_{home}_api_limit`             | Sensor | Total daily API quota limit (1000 standard, 3000 with proxy).     |
 | `sensor.tado_{home}_api_remaining`         | Sensor | **API Gold:** Your remaining daily call budget.                   |
 | `sensor.tado_{home}_api_status`            | Sensor | Real-time health (`connected`, `throttled`, `rate_limited`).      |
@@ -698,11 +698,11 @@ Cloud-only features that HomeKit does not support.
 | `binary_sensor.overlay`   | Binary Sensor | **HW Only:** Manual override active status.                                                     |
 | `binary_sensor.connectivity` | Binary Sensor | **HW Only:** Zone connectivity based on device connections.                                  |
 | `switch.early_start`                | Switch        | **v3 Only:** Toggle pre-heating before schedule block.                                          |
-| `select.timetable_type`             | Select        | Active timetable: same every day, Mon-Fri/Sat/Sun, or per weekday. Writes debounce then merge (1 PUT per zone; API has no bulk). **v3:** heating and hot water. **Tado X:** heating rooms, experimental (classic v2 URI). |
-| `select.timetable_type_all_zones`   | Select        | Same options for all compatible zones at once. Unknown if zones differ or nothing is cached. **Tado X experimental.** |
-| `button.refresh_timetable`          | Button        | Queue a debounced GET of the active timetable for one zone (same zone mashed = 1 call). **Tado X experimental.** |
-| `button.refresh_all_timetables`     | Button        | Queue a debounced GET for all compatible zones (coalesced with per-zone refreshes in the same window; still 1 GET per zone). **Tado X experimental.** |
-| `button.refresh_zone_plan`          | Button        | Fetch this room's weekly plan from Tado (1 GET when timetable type is cached, otherwise 2). Debounced; mashed button = 1 call. Does **not** run when you open the calendar. |
+| `select.timetable_type`             | Select        | Active timetable: same every day, Mon-Fri/Sat/Sun, or per weekday. Writes debounce then merge (1 PUT per zone; API has no bulk). **v3 only** (heating and hot water). Tado X has no schedule mode; the week is always seven weekdays. |
+| `select.timetable_type_all_zones`   | Select        | Same options for all compatible zones at once. Unknown if zones differ or nothing is cached. **v3 only.** |
+| `button.refresh_timetable`          | Button        | Queue a debounced GET of the active timetable for one zone (same zone mashed = 1 call). **v3 only.** |
+| `button.refresh_all_timetables`     | Button        | Queue a debounced GET for all compatible zones (coalesced with per-zone refreshes in the same window; still 1 GET per zone). **v3 only.** |
+| `button.refresh_zone_plan`          | Button        | Fetch this room's weekly plan from Tado (classic: 1 GET when the timetable type is cached, otherwise 2; Tado X: 1 GET). Debounced; mashed button = 1 call. Does **not** run when you open the calendar. |
 | `button.refresh_all_zone_plans`     | Button        | Fetch every capable zone's weekly plan (1-2 GET per zone, coalesced with per-room fetches in the same window). Cheaper than a full poll. |
 | `calendar.zone_plan`                | Calendar      | Read-only week view of ON heat windows (`Tado <room> Weekly Plan`). **Cache only** - opening the calendar never hits Tado. Fetch with `refresh_zone_plan`, `refresh_all_zone_plans`, or `full_manual_poll` / `manual_poll` type `all` or `schedule`. `set_schedule` updates the cache only after Tado accepts the write; a failed write leaves the previous plan. Not part of periodic poll. Attributes `timetable`, `day`, `blocks`, `plan` match `set_schedule`. |
 | `number.open_window_timeout`        | Number        | **Config:** Open window timeout (0=OFF, 5-1439min=ON). Requires Tado subscription for detection. |
@@ -780,7 +780,7 @@ For advanced automation, use these services. All manual control services feature
 | `tado_hijack.set_mode_all_zones`    | Targets all HEATING and/or AC zones at once using `hvac_mode`.                                                               | **1 call** (bulk overlay) | **1** if every room matches a quickAction; else **N** `manualControl` |
 | `tado_hijack.set_water_heater_mode` | Set `operation_mode` and temperature for hot water.                                                                      | **1 call** (v3)      | **1 call** (X)       |
 | `tado_hijack.add_meter_reading`     | Upload a meter reading (integer) to Tado Energy IQ. Optional `date` backfills a historic reading; defaults to today.         | **1 call**           | **1 call**           |
-| `tado_hijack.set_schedule`          | Write Smart Schedule time blocks (`blocks` or a `schedule` helper). `one_day` has no day picker. `three_day` = Mon-Fri/Sat/Sun. `seven_day` = any weekdays (e.g. Tue+Wed). Tuesday on one_day errors. | **1-7** | **1-7** |
+| `tado_hijack.set_schedule`          | Write Smart Schedule time blocks (`blocks` or a `schedule` helper). Classic: `one_day` has no day picker, `three_day` = Mon-Fri/Sat/Sun, `seven_day` = any weekdays. Tado X is always per weekday. `all_days` writes the same blocks to Monday-Sunday (7 calls). `days` writes the named weekdays. `one_day`, `three_day`, and `activate` are classic. | **1-7** | **1-7** |
 | `tado_hijack.manual_poll`           | Force immediate data refresh. Use `refresh_type` to control scope. Add `entity_id` for a targeted single-entity fetch (saves quota). | **1-N** (depends)    | **1-N** (depends)    |
 
 <br>
@@ -798,7 +798,7 @@ For advanced automation, use these services. All manual control services feature
 > [!TIP]
 > **Targeting Rooms:** You can use **any** Tado zone entity (climate, switch, sensor) or even **device entities** (battery, connection, child_lock) as the `entity_id`. Device entities automatically resolve to their zone via serial number lookup. This includes your existing **HomeKit climate** entities (e.g. `climate.living_room`).
 >
-> **Targeted Fetch:** When using `manual_poll` with an `entity_id`, the refresh is limited to that single entity — `offsets` costs 1 API call instead of N, `away` / `timetable` / `schedule` cost 1 instead of M. `capabilities` uses the persisted cache and only drops that zone's entry. Bulk types (`zone`, `metadata`, `presence`, `all`) always fall back to a full refresh. `all` (and `button.full_manual_poll`) also fetches active timetable types and weekly plans (1 GET per compatible zone each, 2 per zone when the timetable type is not cached). Type `schedule` fetches only weekly plans.
+> **Targeted Fetch:** When using `manual_poll` with an `entity_id`, the refresh is limited to that single entity — `offsets` costs 1 API call instead of N, `away` / `timetable` / `schedule` cost 1 instead of M. `capabilities` uses the persisted cache and only drops that zone's entry. Bulk types (`zone`, `metadata`, `presence`, `all`) always fall back to a full refresh. `all` (and `button.full_manual_poll`) also fetches active timetable types (classic only) and weekly plans (classic: 1 GET per zone when the timetable type is cached, otherwise 2; Tado X: 1 GET per room). Type `schedule` fetches only weekly plans. Type `timetable` is a no-op on Tado X.
 
 <br>
 
@@ -866,7 +866,9 @@ data:
     - {start: "22:00", end: "00:00", temperature: 16}
 ```
 
-Same plan every day (`one_day` has no day picker; do not pass `days`):
+On Tado X omit `timetable` and `activate`. `all_days: true` copies the blocks onto Monday through Sunday. One weekday is `days: [tuesday]`. `one_day` and `three_day` are rejected.
+
+Same plan every day (`one_day` has no day picker; do not pass `days`. Classic only):
 
 ```yaml
 service: tado_hijack.set_schedule

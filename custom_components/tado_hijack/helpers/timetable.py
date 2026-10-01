@@ -1,8 +1,7 @@
 """Classic v2 timetable helpers.
 
 Maps Tado activeTimetable type strings to API ids. Executors receive the
-integer id only; format mapping stays here. Tado X uses the same URI
-with room ids (experimental).
+integer id only; format mapping stays here. Tado X has no timetable switch.
 """
 
 from __future__ import annotations
@@ -16,9 +15,9 @@ from ..const import (
     TIMETABLE_ID_TO_TYPE,
     TIMETABLE_TYPE_TO_ID,
     TIMETABLE_ZONE_TYPES,
-    ZONE_TYPE_HEATING,
 )
 from ..models import CommandType, TadoCommand
+from .logging_utils import get_redacted_logger
 from .zone_utils import get_zone_type
 
 if TYPE_CHECKING:
@@ -27,6 +26,12 @@ if TYPE_CHECKING:
 TimetableEntry = dict[str, Any]
 
 _REFRESH_ALL_KEY = "all"
+_LOGGER = get_redacted_logger(__name__)
+_X_TIMETABLE_MARKERS = (
+    "_timetable_type_",
+    "_refresh_all_timetables",
+    "_refresh_timetable_",
+)
 
 
 def normalize_timetable_type(value: str) -> str | None:
@@ -85,17 +90,34 @@ def home_select_value(cache: dict[int, TimetableEntry]) -> str | None:
 def compatible_zone_ids(coordinator: TadoDataUpdateCoordinator) -> list[int]:
     """Zone ids that expose classic activeTimetable.
 
-    Classic: heating and hot water. Tado X: heating rooms only (skip synthetic
-    DHW 9001). Same v2 URI; X is experimental.
+    Heating and hot water. Tado X has no timetable switch, so this is empty.
     """
-    allowed = (
-        {ZONE_TYPE_HEATING} if coordinator.generation == GEN_X else TIMETABLE_ZONE_TYPES
-    )
+    if coordinator.generation == GEN_X:
+        return []
     return [
         zone_id
         for zone_id, zone in coordinator.zones_meta.items()
-        if get_zone_type(zone) in allowed and zone_id != TADOX_VIRTUAL_HOT_WATER_ZONE_ID
+        if get_zone_type(zone) in TIMETABLE_ZONE_TYPES
+        and zone_id != TADOX_VIRTUAL_HOT_WATER_ZONE_ID
     ]
+
+
+def remove_x_timetable_entities(hass: Any, entry_id: str) -> None:
+    """Drop classic schedule-mode entities. Tado X has no activeTimetable."""
+    from homeassistant.helpers import entity_registry as er
+
+    registry = er.async_get(hass)
+    removed = 0
+    for entity in er.async_entries_for_config_entry(registry, entry_id):
+        uid = entity.unique_id or ""
+        if any(marker in uid for marker in _X_TIMETABLE_MARKERS):
+            registry.async_remove(entity.entity_id)
+            removed += 1
+    if removed:
+        _LOGGER.info(
+            "Removed %d timetable mode entities (Tado X has no schedule mode)",
+            removed,
+        )
 
 
 def unique_zone_ids(zone_ids: Iterable[Any], skip: Iterable[Any] = ()) -> list[int]:
