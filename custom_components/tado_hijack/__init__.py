@@ -42,6 +42,7 @@ from .helpers.logging_utils import (
     set_redacted_log_level,
     set_version_prefix_enabled,
 )
+from .helpers.timetable import remove_x_timetable_entities
 from .lib.patches import apply_patches
 from .select import migrate_legacy_source_sentinels
 from .services import async_setup_services, async_unload_services
@@ -185,6 +186,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bool
             hass.config_entries.async_update_entry(entry, data=new_data)
 
         entry.runtime_data = coordinator
+        if coordinator.generation == GEN_X:
+            remove_x_timetable_entities(hass, entry.entry_id)
         migrate_legacy_source_sentinels(hass, entry)
 
         bridge_serials = [

@@ -946,7 +946,7 @@
     },
     "set_schedule": {
       "name": "Zeitplan setzen",
-      "description": "Schreibt die Zeitblöcke des intelligenten Tado-Zeitplans für eine Zone. Ersetzt den ganzen Tag. all_days schreibt alle Tage dieses Zeitplantyps, days nur bestimmte Tage. Entweder blocks oder ein Zeitplan-Helfer von Home Assistant.",
+      "description": "Schreibt die Zeitblöcke des intelligenten Tado-Zeitplans für eine Zone. Ersetzt den ganzen Tag. all_days schreibt alle Tage dieses Zeitplantyps, days nur bestimmte Tage. Entweder blocks oder ein Zeitplan-Helfer von Home Assistant. Tado X kennt nur Montag bis Sonntag. all_days kopiert die Blöcke auf jeden Wochentag. one_day, three_day und activate gelten nur für Classic.",
       "fields": {
         "entity_id": {
           "name": "Entität",
@@ -954,19 +954,19 @@
         },
         "all_days": {
           "name": "Alle Tage",
-          "description": "Jedes Zeitfenster dieses Zeitplantyps schreiben. Bei one_day ignoriert (keine Tagesauswahl)."
+          "description": "Jedes Zeitfenster dieses Zeitplantyps schreiben. Bei one_day ignoriert (keine Tagesauswahl). Bei Tado X Montag bis Sonntag."
         },
         "days": {
           "name": "Tage",
-          "description": "Nur die Zeitfenster des gewählten Typs. one_day: weglassen. three_day: Mo-Fr, Samstag, Sonntag. seven_day: Mo bis So (z. B. Di+Mi). Dienstag bei one_day ist ein Fehler."
+          "description": "Nur die Zeitfenster des gewählten Typs. one_day: weglassen. three_day: Mo-Fr, Samstag, Sonntag. seven_day: Mo bis So (z. B. Di+Mi). Dienstag bei one_day ist ein Fehler. Tado X: Montag bis Sonntag."
         },
         "timetable": {
           "name": "Zeitplantyp",
-          "description": "Welcher Plan beschrieben wird. Standard: der gerade aktive Typ der Zone."
+          "description": "Classic: welcher Plan geschrieben wird. Standard ist der aktive Typ. Tado X ist immer pro Wochentag. one_day und three_day werden abgelehnt."
         },
         "activate": {
           "name": "Zeitplantyp aktivieren",
-          "description": "Nach dem Schreiben auf diesen Zeitplantyp umschalten."
+          "description": "Nur Classic: nach dem Schreiben auf diesen Zeitplantyp umschalten. Bei Tado X ohne Wirkung."
         },
         "blocks": {
           "name": "Blöcke",
