@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any, cast
 
 import orjson
@@ -29,6 +30,17 @@ class TadoHijackClient(Tado):
         super().__init__(*args, **kwargs)
         self.proxy_url = proxy_url
         self.proxy_token = proxy_token
+        self._on_token_rotated: Callable[[str], None] | None = None
+
+    def set_on_token_rotated(self, callback: Callable[[str], None] | None) -> None:
+        self._on_token_rotated = callback
+
+    async def _refresh_auth(self) -> None:
+        rotated = await get_handler().refresh_auth(self)
+        # The request that triggered this continues after the return. The new
+        # refresh token has to be stored first.
+        if rotated is not None and self._on_token_rotated is not None:
+            self._on_token_rotated(rotated)
 
     async def _request(
         self,

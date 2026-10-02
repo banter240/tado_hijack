@@ -85,14 +85,20 @@ class TadoRequestHandler:
         if proxy_url or is_auth_request:
             return
 
+        await instance._refresh_auth()
+
+    async def refresh_auth(self, instance: Tado) -> str | None:
+        """Return the new refresh token when this call rotated it."""
         if not hasattr(instance, "_token_expiry"):
             _LOGGER.warning("Tado token expiry is missing (library may have changed)")
-            return
+            return None
 
-        # One refresh at a time. A second caller with the same refresh token
-        # gets a 400 from Tado after the first caller rotates it.
+        # A second caller with the same refresh token gets a 400 after rotation.
         async with self._auth_lock:
+            previous = getattr(instance, "_refresh_token", None)
             await self._refresh_auth(instance)
+            current = getattr(instance, "_refresh_token", None)
+        return current if isinstance(current, str) and current != previous else None
 
     def _get_access_token(
         self, instance: Tado, proxy_url: str | None, is_auth_request: bool

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+from functools import partial
 from typing import TYPE_CHECKING, cast
 
 from homeassistant.const import CONF_SCAN_INTERVAL, Platform
@@ -27,6 +28,7 @@ from .const import (
     HTTP_UNAUTHORIZED,
 )
 from .coordinator import TadoDataUpdateCoordinator
+from .helpers.auth_manager import persist_refresh_token
 from .helpers.client import TadoHijackClient
 from .helpers.device_linker import (
     detach_home_from_local_bridges,
@@ -134,6 +136,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bool
         proxy_url=proxy_url,
         proxy_token=proxy_token,
     )
+
+    client.set_on_token_rotated(partial(persist_refresh_token, hass, entry))
 
     with log_secrets(proxy_token, entry.data.get(CONF_REFRESH_TOKEN)):
         try:

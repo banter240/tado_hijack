@@ -16,23 +16,26 @@ if TYPE_CHECKING:
 _LOGGER = get_redacted_logger(__name__)
 
 
+def persist_refresh_token(
+    hass: HomeAssistant, entry: ConfigEntry, token: str | None
+) -> None:
+    if not token or token == entry.data.get(CONF_REFRESH_TOKEN):
+        return
+    _LOGGER.debug("Storing rotated refresh token")
+    hass.config_entries.async_update_entry(
+        entry,
+        data={**entry.data, CONF_REFRESH_TOKEN: token},
+    )
+
+
 class AuthManager:
-    """Manages token rotation and config entry updates."""
+    """Saves the client refresh token when a poll finishes."""
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry, client: Tado) -> None:
         """Initialize AuthManager."""
         self.hass = hass
         self.entry = entry
         self.client = client
-        self._current_refresh_token: str | None = entry.data.get(CONF_REFRESH_TOKEN)
 
     def check_and_update_token(self) -> None:
-        """Check if token rotated and update config entry if necessary."""
-        new_token = self.client.refresh_token
-        if new_token and new_token != self._current_refresh_token:
-            _LOGGER.debug("AuthManager: Syncing rotated refresh token")
-            self._current_refresh_token = new_token
-            self.hass.config_entries.async_update_entry(
-                self.entry,
-                data={**self.entry.data, CONF_REFRESH_TOKEN: new_token},
-            )
+        persist_refresh_token(self.hass, self.entry, self.client.refresh_token)
