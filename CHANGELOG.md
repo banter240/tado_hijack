@@ -1,3 +1,43 @@
+## [5.10.0-dev.11](https://github.com/banter240/tado_hijack/compare/v5.10.0-dev.10...v5.10.0-dev.11) (2026-10-02)
+
+### 🐛 Bug Fixes
+
+* fix(hot-water): hold a Tado X hot water duration locally
+
+  Tado X ignores a timer on the hot water boost and ends ON after 60
+  minutes. Off stays until the schedule is resumed. The integration keeps
+  the requested mode until a deadline, repeats a boost before that window
+  closes, and then returns to the previous schedule or forced off.
+  Until-next-block uses nextStateChange while the programmer is on the
+  schedule. The plan is stored before the call, so a restart continues it.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🔧 CHANGED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - a duration or next schedule block is held locally and then returns
+    to the previous schedule or forced off
+  - a boost is repeated before the 60 minute window ends
+  - the deadline, the mode, and the last successful send are stored
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🐛 FIXED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - a Tado X hot water duration survives a restart and ends on the state
+    it started from
+* fix: slugify entity object ids
+
+  Bridge serials are uppercase. The object id is slugified before the
+  entity id is set, so the id stays within Home Assistant's lowercase
+  form.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🐛 FIXED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - entity object ids are lowercase, including bridge serials
+
 ## [5.10.0-dev.10](https://github.com/banter240/tado_hijack/compare/v5.10.0-dev.9...v5.10.0-dev.10) (2026-10-02)
 
 ### ✨ New Features
