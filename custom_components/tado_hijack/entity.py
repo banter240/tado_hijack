@@ -248,7 +248,8 @@ class TadoEntity(CoordinatorEntity):
                 suffix = f"_{self._serial_no}_{key}"
 
         home_part = f"_{home_slug}" if home_slug else ""
-        self.entity_id = f"{domain}.{prefix}{home_part}{suffix}"
+        object_id = slugify(f"{prefix}{home_part}{suffix}")
+        self.entity_id = f"{domain}.{object_id}"
 
     @property
     def tado_coordinator(self) -> TadoDataUpdateCoordinator:
