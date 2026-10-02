@@ -1,3 +1,156 @@
+## [5.10.0-dev.10](https://github.com/banter240/tado_hijack/compare/v5.10.0-dev.9...v5.10.0-dev.10) (2026-10-02)
+
+### ✨ New Features
+
+* feat(hot-water): pass duration to Tado X hot water boost
+
+  A duration on Tado X hot water uses the same TIMER termination v3
+  sends. Without a duration the body stays boost ON or OFF. A new
+  duration is still sent when boost or off is already active.
+
+  A failed Hops call logs the redacted request and Tado's response.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🔧 CHANGED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - duration adds termination typeSkillBasedApp TIMER and
+    durationInSeconds in seconds
+  - a failed Hops call logs method, path, the sent body, and the response
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🐛 FIXED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - a provided duration is kept when boost or off is already active
+* feat(pr04): discover PR04 Wireless Receiver X as Tado X bridge
+
+  PR04 is its own device, with serial, firmware, and cloud connectivity.
+  The name and model come from the device type map, Wireless Receiver X.
+  Tado X home controls stay on the home device. Each Bridge X and
+  Wireless Receiver only carries its name, firmware, serial, and
+  connection. Classic home controls stay on the Internet Bridge.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🔧 CHANGED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - bridge device types live in one place and both mappers use them
+  - a PR04 entity id includes the serial
+  - connectivity reads the connection state value
+  - README and FEATURES name the Wireless Receiver X
+  - Tado X home entities no longer attach to the Internet Bridge
+  - README and FEATURES describe that split
+
+### 🐛 Bug Fixes
+
+* fix: drop the schedule mode select on Tado X
+
+  Tado X has no ONE_DAY, THREE_DAY, or SEVEN_DAY switch. The week is
+  Monday through Sunday, and one Hops POST replaces a single weekday.
+  Classic timetable selects, refreshes, and set_schedule are unchanged.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🔧 CHANGED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - Tado X does not create the schedule mode select or the timetable
+    refresh buttons
+  - set_schedule on Tado X writes weekdays, and all_days copies the
+    blocks onto Monday through Sunday
+  - a Tado X entry removes those schedule-mode entities on startup
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🐛 FIXED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - selecting a schedule mode on Tado X no longer calls the classic
+    activeTimetable URL
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🌐 TRANSLATIONS
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - en, de, and cs say Tado X is per weekday, and that one_day,
+    three_day, and activate are classic
+
+  Translations: en, de, cs.
+* fix: hold a scheduled offset cal while the window is open
+
+  An hour interval that comes due while the window sensor is open is
+  kept. It runs after the window closes, the pause after close has
+  elapsed, and any write cooldown has elapsed.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🔧 CHANGED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - a 3h to 24h calibration that falls during an open window waits for
+    the close, the pause after close, and a write cooldown that is still
+    running
+  - README, FEATURES, and ARCHITECTURE describe that wait
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🐛 FIXED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - the Hijack bridge is registered on its own and no longer adds this
+    config entry to the HomeKit or Matter bridge device
+  - ownership checks use config_entry_id when Home Assistant provides it
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🌐 TRANSLATIONS
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - en, de, and cs describe the same wait on the window pause and the
+    write cooldown, in both the config and options copies
+
+  Translations: en, de, cs.
+* fix: scrub secrets from logs and raised errors
+
+  Emails, bearer tokens, home ids, and device serials are removed from
+  every integration log, including tracebacks. Zone ids stay. A refresh
+  or proxy token that appears without a field name is removed while that
+  call runs. Errors that Home Assistant logs on its own logger carry the
+  scrubbed text.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🔧 CHANGED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - the rendered log line and its traceback go through the same scrub
+  - token refresh runs one caller at a time and keeps the redacted body
+  - classic HTTP errors put that body on the Tado exception
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🐛 FIXED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - executor and offset-cal logs use the same scrub as the rest
+  - setup, timetable, and meter-reading failures raise the scrubbed text
+    on its own
+* fix: store the refresh token when Tado rotates it
+
+  Tado invalidates the previous refresh token on every successful
+  refresh. The new token stayed in memory until a full poll finished,
+  so a restart or a failed poll after startup left a dead token in the
+  config entry.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🔧 CHANGED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - the refresh writes the new refresh token to the config entry at once
+  - classic and Hops refreshes share that write and the single-caller lock
+  - the old token is read inside the lock, and only the call that rotated
+    it is stored
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🐛 FIXED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - a restart or a failed poll after refresh keeps the new refresh token
+
 ## [5.10.0-dev.9](https://github.com/banter240/tado_hijack/compare/v5.10.0-dev.8...v5.10.0-dev.9) (2026-09-30)
 
 ### ✨ New Features
