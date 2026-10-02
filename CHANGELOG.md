@@ -1,3 +1,30 @@
+## [5.10.0-dev.12](https://github.com/banter240/tado_hijack/compare/v5.10.0-dev.11...v5.10.0-dev.12) (2026-10-02)
+
+### 🐛 Bug Fixes
+
+* fix: keep partial serials visible in diagnostics
+
+  A shared diagnostics dump could not show which device or which role
+  an entity belonged to. Serials now keep the first 2 and last 5
+  characters. Entity ids keep their role and zone number, and the home
+  name is hashed. Calendar and weather ids are masked with the others.
+  Tokens, mail, home ids, coordinates and MAC addresses stay fully
+  removed.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🔧 CHANGED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - serials in logs and diagnostics keep the first 2 and last 5 characters
+  - entity ids keep the role and the zone number, the home name is hashed
+  - calendar and weather ids are masked
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🐛 FIXED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - a diagnostics export can be matched back to a device
+
 ## [5.10.0-dev.11](https://github.com/banter240/tado_hijack/compare/v5.10.0-dev.10...v5.10.0-dev.11) (2026-10-02)
 
 ### 🐛 Bug Fixes
