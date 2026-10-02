@@ -116,7 +116,7 @@ graph TD
 
 ### `AuthManager`
 
-`helpers/auth_manager.py` — handles credential management and token refresh for the Tado cloud API session; the coordinator calls `check_and_update_token()` every cycle.
+`helpers/auth_manager.py` — writes a rotated refresh token to the config entry as soon as the refresh returns. The coordinator still calls `check_and_update_token()` after a poll.
 
 ### `TadoStorage`
 

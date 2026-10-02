@@ -20,3 +20,10 @@
           'custom_components/tado_hijack/translations/.*',
           'custom_components/tado_hijack/helpers/tadox/models.py'
       ]
+
+    [[rules.allowlists]]
+      description = "Type hint on the refresh callback"
+      regexTarget = "line"
+      regexes = [
+          'token_rotated',
+      ]
