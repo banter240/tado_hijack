@@ -502,11 +502,13 @@ Payload: {"maxFlowTemperature": float}, {"autoAdaptation": bool}.
 
 GET: programmer/domesticHotWater/state
 
+`nextStateChange` is the next schedule change while `state` starts with `SCHEDULE_`. During a boost it is the boost expiry, not the next block.
+
 #### async_boost_hot_water() -> None
 
 POST: programmer/domesticHotWater/boost
 
-Payload: {"boost": "ON"} or {"boost": "OFF"}. With a duration, also {"termination": {"typeSkillBasedApp": "TIMER", "durationInSeconds": seconds}}, the same termination v3 hot water sends.
+Payload: {"boost": "ON"} or {"boost": "OFF"}. Tado X keeps a boost for 60 minutes and keeps off until resumeSchedule. A duration is not sent here. The integration holds the mode until a deadline and repeats a boost before that window closes. At the deadline it returns to the programmer state from before the hold: `resumeSchedule` when that was the schedule or a boost, `boost` OFF when it was forced off. The deadline is the requested duration, or `nextStateChange` for until-next-block while the programmer is on the schedule. The plan is stored so a restart continues the hold.
 
 #### async_resume_programmer_schedule() -> None
 

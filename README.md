@@ -207,7 +207,7 @@ Home Assistant 2026.8+ keeps **one registry device per integration**, so you may
 
 ### Cloud Features (Non-HomeKit)
 
-- **🚿 Professional Hot Water Platform:** Native `water_heater` entity. v3: `auto` / `heat` / `off` + target temperature. Tado X: `auto` / `off` via `programmer/domesticHotWater` (no temp control). Full Pre-Validation ensures you never send invalid configurations.
+- **🚿 Professional Hot Water Platform:** Native `water_heater` entity. v3: `auto` / `heat` / `off` + target temperature. Tado X: `auto` / `off` via `programmer/domesticHotWater` (no temp control). A service duration or `next_block` is held locally and then returns to the previous auto or off. Full Pre-Validation ensures you never send invalid configurations.
 - **❄️ AC Pro Features:** Precise Fan Speed and Swing (Horizontal/Vertical) selection.
 - **📅 Schedule Transparency:** View the target temperature of your active Smart Schedule directly via the `auto_target_temperature` attribute while in `auto` mode (available for Heating, AC and Hot Water).
 - **🕵️‍♂️ Expert-Level Error Capturing:** Captures the actual response body from Tado\'s API (e.g. _"temperature must not be null"_), giving precise feedback for troubleshooting.
@@ -778,7 +778,7 @@ For advanced automation, use these services. All manual control services feature
 | `tado_hijack.resume_all_schedules`  | Restore Smart Schedule across all zones.                                                                                     | **1 call** (bulk)    | **1 call** (bulk)    |
 | `tado_hijack.set_mode`              | Set mode, temperature, and termination. Supports `hvac_mode` (auto, heat, off) and `overlay` (manual, next_block, presence). | **1 call** (batched) | **1 call** (batched) |
 | `tado_hijack.set_mode_all_zones`    | Targets all HEATING and/or AC zones at once using `hvac_mode`.                                                               | **1 call** (bulk overlay) | **1** if every room matches a quickAction; else **N** `manualControl` |
-| `tado_hijack.set_water_heater_mode` | Set `operation_mode` and temperature for hot water.                                                                      | **1 call** (v3)      | **1 call** (X)       |
+| `tado_hijack.set_water_heater_mode` | Set `operation_mode` and temperature for hot water. Tado X `duration` and `next_block` are held locally, then return to the previous auto or off. | **1 call** (v3)      | **1**, plus a boost refresh every 50 min while a long ON hold is active |
 | `tado_hijack.add_meter_reading`     | Upload a meter reading (integer) to Tado Energy IQ. Optional `date` backfills a historic reading; defaults to today.         | **1 call**           | **1 call**           |
 | `tado_hijack.set_schedule`          | Write Smart Schedule time blocks (`blocks` or a `schedule` helper). Classic: `one_day` has no day picker, `three_day` = Mon-Fri/Sat/Sun, `seven_day` = any weekdays. Tado X is always per weekday. `all_days` writes the same blocks to Monday-Sunday (7 calls). `days` writes the named weekdays. `one_day`, `three_day`, and `activate` are classic. | **1-7** | **1-7** |
 | `tado_hijack.manual_poll`           | Force immediate data refresh. Use `refresh_type` to control scope. Add `entity_id` for a targeted single-entity fetch (saves quota). | **1-N** (depends)    | **1-N** (depends)    |

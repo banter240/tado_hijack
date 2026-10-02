@@ -54,7 +54,7 @@ Located in `lib/tadox_api.py`, this component utilizes the existing authenticate
 - **Private Attribute Access:** `TadoXApi` accesses tadoasync internals (`_ensure_session()`, `_refresh_auth()`, `_access_token`, `_home_id`, `_headers`) to reuse the authenticated session. These are documented for potential upstream contribution.
 - **Rate Limit Headers:** Hops API uses lowercase header names (`ratelimit-policy`, `ratelimit`). `TadoXApi._capture_rate_limit_headers()` normalizes them and feeds quota data back to the `RateLimitManager`.
 - **Service Worker Bypass:** All Hops requests include `ngsw-bypass: true` to bypass Angular Service Worker caching.
-- **Hot Water (Tado X):** Uses `programmer/domesticHotWater/` endpoints (boost, resumeSchedule) — a separate API path from v3 hot water.
+- **Hot Water (Tado X):** Uses `programmer/domesticHotWater/` endpoints (boost, resumeSchedule) — a separate API path from v3 hot water. A duration or until-next-block is local: Tado ignores a timer on boost. `nextStateChange` is the next schedule block only while the programmer is on the schedule. The hold then returns to that previous schedule or forced off.
 - **QuickActions:** Bulk operations (boost all, resume all, all off) use `POST /quickActions/*` endpoints — single API call for all rooms.
 - **Presence (Home/Away):** Not part of Hops. Read via classic v2 `GET /homes/{id}/state`, write via `presenceLock` on `my.tado.com` - same as v3.
 - **Energy IQ (meter readings):** Not part of Hops. POST `homes/{home_id}/meterReadings` on `energy-insights.tado.com` - same as v3.

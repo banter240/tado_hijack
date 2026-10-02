@@ -160,7 +160,7 @@ Because both conform to the same protocol, downstream code uses duck typing with
 Abstract base class (`helpers/action_provider_base.py`) abstracting write operations:
 
 - **`TadoV3Executor`** (`helpers/tadov3/executor.py`) — bulk overlay via `POST /homes/{id}/overlay` for Classic devices (heating, AC, hot water in one call).
-- **`TadoXExecutor`** (`helpers/tadox/executor.py`) — Hops endpoints via the `TadoXApi` bridge: house-wide `quickActions/*`, per-room `manualControl` (Hops has no mixed-room overlay body), hot water via `programmer/domesticHotWater/*`.
+- **`TadoXExecutor`** (`helpers/tadox/executor.py`) — Hops endpoints via the `TadoXApi` bridge: house-wide `quickActions/*`, per-room `manualControl` (Hops has no mixed-room overlay body), hot water via `programmer/domesticHotWater/*`. A Tado X hot-water duration is not an overlay: `helpers/hot_water_duration.py` keeps it and restores the previous schedule or forced off. Classic hot water stays on the v3 overlay.
 
 `TadoUnifiedExecutor` routes each merged batch to the generation-specific executor; the `CommandMerger` fuses queued commands first (see `docs/DESIGN.md` for the full pipeline).
 

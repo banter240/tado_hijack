@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from aiohttp import ClientResponseError, ClientTimeout
 
-from ..const import HTTP_BAD_REQUEST, TERMINATION_TIMER
+from ..const import HTTP_BAD_REQUEST
 from ..helpers.logging_utils import get_redacted_logger, redact
 from ..helpers.parsers import parse_ratelimit_headers
 from ..helpers.tadox.const import HOPS_BASE_URL
@@ -310,29 +310,21 @@ class TadoXApi:
         """Resume hot water schedule (clear boost override)."""
         return await self._request("POST", "programmer/domesticHotWater/resumeSchedule")
 
-    async def _async_set_hot_water_boost(
-        self, boost: str, duration_minutes: int | None
-    ) -> Any:
-        """POST domesticHotWater/boost. A duration adds the v3 TIMER termination."""
-        payload: dict[str, Any] = {"boost": boost}
-        if duration_minutes:
-            payload["termination"] = {
-                "typeSkillBasedApp": TERMINATION_TIMER,
-                "durationInSeconds": duration_minutes * 60,
-            }
+    async def _async_set_hot_water_boost(self, boost: str) -> Any:
+        """POST domesticHotWater/boost."""
         return await self._request(
             "POST",
             "programmer/domesticHotWater/boost",
-            json_data=payload,
+            json_data={"boost": boost},
         )
 
-    async def async_set_hot_water_off(self, duration_minutes: int | None = None) -> Any:
+    async def async_set_hot_water_off(self) -> Any:
         """Force hot water off."""
-        return await self._async_set_hot_water_boost("OFF", duration_minutes)
+        return await self._async_set_hot_water_boost("OFF")
 
-    async def async_set_hot_water_on(self, duration_minutes: int | None = None) -> Any:
+    async def async_set_hot_water_on(self) -> Any:
         """Boost hot water on."""
-        return await self._async_set_hot_water_boost("ON", duration_minutes)
+        return await self._async_set_hot_water_boost("ON")
 
     async def async_set_open_window_detection(self, room_id: int, enabled: bool) -> Any:
         """Enable or disable open window detection."""

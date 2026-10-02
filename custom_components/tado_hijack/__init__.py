@@ -173,53 +173,59 @@ async def async_setup_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bool
             raise ConfigEntryNotReady(redact(str(e))) from None
 
     coordinator = TadoDataUpdateCoordinator(hass, entry, client, scan_interval)
-    await coordinator.async_setup()
-    await coordinator.async_config_entry_first_refresh()
+    try:
+        await coordinator.async_setup()
+        await coordinator.async_config_entry_first_refresh()
 
-    if (
-        not entry.data.get(CONF_INITIAL_POLL_DONE)
-        and coordinator.rate_limit.limit >= API_QUOTA_STANDARD
-    ):
-        _LOGGER.info(
-            "Performing initial full poll (Limit: %d)", coordinator.rate_limit.limit
-        )
-        hass.async_create_task(coordinator.async_manual_poll(silent=True))
+        if (
+            not entry.data.get(CONF_INITIAL_POLL_DONE)
+            and coordinator.rate_limit.limit >= API_QUOTA_STANDARD
+        ):
+            _LOGGER.info(
+                "Performing initial full poll (Limit: %d)", coordinator.rate_limit.limit
+            )
+            hass.async_create_task(coordinator.async_manual_poll(silent=True))
 
-        new_data = {**entry.data, CONF_INITIAL_POLL_DONE: True}
-        hass.config_entries.async_update_entry(entry, data=new_data)
+            new_data = {**entry.data, CONF_INITIAL_POLL_DONE: True}
+            hass.config_entries.async_update_entry(entry, data=new_data)
 
-    entry.runtime_data = coordinator
-    if coordinator.generation == GEN_X:
-        remove_x_timetable_entities(hass, entry.entry_id)
-    migrate_legacy_source_sentinels(hass, entry)
+        entry.runtime_data = coordinator
+        if coordinator.generation == GEN_X:
+            remove_x_timetable_entities(hass, entry.entry_id)
+        migrate_legacy_source_sentinels(hass, entry)
 
-    bridge_serials = [
-        str(serial)
-        for bridge in coordinator.bridges
-        if (serial := getattr(bridge, "serial_no", None))
-    ]
-    detach_home_from_local_bridges(
-        hass,
-        entry_id=entry.entry_id,
-        home_key=entry.unique_id or entry.entry_id,
-        bridge_serials=bridge_serials,
-        generation=coordinator.generation,
-    )
-    ensure_bridge_devices(
-        hass,
-        entry_id=entry.entry_id,
-        bridges=list(coordinator.bridges),
-    )
-
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    if bridge_serials:
-        retire_empty_home_device(
+        bridge_serials = [
+            str(serial)
+            for bridge in coordinator.bridges
+            if (serial := getattr(bridge, "serial_no", None))
+        ]
+        detach_home_from_local_bridges(
             hass,
             entry_id=entry.entry_id,
             home_key=entry.unique_id or entry.entry_id,
+            bridge_serials=bridge_serials,
+            generation=coordinator.generation,
+        )
+        ensure_bridge_devices(
+            hass,
+            entry_id=entry.entry_id,
+            bridges=list(coordinator.bridges),
         )
 
-    await async_setup_services(hass)
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+        if bridge_serials:
+            retire_empty_home_device(
+                hass,
+                entry_id=entry.entry_id,
+                home_key=entry.unique_id or entry.entry_id,
+            )
+
+        await async_setup_services(hass)
+        if coordinator.generation == GEN_X:
+            await coordinator.hot_water_duration.async_restore()
+    except Exception:
+        coordinator.shutdown()
+        raise
 
     return True
 
