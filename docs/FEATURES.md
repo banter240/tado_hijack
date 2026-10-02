@@ -84,7 +84,7 @@ Tado Hijack conserves API quota with intelligent polling that balances responsiv
 ## 🔒 Security & Privacy
 
 - **Credential Handling:** Credentials are managed by Home Assistant's config-entry storage; the integration itself never touches plaintext secrets in logs (see Redaction below).
-- **Redaction:** All logs use `get_redacted_logger()` with regex scrubbing of emails, tokens, serial numbers and other sensitive data.
+- **Redaction:** All logs use `get_redacted_logger()` with regex scrubbing of emails, tokens and other secrets. Serial numbers keep the first 2 and last 5 characters.
 - **Field Locking:** While a command is pending, affected entity attributes are locked to prevent stale poll data from overwriting user intent (race-condition prevention).
 
 ---

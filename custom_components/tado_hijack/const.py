@@ -362,6 +362,10 @@ def bridge_display_name(device_type: str | None, short_serial: str) -> str:
 
 
 # Diagnostics Redaction
+# Visible serial form is the first 2 characters, "...", and the last 5.
+SERIAL_REDACT_HEAD: Final = 2
+SERIAL_REDACT_TAIL: Final = 5
+SERIAL_REDACT_MARK: Final = "..."
 DIAGNOSTICS_REDACTED_PLACEHOLDER: Final = "**REDACTED**"
 DIAGNOSTICS_TO_REDACT_CONFIG_KEYS: Final = {
     CONF_REFRESH_TOKEN,
@@ -376,7 +380,6 @@ DIAGNOSTICS_TO_REDACT_DATA_KEYS: Final = {
     "access_token",
     "homeId",
     "userId",
-    "serialNo",
     "shortSerialNo",
     "macAddress",
     "latitude",

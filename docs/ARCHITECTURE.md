@@ -191,6 +191,6 @@ Two complementary utilities bridging Tado's cloud and Home Assistant's local reg
 
 ## 🌐 Cross-Cutting Concerns
 
-- **Redaction:** all modules log through `get_redacted_logger()` (`helpers/logging_utils.py`) with regex-based scrubbing of emails, tokens and serial numbers.
+- **Redaction:** all modules log through `get_redacted_logger()` (`helpers/logging_utils.py`) with regex-based scrubbing of emails and tokens. Serial numbers keep the first 2 and last 5 characters.
 - **Physics:** `helpers/climate_physics.py` provides pure Magnus-formula functions (dew point, absolute humidity, mold risk, ventilation benefit) shared by both generations' parsers.
-- **Diagnostics:** `diagnostics.py` exposes quota state, thresholds and learned reset windows for HA's diagnostics download.
+- **Diagnostics:** `diagnostics.py` exposes quota state, thresholds and learned reset windows for HA's diagnostics download. Entity ids keep their role and zone number; the home name is hashed.

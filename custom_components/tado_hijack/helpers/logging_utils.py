@@ -12,6 +12,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
+from ..const import SERIAL_REDACT_HEAD, SERIAL_REDACT_MARK, SERIAL_REDACT_TAIL
+
 try:
     INTEGRATION_VERSION = json.loads(
         (Path(__file__).parent.parent / "manifest.json").read_text()
@@ -30,8 +32,11 @@ _URL_PARAM_PATTERNS = [
 
 _JSON_SECRET_KEYS = (
     "user_code|password|access_token|refresh_token|id_token|proxy_token|"
-    "client_secret|device_code|authorization|username|email|serialNo|shortSerialNo"
+    "client_secret|device_code|authorization|username|email|shortSerialNo"
 )
+
+# A digit keeps ordinary words out of the match.
+_SERIAL_PATTERN = r"(?i)(?:\b|_|^)[a-z]{2,3}(?=[a-z0-9]*\d)[a-z0-9]{8,12}(?=\b|_|$)"
 
 # Token values currently in scope. Tracebacks are formatted later, so the value
 # itself has to be recognizable without a field name.
@@ -59,6 +64,15 @@ def log_secrets(*secrets: str | None) -> Iterator[None]:
         yield
     finally:
         _log_secrets.reset(token)
+
+
+def partial_serial(serial: str) -> str:
+    """Hide the middle of a serial so two devices stay distinguishable."""
+    if len(serial) < SERIAL_REDACT_HEAD + SERIAL_REDACT_TAIL:
+        return "REDACTED"
+    head = serial[:SERIAL_REDACT_HEAD]
+    tail = serial[-SERIAL_REDACT_TAIL:]
+    return f"{head}{SERIAL_REDACT_MARK}{tail}"
 
 
 def redact(data: Any) -> Any:
@@ -96,14 +110,12 @@ def redact(data: Any) -> Any:
     data = re.sub(r"Bearer\s+\S+", "Bearer REDACTED", data, flags=re.IGNORECASE)
 
     def _redact_serial(match: re.Match[str]) -> str:
-        return "_REDACTED" if match.group(0).startswith("_") else "REDACTED"
+        raw = match.group(0)
+        if raw.startswith("_"):
+            return f"_{partial_serial(raw[1:])}"
+        return partial_serial(raw)
 
-    # Tado serials are 2-3 letters plus 8-12 more characters. Zone ids stay.
-    data = re.sub(
-        r"(?:\b|_|^)[A-Z]{2,3}[A-Z0-9]{8,12}(?=\b|_|$)",
-        _redact_serial,
-        data,
-    )
+    data = re.sub(_SERIAL_PATTERN, _redact_serial, data)
 
     data = re.sub(
         r'(["\'])(' + _JSON_SECRET_KEYS + r')\1\s*[:=]\s*(["\'])(.*?)\3',
