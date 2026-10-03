@@ -1,3 +1,32 @@
+## [5.10.0-dev.13](https://github.com/banter240/tado_hijack/compare/v5.10.0-dev.12...v5.10.0-dev.13) (2026-10-03)
+
+### 🐛 Bug Fixes
+
+* fix(hot-water): apply a Tado X hot water duration and reject presence
+
+  Tado X hot water has no presence end mode. Selecting it raises a
+  validation error. Classic hot water still ends when presence changes.
+
+  A plain timer callback runs in the executor. On Python 3.14, creating
+  the follow-up task from that thread raises, so the boost is never
+  refreshed or ended. The callback is async, and the wake runs on the
+  event loop.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🔧 CHANGED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - Tado X hot water rejects until presence changes
+  - the hot water hold wakes on the event loop
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🐛 FIXED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - a hot water duration shorter or longer than 60 minutes is applied
+    after the first boost
+  - a Tado X hot water call that ends on presence is rejected
+
 ## [5.10.0-dev.12](https://github.com/banter240/tado_hijack/compare/v5.10.0-dev.11...v5.10.0-dev.12) (2026-10-02)
 
 ### 🐛 Bug Fixes
