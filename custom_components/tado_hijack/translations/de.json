@@ -914,7 +914,7 @@
         },
         "overlay": {
           "name": "Endmodus",
-          "description": "Legt fest, ob die manuelle Änderung dauerhaft gilt, beim nächsten Zeitblock oder bei einer Anwesenheitsänderung endet."
+          "description": "Dauerhaft, bis zum nächsten Zeitblock, oder bei Classic-Warmwasser bis zur Anwesenheitsänderung. Tado X lehnt Anwesenheit ab."
         },
         "temperature": {
           "name": "Zieltemperatur",

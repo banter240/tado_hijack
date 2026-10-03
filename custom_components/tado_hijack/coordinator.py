@@ -11,7 +11,7 @@ import aiohttp
 from homeassistant.core import (
     HomeAssistant,
 )
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 from tadoasync import Tado, TadoError
@@ -73,6 +73,7 @@ from .const import (
     MIN_AUTO_QUOTA_INTERVAL_S,
     MIN_PROXY_INTERVAL_S,
     OVERLAY_NEXT_BLOCK,
+    OVERLAY_PRESENCE,
     POWER_OFF,
     POWER_ON,
     RESUME_REFRESH_DELAY_S,
@@ -161,6 +162,14 @@ from .lib.patches import get_handler
 from .models import CommandType, RateLimit, TadoCommand, TadoData
 
 _LOGGER = get_redacted_logger(__name__)
+
+
+def _reject_tadox_hot_water_presence(overlay_mode: str | None) -> None:
+    """Tado X hot water has no presence end mode."""
+    if overlay_mode == OVERLAY_PRESENCE:
+        raise ServiceValidationError(
+            "Tado X hot water cannot end when presence changes"
+        )
 
 
 class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[Any]):
@@ -1145,6 +1154,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
     ) -> None:
         """Set hot water zone to off (manual overlay)."""
         if self._is_tadox_hot_water_zone(zone_id):
+            _reject_tadox_hot_water_presence(overlay_mode)
             if await self._async_arm_tadox_hot_water("off", duration, overlay_mode):
                 return
             await self.hot_water_duration.async_cancel()
@@ -1381,6 +1391,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
     ) -> None:
         """Set hot water zone to heat mode (manual overlay)."""
         if self._is_tadox_hot_water_zone(zone_id):
+            _reject_tadox_hot_water_presence(overlay_mode)
             if await self._async_arm_tadox_hot_water("boost", duration, overlay_mode):
                 return
             await self.hot_water_duration.async_cancel()

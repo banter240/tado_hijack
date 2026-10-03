@@ -64,9 +64,7 @@ def _programmer_state(state: Any) -> str:
 
 def programmer_return_mode(state: Any) -> ReturnMode:
     """Schedule, unless the programmer was already forced off."""
-    if _programmer_state(state) == "BOOST_OFF":
-        return "off"
-    return "resume"
+    return "off" if _programmer_state(state) == "BOOST_OFF" else "resume"
 
 
 def programmer_next_block(state: Any, now: datetime) -> datetime | None:
@@ -77,9 +75,7 @@ def programmer_next_block(state: Any, now: datetime) -> datetime | None:
     if not _programmer_state(state).startswith("SCHEDULE_"):
         return None
     deadline = _parse_dt(getattr(state, "next_state_change", None))
-    if deadline is None or deadline <= now:
-        return None
-    return deadline
+    return None if deadline is None or deadline <= now else deadline
 
 
 def _plan_from_storage(raw: Any) -> _Plan | None:
@@ -178,11 +174,12 @@ class HotWaterDuration:
         self._stopped = True
         self._disarm()
 
-    def _on_timer(self, _now: datetime) -> None:
+    async def _on_timer(self, _now: datetime) -> None:
+        """Stay on the event loop. A sync callback runs in the executor and drops the wake."""
         self._unsub = None
         if self._stopped:
             return
-        self._hass.async_create_task(self._async_fire())
+        await self._async_fire()
 
     async def _async_fire(self) -> None:
         async with self._lock:
