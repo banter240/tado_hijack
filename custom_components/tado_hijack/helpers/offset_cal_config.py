@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
@@ -10,6 +9,8 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
+
+from .logging_utils import get_redacted_logger
 
 if TYPE_CHECKING:
     from .. import TadoConfigEntry
@@ -29,7 +30,7 @@ from ..const import (
     DEFAULT_OFFSET_CAL_WINDOW_SETTLE_S,
 )
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_redacted_logger(__name__)
 
 
 class OffsetCalConfigMixin:

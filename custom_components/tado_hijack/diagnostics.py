@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import re
 import time
@@ -18,9 +19,12 @@ from .const import (
     DIAGNOSTICS_TO_REDACT_CONFIG_KEYS,
     DIAGNOSTICS_TO_REDACT_DATA_KEYS,
     SECONDS_PER_DAY,
+    SERIAL_REDACT_HEAD,
+    SERIAL_REDACT_MARK,
+    SERIAL_REDACT_TAIL,
 )
 from .coordinator import TadoDataUpdateCoordinator
-from .helpers.logging_utils import redact
+from .helpers.logging_utils import partial_serial, redact
 
 __all__ = ["async_get_config_entry_diagnostics"]
 
@@ -43,7 +47,6 @@ _HARD_REDACT_KEYS = frozenset(
         "auth",
         "authorization",
         "api_key",
-        "serialno",
         "shortserialno",
         "macaddress",
     }
@@ -60,7 +63,17 @@ _ENTITY_ID_DOMAINS = (
     "water_heater",
     "device_tracker",
     "person",
+    "calendar",
+    "weather",
 )
+_OBJECT_PREFIXES = ("tado_ib_", "tado_")
+_SERIAL_SEGMENT = re.compile(r"(?i)^[a-z]{2,3}(?=[a-z0-9]*\d)[a-z0-9]{8,12}$")
+_PARTIAL_SERIAL = re.compile(
+    rf"(?i)^[a-z0-9]{{{SERIAL_REDACT_HEAD}}}"
+    rf"{re.escape(SERIAL_REDACT_MARK)}"
+    rf"[a-z0-9]{{{SERIAL_REDACT_TAIL}}}$"
+)
+_MASKED_OBJECT = re.compile(r"entity_[0-9a-f]{4}")
 _KEEP_NAME_PREFIXES = ("Zone ", "Unknown")
 
 
@@ -80,24 +93,102 @@ def _should_hard_redact_key(key: str) -> bool:
     return any(k_lower.endswith(suffix) for suffix in _HARD_REDACT_SUFFIXES)
 
 
+@functools.cache
+def _roles_longest_first() -> tuple[tuple[str, str], ...]:
+    """Entity keys and scopes, longest key first so suffixes do not win."""
+    from .definitions import ENTITY_DEFINITIONS
+
+    scopes = {
+        str(definition["key"]): str(definition["scope"])
+        for definition in ENTITY_DEFINITIONS
+    }
+    scopes["zone_plan"] = "zone"
+    return tuple(sorted(scopes.items(), key=lambda item: len(item[0]), reverse=True))
+
+
+def _match_role(rest: str) -> tuple[str, str] | None:
+    """Return the entity key at the end of an object id, plus its scope."""
+    return next(
+        (
+            (key, scope)
+            for key, scope in _roles_longest_first()
+            if rest == key or rest.endswith(f"_{key}")
+        ),
+        None,
+    )
+
+
+def _hash_name(name: str) -> str:
+    """Stable short hash. Asterisks cannot appear in a real object id."""
+    digest = hashlib.shake_128(name.encode()).hexdigest(2)
+    return f"h***{digest}"
+
+
+def _split_context(middle: str, scope: str) -> tuple[str, str]:
+    """Split a home slug from a zone number or a partial serial."""
+    if not middle:
+        return "", ""
+    if scope == "zone":
+        head, sep, zone = middle.rpartition("_")
+        if sep and zone.isdigit():
+            return head, zone
+        return ("", middle) if middle.isdigit() else (middle, "")
+    if scope in {"device", "bridge"}:
+        head, sep, token = middle.rpartition("_")
+        serial = token if sep else middle
+        if _PARTIAL_SERIAL.fullmatch(serial):
+            return (head if sep else ""), serial
+        if _SERIAL_SEGMENT.fullmatch(serial):
+            return (head if sep else ""), partial_serial(serial)
+    return middle, ""
+
+
+def _mask_object_id(object_id: str) -> str | None:
+    """Keep prefix, zone number and role. Hash the home name, shorten serials."""
+    if "***" in object_id or _MASKED_OBJECT.fullmatch(object_id):
+        return object_id
+    prefix = next(
+        (item for item in _OBJECT_PREFIXES if object_id.startswith(item)),
+        None,
+    )
+    if prefix is None:
+        return None
+    matched = _match_role(object_id[len(prefix) :])
+    if matched is None:
+        return None
+    role, scope = matched
+    middle = object_id[len(prefix) : -(len(role) + 1)]
+    home, tail = _split_context(middle, scope)
+    parts = [prefix[:-1]]
+    if home:
+        parts.append(_hash_name(home))
+    if tail:
+        parts.append(tail)
+    parts.append(role)
+    return "_".join(parts)
+
+
+def _mask_entity_id(entity_id: str) -> str:
+    """Mask one entity id. Unknown ids keep the domain only."""
+    domain, sep, object_id = entity_id.partition(".")
+    if not sep or not object_id:
+        digest = hashlib.shake_128(entity_id.encode()).hexdigest(2)
+        return f"{domain}.entity_{digest}"
+    masked = _mask_object_id(object_id)
+    if masked is None:
+        digest = hashlib.shake_128(object_id.encode()).hexdigest(2)
+        return f"{domain}.entity_{digest}"
+    return f"{domain}.{masked}"
+
+
 def _mask_string(text: str) -> str:
-    """Mask serial numbers and sensitive patterns in strings."""
+    """Mask serial numbers, emails and entity ids in one string."""
+    if "." in text and " " not in text and text.startswith(_ENTITY_ID_DOMAINS):
+        return _mask_entity_id(text)
+
     text = redact(text)
-
     email_pattern = r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"
-    text = re.sub(email_pattern, "**EMAIL-REDACTED**", text)
-
-    if (
-        "." in text
-        and all(x not in text for x in ("T", "Z", "+"))
-        and text.startswith(_ENTITY_ID_DOMAINS)
-    ):
-        parts = text.split(".")
-        domain = parts[0]
-        name_hash = hashlib.shake_128(parts[1].encode()).hexdigest(2)
-        text = f"{domain}.entity_{name_hash}"
-
-    return text
+    return re.sub(email_pattern, "**EMAIL-REDACTED**", text)
 
 
 def _redact_pii(data: Any, coordinator: TadoDataUpdateCoordinator | None = None) -> Any:

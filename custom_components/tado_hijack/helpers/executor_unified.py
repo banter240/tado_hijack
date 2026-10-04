@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING, Any
 
 from ..const import GEN_X
+from .logging_utils import get_redacted_logger
 from .tadov3.executor import TadoV3Executor
 from .tadox.executor import TadoXExecutor
 
 if TYPE_CHECKING:
     from ..coordinator import TadoDataUpdateCoordinator
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_redacted_logger(__name__)
 
 
 class TadoUnifiedExecutor:
