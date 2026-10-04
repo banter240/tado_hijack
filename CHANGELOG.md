@@ -1,3 +1,18 @@
+## [5.10.0-dev.14](https://github.com/banter240/tado_hijack/compare/v5.10.0-dev.13...v5.10.0-dev.14) (2026-10-04)
+
+### 🐛 Bug Fixes
+
+* fix(hot-water): state the Tado X presence rejection in Czech
+
+  The hot water end mode text now says Classic hot water can end when
+  presence changes and Tado X rejects that end mode.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🌐 TRANSLATIONS
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - cs: Tado X hot water rejects until presence changes
+
 ## [5.10.0-dev.13](https://github.com/banter240/tado_hijack/compare/v5.10.0-dev.12...v5.10.0-dev.13) (2026-10-03)
 
 ### 🐛 Bug Fixes
