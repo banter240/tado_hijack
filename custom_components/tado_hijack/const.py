@@ -308,6 +308,7 @@ DEVICE_TYPE_MAP: Final[dict[str, str]] = {
     "RU04": "Smart Thermostat X",
     "WR02": "Wireless Receiver",
     "TR04": "Wireless Receiver X",
+    "PR04": "Wireless Receiver X",
     "BU01": "Smart Radiator Thermostat (Vertical)",
     "SU04": "Temperature Sensor X",
 }
@@ -325,15 +326,40 @@ def _get_device_type(code: str) -> str:
 DEVICE_TYPE_GW: Final = _get_device_type("GW")
 DEVICE_TYPE_IB01: Final = _get_device_type("IB01")
 DEVICE_TYPE_IB02: Final = _get_device_type("IB02")
+DEVICE_TYPE_PR04: Final = _get_device_type("PR04")
 DEVICE_TYPE_GW01: Final = _get_device_type("GW01")
 DEVICE_TYPE_VA01: Final = _get_device_type("VA01")
 DEVICE_TYPE_RU01: Final = _get_device_type("RU01")
 
 # Device type patterns
 DEVICE_SUFFIX_TADO_X: Final = (
-    "04"  # Tado X devices end with 04 (VA04, RU04, TR04, SU04)
+    "04"  # Tado X devices end with 04 (VA04, RU04, TR04, SU04, PR04)
 )
 DEVICE_PREFIX_BRIDGE: Final = "IB"  # Bridge devices start with IB (IB01, IB02)
+
+CLASSIC_BRIDGE_DEVICE_TYPES: Final[frozenset[str]] = frozenset(
+    {DEVICE_TYPE_GW, DEVICE_TYPE_IB01, DEVICE_TYPE_GW01}
+)
+TADOX_BRIDGE_DEVICE_TYPES: Final[frozenset[str]] = frozenset(
+    {DEVICE_TYPE_IB02, DEVICE_TYPE_PR04}
+)
+INTERNET_BRIDGE_DEVICE_TYPES: Final[frozenset[str]] = frozenset(
+    {DEVICE_TYPE_GW, DEVICE_TYPE_IB01, DEVICE_TYPE_IB02, DEVICE_TYPE_GW01}
+)
+
+
+def bridge_model_name(device_type: str | None) -> str | None:
+    """Friendly model for a bridge-scoped device."""
+    return DEVICE_TYPE_MAP.get(device_type, device_type) if device_type else None
+
+
+def bridge_display_name(device_type: str | None, short_serial: str) -> str:
+    """HA device name. Internet Bridges keep their existing name."""
+    if device_type in INTERNET_BRIDGE_DEVICE_TYPES:
+        return f"tado Internet Bridge {short_serial}"
+    model = bridge_model_name(device_type) or "Bridge"
+    return f"tado {model} {short_serial}"
+
 
 # Diagnostics Redaction
 DIAGNOSTICS_REDACTED_PLACEHOLDER: Final = "**REDACTED**"

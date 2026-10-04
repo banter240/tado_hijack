@@ -605,6 +605,16 @@ def create_device_binary_sensor(
     )
 
 
+def _is_connected(state: Any) -> bool:
+    """True when connection_state.value is connected."""
+    if state is None:
+        return False
+    value = getattr(state, "value", None)
+    if isinstance(value, bool):
+        return value
+    return isinstance(state, str) and state == "CONNECTED"
+
+
 def create_bridge_binary_sensor(
     key: str,
     value_fn: Any,
@@ -1774,8 +1784,8 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     ),
     create_device_binary_sensor(
         key="connection_state",
-        value_fn=lambda c, serial: bool(
-            c.devices_meta.get(serial) and c.devices_meta.get(serial).connection_state
+        value_fn=lambda c, serial: _is_connected(
+            getattr(c.devices_meta.get(serial), "connection_state", None)
         ),
         device_class=BinarySensorDeviceClass.CONNECTIVITY,
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -1785,9 +1795,9 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         key="cloud_connection",
         value_fn=lambda c, serial: next(
             (
-                bool(b.connection_state)
+                _is_connected(b.connection_state)
                 for b in c.bridges
-                if b.serial_no == serial and b.connection_state
+                if b.serial_no == serial
             ),
             False,
         ),
@@ -1827,9 +1837,8 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     create_zone_binary_sensor(
         key="connectivity",
         value_fn=lambda c, zid: any(
-            (
-                c.devices_meta.get(d.serial_no)
-                and c.devices_meta.get(d.serial_no).connection_state
+            _is_connected(
+                getattr(c.devices_meta.get(d.serial_no), "connection_state", None)
             )
             for d in (c.zones_meta.get(zid).devices if c.zones_meta.get(zid) else [])
         ),

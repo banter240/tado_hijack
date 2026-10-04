@@ -22,7 +22,11 @@ def yield_tadox_devices(
         Generator of (TadoXDevice, room_id) tuples
 
     """
-    from ...const import DEVICE_PREFIX_BRIDGE, DEVICE_TYPE_GW01
+    from ...const import (
+        DEVICE_PREFIX_BRIDGE,
+        DEVICE_TYPE_GW01,
+        TADOX_BRIDGE_DEVICE_TYPES,
+    )
     from ...lib.tadox_models import HopsRoomSnapshot
 
     seen_devices: set[str] = set()
@@ -40,7 +44,11 @@ def yield_tadox_devices(
 
             # Exclude bridges from general device scope
             dtype = getattr(device, "device_type", "")
-            if dtype.startswith(DEVICE_PREFIX_BRIDGE) or dtype == DEVICE_TYPE_GW01:
+            if (
+                dtype.startswith(DEVICE_PREFIX_BRIDGE)
+                or dtype == DEVICE_TYPE_GW01
+                or dtype in TADOX_BRIDGE_DEVICE_TYPES
+            ):
                 continue
 
             # Provider compatibility check

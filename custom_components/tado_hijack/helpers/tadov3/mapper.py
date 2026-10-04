@@ -102,9 +102,9 @@ class TadoV3Mapper:
 
     def get_bridge_device_types(self) -> set[str]:
         """Get bridge device types for Tado V3."""
-        from ...const import DEVICE_TYPE_GW01, DEVICE_TYPE_IB01
+        from ...const import CLASSIC_BRIDGE_DEVICE_TYPES
 
-        return {DEVICE_TYPE_IB01, DEVICE_TYPE_GW01}
+        return set(CLASSIC_BRIDGE_DEVICE_TYPES)
 
     def get_rate_limit_source(self) -> Any:
         """Return the V3 request handler as the rate limit data source."""
