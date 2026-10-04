@@ -914,7 +914,7 @@
         },
         "overlay": {
           "name": "End mode",
-          "description": "Choose whether the manual change is permanent, ends at the next schedule block, or ends when presence changes."
+          "description": "Permanent, until the next schedule block, or, for classic hot water, until presence changes. Tado X hot water rejects presence."
         },
         "temperature": {
           "name": "Target temperature",
