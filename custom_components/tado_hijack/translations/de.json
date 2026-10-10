@@ -194,6 +194,9 @@
       "power": {
         "name": "Betrieb"
       },
+      "hot_water_schedule": {
+        "name": "Zeitplan"
+      },
       "connectivity": {
         "name": "Verbindung"
       },

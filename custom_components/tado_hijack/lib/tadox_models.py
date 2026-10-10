@@ -278,6 +278,11 @@ class TadoXHotWaterState(BaseModel):
         return not self.state.startswith("SCHEDULE_")
 
     @property
+    def schedule_on(self) -> bool:
+        """True when the programmer is in a scheduled-on block."""
+        return (self.state or "").strip().upper() == "SCHEDULE_ON"
+
+    @property
     def setting(self) -> _HotWaterSetting:
         power = "OFF" if self.overlay_active else "ON"
         return _HotWaterSetting(power)

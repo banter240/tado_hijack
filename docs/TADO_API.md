@@ -509,7 +509,7 @@ Payload: {"maxFlowTemperature": float}, {"autoAdaptation": bool}.
 
 GET: programmer/domesticHotWater/state
 
-`nextStateChange` is the next schedule change while `state` starts with `SCHEDULE_`. During a boost it is the boost expiry, not the next block.
+`state` is `SCHEDULE_ON` or `SCHEDULE_OFF` while the programmer follows the plan. A boost replaces that with `BOOST_ON` or `BOOST_OFF`. `nextStateChange` is the next schedule change while `state` starts with `SCHEDULE_`. During a boost it is the boost expiry, not the next block.
 
 #### async_boost_hot_water() -> None
 

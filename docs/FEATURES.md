@@ -148,7 +148,7 @@ When the last config entry unloads, every service including `set_schedule` is re
 
 Classic hot water is a real zone. The water heater supports `auto`, `heat`, and `off`. Target temperature exists only when capabilities include `temperatures`. The entity's heat and off paths, and the target-temperature number, do not pass duration or overlay. `set_water_heater_mode` does: heat and off go through `async_set_zone_overlay` with duration, overlay, and `refresh_after`. `auto` resumes.
 
-Tado X hot water is virtual zone `9001`, created when `GET programmer/domesticHotWater/state` is controllable (state present and not `NONE`). Modes on the entity: no overlay is `auto`, `BOOST_ON` is `heat`, any other overlay is `off`. There is no temperature. `supports_temperature` is false for 9001.
+Tado X hot water is virtual zone `9001`, created when `GET programmer/domesticHotWater/state` is controllable (state present and not `NONE`). Modes on the entity: no overlay is `auto`, `BOOST_ON` is `heat`, any other overlay is `off`. There is no temperature. `supports_temperature` is false for 9001. `binary_sensor.hot_water_schedule` is on while `state` is `SCHEDULE_ON`, off otherwise.
 
 Tado ends a boost after about 60 minutes and ignores a timer in the boost body. `helpers/hot_water_duration.py` holds boost or off until a deadline. A boost with time left is sent again 50 minutes after the last send. At the deadline the hold returns to the schedule, or to off when the programmer state was `BOOST_OFF`. A failed send retries after 60 seconds. The timer callback runs on the event loop. The plan is stored under `hot_water_duration` and restored for a Tado X home at the end of setup. Shutdown cancels the timer and leaves the storage in place.
 

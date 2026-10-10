@@ -194,6 +194,9 @@
       "power": {
         "name": "Power"
       },
+      "hot_water_schedule": {
+        "name": "Schedule"
+      },
       "connectivity": {
         "name": "Connection"
       },

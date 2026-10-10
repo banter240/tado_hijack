@@ -656,6 +656,7 @@ Cloud-only features that HomeKit does not support.
 | `switch.schedule`                   | Switch        | **ON** = Smart Schedule, **OFF** = Manual. Simple way to resume schedule. **Supports heating and AC zones** (all generations). |
 | `climate.ac_{room}`                 | Climate       | **v3 AC Only:** Full HVAC mode control (`cool`, `heat`, `dry`, `fan`, `auto`) with native slider. |
 | `water_heater.hot_water`            | WaterHeater   | v3: target temperature. Tado X: programmer only. Modes are under [Cloud Features](#cloud-features-non-homekit). |
+| `binary_sensor.hot_water_schedule`  | Binary Sensor | **Tado X:** on while the hot-water schedule is in an on block, off otherwise. |
 | `binary_sensor.power`     | Binary Sensor | **HW Only:** Boiler heating status.                                                             |
 | `binary_sensor.overlay`   | Binary Sensor | **HW Only:** Manual override active status.                                                     |
 | `binary_sensor.connectivity` | Binary Sensor | **HW Only:** Zone connectivity based on device connections.                                  |

@@ -194,6 +194,9 @@
       "power": {
         "name": "Provoz"
       },
+      "hot_water_schedule": {
+        "name": "Plán"
+      },
       "connectivity": {
         "name": "Připojení"
       },

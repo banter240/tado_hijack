@@ -40,18 +40,33 @@ OPERATION_MODES = [OPERATION_MODE_AUTO, OPERATION_MODE_HEAT, OPERATION_MODE_OFF]
 OPERATION_MODES_TADOX = [OPERATION_MODE_AUTO, OPERATION_MODE_HEAT, OPERATION_MODE_OFF]
 
 
+def tadox_hot_water_zones(
+    coordinator: TadoDataUpdateCoordinator,
+) -> list[tuple[int, str]]:
+    """Return Tado X hot-water zone ids that have a controllable programmer."""
+    zones: list[tuple[int, str]] = []
+    state = coordinator.data.zone_states.get(str(TADOX_VIRTUAL_HOT_WATER_ZONE_ID))
+    if state is not None and getattr(state, "is_controllable", True):
+        zones.append((TADOX_VIRTUAL_HOT_WATER_ZONE_ID, "Hot Water"))
+    dummy = coordinator.dummy_handler
+    if dummy and dummy.is_tadox_hot_water_test_dummy(DUMMY_ZONE_ID_TADOX_HOT_WATER):
+        zones.append((DUMMY_ZONE_ID_TADOX_HOT_WATER, "DUMMY Tado X Hot Water"))
+    return zones
+
+
 def _setup_water_heater_entities_tadox(
     coordinator: TadoDataUpdateCoordinator,
 ) -> list[TadoHotWater]:
     """Set up hot water entities for Tado X."""
-    state = coordinator.data.zone_states.get(str(TADOX_VIRTUAL_HOT_WATER_ZONE_ID))
-    if state is None or not getattr(state, "is_controllable", True):
+    zones = tadox_hot_water_zones(coordinator)
+    if all(zid != TADOX_VIRTUAL_HOT_WATER_ZONE_ID for zid, _ in zones):
         _LOGGER.debug(
             "No controllable Tado X hot water found "
             "(programmer/domesticHotWater unavailable or state=NONE)"
         )
-        return []
-    return [TadoHotWaterX(coordinator, TADOX_VIRTUAL_HOT_WATER_ZONE_ID, "Hot Water")]
+    return [
+        TadoHotWaterX(coordinator, zone_id, zone_name) for zone_id, zone_name in zones
+    ]
 
 
 def _setup_water_heater_entities_v3(
@@ -80,22 +95,6 @@ async def async_setup_entry(
     else:
         entities = _setup_water_heater_entities_v3(coordinator)
 
-    # Dedicated Tado X Hot Water test dummy (separate ID 9997)
-    # This lets you test the full TadoX Hops hot water paths locally in HA
-    # without touching the real 9001 synthetic zone.
-    if (
-        coordinator.dummy_handler
-        and coordinator.dummy_handler.is_tadox_hot_water_test_dummy(
-            DUMMY_ZONE_ID_TADOX_HOT_WATER
-        )
-    ):
-        entities.append(
-            TadoHotWaterX(
-                coordinator,
-                DUMMY_ZONE_ID_TADOX_HOT_WATER,
-                "DUMMY Tado X Hot Water",
-            )
-        )
     async_add_entities(entities)
 
 
@@ -299,9 +298,14 @@ class TadoHotWaterX(TadoHotWater):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         state = self.coordinator.data.zone_states.get(str(self._zone_id))
-        if state and (nsc := getattr(state, "next_state_change", None)):
-            return {"next_state_change": nsc}
-        return {}
+        attrs: dict[str, Any] = {}
+        if state is None:
+            return attrs
+        if nsc := getattr(state, "next_state_change", None):
+            attrs["next_state_change"] = nsc
+        if (schedule_on := getattr(state, "schedule_on", None)) is not None:
+            attrs["schedule_on"] = schedule_on
+        return attrs
 
     def _get_actual_value(self) -> str:
         state = self.coordinator.data.zone_states.get(str(self._zone_id))
