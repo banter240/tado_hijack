@@ -44,6 +44,7 @@ from .const import (
     CONF_GENERATION,
     CONF_HOME_ID,
     CONF_JITTER_PERCENT,
+    CONF_LINK_LOCAL_DEVICES,
     CONF_LOG_LEVEL,
     CONF_LOG_VERSION_PREFIX,
     CONF_MIN_AUTO_QUOTA_INTERVAL_S,
@@ -52,6 +53,7 @@ from .const import (
     CONF_OFFSET_POLL_INTERVAL,
     CONF_OUTDOOR_WEATHER_ENTITY,
     CONF_PRESENCE_POLL_INTERVAL,
+    CONF_PROXY_LOCAL_ENTITIES,
     CONF_PROXY_TOKEN,
     CONF_QUOTA_SAFETY_RESERVE,
     CONF_RECOVERY_CLOUD_REPLAY,
@@ -75,6 +77,7 @@ from .const import (
     DEFAULT_FEATURE_FLOW_TEMP,
     DEFAULT_FEATURE_MOLD_DETECTION,
     DEFAULT_JITTER_PERCENT,
+    DEFAULT_LINK_LOCAL_DEVICES,
     DEFAULT_LOG_LEVEL,
     DEFAULT_LOG_VERSION_PREFIX,
     DEFAULT_MIN_AUTO_QUOTA_INTERVAL_S,
@@ -82,6 +85,7 @@ from .const import (
     DEFAULT_OFFSET_CAL_WINDOW_SETTLE_S,
     DEFAULT_OFFSET_POLL_INTERVAL,
     DEFAULT_PRESENCE_POLL_INTERVAL,
+    DEFAULT_PROXY_LOCAL_ENTITIES,
     DEFAULT_QUOTA_SAFETY_RESERVE,
     DEFAULT_RECOVERY_CLOUD_REPLAY,
     DEFAULT_REDUCED_POLLING_END,
@@ -221,6 +225,8 @@ class TadoHijackCommonFlow:
                 CONF_REFRESH_AFTER_RESUME,
             ],
             "features": [
+                CONF_LINK_LOCAL_DEVICES,
+                CONF_PROXY_LOCAL_ENTITIES,
                 CONF_FEATURE_DEW_POINT,
                 CONF_FEATURE_FLOW_TEMP,
                 CONF_FEATURE_MOLD_DETECTION,
@@ -517,6 +523,20 @@ class TadoHijackCommonFlow:
                 vol.Required("features"): data_entry_flow.section(
                     vol.Schema(
                         {
+                            vol.Optional(
+                                CONF_LINK_LOCAL_DEVICES,
+                                default=self._get_current_data(
+                                    CONF_LINK_LOCAL_DEVICES,
+                                    DEFAULT_LINK_LOCAL_DEVICES,
+                                ),
+                            ): BooleanSelector(),
+                            vol.Optional(
+                                CONF_PROXY_LOCAL_ENTITIES,
+                                default=self._get_current_data(
+                                    CONF_PROXY_LOCAL_ENTITIES,
+                                    DEFAULT_PROXY_LOCAL_ENTITIES,
+                                ),
+                            ): BooleanSelector(),
                             vol.Optional(
                                 CONF_FEATURE_DEW_POINT,
                                 default=self._get_current_data(

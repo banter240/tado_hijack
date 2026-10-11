@@ -43,6 +43,8 @@ async def async_setup_entry(
             "device": TadoGenericDeviceSwitch,
         },
     )
+    coordinator: TadoDataUpdateCoordinator = entry.runtime_data
+    coordinator.local_proxy.register("switch", async_add_entities)
 
 
 class TadoGenericSwitchMixin(TadoGenericEntityMixin):

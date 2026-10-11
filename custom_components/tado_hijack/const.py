@@ -12,6 +12,8 @@ TADO_USER_AGENT: Final = f"HomeAssistant/{TADO_VERSION_PATCH}"
 # Configuration Keys
 CONF_GENERATION: Final = "generation"
 CONF_FULL_CLOUD_MODE: Final = "full_cloud_mode"
+CONF_LINK_LOCAL_DEVICES: Final = "link_local_devices"
+CONF_PROXY_LOCAL_ENTITIES: Final = "proxy_local_entities"
 CONF_FETCH_EXTENDED_DATA: Final = "fetch_extended_data"
 CONF_REFRESH_TOKEN: Final = "refresh_token"
 CONF_HOME_ID: Final = "home_id"
@@ -150,6 +152,8 @@ DEFAULT_SUPPRESS_REDUNDANT_BUTTONS: Final = (
 )
 
 # Feature Flag Defaults (all on by default — zero cost when unused)
+DEFAULT_LINK_LOCAL_DEVICES: Final = True
+DEFAULT_PROXY_LOCAL_ENTITIES: Final = False
 DEFAULT_FEATURE_DEW_POINT: Final = True
 DEFAULT_FEATURE_FLOW_TEMP: Final = False
 DEFAULT_FEATURE_MOLD_DETECTION: Final = True

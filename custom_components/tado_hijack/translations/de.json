@@ -83,6 +83,15 @@
       "humidity": {
         "name": "Luftfeuchtigkeit"
       },
+      "local_humidity": {
+        "name": "Luftfeuchtigkeit"
+      },
+      "local_battery": {
+        "name": "Batterie"
+      },
+      "local_temperature": {
+        "name": "Temperatur"
+      },
       "dew_point": {
         "name": "Taupunkt"
       },
@@ -182,6 +191,12 @@
       "battery_state": {
         "name": "Batterie"
       },
+      "local_occupancy": {
+        "name": "Anwesenheit"
+      },
+      "local_window": {
+        "name": "Fenster"
+      },
       "connection_state": {
         "name": "Cloud-Verbindung"
       },
@@ -237,6 +252,12 @@
       "full_cloud_mode": {
         "name": "Vollständiger Cloud-Modus"
       },
+      "link_local_devices": {
+        "name": "An HomeKit / Matter anhängen"
+      },
+      "proxy_local_entities": {
+        "name": "Lokale Geräte auf Hijack proxen"
+      },
       "window_resume_batch": {
         "name": "Fortsetzen sammeln"
       },
@@ -267,6 +288,9 @@
         "name": "Zeitplan"
       },
       "child_lock": {
+        "name": "Kindersicherung"
+      },
+      "local_child_lock": {
         "name": "Kindersicherung"
       },
       "hot_water": {
@@ -325,6 +349,9 @@
       "identify_device": {
         "name": "Gerät identifizieren"
       },
+      "local_identify": {
+        "name": "Identifizieren"
+      },
       "refresh_timetable": {
         "name": "Zeitplan aktualisieren"
       },
@@ -339,6 +366,9 @@
       }
     },
     "number": {
+      "local_valve": {
+        "name": "Ventil"
+      },
       "temperature_offset": {
         "name": "Temperatur-Offset"
       },
@@ -444,6 +474,9 @@
       }
     },
     "climate": {
+      "local_climate": {
+        "name": "Klima"
+      },
       "hot_water": {
         "name": "Warmwasser",
         "state_attributes": {
@@ -629,6 +662,8 @@
           "features": {
             "name": "Funktionen",
             "data": {
+              "link_local_devices": "An HomeKit / Matter anhängen",
+              "proxy_local_entities": "Lokale Geräte auf Hijack proxen",
               "feature_dew_point": "Taupunkt-Sensor",
               "feature_flow_temperature_optimization": "Vorlauftemperatur-Optimierung",
               "feature_mold_detection": "Schimmelrisiko-Sensoren",
@@ -636,6 +671,8 @@
               "ventilation_ah_threshold": "Lüftungs-Schwellenwert (g/m³)"
             },
             "data_description": {
+              "link_local_devices": "Legt Kindersicherung, Offset, Batterie und Verbindung auf den HomeKit- oder Matter-TRV, wenn die Seriennummer passt. Standard an.",
+              "proxy_local_entities": "Leitet sämtliche HomeKit- oder Matter-Entities über den Proxy auf das Hijack-Gerät. Anhängen muss aus sein. Standard aus.",
               "feature_dew_point": "Erstellt einen Taupunkt-Sensor pro Zone. Berechnet aus Raumtemperatur und Luftfeuchtigkeit. WICHTIG für Tado X: Erfordert zwingend eine verknüpfte Temperaturquelle am Zonen-Gerät, da die Cloud-API für Tado X keine Temperatur liefert.",
               "feature_flow_temperature_optimization": "Fragt die Tado-X-Einstellungen zur Vorlauftemperatur-Optimierung ab (benötigt ein OpenTherm-Kesselregelungsgerät) und stellt eine Zahl für die maximale Vorlauftemperatur sowie einen Schalter für die automatische Anpassung bereit. Kostet 1 API-Aufruf pro Metadaten-Abfrage. Standardmäßig aus, um API-Kontingent zu sparen.",
               "feature_mold_detection": "Erstellt Schimmelrisiko-Sensoren pro Zone. Enthält eine Risikostufe (keins/niedrig/mittel/hoch) und einen binären Sensor für akutes Schimmelrisiko. WICHTIG für Tado X: Erfordert eine verknüpfte Temperaturquelle am Zonen-Gerät.",
@@ -771,6 +808,8 @@
           "features": {
             "name": "Funktionen",
             "data": {
+              "link_local_devices": "An HomeKit / Matter anhängen",
+              "proxy_local_entities": "Lokale Geräte auf Hijack proxen",
               "feature_dew_point": "Taupunkt-Sensor",
               "feature_flow_temperature_optimization": "Vorlauftemperatur-Optimierung",
               "feature_mold_detection": "Schimmelrisiko-Sensoren",
@@ -778,6 +817,8 @@
               "ventilation_ah_threshold": "Lüftungs-Schwellenwert (g/m³)"
             },
             "data_description": {
+              "link_local_devices": "Legt Kindersicherung, Offset, Batterie und Verbindung auf den HomeKit- oder Matter-TRV, wenn die Seriennummer passt. Standard an.",
+              "proxy_local_entities": "Leitet sämtliche HomeKit- oder Matter-Entities über den Proxy auf das Hijack-Gerät. Anhängen muss aus sein. Standard aus.",
               "feature_dew_point": "Erstellt einen Taupunkt-Sensor pro Zone. Berechnet aus Raumtemperatur und Luftfeuchtigkeit. WICHTIG für Tado X: Erfordert zwingend eine verknüpfte Temperaturquelle am Zonen-Gerät, da die Cloud-API für Tado X keine Temperatur liefert.",
               "feature_flow_temperature_optimization": "Fragt die Tado-X-Einstellungen zur Vorlauftemperatur-Optimierung ab (benötigt ein OpenTherm-Kesselregelungsgerät) und stellt eine Zahl für die maximale Vorlauftemperatur sowie einen Schalter für die automatische Anpassung bereit. Kostet 1 API-Aufruf pro Metadaten-Abfrage. Standardmäßig aus, um API-Kontingent zu sparen.",
               "feature_mold_detection": "Erstellt Schimmelrisiko-Sensoren pro Zone. Enthält eine Risikostufe (keins/niedrig/mittel/hoch) und einen binären Sensor für akutes Schimmelrisiko. WICHTIG für Tado X: Erfordert eine verknüpfte Temperaturquelle am Zonen-Gerät.",

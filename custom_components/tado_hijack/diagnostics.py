@@ -416,6 +416,8 @@ def _get_device_linking_diagnostics(
     return {
         "generation": coordinator.generation,
         "full_cloud_mode": bool(coordinator.full_cloud_mode),
+        "link_local_devices": bool(coordinator.link_local_devices),
+        "proxy_local_entities": bool(coordinator.proxy_local_entities),
         "linked_count": linked_count,
         "device_count": len(devices),
         "climate_map_size": len(climate_map),

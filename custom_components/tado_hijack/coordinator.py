@@ -35,9 +35,11 @@ from .const import (
     CONF_FULL_CLOUD_MODE,
     CONF_GENERATION,
     CONF_JITTER_PERCENT,
+    CONF_LINK_LOCAL_DEVICES,
     CONF_MIN_AUTO_QUOTA_INTERVAL_S,
     CONF_OFFSET_POLL_INTERVAL,
     CONF_PRESENCE_POLL_INTERVAL,
+    CONF_PROXY_LOCAL_ENTITIES,
     CONF_QUOTA_SAFETY_RESERVE,
     CONF_RECOVERY_CLOUD_REPLAY,
     CONF_REDUCED_POLLING_ACTIVE,
@@ -55,9 +57,11 @@ from .const import (
     DEFAULT_DEBOUNCE_TIME,
     DEFAULT_FEATURE_FLOW_TEMP,
     DEFAULT_JITTER_PERCENT,
+    DEFAULT_LINK_LOCAL_DEVICES,
     DEFAULT_MIN_AUTO_QUOTA_INTERVAL_S,
     DEFAULT_OFFSET_POLL_INTERVAL,
     DEFAULT_PRESENCE_POLL_INTERVAL,
+    DEFAULT_PROXY_LOCAL_ENTITIES,
     DEFAULT_QUOTA_SAFETY_RESERVE,
     DEFAULT_RECOVERY_CLOUD_REPLAY,
     DEFAULT_REDUCED_POLLING_END,
@@ -108,6 +112,7 @@ from .helpers.hot_water_duration import (
     programmer_next_block,
     programmer_return_mode,
 )
+from .helpers.local_proxy import LocalProxyManager
 from .helpers.logging_utils import get_redacted_logger, log_secrets, redact
 from .helpers.offset_cal_config import OffsetCalSchedulerMixin
 from .helpers.optimistic_manager import OptimisticManager, ZoneOverlayFields
@@ -203,6 +208,12 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             self.generation = GEN_X
 
         self.full_cloud_mode = entry.data.get(CONF_FULL_CLOUD_MODE, False)
+        self.link_local_devices = entry.data.get(
+            CONF_LINK_LOCAL_DEVICES, DEFAULT_LINK_LOCAL_DEVICES
+        )
+        self.proxy_local_entities = entry.data.get(
+            CONF_PROXY_LOCAL_ENTITIES, DEFAULT_PROXY_LOCAL_ENTITIES
+        )
         self.fetch_extended_data = entry.data.get(CONF_FETCH_EXTENDED_DATA, True)
         self.provider: UnifiedDataProvider | None = None
 
@@ -344,6 +355,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         self.window_controller = WindowController(self)
         self._window_controller_started = False
         self.availability_tracker = AvailabilityTracker(self)
+        self.local_proxy = LocalProxyManager(self)
         self.recovery_queue = LocalRecoveryQueue(self, self.availability_tracker)
         self.recovery_listener = LocalRecoveryListener(
             hass, self, self.availability_tracker, self.recovery_queue
@@ -983,6 +995,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         self.window_controller.shutdown()
         self.recovery_listener.shutdown()
         self.availability_tracker.shutdown()
+        self.local_proxy.shutdown()
         self.recovery_queue.clear()
         self.event_handler.shutdown()
         self.poll_scheduler.shutdown()
@@ -991,6 +1004,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
     async def _async_start_recovery_stack(self) -> None:
         """Start availability tracking and the local recovery listener."""
         await self.availability_tracker.async_start()
+        await self.local_proxy.async_start()
         await self.recovery_listener.async_start()
 
     async def _execute_manual_poll(

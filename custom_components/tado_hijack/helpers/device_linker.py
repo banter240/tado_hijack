@@ -242,7 +242,11 @@ def get_climate_entity_id(
     for device in _matching_devices(hass, serial_no, generation):
         entries = er.async_entries_for_device(e_registry, device.id)
         climate_id = next(
-            (str(entry.entity_id) for entry in entries if entry.domain == "climate"),
+            (
+                str(entry.entity_id)
+                for entry in entries
+                if entry.domain == "climate" and entry.platform != DOMAIN
+            ),
             None,
         )
         if climate_id is not None:

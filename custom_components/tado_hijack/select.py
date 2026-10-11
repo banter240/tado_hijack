@@ -85,6 +85,7 @@ async def async_setup_entry(
         )
     if source_entities:
         async_add_entities(source_entities)
+    coordinator.local_proxy.register("select", async_add_entities)
 
 
 class TadoGenericHomeSelect(TadoHomeEntity, TadoGenericEntityMixin, SelectEntity):

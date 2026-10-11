@@ -12,7 +12,7 @@ Turn off the official Home Assistant Tado integration. It polls the same account
 
 HomeKit or Matter keeps the room setpoint. Hijack does not copy an ordinary local temperature change to Tado. A local `climate.set_hvac_mode` of `auto` on a linked climate resumes the Tado schedule. Anything else is stored as an optimistic manual overlay.
 
-Cloud entities that belong on a valve (child lock, offset, battery, connection) are linked onto the HomeKit or Matter device when the serial matches. Home Assistant 2026.8 keeps a separate registry device per integration, so the Hijack device page can remain. Zone entities stay on the Hijack zone device.
+Cloud entities that belong on a valve (child lock, offset, battery, connection) are linked onto the HomeKit or Matter device when the serial matches. A config option (default on) controls that attach. With attach off, another option proxies the local device entities onto the Hijack device. Home Assistant 2026.8 keeps a separate registry device per integration, so the Hijack device page can remain. Zone entities stay on the Hijack zone device.
 
 Full cloud mode (default off) creates a Hijack heating climate for classic heating zones, and a heating climate for every Tado X room. Classic air conditioning is created either way. The Tado X climate entity uses `off`, `heat`, and `auto`. It has no fan and no swing. `async_set_ac_setting` on Tado X does nothing.
 

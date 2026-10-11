@@ -46,6 +46,8 @@ async def async_setup_entry(
             "zone": TadoGenericZoneNumber,
         },
     )
+    coordinator: TadoDataUpdateCoordinator = entry.runtime_data
+    coordinator.local_proxy.register("number", async_add_entities)
 
 
 class TadoOptimisticNumber(TadoOptimisticMixin, RestoreEntity, NumberEntity):

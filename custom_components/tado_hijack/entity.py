@@ -366,9 +366,13 @@ class TadoEntity(CoordinatorEntity):
         return None
 
     def _attach_local_device(self, serial_no: str) -> None:
-        """Attach this entity to a local device when the cloud serial matches."""
+        """Attach this entity to a local HomeKit or Matter device when linking is on."""
         coordinator = self.tado_coordinator
-        if coordinator.full_cloud_mode or coordinator.config_entry is None:
+        if (
+            coordinator.full_cloud_mode
+            or not coordinator.link_local_devices
+            or coordinator.config_entry is None
+        ):
             return
         linked = get_local_device(
             coordinator.hass,

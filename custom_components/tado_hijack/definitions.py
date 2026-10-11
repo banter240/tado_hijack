@@ -24,6 +24,7 @@ from .const import (
     CONF_FETCH_EXTENDED_DATA,
     CONF_FULL_CLOUD_MODE,
     CONF_JITTER_PERCENT,
+    CONF_LINK_LOCAL_DEVICES,
     CONF_LOG_LEVEL,
     CONF_LOG_VERSION_PREFIX,
     CONF_MIN_AUTO_QUOTA_INTERVAL_S,
@@ -33,6 +34,7 @@ from .const import (
     CONF_OFFSET_POLL_INTERVAL,
     CONF_OUTDOOR_WEATHER_ENTITY,
     CONF_PRESENCE_POLL_INTERVAL,
+    CONF_PROXY_LOCAL_ENTITIES,
     CONF_PROXY_TOKEN,
     CONF_QUOTA_SAFETY_RESERVE,
     CONF_RECOVERY_CLOUD_REPLAY,
@@ -58,6 +60,7 @@ from .const import (
     DEFAULT_FEATURE_FLOW_TEMP,
     DEFAULT_FEATURE_MOLD_DETECTION,
     DEFAULT_JITTER_PERCENT,
+    DEFAULT_LINK_LOCAL_DEVICES,
     DEFAULT_LOG_LEVEL,
     DEFAULT_LOG_VERSION_PREFIX,
     DEFAULT_MIN_AUTO_QUOTA_INTERVAL_S,
@@ -66,6 +69,7 @@ from .const import (
     DEFAULT_OFFSET_CAL_WINDOW_SETTLE_S,
     DEFAULT_OFFSET_POLL_INTERVAL,
     DEFAULT_PRESENCE_POLL_INTERVAL,
+    DEFAULT_PROXY_LOCAL_ENTITIES,
     DEFAULT_QUOTA_SAFETY_RESERVE,
     DEFAULT_RECOVERY_CLOUD_REPLAY,
     DEFAULT_REDUCED_POLLING_END,
@@ -1655,6 +1659,24 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         key="full_cloud_mode",
         value_fn=lambda c: bool(c.config_entry.data.get(CONF_FULL_CLOUD_MODE, False)),
         icon="mdi:cloud-check-variant",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    create_home_binary_sensor(
+        key="link_local_devices",
+        value_fn=lambda c: bool(
+            c.config_entry.data.get(CONF_LINK_LOCAL_DEVICES, DEFAULT_LINK_LOCAL_DEVICES)
+        ),
+        icon="mdi:link-variant",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    create_home_binary_sensor(
+        key="proxy_local_entities",
+        value_fn=lambda c: bool(
+            c.config_entry.data.get(
+                CONF_PROXY_LOCAL_ENTITIES, DEFAULT_PROXY_LOCAL_ENTITIES
+            )
+        ),
+        icon="mdi:content-copy",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     create_home_binary_sensor(

@@ -168,7 +168,7 @@ While other integrations waste your precious API quota for every tiny interactio
 
 The TRV stays on HomeKit or Matter. The zone stays a Hijack device.
 
-Hijack matches the cloud serial (`VA…`) to the HomeKit device, or to Matter when that serial is on `serial_number` or `serial_VA…`, and attaches child lock, offset, battery, and connection there. If no local device exposes the serial, those entities stay on the Hijack device. Full cloud mode keeps them on the Hijack device.
+Hijack matches the cloud serial (`VA…`) to the HomeKit device, or to Matter when that serial is on `serial_number` or `serial_VA…`, and attaches child lock, offset, battery, and connection there. A config option (default on) controls that attach. With attach off, another option proxies the local device entities onto the Hijack device. If no local device exposes the serial, those entities stay on the Hijack device. Full cloud mode keeps them there.
 
 Home Assistant 2026.8+ keeps one registry device per integration, so a Hijack TRV page can sit next to the HomeKit or Matter TRV. Leave that page. [Why both devices stay](#why-do-i-still-see-a-hijack-trv-and-a-homekitmatter-trv).
 
@@ -410,6 +410,8 @@ Tado Hijack is now an **official HACS integration**! No custom repository needed
 | **Offset Update**                  | `0` (Off) | Interval for temperature offsets. Costs 1 API call per valve. Calibration polls only when no offset is known. |
 | **Flow Temperature Optimization**  | `Off`     | Tado X option. The periodic poll does not call the flow-temperature GET, so the number and switch are not created from that poll. |
 | **Replay Cloud-Only On Recovery**  | `On`      | See [Offline TRV recovery](#offline-trv-recovery-homekit-and-matter). |
+| **Attach to HomeKit / Matter**     | `On`      | Child lock, offset, battery, and connection on the TRV when the serial matches. |
+| **Proxy local devices on Hijack** | `Off` | Proxies every entity the local HomeKit or Matter device has onto the Hijack device, including later additions. Attach must be off. |
 | **Queue and delay resume schedule** | `On`    | Window close and window-timeout end. Behavior is in the window section below.                                                                                                                                                                              |
 | **Resume schedule batch window**   | `120s`    | How long those cloud resumes wait so nearby rooms share one batch. `0` sends on the next pass.                                                                                                                                                             |
 | **Offset threshold cooldown**      | `300` s   | After a threshold-mode offset write, wait this long before another one. A calibration that waited for an open window also waits until this cooldown has passed. |
@@ -632,6 +634,8 @@ Advanced monitoring sensors in the diagnostics of that same home device:
 - `sensor.log_level` - Current logging level
 - `sensor.quota_safety_reserve` - Configured safety reserve calls
 - `binary_sensor.full_cloud_mode` - Full Cloud Mode enabled status
+- `binary_sensor.link_local_devices` - Attach to HomeKit / Matter
+- `binary_sensor.proxy_local_entities` - Proxy local devices on Hijack
 - `binary_sensor.feature_dew_point` - Dew Point feature flag status
 - `binary_sensor.feature_mold_detection` - Mold Detection feature flag status
 - `binary_sensor.fetch_extended_data` - Extended data fetching status
