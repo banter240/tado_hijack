@@ -3,6 +3,12 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
+
+from .discovery import yield_zones
+
+if TYPE_CHECKING:
+    from ..coordinator import TadoDataUpdateCoordinator
 
 
 class TadoActionProvider(ABC):
@@ -11,6 +17,8 @@ class TadoActionProvider(ABC):
     Isolates v3 vs Tado X differences to maximize maintainability.
     If Tado X bugs, v3 remains unaffected and vice versa.
     """
+
+    coordinator: TadoDataUpdateCoordinator
 
     @abstractmethod
     async def async_resume_all_schedules(self) -> None:
@@ -24,62 +32,38 @@ class TadoActionProvider(ABC):
     async def async_turn_off_all_zones(self) -> None:
         """Turn off all active heating zones."""
 
-    @abstractmethod
     def get_active_zone_ids(
         self,
         include_heating: bool = False,
         include_hot_water: bool = False,
         include_ac: bool = False,
     ) -> list[int]:
-        """Get list of active zone IDs.
+        """Zone ids that are not disabled. yield_zones hides id vs room_id."""
+        return [
+            zone.id
+            for zone in yield_zones(
+                self.coordinator,
+                include_heating=include_heating,
+                include_hot_water=include_hot_water,
+                include_ac=include_ac,
+            )
+            if not self.coordinator.entity_resolver.is_zone_disabled(zone.id)
+        ]
 
-        Handles id vs room_id internally based on generation.
-
-        Args:
-            include_heating: Include heating zones
-            include_hot_water: Include hot water zones
-            include_ac: Include AC zones
-
-        Returns:
-            List of zone IDs (int)
-
-        """
-
-    @abstractmethod
     def is_zone_in_schedule(self, zone_id: int) -> bool | None:
-        """Check if zone is in schedule mode (no manual overlay).
+        """True when the optimistic cache has no manual overlay."""
+        cache_state = self.coordinator.optimistic.get_zone(zone_id)
+        return not cache_state.get("overlay_active", True) if cache_state else None
 
-        Args:
-            zone_id: The zone ID to check
-
-        Returns:
-            True if in schedule, False if manual overlay active, None if unknown
-
-        """
-
-    @abstractmethod
     def get_zone_power(self, zone_id: int) -> str | None:
-        """Get current power state of zone.
+        """Optimistic power, or None when the zone is not cached."""
+        cache_state = self.coordinator.optimistic.get_zone(zone_id)
+        return cache_state.get("power") if cache_state else None
 
-        Args:
-            zone_id: The zone ID to check
-
-        Returns:
-            "ON", "OFF", or None if unknown
-
-        """
-
-    @abstractmethod
     def get_zone_temperature(self, zone_id: int) -> float | None:
-        """Get current target temperature of zone.
-
-        Args:
-            zone_id: The zone ID to check
-
-        Returns:
-            Temperature in Celsius or None if unknown/not applicable
-
-        """
+        """Optimistic target temperature, or None when the zone is not cached."""
+        cache_state = self.coordinator.optimistic.get_zone(zone_id)
+        return cache_state.get("temperature") if cache_state else None
 
     @abstractmethod
     async def async_set_ac_setting(self, zone_id: int, key: str, value: str) -> None:
