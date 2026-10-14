@@ -450,12 +450,16 @@ def _get_internal_state_diagnostics(
             "last_zones_poll_age": round(now - dm._last_zones_poll, 1),
             "last_presence_poll_age": round(now - dm._last_presence_poll, 1),
             "last_slow_poll_age": round(now - dm._last_slow_poll, 1),
+            "last_early_start_poll_age": round(now - dm._last_early_start_poll, 1),
             "last_capabilities_poll_age": round(now - dm._last_capabilities_poll, 1),
             "cache_status": {
                 "zones_dirty": dm._zones_invalidated_at > dm._last_zones_poll,
                 "presence_dirty": dm._presence_invalidated_at > dm._last_presence_poll,
                 "offsets_dirty": dm._offset_invalidated_at > dm._last_offset_poll,
                 "away_dirty": dm._away_invalidated_at > dm._last_away_poll,
+                "early_start_dirty": (
+                    dm._early_start_invalidated_at > dm._last_early_start_poll
+                ),
                 "schedule_dirty": dm._schedule_invalidated_at > dm._last_schedule_poll,
                 "capabilities_dirty": (
                     dm._capabilities_invalidated_at > dm._last_capabilities_poll

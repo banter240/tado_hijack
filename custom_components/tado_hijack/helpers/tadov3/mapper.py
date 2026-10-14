@@ -67,6 +67,10 @@ class TadoV3Mapper:
             return float(t)
         return None
 
+    async def async_fetch_early_start(self, zone_id: int) -> bool | None:
+        """Fetch early start for a zone."""
+        return await self.client.get_early_start(zone_id)
+
     async def async_fetch_offsets(self) -> dict[str, Any]:
         """Fetch temperature offsets.
 

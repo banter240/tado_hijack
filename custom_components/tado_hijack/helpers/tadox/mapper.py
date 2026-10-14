@@ -188,6 +188,10 @@ class TadoXMapper:
         """Not used for Tado X — no away configuration endpoint."""
         return None
 
+    async def async_fetch_early_start(self, zone_id: int) -> bool | None:
+        """Not used for Tado X — no early start endpoint."""
+        return None
+
     async def async_set_temperature_offset(self, serial_no: str, offset: float) -> None:
         """Set temperature offset via Hops API."""
         await self.bridge.async_set_temperature_offset(serial_no, offset)

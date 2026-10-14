@@ -44,7 +44,7 @@ Order in the coordinator: unknown limit, then throttle, then the economy window 
 - Economy window: off by default, 22:00–07:00 local, interval 3600 seconds. Interval `0` skips the poll inside the window. While the window is on, the night interval is used in those hours and the remaining budget is spread over the other hours. With the window off there is no daytime/night split.
 - Auto quota at `0` keeps the base scan interval. The default is 80% of the usable budget.
 
-Usable budget is `(limit − background over 24 h − threshold)`, scaled by the percent, then reduced by inferred use outside this integration, by background calls still to come, and by the safety reserve (default 2). The zone poll is counted as 1 call when spacing the day. Background is presence (default every 12 h), a slow poll every 24 h, and classic offset GETs when that interval is above 0 (default 0). The slow-poll estimate is 2 for both generations, plus one capabilities GET per classic zone. The Tado X fetch itself is one `roomsAndDevices`. Classic slow poll is `GET /zones` and `GET /devices`. Tado X has no capabilities call.
+Usable budget is `(limit − background over 24 h − threshold)`, scaled by the percent, then reduced by inferred use outside this integration, by background calls still to come, and by the safety reserve (default 2). The zone poll is counted as 1 call when spacing the day. Background is presence (default every 12 h), a slow poll every 24 h, and classic offset GETs when that interval is above 0 (default 0). The slow-poll estimate is 2 for both generations, plus one capabilities GET per classic zone. The Tado X fetch itself is one `roomsAndDevices`. Classic slow poll is `GET /zones` and `GET /devices`. Tado X has no capabilities call. Classic early start is not part of that reserve: the switch state is kept, and a GET runs only when that state is unknown or a full refresh asks for it.
 
 A reset is remaining going up to at least 80% of the limit. The first sample is not a reset. Two consecutive resets in the same UTC hour confirm the pattern (five are stored). Until then the expected time is 11:30 UTC, shown in Europe/Berlin: 12:30 CET, 13:30 CEST. The safety reserve is spread across the three hours centered on that hour.
 
@@ -179,7 +179,7 @@ If a write is invoked anyway, both fields share the queue key `flow_temp` and on
 ## Other controls
 
 - **Child lock:** a device switch when `child_lock_enabled` is not `None`. Classic is one call per serial. Tado X can share a device PATCH with a queued offset.
-- **Dazzle and early start:** classic only. Tado X marks both unsupported.
+- **Dazzle and early start:** classic only. Tado X marks both unsupported. Early start keeps the switch state. A GET runs only when that state is unknown, or on a full refresh.
 - **Away temperature:** classic heating. At or below 5°C the number shows 0 and the away setpoint is cleared.
 - **Identify:** both generations, only in full cloud mode.
 - **Meter readings:** Energy IQ, not Hops. The schema marks `config_entry` required. The handler sends the reading to every coordinator when the field is missing.

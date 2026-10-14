@@ -65,7 +65,7 @@ graph TD
 
 `helpers/data_manager.py` — "Handles fast/slow polling tracks and metadata caching."
 
-- Multi-track polling: zones (fast), presence (default 12 h), slow hardware metadata (default 24 h), capabilities, offset, timetable/schedule tracks.
+- Multi-track polling: zones (fast), presence (default 12 h), slow hardware metadata (default 24 h), capabilities, offset, timetable/schedule tracks. Classic early start is read from the switch. A GET runs only when that state is unknown, or on a full refresh.
 - Each unit of work is a `PollTask(cost, coroutine)` — costs feed quota accounting and `estimate_daily_reserved_cost()`.
 - Tracks allow-lists for selective refresh (targeted polls), plus cache invalidation via timestamp flags.
 - Produces `UnifiedTadoData` through the injected `UnifiedDataProvider` (V3 or X mapper).

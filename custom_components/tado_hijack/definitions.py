@@ -2242,9 +2242,7 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     ),
     create_zone_switch(
         key="early_start",
-        value_fn=lambda c, zid: bool(
-            getattr(c.zones_meta.get(zid), "early_start_enabled", False)
-        ),
+        value_fn=lambda c, zid: c.data_manager.known_early_start(zid),
         turn_on_fn=lambda c, zid: c.async_set_early_start(zid, True),
         turn_off_fn=lambda c, zid: c.async_set_early_start(zid, False),
         optimistic_key="early_start",

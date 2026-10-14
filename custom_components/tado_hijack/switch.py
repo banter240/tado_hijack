@@ -104,9 +104,10 @@ class TadoGenericHomeSwitch(
         )
 
     @property
-    def is_on(self) -> bool:
-        """Return true if switch is on."""
-        return bool(self._resolve_state())
+    def is_on(self) -> bool | None:
+        """Return true if switch is on. Unknown stays unknown."""
+        state = self._resolve_state()
+        return None if state is None else bool(state)
 
 
 class TadoGenericZoneSwitch(
@@ -133,9 +134,10 @@ class TadoGenericZoneSwitch(
         self._attr_unique_id = f"{coordinator.config_entry.entry_id}_zone_{zone_id}_{self._get_unique_id_suffix()}"
 
     @property
-    def is_on(self) -> bool:
-        """Return true if switch is on."""
-        return bool(self._resolve_state())
+    def is_on(self) -> bool | None:
+        """Return true if switch is on. Unknown stays unknown."""
+        state = self._resolve_state()
+        return None if state is None else bool(state)
 
 
 class TadoGenericDeviceSwitch(
@@ -167,6 +169,7 @@ class TadoGenericDeviceSwitch(
         )
 
     @property
-    def is_on(self) -> bool:
-        """Return true if switch is on."""
-        return bool(self._resolve_state())
+    def is_on(self) -> bool | None:
+        """Return true if switch is on. Unknown stays unknown."""
+        state = self._resolve_state()
+        return None if state is None else bool(state)

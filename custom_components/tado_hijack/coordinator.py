@@ -555,8 +555,9 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
 
             actual_cost = quota_start - self.rate_limit.remaining
             cap_calls = self.data_manager.take_capabilities_refresh_count()
+            es_calls = self.data_manager.take_early_start_refresh_count()
             if actual_cost > 0:
-                poll_calls = max(0, actual_cost - cap_calls)
+                poll_calls = max(0, actual_cost - cap_calls - es_calls)
                 if poll_calls > 0:
                     self.rate_limit.last_poll_cost = float(poll_calls)
                     self._polling_calls_today += poll_calls
@@ -1807,11 +1808,9 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
 
     async def async_set_early_start(self, zone_id: int, enabled: bool) -> None:
         """Set early start for a zone."""
-        old_val = None
-        if zone := self.zones_meta.get(zone_id):
-            old_val = getattr(zone, "early_start_enabled", None)
-            # tadoasync Zone model misses this field, so we set it dynamically
-            cast(Any, zone).early_start_enabled = enabled
+        old_val = self.data_manager.known_early_start(zone_id)
+        # tadoasync Zone model misses this field, so we set it dynamically
+        self.data_manager._apply_early_start(zone_id, enabled)
 
         await self.property_manager.async_set_zone_property(
             zone_id,
