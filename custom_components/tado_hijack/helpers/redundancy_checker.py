@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from ..const import POWER_OFF, POWER_ON, TEMP_STRICT_TOLERANCE, TEMP_TOLERANCE
@@ -208,58 +209,52 @@ def _check_away_temp_redundancy(
     return False
 
 
-def _check_dazzle_redundancy(command: TadoCommand, optimistic: OptimisticState) -> bool:
-    """Check if SET_DAZZLE is redundant."""
+def _skip_same_zone_flag(
+    command: TadoCommand,
+    optimistic: OptimisticState,
+    *,
+    cached: Callable[[int], bool | None],
+    label: str,
+) -> bool:
+    """Skip when the cached zone flag already equals enabled."""
     if not command.data:
         return False
 
     zone_id = command.data.get("zone_id")
     target_enabled = command.data.get("enabled")
-
     if zone_id is None or target_enabled is None:
         return False
 
-    cache_enabled = optimistic.get_dazzle(zone_id)
+    cache_enabled = cached(zone_id)
     if cache_enabled is None:
         return False
 
     if cache_enabled == target_enabled:
         _LOGGER.debug(
-            "Skipping redundant SET_DAZZLE zone_%s: already %s",
+            "Skipping redundant %s zone_%s: already %s",
+            label,
             zone_id,
             target_enabled,
         )
         return True
 
     return False
+
+
+def _check_dazzle_redundancy(command: TadoCommand, optimistic: OptimisticState) -> bool:
+    """Check if SET_DAZZLE is redundant."""
+    return _skip_same_zone_flag(
+        command, optimistic, cached=optimistic.get_dazzle, label="SET_DAZZLE"
+    )
 
 
 def _check_early_start_redundancy(
     command: TadoCommand, optimistic: OptimisticState
 ) -> bool:
     """Check if SET_EARLY_START is redundant."""
-    if not command.data:
-        return False
-
-    zone_id = command.data.get("zone_id")
-    target_enabled = command.data.get("enabled")
-
-    if zone_id is None or target_enabled is None:
-        return False
-
-    cache_enabled = optimistic.get_early_start(zone_id)
-    if cache_enabled is None:
-        return False
-
-    if cache_enabled == target_enabled:
-        _LOGGER.debug(
-            "Skipping redundant SET_EARLY_START zone_%s: already %s",
-            zone_id,
-            target_enabled,
-        )
-        return True
-
-    return False
+    return _skip_same_zone_flag(
+        command, optimistic, cached=optimistic.get_early_start, label="SET_EARLY_START"
+    )
 
 
 def _check_flow_temp_redundancy(

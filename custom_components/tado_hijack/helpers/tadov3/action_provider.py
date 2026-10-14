@@ -13,7 +13,6 @@ from ..ac_overlay import (
     resolve_ac_attr,
 )
 from ..action_provider_base import TadoActionProvider
-from ..discovery import yield_zones
 from ..logging_utils import get_redacted_logger
 from ..optimistic_manager import ZoneOverlayFields
 from ..overlay_builder import build_overlay_data
@@ -137,39 +136,6 @@ class TadoV3ActionProvider(TadoActionProvider):
             )
 
         self.coordinator.async_update_listeners()
-
-    def get_active_zone_ids(
-        self,
-        include_heating: bool = False,
-        include_hot_water: bool = False,
-        include_ac: bool = False,
-    ) -> list[int]:
-        """Get active zone IDs (v3 uses zone.id)."""
-        return [
-            zone.id
-            for zone in yield_zones(
-                self.coordinator,
-                include_heating=include_heating,
-                include_hot_water=include_hot_water,
-                include_ac=include_ac,
-            )
-            if not self.coordinator.entity_resolver.is_zone_disabled(zone.id)
-        ]
-
-    def is_zone_in_schedule(self, zone_id: int) -> bool | None:
-        """Check if zone is in schedule (v3)."""
-        cache_state = self.coordinator.optimistic.get_zone(zone_id)
-        return not cache_state.get("overlay_active", True) if cache_state else None
-
-    def get_zone_power(self, zone_id: int) -> str | None:
-        """Get zone power state (v3)."""
-        cache_state = self.coordinator.optimistic.get_zone(zone_id)
-        return cache_state.get("power") if cache_state else None
-
-    def get_zone_temperature(self, zone_id: int) -> float | None:
-        """Get zone target temperature (v3)."""
-        cache_state = self.coordinator.optimistic.get_zone(zone_id)
-        return cache_state.get("temperature") if cache_state else None
 
     async def async_set_ac_setting(self, zone_id: int, key: str, value: str) -> None:
         """Set an AC specific setting (v3) respecting hardware capabilities."""
