@@ -127,6 +127,7 @@ from .helpers.schedule import (
     build_refresh_all_schedules_command,
     build_refresh_schedule_command,
     build_set_schedule_command,
+    build_x_hot_water_payload,
     build_x_payload,
     ensure_full_day,
     ha_days_for_tado_day,
@@ -139,6 +140,7 @@ from .helpers.schedule import (
     schedule_capable_zone_ids,
     schedule_queue_key,
     setting_type_for_zone,
+    tadox_hot_water_schedule_zone,
     zone_supports_schedule,
 )
 from .helpers.state_patcher import patch_zone_overlay, patch_zone_resume
@@ -1923,6 +1925,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         schedule_entity: str | None,
         geolocation_override: bool,
         reuse_blocks: list[dict[str, Any]] | None,
+        require_temperature: bool = True,
     ) -> list[dict[str, Any]]:
         """Resolve one day's canonical blocks from raw blocks or a schedule helper."""
         if reuse_blocks is not None:
@@ -1933,8 +1936,19 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
                 raise ValueError(f"Schedule entity {schedule_entity} is not available.")
             ha_days = ha_days_for_tado_day(day_type)
             source = [ha_days[0]] if ha_days else ["monday"]
-            return blocks_from_schedule_state(state, source, geolocation_override)
-        return ensure_full_day(parse_blocks(blocks or [], geolocation_override))
+            return blocks_from_schedule_state(
+                state,
+                source,
+                geolocation_override,
+                require_temperature=require_temperature,
+            )
+        return ensure_full_day(
+            parse_blocks(
+                blocks or [],
+                geolocation_override,
+                require_temperature=require_temperature,
+            )
+        )
 
     async def _timetable_type_for_schedule(
         self, zone_id: int, timetable: str | None
@@ -1999,9 +2013,16 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         timetable_id = int(type_entry["id"])
         day_types = resolve_day_types(timetable_type, all_days, days)
         setting_type = setting_type_for_zone(self, zone_id)
+        power_only = tadox_hot_water_schedule_zone(self.generation, zone_id)
         shared_blocks = None
         if blocks is not None:
-            shared_blocks = ensure_full_day(parse_blocks(blocks, geolocation_override))
+            shared_blocks = ensure_full_day(
+                parse_blocks(
+                    blocks,
+                    geolocation_override,
+                    require_temperature=not power_only,
+                )
+            )
         elif all_days and schedule_entity:
             shared_blocks = self._canonical_schedule_blocks(
                 day_type=day_types[0],
@@ -2009,6 +2030,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
                 schedule_entity=schedule_entity,
                 geolocation_override=geolocation_override,
                 reuse_blocks=None,
+                require_temperature=not power_only,
             )
 
         for day_type in day_types:
@@ -2018,12 +2040,15 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
                 schedule_entity=schedule_entity,
                 geolocation_override=geolocation_override,
                 reuse_blocks=shared_blocks,
+                require_temperature=not power_only,
             )
-            payload = (
-                build_x_payload(day_type, canonical)
-                if self.generation == GEN_X
-                else build_classic_blocks(day_type, setting_type, canonical)
-            )
+            payload: dict[str, Any] | list[dict[str, Any]]
+            if power_only:
+                payload = build_x_hot_water_payload(day_type, canonical)
+            elif self.generation == GEN_X:
+                payload = build_x_payload(day_type, canonical)
+            else:
+                payload = build_classic_blocks(day_type, setting_type, canonical)
             _LOGGER.info(
                 "Queued schedule write for zone %s day %s "
                 "(%d blocks, timetable=%s, generation=%s)",
@@ -2180,7 +2205,10 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
                 bridge = getattr(self, "tadox_bridge", None)
                 if bridge is None:
                     return
-                raw = await bridge.async_get_room_schedule(zone_id)
+                if tadox_hot_water_schedule_zone(self.generation, zone_id):
+                    raw = await bridge.async_get_hot_water_schedule()
+                else:
+                    raw = await bridge.async_get_room_schedule(zone_id)
                 days = parse_x_plan(raw)
                 self.data_manager.schedule_blocks_cache[zone_id] = {
                     "timetable_id": None,
@@ -2206,7 +2234,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
                 }
         except Exception:
             _LOGGER.exception(
-                "Failed to fetch heating plan for zone %s (generation=%s)",
+                "Failed to fetch weekly plan for zone %s (generation=%s)",
                 zone_id,
                 self.generation,
             )
@@ -2215,7 +2243,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         self.update_rate_limit_local(silent=True)
         cached = self.data_manager.schedule_blocks_cache.get(zone_id) or {}
         _LOGGER.debug(
-            "Fetched heating plan for zone %s (%d day slots, generation=%s)",
+            "Fetched weekly plan for zone %s (%d day slots, generation=%s)",
             zone_id,
             len(cached.get("days") or {}),
             self.generation,

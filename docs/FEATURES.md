@@ -134,11 +134,11 @@ Zone 9001 has no valve serials on the room list, so a hot-water capture stores n
 
 Classic timetables are `one_day` (id 0), `three_day` (id 1), and `seven_day` (id 2). The zone select and the home select (which stays on the home device, not the bridge) write `activeTimetable`. Tado X has no timetable switch. Those entities are removed at startup on a Tado X entry. The week is the seven weekdays.
 
-`set_schedule` queues one command per day slot. Classic is one PUT of that day's blocks, plus one PUT of `activeTimetable` when `activate` is set. Tado X is one POST of `rooms/{id}/schedule` per weekday. `one_day`, `three_day`, and `activate` do not apply to Tado X. `all_days` writes every slot of the chosen timetable. `geolocation_override` is copied onto classic blocks only.
+`set_schedule` queues one command per day slot. Classic is one PUT of that day's blocks, plus one PUT of `activeTimetable` when `activate` is set. Tado X rooms are one POST of `rooms/{id}/schedule` per weekday. Tado X hot water is one PUT of `programmer/domesticHotWater/schedule` per weekday, with `power` ON or OFF and no temperature. `one_day`, `three_day`, and `activate` do not apply to Tado X. `all_days` writes every slot of the chosen timetable. `geolocation_override` is copied onto classic blocks only.
 
 The last block of a day ends at `00:00` on classic and `24:00` on Tado X. Both tokens parse.
 
-The calendar reads `schedule_blocks_cache`. Opening it does not call Tado. Fetch with the zone or home plan button, or `manual_poll` type `schedule`. Classic heating, hot water, and air conditioning can have a plan. Tado X rooms can. Zone 9001 cannot. The calendar does not write.
+The calendar reads `schedule_blocks_cache`. Opening it does not call Tado. Fetch with the zone or home plan button, or `manual_poll` type `schedule`. Classic heating, hot water, and air conditioning can have a plan. Tado X rooms can. Tado X hot water can when the programmer is controllable. Those ON blocks have no temperature, so the calendar summary is ON. The calendar does not write.
 
 When the last config entry unloads, every service including `set_schedule` is removed.
 
@@ -148,7 +148,7 @@ When the last config entry unloads, every service including `set_schedule` is re
 
 Classic hot water is a real zone. The water heater supports `auto`, `heat`, and `off`. Target temperature exists only when capabilities include `temperatures`. The entity's heat and off paths, and the target-temperature number, do not pass duration or overlay. `set_water_heater_mode` does: heat and off go through `async_set_zone_overlay` with duration, overlay, and `refresh_after`. `auto` resumes.
 
-Tado X hot water is virtual zone `9001`, created when `GET programmer/domesticHotWater/state` is controllable (state present and not `NONE`). Modes on the entity: no overlay is `auto`, `BOOST_ON` is `heat`, any other overlay is `off`. There is no temperature. `supports_temperature` is false for 9001. `binary_sensor.hot_water_schedule` is on while `state` is `SCHEDULE_ON`, off otherwise.
+Tado X hot water is virtual zone `9001`, created when `GET programmer/domesticHotWater/state` is controllable (state present and not `NONE`). Modes on the entity: no overlay is `auto`, `BOOST_ON` is `heat`, any other overlay is `off`. There is no temperature. `supports_temperature` is false for 9001. `binary_sensor.hot_water_schedule` is on while `state` is `SCHEDULE_ON`, off otherwise. The weekly ON/OFF plan is `set_schedule` on that water heater and the zone calendar. It is not part of the periodic poll.
 
 Tado ends a boost after about 60 minutes and ignores a timer in the boost body. `helpers/hot_water_duration.py` holds boost or off until a deadline. A boost with time left is sent again 50 minutes after the last send. At the deadline the hold returns to the schedule, or to off when the programmer state was `BOOST_OFF`. A failed send retries after 60 seconds. The timer callback runs on the event loop. The plan is stored under `hot_water_duration` and restored for a Tado X home at the end of setup. Shutdown cancels the timer and leaves the storage in place.
 

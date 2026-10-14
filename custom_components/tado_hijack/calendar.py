@@ -11,12 +11,11 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 
 from .entity import TadoZoneEntity
-from .helpers.discovery import yield_zones
 from .helpers.schedule import (
     iter_heat_windows,
     plan_service_attrs,
+    schedule_zone_names,
     service_blocks_for_weekday,
-    zone_supports_schedule,
 )
 
 if TYPE_CHECKING:
@@ -50,13 +49,13 @@ def _as_local(value: datetime) -> datetime:
 def _heat_event(
     start_at: datetime,
     end_at: datetime,
-    temp: float,
+    temp: float | None,
     description: str | None = None,
 ) -> CalendarEvent:
     return CalendarEvent(
         start=start_at,
         end=end_at,
-        summary=f"{temp:g} °C",
+        summary="ON" if temp is None else f"{temp:g} °C",
         description=description,
     )
 
@@ -98,12 +97,10 @@ async def async_setup_entry(
 ) -> None:
     """Set up one plan calendar per schedule-capable zone."""
     coordinator: TadoDataUpdateCoordinator = entry.runtime_data
-    dummy = coordinator.dummy_handler
+    names = schedule_zone_names(coordinator)
     if entities := [
-        TadoZonePlanCalendar(coordinator, zone.id, zone.name)
-        for zone in yield_zones(coordinator)
-        if zone_supports_schedule(coordinator, zone.id)
-        and not (dummy and dummy.is_dummy_zone(zone.id))
+        TadoZonePlanCalendar(coordinator, zone_id, zone_name)
+        for zone_id, zone_name in names.items()
     ]:
         async_add_entities(entities)
 

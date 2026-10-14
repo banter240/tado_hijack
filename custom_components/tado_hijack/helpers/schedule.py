@@ -196,6 +196,8 @@ def _canonical_block(
 def parse_blocks(
     raw_blocks: list[Any],
     default_geolocation_override: bool = False,
+    *,
+    require_temperature: bool = True,
 ) -> list[dict[str, Any]]:
     """Normalize a service block list to canonical minutes/power/temp."""
     if not raw_blocks:
@@ -221,8 +223,12 @@ def parse_blocks(
                 raise ValueError("Block power must be ON or OFF.")
         if power == POWER_ON:
             if temperature is None:
-                raise ValueError("ON blocks need a temperature.")
-            temperature = float(temperature)
+                if require_temperature:
+                    raise ValueError("ON blocks need a temperature.")
+            else:
+                temperature = float(temperature)
+                if not require_temperature:
+                    temperature = None
         else:
             temperature = None
         geo = raw.get("geolocation_override", default_geolocation_override)
@@ -274,6 +280,8 @@ def blocks_from_schedule_state(
     state: State,
     ha_days: list[str],
     default_geolocation_override: bool = False,
+    *,
+    require_temperature: bool = True,
 ) -> list[dict[str, Any]]:
     """Build canonical blocks from a Home Assistant schedule entity.
 
@@ -302,7 +310,13 @@ def blocks_from_schedule_state(
             )
     if not raw_segments:
         return ensure_full_day([])
-    return ensure_full_day(parse_blocks(raw_segments, default_geolocation_override))
+    return ensure_full_day(
+        parse_blocks(
+            raw_segments,
+            default_geolocation_override,
+            require_temperature=require_temperature,
+        )
+    )
 
 
 def ha_days_for_tado_day(day_type: str) -> list[str]:
@@ -320,25 +334,66 @@ def setting_type_for_zone(coordinator: TadoDataUpdateCoordinator, zone_id: int) 
     return ztype or ZONE_TYPE_HEATING
 
 
+def tadox_hot_water_controllable(coordinator: TadoDataUpdateCoordinator) -> bool:
+    """True when the Tado X programmer can follow a weekly ON/OFF plan."""
+    data = getattr(coordinator, "data", None)
+    states = getattr(data, "zone_states", None)
+    if not isinstance(states, dict):
+        return False
+    state = states.get(str(TADOX_VIRTUAL_HOT_WATER_ZONE_ID))
+    return state is not None and bool(getattr(state, "is_controllable", True))
+
+
 def zone_supports_schedule(
     coordinator: TadoDataUpdateCoordinator, zone_id: int
 ) -> bool:
     """True if this zone can receive timetable block writes."""
-    if zone_id == TADOX_VIRTUAL_HOT_WATER_ZONE_ID:
-        return False
+    if tadox_hot_water_schedule_zone(coordinator.generation, zone_id):
+        return tadox_hot_water_controllable(coordinator)
     ztype = get_zone_type(coordinator.zones_meta.get(zone_id))
     if coordinator.generation == GEN_X:
         return ztype == ZONE_TYPE_HEATING
     return ztype in _CLASSIC_SCHEDULE_TYPES
 
 
+def tadox_hot_water_schedule_zone(generation: str, zone_id: int) -> bool:
+    """Week lives on programmer/domesticHotWater/schedule, not a room schedule."""
+    return generation == GEN_X and zone_id == TADOX_VIRTUAL_HOT_WATER_ZONE_ID
+
+
+def schedule_zone_names(
+    coordinator: TadoDataUpdateCoordinator,
+) -> dict[int, str]:
+    """Real zones that own a weekly plan, including Tado X hot water."""
+    from ..water_heater import tadox_hot_water_zones
+    from .discovery import yield_zones
+
+    dummy = coordinator.dummy_handler
+
+    def _real(zone_id: int) -> bool:
+        return zone_supports_schedule(coordinator, zone_id) and not (
+            dummy and dummy.is_dummy_zone(zone_id)
+        )
+
+    names = {zone.id: zone.name for zone in yield_zones(coordinator) if _real(zone.id)}
+    for zone_id, zone_name in tadox_hot_water_zones(coordinator):
+        if zone_id not in names and _real(zone_id):
+            names[zone_id] = zone_name
+    return names
+
+
 def schedule_capable_zone_ids(coordinator: TadoDataUpdateCoordinator) -> list[int]:
     """Zone ids that can have a weekly plan fetched or written."""
-    return [
+    zone_ids = [
         zone_id
         for zone_id in coordinator.zones_meta
         if zone_supports_schedule(coordinator, zone_id)
     ]
+    if TADOX_VIRTUAL_HOT_WATER_ZONE_ID not in zone_ids and zone_supports_schedule(
+        coordinator, TADOX_VIRTUAL_HOT_WATER_ZONE_ID
+    ):
+        zone_ids.append(TADOX_VIRTUAL_HOT_WATER_ZONE_ID)
+    return zone_ids
 
 
 def build_classic_blocks(
@@ -383,6 +438,25 @@ def build_x_payload(day_type: str, blocks: list[dict[str, Any]]) -> dict[str, An
             }
         )
     return {"dayType": day_type, "daySchedule": day_schedule}
+
+
+def build_x_hot_water_payload(
+    day_type: str, blocks: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """Hops PUT body for one domestic-hot-water weekday. Power only."""
+    return {
+        "dayType": day_type,
+        "daySchedule": [
+            {
+                "start": format_hhmm(
+                    int(block["start_min"]), end_of_day_midnight=False
+                ),
+                "end": format_hhmm(int(block["end_min"]), end_of_day_midnight=False),
+                "power": block["power"],
+            }
+            for block in blocks
+        ],
+    }
 
 
 def schedule_queue_key(zone_id: int, timetable_id: int, day_type: str) -> str:
@@ -515,6 +589,8 @@ def blocks_as_service(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
         }
         if block["power"] == POWER_ON and block["temperature"] is not None:
             item["temperature"] = _service_number(float(block["temperature"]))
+        elif block["power"] == POWER_ON:
+            item["power"] = POWER_ON
         else:
             item["power"] = POWER_OFF
         if block.get("geolocation_override"):
@@ -614,6 +690,8 @@ def _append_api_block(
     setting: dict[str, Any],
     temperature_key: str,
     geo: bool,
+    *,
+    require_temperature: bool = True,
 ) -> None:
     try:
         start_min = parse_hhmm(str(start_raw))
@@ -626,7 +704,7 @@ def _append_api_block(
     temperature = None
     if power == POWER_ON:
         temperature = _block_temperature(setting, temperature_key)
-        if temperature is None:
+        if temperature is None and require_temperature:
             return
     days.setdefault(day_type, []).append(
         _canonical_block(start_min, end_min, power, temperature, geo)
@@ -698,16 +776,23 @@ def parse_x_plan(raw: Any) -> dict[str, list[dict[str, Any]]]:
     """Parse Hops GET rooms/{id}/schedule into canonical days."""
     days: dict[str, list[dict[str, Any]]] = {}
     for item in _iter_x_schedule_blocks(raw):
-        if day_type := item.get("dayType"):
-            _append_api_block(
-                days,
-                str(day_type),
-                item.get("start"),
-                item.get("end"),
-                _as_setting(item.get("setting")),
-                "value",
-                False,
-            )
+        if not (day_type := item.get("dayType")):
+            continue
+        setting = _as_setting(item.get("setting"))
+        require_temperature = bool(setting.get("power"))
+        if not setting.get("power") and item.get("power"):
+            setting = {**setting, "power": item.get("power")}
+            require_temperature = False
+        _append_api_block(
+            days,
+            str(day_type),
+            item.get("start"),
+            item.get("end"),
+            setting,
+            "value",
+            False,
+            require_temperature=require_temperature,
+        )
     return days
 
 
@@ -715,8 +800,8 @@ def iter_heat_windows(
     days: dict[str, list[dict[str, Any]]],
     range_start: datetime,
     range_end: datetime,
-) -> Iterator[tuple[datetime, datetime, float]]:
-    """Yield ON heat windows that overlap [range_start, range_end)."""
+) -> Iterator[tuple[datetime, datetime, float | None]]:
+    """Yield ON windows that overlap [range_start, range_end)."""
     if range_end <= range_start:
         return
     tzinfo = range_start.tzinfo
@@ -729,7 +814,7 @@ def iter_heat_windows(
             if weekday not in _SLOT_WEEKDAYS.get(slot, frozenset()):
                 continue
             for block in blocks:
-                if block["power"] != POWER_ON or block["temperature"] is None:
+                if block["power"] != POWER_ON:
                     continue
                 start_min = int(block["start_min"])
                 end_min = int(block["end_min"])
@@ -739,6 +824,12 @@ def iter_heat_windows(
                     if end_min >= MINUTES_PER_DAY
                     else midnight + timedelta(minutes=end_min)
                 )
-                if end_at > range_start and start_at < range_end:
-                    yield start_at, end_at, float(block["temperature"])
+                if end_at <= range_start or start_at >= range_end:
+                    continue
+                temperature = block["temperature"]
+                yield (
+                    start_at,
+                    end_at,
+                    None if temperature is None else float(temperature),
+                )
         day += timedelta(days=1)

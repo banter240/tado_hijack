@@ -973,7 +973,7 @@
         },
         "blocks": {
           "name": "Blöcke",
-          "description": "Liste aus start, end, temperature und power. Muss 00:00-24:00 abdecken; Lücken werden als AUS gefüllt."
+          "description": "Liste aus start, end, temperature und power. Muss 00:00-24:00 abdecken; Lücken werden als AUS gefüllt. Tado X Warmwasser nimmt power ON oder OFF, ohne Temperatur."
         },
         "schedule_entity": {
           "name": "Zeitplan-Helfer",

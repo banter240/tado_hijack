@@ -44,9 +44,10 @@ def tadox_hot_water_zones(
     coordinator: TadoDataUpdateCoordinator,
 ) -> list[tuple[int, str]]:
     """Return Tado X hot-water zone ids that have a controllable programmer."""
+    from .helpers.schedule import tadox_hot_water_controllable
+
     zones: list[tuple[int, str]] = []
-    state = coordinator.data.zone_states.get(str(TADOX_VIRTUAL_HOT_WATER_ZONE_ID))
-    if state is not None and getattr(state, "is_controllable", True):
+    if tadox_hot_water_controllable(coordinator):
         zones.append((TADOX_VIRTUAL_HOT_WATER_ZONE_ID, "Hot Water"))
     dummy = coordinator.dummy_handler
     if dummy and dummy.is_tadox_hot_water_test_dummy(DUMMY_ZONE_ID_TADOX_HOT_WATER):

@@ -973,7 +973,7 @@
         },
         "blocks": {
           "name": "Blocks",
-          "description": "List of start, end, temperature, and power. Must cover 00:00-24:00; gaps are filled as OFF."
+          "description": "List of start, end, temperature, and power. Must cover 00:00-24:00; gaps are filled as OFF. Tado X hot water is power ON or OFF and has no temperature."
         },
         "schedule_entity": {
           "name": "Schedule helper",

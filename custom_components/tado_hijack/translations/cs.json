@@ -973,7 +973,7 @@
         },
         "blocks": {
           "name": "Bloky",
-          "description": "Seznam start, end, temperature a power. Musí pokrýt 00:00-24:00; mezery se vyplní jako VYP."
+          "description": "Seznam start, end, temperature a power. Musí pokrýt 00:00-24:00; mezery se vyplní jako VYP. Tado X teplá voda bere power ON nebo OFF, bez teploty."
         },
         "schedule_entity": {
           "name": "Pomocník plánu",
