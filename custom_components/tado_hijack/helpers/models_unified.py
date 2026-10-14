@@ -73,6 +73,10 @@ class UnifiedDataProvider(Protocol):
         """Fetch away configuration for a zone (v3 only)."""
         ...
 
+    async def async_fetch_early_start(self, zone_id: int) -> bool | None:
+        """Fetch early start for a zone (v3 only)."""
+        ...
+
     def get_rate_limit_source(self) -> RateLimitSource:
         """Return the rate limit data source for this generation's API."""
         ...

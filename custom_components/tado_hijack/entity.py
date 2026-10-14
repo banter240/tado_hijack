@@ -99,7 +99,7 @@ class TadoGenericEntityMixin(TadoDefinitionMixin):
         return self._get_actual_value()
 
     @property
-    def is_on(self) -> bool:
+    def is_on(self) -> bool | None:
         """Return true if sensor/switch is on."""
         return bool(self._get_actual_value())
 

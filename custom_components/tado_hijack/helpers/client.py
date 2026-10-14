@@ -136,6 +136,16 @@ class TadoHijackClient(Tado):
             method=HttpMethod.PUT,
         )
 
+    async def get_early_start(self, zone_id: int) -> bool | None:
+        """Return whether early start is enabled for a zone."""
+        response = await self._request(
+            f"homes/{self._home_id}/zones/{zone_id}/earlyStart"
+        )
+        data = orjson.loads(response)
+        if isinstance(data, dict) and "enabled" in data:
+            return bool(data["enabled"])
+        return None
+
     async def set_early_start(self, zone_id: int, enabled: bool) -> None:
         """Set early start configuration for a zone."""
         await self._request(

@@ -66,12 +66,14 @@ class TadoDataManager:
         self.capabilities_cache: dict[int, Any] = {}
         self.offsets_cache: dict[str, TemperatureOffset] = {}
         self.away_cache: dict[int, float] = {}
+        self.early_start_cache: dict[int, bool] = {}
         self.timetable_cache: dict[int, dict[str, Any]] = {}
         self.schedule_blocks_cache: dict[int, dict[str, Any]] = {}
         self._capability_locks: dict[int, asyncio.Lock] = {}
         self._last_slow_poll: float = 0
         self._last_offset_poll: float = 0
         self._last_away_poll: float = 0
+        self._last_early_start_poll: float = 0
         self._last_timetable_poll: float = 0
         self._last_schedule_poll: float = 0
         self._last_presence_poll: float = 0
@@ -81,13 +83,16 @@ class TadoDataManager:
         self._capabilities_invalidated_at: float = 0
         self._capabilities_fetched_at: float = 0
         self._last_capabilities_refresh_count: int = 0
+        self._last_early_start_refresh_count: int = 0
         self._away_invalidated_at: float = 0
+        self._early_start_invalidated_at: float = 0
         self._timetable_invalidated_at: float = 0
         self._schedule_invalidated_at: float = 0
         self._presence_invalidated_at: float = 0
         self._zones_invalidated_at: float = 0
 
         self._metadata_init = False
+        self._early_start_init = False
         self._zones_init = False
         self._presence_init = False
 
@@ -114,6 +119,7 @@ class TadoDataManager:
         self._add_fast_track_to_plan(plan, current_time)
         self._add_presence_track_to_plan(plan, current_time)
         self._add_slow_track_to_plan(plan, current_time)
+        self._add_early_start_track_to_plan(plan)
         self._add_medium_track_to_plan(plan, current_time)
         self._add_away_track_to_plan(plan, current_time)
         self._add_timetable_track_to_plan(plan)
@@ -165,6 +171,15 @@ class TadoDataManager:
 
         if not self._metadata_init or self._should_run_task(elapsed, interval):
             plan.append(PollTask(1, self._fetch_metadata))
+
+    def _add_early_start_track_to_plan(self, plan: list[PollTask]) -> None:
+        """GET early start only for zones whose switch state is unknown."""
+        if self.coordinator.generation == GEN_X:
+            return
+        slow_running = any(task.coroutine == self._fetch_metadata for task in plan)
+        invalidated = self._early_start_invalidated_at > self._last_early_start_poll
+        if not self._early_start_init or slow_running or invalidated:
+            plan.append(PollTask(1, self._fetch_early_start))
 
     def _add_medium_track_to_plan(self, plan: list[PollTask], now: float) -> None:
         if self.coordinator.generation == GEN_X:
@@ -234,6 +249,27 @@ class TadoDataManager:
             int(zone.id)
             for zone in self.zones_meta.values()
             if not (dummy and dummy.is_dummy_zone(zone.id))
+        ]
+
+    def _early_start_zone_ids(self) -> list[int]:
+        """Classic heating zones whose Early Start switch is enabled."""
+        if self.coordinator.generation == GEN_X:
+            return []
+        from ..const import ZONE_TYPE_HEATING
+        from .zone_utils import get_zone_type
+
+        dummy = self.coordinator.dummy_handler
+        entry_id = (
+            self.coordinator.config_entry.entry_id
+            if self.coordinator.config_entry
+            else ""
+        )
+        return [
+            int(z.id)
+            for z in self.zones_meta.values()
+            if get_zone_type(z, "") == ZONE_TYPE_HEATING
+            and not (dummy and dummy.is_dummy_zone(z.id))
+            and not self._is_entity_disabled("switch", f"{entry_id}_early_{z.id}")
         ]
 
     def _add_schedule_track_to_plan(self, plan: list[PollTask]) -> None:
@@ -314,6 +350,9 @@ class TadoDataManager:
                 home_state = await task.coroutine(now)
             elif task.coroutine == self._fetch_metadata:
                 await task.coroutine(now)
+            elif task.coroutine == self._fetch_early_start:
+                await task.coroutine()
+                self._last_early_start_poll = now
             elif task.coroutine == self._fetch_away_config:
                 await task.coroutine()
                 self._last_away_poll = now
@@ -434,6 +473,7 @@ class TadoDataManager:
         # Sync with optimistic manager to prevent UI jumps (Open Window)
         for zid, z in zones.items():
             self._sync_optimistic_owd(zid, z)
+            self._stamp_early_start(zid, z)
 
         self.zones_meta = zones
         self.devices_meta = devices
@@ -454,6 +494,51 @@ class TadoDataManager:
         )
 
         self._last_slow_poll = now
+
+    def known_early_start(self, zone_id: int) -> bool | None:
+        """Local early start: optimistic, cache, Zone attribute, then the switch."""
+        opt = self.coordinator.optimistic.get_early_start(zone_id)
+        if opt is not None:
+            return bool(opt)
+        if zone_id in self.early_start_cache:
+            return self.early_start_cache[zone_id]
+        zone = self.zones_meta.get(zone_id)
+        if zone is not None and "early_start_enabled" in getattr(zone, "__dict__", {}):
+            return bool(zone.early_start_enabled)
+        return self._early_start_switch_state(zone_id)
+
+    def _early_start_switch_state(self, zone_id: int) -> bool | None:
+        """On/off of the Early Start switch. Unknown is not off."""
+        from homeassistant.helpers import entity_registry as er
+
+        from ..const import DOMAIN
+
+        if self.coordinator.config_entry is None:
+            return None
+        unique_id = f"{self.coordinator.config_entry.entry_id}_early_{zone_id}"
+        reg = er.async_get(self.coordinator.hass)
+        entity_id = reg.async_get_entity_id("switch", DOMAIN, unique_id)
+        if entity_id is None:
+            return None
+        state = self.coordinator.hass.states.get(entity_id)
+        if state is None or state.state in {"unknown", "unavailable"}:
+            return None
+        if state.state == "on":
+            return True
+        return False if state.state == "off" else None
+
+    def _stamp_early_start(self, zid: int, zone: Any) -> None:
+        """Copy a known early start onto a freshly fetched Zone."""
+        if (known := self.known_early_start(zid)) is None:
+            return
+        cast(Any, zone).early_start_enabled = known
+        self.early_start_cache[zid] = known
+
+    def _apply_early_start(self, zone_id: int, enabled: bool) -> None:
+        """Remember early start and keep it on the live Zone object."""
+        self.early_start_cache[zone_id] = enabled
+        if zone := self.zones_meta.get(zone_id):
+            cast(Any, zone).early_start_enabled = enabled
 
     def _sync_optimistic_owd(self, zid: int, new_zone: Any) -> None:
         """Sync OWD state from optimistic manager."""
@@ -505,6 +590,12 @@ class TadoDataManager:
         """Return GETs from the last capabilities refresh and clear the counter."""
         count = self._last_capabilities_refresh_count
         self._last_capabilities_refresh_count = 0
+        return count
+
+    def take_early_start_refresh_count(self) -> int:
+        """Return GETs from the last early-start refresh and clear the counter."""
+        count = self._last_early_start_refresh_count
+        self._last_early_start_refresh_count = 0
         return count
 
     async def async_get_capabilities(self, zone_id: int) -> Any:
@@ -571,6 +662,8 @@ class TadoDataManager:
             self._offset_invalidated_at = now
         if refresh_type in {"all", "away"}:
             self._away_invalidated_at = now
+        if refresh_type in {"all", "early_start"}:
+            self._early_start_invalidated_at = now
         if refresh_type in {"all", "timetable"}:
             self._timetable_invalidated_at = now
         if refresh_type in {"all", "schedule"}:
@@ -709,6 +802,56 @@ class TadoDataManager:
                 self.away_cache[zone_id] = val
         except Exception as e:
             _LOGGER.warning("Away config fail for zone %d: %s", zone_id, e)
+
+    async def _fetch_early_start(self) -> None:
+        """Fetch early start only where the switch state is unknown."""
+        self._last_early_start_refresh_count = 0
+        if not self.provider or self.coordinator.generation == GEN_X:
+            self._early_start_init = True
+            return
+
+        zone_ids = self._early_start_zone_ids()
+        if not zone_ids:
+            self._early_start_init = True
+            return
+
+        force = self._early_start_invalidated_at > self._last_early_start_poll
+        if pending := [
+            zone_id
+            for zone_id in zone_ids
+            if force or self.known_early_start(zone_id) is None
+        ]:
+            _LOGGER.info("DataManager: Fetching early start for %d zones", len(pending))
+        for zone_id in zone_ids:
+            await self._fetch_early_start_for(zone_id, force=force)
+        self._early_start_init = True
+
+    async def _fetch_early_start_for(
+        self, zone_id: int, *, force: bool = False
+    ) -> None:
+        """Fetch early start for one zone when no local state is known."""
+        if not self.provider or self.coordinator.generation == GEN_X:
+            return
+        if f"early_start_{zone_id}" in self.coordinator.api_manager.pending_keys:
+            return
+
+        if not force and (known := self.known_early_start(zone_id)) is not None:
+            self._apply_early_start(zone_id, known)
+            return
+
+        opt_val = self.coordinator.optimistic.get_early_start(zone_id)
+        if opt_val is not None:
+            self._apply_early_start(zone_id, bool(opt_val))
+            return
+
+        try:
+            val = await self.provider.async_fetch_early_start(zone_id)
+        except Exception as e:
+            _LOGGER.warning("Early start fail for zone %d: %s", zone_id, e)
+            return
+        self._last_early_start_refresh_count += 1
+        if val is not None:
+            self._apply_early_start(zone_id, val)
 
     async def async_targeted_fetch(self, refresh_type: str, entity_id: str) -> bool:
         """Fetch data for a specific entity without a full coordinator refresh.

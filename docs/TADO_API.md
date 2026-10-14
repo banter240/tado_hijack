@@ -286,9 +286,10 @@ part of device fusion (Part 4).
 
 ### Early Start
 
+- `get_early_start(zone_id)` → `GET .../zones/{zone_id}/earlyStart`
 - `set_early_start(zone_id, enabled)` → `PUT .../zones/{zone_id}/earlyStart`
 - Payload: `{"enabled": bool}`
-- **Why:** pre-heating so the target temperature is reached at schedule time.
+- **Why:** pre-heating so the target temperature is reached at schedule time. The switch state is kept. A GET runs only when that state is unknown, or on a full refresh. tadoasync `Zone` does not parse the field, so a known value is copied back onto the Zone after metadata replace.
 
 ### Open Window Detection
 
@@ -349,7 +350,7 @@ our overridden `_request`:
 | `set_temperature_offset` | `PUT /devices/{serial}/temperatureOffset` | Calibration |
 | `get/set_away_configuration` | `GET/PUT /zones/{z}/awayConfiguration` | Away behavior |
 | `set_dazzle_mode` | `PUT /zones/{z}/dazzle` | Dazzle protection |
-| `set_early_start` | `PUT /zones/{z}/earlyStart` | Pre-heating |
+| `get/set_early_start` | `GET/PUT /zones/{z}/earlyStart` | Pre-heating |
 | `set_open_window_detection` | `PUT /zones/{z}/openWindowDetection` | OWD config |
 | `identify_device` | `POST /devices/{serial}/identify` | Flash device |
 | `get/set_active_timetable` | `GET/PUT /zones/{z}/schedule/activeTimetable` | Switch timetable |
@@ -807,7 +808,7 @@ are not created from live data. The option defaults to off.
 | Device | POST | /devices/{serial}/identify | Flash device |
 | Zone | GET/PUT | /zones/{z}/awayConfiguration | Away mode config |
 | Zone | PUT | /zones/{z}/dazzle | Dazzle mode |
-| Zone | PUT | /zones/{z}/earlyStart | Early start |
+| Zone | GET/PUT | /zones/{z}/earlyStart | Early start |
 | Zone | PUT | /zones/{z}/openWindowDetection | Open window detection |
 | Schedule | GET/PUT | /zones/{z}/schedule/activeTimetable | Switch timetable |
 | Schedule | GET/PUT | /zones/{z}/schedule/timetables/{tt}/blocks[/{dayType}] | Timetable blocks |
