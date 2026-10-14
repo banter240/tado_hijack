@@ -208,7 +208,7 @@ def set_redacted_log_level(level: str) -> None:
     logging.getLogger("custom_components.tado_hijack").setLevel(log_level)
     logging.getLogger("tadoasync").setLevel(log_level)
 
-    for name in logging.root.manager.loggerDict:
+    for name in list(logging.root.manager.loggerDict):
         if name.startswith(("custom_components.tado_hijack", "tadoasync")):
             logging.getLogger(name).setLevel(log_level)
 
