@@ -24,6 +24,7 @@ from ..const import (
 )
 from ..models import TadoData
 from .logging_utils import get_redacted_logger
+from .model_aliases import with_api_aliases
 
 _LOGGER = get_redacted_logger(__name__)
 
@@ -627,7 +628,7 @@ class TadoDataManager:
             to_dict = getattr(caps, "to_dict", None)
             if not callable(to_dict):
                 continue
-            dumped[str(zone_id)] = to_dict()
+            dumped[str(zone_id)] = with_api_aliases(to_dict(), Capabilities)
         return {
             "fetched_at": self._capabilities_fetched_at,
             "zones": dumped,
@@ -646,10 +647,11 @@ class TadoDataManager:
             if not isinstance(payload, dict):
                 continue
             try:
-                self.capabilities_cache[int(key)] = Capabilities.from_dict(payload)
+                caps = Capabilities.from_dict(with_api_aliases(payload, Capabilities))
             except TypeError, ValueError, KeyError, AttributeError:
                 _LOGGER.debug("Skipping stored capabilities for zone %s", key)
                 continue
+            self.capabilities_cache[int(key)] = caps
             count += 1
         return count
 
