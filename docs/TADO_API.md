@@ -2,8 +2,10 @@
 
 > Code is truth. The library pin, rate-limit headers, classic hot-water
 > overlay, Tado X timetable/AC routing, and the quota section were rechecked
-> on 4 October 2026. The old "verified at 7166d36" stamp is retired; the
-> rest of this file was not re-audited line by line.
+> on 4 October 2026. The Hops 404 stand-in and a null room `sensorDataPoints`
+> were rechecked against the client on 15 October 2026.
+> The old "verified at 7166d36" stamp is retired; the rest of this file
+> was not re-audited line by line.
 > This document describes how the integration talks to the Tado APIs, which
 > endpoints it uses, and why each layer exists. The public kritsel v2
 > OpenAPI spec does not cover most of what follows.
@@ -156,7 +158,9 @@ The module also exports `get_handler()` which returns the global
    is at the end of its schedule — strict dataclass deserialization crashes.
 2. `activityDataPoints.hotWaterInUse` is silently dropped by the strict
    dataclass, but the integration needs it for the hot-water power sensor.
-3. `sensorDataPoints` can arrive as `null`.
+3. `sensorDataPoints` can arrive as `null`. This patch is classic
+   `ZoneState` only. A Tado X room uses `TadoXZoneState`, where the same
+   field is optional (Part 4 §3.2).
 
 **Implementation:** installs a patched `__pre_deserialize__(cls, d)` that first
 chains the original classmethod if one exists (forward-compatible with an
@@ -389,15 +393,21 @@ The TadoXApi class inherits nothing from TadoHijackClient but reuses the authent
 
 Required on every Hops request. Without it, Angular's service-worker returns cached stale responses instead of live data.
 
-### 3.2 404 Semantics
+### 3.2 404 stand-in
 
-When a home does not have X hardware yet, many endpoints return 404 instead of erroring hard. The integration treats 404 as empty structure:
+`_request` logs the endpoint and returns a stand-in. Rate-limit headers on that response are skipped.
 
-- Rooms: {"rooms": []}
-- Devices: {"devices": []}
-- Programmer state: {"program": "AUTO", ...}
+- A path that contains `roomsAndDevices` becomes `{"rooms": [], "otherDevices": []}`.
+- Any other path that contains `rooms` becomes `[]`. That covers the room list, one room, and that room's schedule.
+- Every other 404 becomes `{}`.
 
-This allows graceful degradation without breaking the data model.
+`GET programmer/domesticHotWater/state` is parsed as sent. `state` `NONE` makes `is_controllable` false, so no water-heater entity is created. The client does not fill in a programmer program.
+
+`async_get_flow_temperature_optimization` returns `None` when the stand-in is empty.
+
+A room from `GET rooms` may have `sensorDataPoints` null. `TadoXZoneState.sensor_data_points` is optional. Temperature and humidity stay unknown.
+
+Setup reads `generation` from `GET /api/v2/homes/{id}`. `LINE_X` opens the form on Tado X. `GET /api/v2/me` is only the home list (`id`, `name`).
 
 ### 3.3 Content-Type Behavior
 
@@ -421,7 +431,7 @@ All payloads taken directly from lib/tadox_api.py method implementations.
 
 GET: rooms
 
-Returns list of rooms with insideTemperature, humidity, targetTemperature, heating, cooling fields.
+The room list is validated as `TadoXZoneState`. `sensorDataPoints` may be null. Temperature and humidity are then unknown.
 
 #### async_get_room(room_id: int) -> dict
 
@@ -498,6 +508,8 @@ only the named weekdays. `one_day`, `three_day`, and `activate` are classic.
 
 GET: settings/flowTemperatureOptimization
 
+Returns `None` when the 404 stand-in is empty. The zone and metadata polls do not call this GET (Part 5 §5.6).
+
 #### async_patch_flow_temperature_optimization(payload: dict) -> None
 
 PATCH: settings/flowTemperatureOptimization
@@ -510,7 +522,7 @@ Payload: {"maxFlowTemperature": float}, {"autoAdaptation": bool}.
 
 GET: programmer/domesticHotWater/state
 
-`state` is `SCHEDULE_ON` or `SCHEDULE_OFF` while the programmer follows the plan. A boost replaces that with `BOOST_ON` or `BOOST_OFF`. `nextStateChange` is the next schedule change while `state` starts with `SCHEDULE_`. During a boost it is the boost expiry, not the next block.
+`state` is `SCHEDULE_ON` or `SCHEDULE_OFF` while the programmer follows the plan. A boost replaces that with `BOOST_ON` or `BOOST_OFF`. `NONE` is not controllable, so no water-heater entity is created. `nextStateChange` is the next schedule change while `state` starts with `SCHEDULE_`. During a boost it is the boost expiry, not the next block.
 
 #### async_boost_hot_water() -> None
 
@@ -854,7 +866,7 @@ are not created from live data. The option defaults to off.
 | Schedule | GET | /rooms/{id}/schedule | Read the week (seven weekdays) |
 | Schedule | POST | /rooms/{id}/schedule | Replace one weekday |
 | Flow temperature | GET/PATCH | /settings/flowTemperatureOptimization | Client method and 404 cache. The zone and metadata polls do not call the GET, so the entities are not created from live data |
-| Hot Water | GET | /programmer/domesticHotWater/state | HW programmer state |
+| Hot Water | GET | /programmer/domesticHotWater/state | HW programmer state. `NONE` creates no entity |
 | Hot Water | GET | /programmer/domesticHotWater/schedule | HW week, power ON/OFF |
 | Hot Water | PUT | /programmer/domesticHotWater/schedule | Replace one HW weekday |
 | Hot Water | POST | /programmer/domesticHotWater/boost | HW boost |
@@ -880,3 +892,5 @@ are not created from live data. The option defaults to off.
   hot-water overlay versus the unused PUT, Tado X timetable and AC routing,
   quota figures, the rate-limit module path, and the flow-temperature poll
   gap were corrected against the tree.
+- 15 October 2026: Hops 404 stand-in, null `sensorDataPoints` on
+  `TadoXZoneState`, and `NONE` hot-water state left non-controllable.

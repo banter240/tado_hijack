@@ -142,7 +142,7 @@ class TadoXZoneState(BaseModel):
 
     room_id: int = Field(alias="id")
     name: str
-    sensor_data_points: HopsSensorData = Field(alias="sensorDataPoints")
+    sensor_data_points: HopsSensorData | None = Field(None, alias="sensorDataPoints")
     setting: HopsSetting
     heating_power: HopsHeatingPower | None = Field(None, alias="heatingPower")
     connection: HopsConnection | None = None
@@ -161,11 +161,15 @@ class TadoXZoneState(BaseModel):
     @property
     def current_temp(self) -> float | None:
         """Return current temperature."""
+        if not self.sensor_data_points:
+            return None
         return self.sensor_data_points.inside_temperature.value
 
     @property
     def current_humidity(self) -> float | None:
         """Return current humidity."""
+        if not self.sensor_data_points:
+            return None
         return self.sensor_data_points.humidity.percentage
 
     @property

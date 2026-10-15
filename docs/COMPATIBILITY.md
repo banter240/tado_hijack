@@ -13,7 +13,7 @@ The `tadoasync` library uses strict dataclasses for API responses. Several edge 
 
 - **Null `nextTimeBlock` Handling:** Tado's API occasionally returns `null` for the next schedule block instead of an empty object or a valid block. This patch ensures `nextTimeBlock` is converted to an empty dictionary to prevent deserialization crashes.
 - **Hot Water Activity Rescue:** The standard library drops `activityDataPoints` during deserialization. However, this object contains the critical `hotWaterInUse` field. The patch intercepts the raw JSON and injects this data into the `heatingPower` attribute so it can be exposed as a sensor in Home Assistant.
-- **Sensor Data Integrity:** Normalizes missing or empty `sensorDataPoints` to `None` for consistent downstream handling.
+- **Sensor Data Integrity:** Normalizes missing or empty `sensorDataPoints` to `None` on classic `ZoneState`. A Tado X room accepts null on `TadoXZoneState` instead.
 
 ### 2. Energy IQ Meter Reading Fix
 The original `set_meter_readings` method in `tadoasync` was missing required URI components for the Energy IQ endpoint.

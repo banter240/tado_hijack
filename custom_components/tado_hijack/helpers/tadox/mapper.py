@@ -31,8 +31,7 @@ class TadoXMapper:
     async def _fetch_flow_temp_safe(self) -> TadoXFlowTempSettings | None:
         """Fetch flow temperature optimization settings (opt-in, 404-cached).
 
-        Mirrors the hot-water availability pattern: a 404 (no OpenTherm
-        device) is cached so later polls skip the quota-consuming call.
+        A 404 (no OpenTherm device) is cached so later polls skip the call.
         """
         if not self.enable_flow_temp:
             return None

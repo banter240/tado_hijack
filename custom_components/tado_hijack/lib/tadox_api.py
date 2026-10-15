@@ -124,13 +124,11 @@ class TadoXApi:
                 if response.status == http.HTTPStatus.NO_CONTENT:
                     return {"success": True}
                 if response.status == http.HTTPStatus.NOT_FOUND:
-                    _LOGGER.info(
-                        "Hops API returned 404 for %s (no Tado X hardware associated with this account)",
-                        endpoint,
-                    )
-                    # Return minimal valid structure for Pydantic models
+                    _LOGGER.info("Hops API returned 404 for %s", endpoint)
+                    # Stand-in so a missing resource does not fail the poll.
+                    # roomsAndDevices uses otherDevices; a live 200 empty body does too.
                     if "roomsAndDevices" in endpoint:
-                        return {"rooms": [], "devices": []}
+                        return {"rooms": [], "otherDevices": []}
                     return [] if "rooms" in endpoint else {}
 
                 if response.status >= HTTP_BAD_REQUEST:
