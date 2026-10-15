@@ -112,9 +112,9 @@ Throttling skips interval, threshold, and manual calibration. A calibration trig
 
 The zone selects store a `binary_sensor` and a mode, `direct` (default) or `timeout`.
 
-`direct`: open turns the zone off, close resumes the schedule. `timeout` does that and also resumes when the native open-window timeout elapses while the contact is still open. A timeout of 0 is not armed, so disabled open-window detection makes `timeout` behave like `direct`. `on` and `open` count as open. `unavailable` and `unknown` are ignored. A contact that is already open at startup is applied.
+`direct`: open turns the zone off, close restores what was running. `timeout` does that and also restores when the open-window timeout elapses while the contact is still open. A timeout of 0 is not armed, so disabled open-window detection makes `timeout` behave like `direct`. `on` and `open` count as open. `unavailable` and `unknown` are ignored. A contact that is already open at startup is applied.
 
-Cloud resumes are batched by default for 120 seconds. A second zone does not restart the timer. Local HomeKit and Matter climates change immediately; the cloud command is what waits. Snapshots are stored under `window_pre_states`.
+A linked HomeKit or Matter climate is turned off locally, and turned off again if it leaves off while the contact is open. Close and timeout restore the stored setpoint on that climate. No Tado call. A zone with no linked climate, and every zone in full cloud mode, sends one manual cloud off (unlimited in `direct`, the open-window duration in `timeout`). Those cloud resumes are batched by default for 120 seconds. A second zone does not restart the timer. Snapshots are stored under `window_pre_states`.
 
 The native timeout number is minutes, 0–1439, on classic heating zones that report open-window support. Five minutes or more enables it and sends `timeoutInSeconds`. Tado X rooms do not get this number: the room snapshot has no such field. The Hops open-window call exists and ignores a timeout. The external contact selects are still created for Tado X rooms.
 

@@ -20,13 +20,36 @@ from homeassistant.const import (
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, State
 
 from ..const import PROTECTION_MODE_TEMP
 from .logging_utils import get_redacted_logger
 
 _LOGGER = get_redacted_logger(__name__)
 _SKIP = {STATE_UNAVAILABLE, STATE_UNKNOWN}
+
+
+def climate_min_setpoint(state: State | None) -> float:
+    """Minimum setpoint for a climate that has no off mode."""
+    raw = state.attributes.get("min_temp") if state is not None else None
+    if isinstance(raw, int | float):
+        return float(raw)
+    return float(PROTECTION_MODE_TEMP)
+
+
+def climate_is_off(state: State | None) -> bool:
+    """True when the climate is off, or held at its minimum setpoint."""
+    if state is None or state.state in _SKIP:
+        return False
+    modes = state.attributes.get(ATTR_HVAC_MODES) or []
+    if state.state == HVACMode.OFF:
+        return True
+    if HVACMode.OFF in modes:
+        return False
+    target = state.attributes.get(ATTR_TEMPERATURE)
+    if not isinstance(target, int | float):
+        return False
+    return float(target) <= climate_min_setpoint(state) + 0.05
 
 
 async def async_set_off(hass: HomeAssistant, entity_id: str, *, blocking: bool) -> None:
@@ -41,13 +64,10 @@ async def async_set_off(hass: HomeAssistant, entity_id: str, *, blocking: bool) 
             blocking=blocking,
         )
         return
-    min_temp = (
-        state.attributes.get("min_temp") if state else None
-    ) or PROTECTION_MODE_TEMP
     await hass.services.async_call(
         CLIMATE_DOMAIN,
         SERVICE_SET_TEMPERATURE,
-        {ATTR_ENTITY_ID: entity_id, ATTR_TEMPERATURE: min_temp},
+        {ATTR_ENTITY_ID: entity_id, ATTR_TEMPERATURE: climate_min_setpoint(state)},
         blocking=blocking,
     )
 

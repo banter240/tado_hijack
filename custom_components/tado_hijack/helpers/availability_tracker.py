@@ -39,6 +39,8 @@ class AvailabilityTracker:
         self._serial_by_entity: dict[str, str] = {}
         self._available: dict[str, bool] = {}
         self._on_available_callbacks: list[Callable[[str], None]] = []
+        self._on_state_callbacks: list[Callable[[str], None]] = []
+        self._on_map_callbacks: list[Callable[[], None]] = []
         self._unsub: Callable[[], None] | None = None
         self._registry_unsub: Callable[[], None] | None = None
 
@@ -81,6 +83,7 @@ class AvailabilityTracker:
             _LOGGER.info(
                 "AvailabilityTracker tracking %d local climate entities", len(desired)
             )
+        self._notify_map()
 
     @callback
     def _on_registry_update(self, event: Event) -> None:
@@ -119,6 +122,8 @@ class AvailabilityTracker:
         new_state = event.data.get("new_state")
         if not new_state:
             return
+
+        self._notify_state(str(entity_id))
 
         is_available = new_state.state not in _UNAVAILABLE
         was_available = self._available.get(serial, False)
@@ -170,6 +175,40 @@ class AvailabilityTracker:
         if callback in self._on_available_callbacks:
             self._on_available_callbacks.remove(callback)
 
+    def register_on_state(self, callback: Callable[[str], None]) -> None:
+        """Register a callback fired on every tracked climate state change."""
+        if callback not in self._on_state_callbacks:
+            self._on_state_callbacks.append(callback)
+
+    def unregister_on_state(self, callback: Callable[[str], None]) -> None:
+        """Unregister a climate state callback."""
+        if callback in self._on_state_callbacks:
+            self._on_state_callbacks.remove(callback)
+
+    def _notify_state(self, entity_id: str) -> None:
+        for cb in self._on_state_callbacks:
+            try:
+                cb(entity_id)
+            except Exception:
+                _LOGGER.exception("Climate state callback failed for %s", entity_id)
+
+    def register_on_map(self, callback: Callable[[], None]) -> None:
+        """Register a callback fired when the serial-to-climate map changes."""
+        if callback not in self._on_map_callbacks:
+            self._on_map_callbacks.append(callback)
+
+    def unregister_on_map(self, callback: Callable[[], None]) -> None:
+        """Unregister a map-change callback."""
+        if callback in self._on_map_callbacks:
+            self._on_map_callbacks.remove(callback)
+
+    def _notify_map(self) -> None:
+        for cb in self._on_map_callbacks:
+            try:
+                cb()
+            except Exception:
+                _LOGGER.exception("Climate map callback failed")
+
     def shutdown(self) -> None:
         """Stop tracking and cleanup subscriptions."""
         if self._unsub:
@@ -179,6 +218,8 @@ class AvailabilityTracker:
             self._registry_unsub()
             self._registry_unsub = None
         self._on_available_callbacks.clear()
+        self._on_state_callbacks.clear()
+        self._on_map_callbacks.clear()
         self._entity_by_serial.clear()
         self._serial_by_entity.clear()
         self._available.clear()

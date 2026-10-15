@@ -578,8 +578,8 @@
               "offset_cal_window_settle_s": "Pauza po zavření okna"
             },
             "data_description": {
-              "window_resume_batch": "Při zavření okna nebo konci časového limitu se teplota z doby před otevřením hned nastaví na místní klima HomeKit nebo Matter. Pokud běžel plán, odeslání do cloudu počká, aby zóny ve stejném intervalu odešly společně. Pokud plán neběžel, nastaví se jen místně. Výchozí zapnuto.",
-              "window_resume_batch_s": "Sekundy, po které se odeslání do cloudu drží. Místnosti, které se v této době zavřou nebo jim skončí časový limit, jdou v jednom odeslání. Výchozí 120. 0 odešle při dalším průchodu. Platí jen když je fronta zapnutá.",
+              "window_resume_batch": "Propojené klima HomeKit nebo Matter zůstává při otevření, zavření i časovém limitu místní. Zóna bez místního klimatu, včetně režimu full cloud, pošle jedno ruční vypnutí do cloudu a tato volba podrží obnovení plánu, aby tyto místnosti šly v jednom odeslání. Výchozí zapnuto.",
+              "window_resume_batch_s": "Sekundy, po které se drží cloudové obnovení zón bez místního klimatu. Místnosti, které se v této době zavřou nebo jim skončí časový limit, jdou v jednom odeslání. Výchozí 120. 0 odešle při dalším průchodu. Platí jen když je fronta zapnutá.",
               "offset_cal_window_settle_s": "V režimu práh se zóna ignoruje, dokud je její okenní senzor otevřený. Kalibrace podle hodinového intervalu, která v té době vyjde, také počká. Po zavření počkat, než se ventil a čidlo v místnosti srovnají. Výchozí 300 sekund."
             }
           },
@@ -720,8 +720,8 @@
               "offset_cal_window_settle_s": "Pauza po zavření okna"
             },
             "data_description": {
-              "window_resume_batch": "Při zavření okna nebo konci časového limitu se teplota z doby před otevřením hned nastaví na místní klima HomeKit nebo Matter. Pokud běžel plán, odeslání do cloudu počká, aby zóny ve stejném intervalu odešly společně. Pokud plán neběžel, nastaví se jen místně. Výchozí zapnuto.",
-              "window_resume_batch_s": "Sekundy, po které se odeslání do cloudu drží. Místnosti, které se v této době zavřou nebo jim skončí časový limit, jdou v jednom odeslání. Výchozí 120. 0 odešle při dalším průchodu. Platí jen když je fronta zapnutá.",
+              "window_resume_batch": "Propojené klima HomeKit nebo Matter zůstává při otevření, zavření i časovém limitu místní. Zóna bez místního klimatu, včetně režimu full cloud, pošle jedno ruční vypnutí do cloudu a tato volba podrží obnovení plánu, aby tyto místnosti šly v jednom odeslání. Výchozí zapnuto.",
+              "window_resume_batch_s": "Sekundy, po které se drží cloudové obnovení zón bez místního klimatu. Místnosti, které se v této době zavřou nebo jim skončí časový limit, jdou v jednom odeslání. Výchozí 120. 0 odešle při dalším průchodu. Platí jen když je fronta zapnutá.",
               "offset_cal_window_settle_s": "V režimu práh se zóna ignoruje, dokud je její okenní senzor otevřený. Kalibrace podle hodinového intervalu, která v té době vyjde, také počká. Po zavření počkat, než se ventil a čidlo v místnosti srovnají. Výchozí 300 sekund."
             }
           },

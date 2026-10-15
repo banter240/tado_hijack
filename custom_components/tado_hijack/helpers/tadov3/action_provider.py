@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from ...const import BOOST_MODE_TEMP, POWER_OFF, POWER_ON
+from ...const import BOOST_MODE_TEMP, OVERLAY_MANUAL, POWER_OFF, POWER_ON
 from ...models import CommandType, TadoCommand
 from ..ac_overlay import (
     FAN_LEVEL_ALIASES,
@@ -77,6 +77,7 @@ class TadoV3ActionProvider(TadoActionProvider):
             command_key="turn_off_all",
             setting={"power": POWER_OFF},
             action_name="turn off",
+            overlay_mode=OVERLAY_MANUAL,
         )
 
     def _apply_bulk_zone_overlay(
@@ -84,6 +85,7 @@ class TadoV3ActionProvider(TadoActionProvider):
         command_key: str,
         setting: dict[str, Any],
         action_name: str,
+        overlay_mode: str | None = None,
     ) -> None:
         """Apply same overlay setting to all active zones (DRY helper)."""
         zone_ids = self.get_active_zone_ids(include_heating=True, include_ac=True)
@@ -103,6 +105,7 @@ class TadoV3ActionProvider(TadoActionProvider):
                 power=setting.get("power", POWER_ON),
                 temperature=setting.get("temperature", {}).get("celsius"),
                 overlay_type=setting.get("type"),
+                overlay_mode=overlay_mode,
                 supports_temp=self.coordinator.supports_temperature(zone_id),
             )
 

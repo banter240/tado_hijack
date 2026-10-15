@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
@@ -29,7 +30,8 @@ from ..const import (
     DEFAULT_WINDOW_RESUME_BATCH_S,
     MAX_WINDOW_RESUME_BATCH_S,
     MIN_WINDOW_RESUME_BATCH_S,
-    OFF_MAGIC_TEMP,
+    OVERLAY_MANUAL,
+    OVERLAY_TIMER,
     POWER_OFF,
     POWER_ON,
     WINDOW_MODE_DIRECT,
@@ -41,6 +43,7 @@ from .local_climate import (
     async_apply_available,
     async_set_off,
     async_set_temperature,
+    climate_is_off,
 )
 from .logging_utils import get_redacted_logger
 from .optimistic_manager import ZoneOverlayFields
@@ -56,10 +59,10 @@ _OPEN_STATES = {STATE_ON, STATE_OPEN}
 _STORE_KEY = "window_pre_states"
 _PENDING_RESUME = "resume"
 _PENDING_RESTORE = "restore"
-# Manual local-only off has no cloud command to refresh the UI.
-_MANUAL_HOLD_GRACE_S = 7 * 24 * 3600
 # Cloud resume is queued after the hold; keep AUTO on screen until then.
 _RESUME_GRACE_PAD_S = 90
+# Burst of climate reports while a HomeKit off is still in flight.
+_REOFF_COOLDOWN_S = 2.0
 
 
 @dataclass
@@ -98,8 +101,10 @@ class _WindowPreState:
 class WindowController:
     """Drive zone off and resume from linked contact sensors.
 
-    Timeout mode also resumes when the open-window timer ends while the
-    sensor is still open, so a dead battery cannot hold the zone off.
+    A linked climate stays local: off, and off again if it leaves off while
+    the contact is open. Full cloud mode and a zone with no linked climate
+    send one manual cloud off. Timeout mode also resumes when the open-window
+    timer ends while the sensor is still open.
     """
 
     def __init__(self, coordinator: TadoDataUpdateCoordinator) -> None:
@@ -107,6 +112,7 @@ class WindowController:
         self._hass = coordinator.hass
         self._subs: dict[str, Callable[[], None]] = {}
         self._zones_by_sensor: dict[str, set[int]] = defaultdict(set)
+        self._reoff_at: dict[str, float] = {}
         self._timers: dict[int, Callable[..., Any]] = {}
         # Close or the self-heal timer resumes only if this zone was turned off.
         self._off_active: set[int] = set()
@@ -268,9 +274,13 @@ class WindowController:
 
     async def async_start(self) -> None:
         # The local-vs-cloud choice needs the climate map. Starting the tracker
-        # here is safe if recovery also starts it.
+        # here is safe if recovery also starts it. Full cloud mode has no local
+        # climate, so the window path stays on the cloud off below.
         if not self._coordinator.full_cloud_mode:
-            await self._coordinator.availability_tracker.async_start()
+            tracker = self._coordinator.availability_tracker
+            await tracker.async_start()
+            tracker.register_on_map(self._on_climate_map)
+            tracker.register_on_state(self._on_climate_state)
         await self._async_load_snaps()
         if not self._batch_enabled() and any(
             snap.pending for snap in self._snaps.values()
@@ -315,7 +325,12 @@ class WindowController:
             self._start_timer(zone_id)
 
     async def _async_legacy_startup_closed(self, zone_id: int) -> None:
-        """Option off: if a held episode left the cloud off, resume it now."""
+        """Option off: finish a held episode without waiting for a batch."""
+        snap = self._snaps.get(zone_id)
+        if self._uses_local(zone_id) and (snap is None or not snap.cloud_off_sent):
+            if snap is not None:
+                await self._async_finish_local(zone_id, snap, still_open=False)
+            return
         snap = self._snaps.pop(zone_id, None)
         self._schedule_persist()
         if snap is None or snap.released:
@@ -338,6 +353,9 @@ class WindowController:
 
     def shutdown(self) -> None:
         """Release listeners and timers (unload / HA stop). Snapshots stay stored."""
+        tracker = self._coordinator.availability_tracker
+        tracker.unregister_on_map(self._on_climate_map)
+        tracker.unregister_on_state(self._on_climate_state)
         for unsub in self._subs.values():
             unsub()
         self._subs.clear()
@@ -435,14 +453,14 @@ class WindowController:
         )
 
     async def _async_turn_off_legacy(self, zone_id: int) -> None:
-        _LOGGER.info("Window open: setting zone %s off", zone_id)
+        if self._uses_local(zone_id):
+            await self._async_ensure_off(zone_id, assume_schedule=False)
+            return
         self._off_active.add(zone_id)
-        await self._coordinator.async_set_zone_off(
-            zone_id, owd_timeout_s=self._cloud_owd(zone_id)
-        )
+        await self._async_cloud_off(zone_id)
 
     def _cloud_owd(self, zone_id: int) -> float | None:
-        """Timeout handed to recovery so an offline off expires into resume."""
+        """Open-window timeout in seconds, only while the zone mode is timeout."""
         if self.get_zone_window_mode(zone_id) != WINDOW_MODE_TIMEOUT:
             return None
         timeout_s = self._coordinator.get_open_window_timeout_seconds(zone_id)
@@ -494,29 +512,24 @@ class WindowController:
         if snap.released:
             return
         self._off_active.add(zone_id)
-        needs_cloud = snap.schedule_active or not self._local_entity_ids(zone_id)
-        self._mark_off_optimistic(zone_id)
+        local = self._uses_local(zone_id)
         epoch = self._bump(zone_id)
-        await self._async_local_off(zone_id)
+        if local:
+            await self._async_local_off(zone_id)
+            if self._epoch.get(zone_id) != epoch:
+                return
+            self._coordinator.recovery_queue.capture_overlay(
+                zone_id, power=POWER_OFF, temperature=None
+            )
+            _LOGGER.info("Window open: local off zone %s", zone_id)
+            return
+        if self._epoch.get(zone_id) != epoch or snap.cloud_off_sent:
+            return
+        await self._async_cloud_off(zone_id)
         if self._epoch.get(zone_id) != epoch:
             return
-        if needs_cloud:
-            if not snap.cloud_off_sent:
-                _LOGGER.info(
-                    "Window open: cloud off zone %s (schedule=%s)",
-                    zone_id,
-                    snap.schedule_active,
-                )
-                await self._coordinator.async_set_zone_off(
-                    zone_id, owd_timeout_s=self._cloud_owd(zone_id)
-                )
-                snap.cloud_off_sent = True
-                self._schedule_persist()
-            return
-        _LOGGER.info("Window open: local off zone %s (no schedule)", zone_id)
-        self._coordinator.recovery_queue.capture_overlay(
-            zone_id, power=POWER_ON, temperature=OFF_MAGIC_TEMP
-        )
+        snap.cloud_off_sent = True
+        self._schedule_persist()
 
     def _show(
         self,
@@ -531,16 +544,13 @@ class WindowController:
         )
         self._coordinator.async_update_listeners()
 
-    def _mark_off_optimistic(self, zone_id: int) -> None:
-        self._show(
-            zone_id,
-            overlay=True,
-            fields=ZoneOverlayFields(power=POWER_OFF),
-            grace=_MANUAL_HOLD_GRACE_S,
-        )
-
     async def _async_resume(self, zone_id: int, *, still_open: bool) -> None:
         self._off_active.discard(zone_id)
+        snap = self._snaps.get(zone_id)
+        if self._uses_local(zone_id) and (snap is None or not snap.cloud_off_sent):
+            if snap is not None:
+                await self._async_finish_local(zone_id, snap, still_open=still_open)
+            return
         if not self._batch_enabled():
             self._snaps.pop(zone_id, None)
             self._schedule_persist()
@@ -691,8 +701,130 @@ class WindowController:
             zone_id, power=POWER_ON, temperature=snap.temperature
         )
 
+    def _uses_local(self, zone_id: int) -> bool:
+        """True when a HomeKit or Matter climate can hold the zone. False in full cloud mode."""
+        return bool(self._local_entity_ids(zone_id))
+
+    def _hold_active(self, zone_id: int) -> bool:
+        if zone_id not in self._off_active:
+            return False
+        snap = self._snaps.get(zone_id)
+        if snap is not None and snap.released:
+            return False
+        return self.zone_window_is_open(zone_id)
+
+    def _held_zones(self, entity_id: str) -> list[int]:
+        zones: list[int] = []
+        for key in self._sensor_map():
+            zone_id = int(key)
+            if entity_id not in self._local_entity_ids(zone_id):
+                continue
+            if self._hold_active(zone_id):
+                zones.append(zone_id)
+        return zones
+
+    @callback
+    def _on_climate_map(self) -> None:
+        self._hass.async_create_task(self._async_catch_open_holds())
+
+    @callback
+    def _on_climate_state(self, entity_id: str) -> None:
+        zones = self._held_zones(entity_id)
+        if not zones:
+            return
+        state = self._hass.states.get(entity_id)
+        if (
+            state is None
+            or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN)
+            or climate_is_off(state)
+        ):
+            return
+        self._hass.async_create_task(self._async_reoff_entity(entity_id, zones))
+
+    async def _async_catch_open_holds(self) -> None:
+        seen: set[str] = set()
+        for key in self._sensor_map():
+            zone_id = int(key)
+            if not self._hold_active(zone_id):
+                continue
+            for entity_id in self._local_entity_ids(zone_id):
+                if entity_id in seen:
+                    continue
+                seen.add(entity_id)
+                state = self._hass.states.get(entity_id)
+                if state is None or climate_is_off(state):
+                    continue
+                if state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+                    continue
+                await self._async_reoff_entity(entity_id, [zone_id])
+
+    async def _async_reoff_entity(self, entity_id: str, zones: list[int]) -> None:
+        now = time.monotonic()
+        if now - self._reoff_at.get(entity_id, 0.0) < _REOFF_COOLDOWN_S:
+            return
+        self._reoff_at[entity_id] = now
+        _LOGGER.info(
+            "Window still open: turning %s off again (zones %s)",
+            entity_id,
+            sorted(zones),
+        )
+        try:
+            await async_set_off(self._hass, entity_id, blocking=False)
+        except Exception:
+            _LOGGER.warning(
+                "Local window re-off failed for %s", entity_id, exc_info=True
+            )
+
+    async def _async_finish_local(
+        self, zone_id: int, snap: _WindowPreState, *, still_open: bool
+    ) -> None:
+        if snap.released:
+            if not still_open and not snap.pending:
+                self._snaps.pop(zone_id, None)
+                self._schedule_persist()
+            return
+        snap.pending = None
+        self._disarm_if_idle()
+        if still_open:
+            snap.released = True
+        epoch = self._bump(zone_id)
+        await self._async_restore_local(zone_id, snap)
+        if self._epoch.get(zone_id) != epoch:
+            return
+        self._coordinator.optimistic.clear_zone(zone_id)
+        self._coordinator.async_update_listeners()
+        _LOGGER.info(
+            "Window %s: local restore zone %s",
+            "timeout" if still_open else "closed",
+            zone_id,
+        )
+        if not still_open:
+            self._snaps.pop(zone_id, None)
+        self._schedule_persist()
+
+    async def _async_cloud_off(self, zone_id: int) -> None:
+        """Unlimited manual off, or the open-window duration in timeout mode.
+
+        Same call as ``set_mode`` with ``hvac_mode: off`` and ``overlay: manual``.
+        A duration becomes a timer. Full cloud mode always uses this path.
+        """
+        timeout_s = self._cloud_owd(zone_id)
+        minutes = int(timeout_s // 60) if timeout_s else None
+        _LOGGER.info(
+            "Window open: cloud off zone %s (%s)",
+            zone_id,
+            f"{minutes}min" if minutes else "unlimited",
+        )
+        await self._coordinator.async_set_zone_hvac_mode(
+            zone_id,
+            "off",
+            duration=minutes,
+            overlay_mode=OVERLAY_TIMER if minutes else OVERLAY_MANUAL,
+            refresh_after=False,
+        )
+
     async def _async_local_off(self, zone_id: int) -> None:
-        """Shut linked TRVs now. The cloud off may still be in debounce."""
+        """Turn linked climates off."""
         await async_apply_available(
             self._hass,
             self._local_entity_ids(zone_id),

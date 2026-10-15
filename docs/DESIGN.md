@@ -230,7 +230,7 @@ dew_point = (243.5 * gamma) / (17.67 - gamma)
 | `DEFAULT_OFFSET_POLL_INTERVAL` | 0 | device offset poll (off). Calibration polls only when unknown. |
 | `DEFAULT_OFFSET_CAL_SEND_COOLDOWN_S` | 300 s | threshold mode: wait after an offset write |
 | `DEFAULT_OFFSET_CAL_WINDOW_SETTLE_S` | 300 s | threshold mode: wait after the window closes |
-| `DEFAULT_WINDOW_RESUME_BATCH` | on | hold cloud resume after a window; local setpoint is immediate |
+| `DEFAULT_WINDOW_RESUME_BATCH` | on | hold cloud resume after a window when the zone has no linked climate |
 | `DEFAULT_WINDOW_RESUME_BATCH_S` | 120 s | how long that hold lasts (0 sends on the next pass) |
 | `RECOVERY_BATCH_DEBOUNCE_S` | 0.2 s | window for grouping TRVs that recover together |
 | `DEFAULT_RECOVERY_CLOUD_REPLAY` | on | resend cloud-only resume when a TRV returns |
