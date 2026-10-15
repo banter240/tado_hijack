@@ -147,7 +147,7 @@ def patch_zone_state_deserialization() -> None:
             if original_pre_deserialize:
                 d = original_pre_deserialize(d)
 
-            # Fix 1: Ensure sensorDataPoints is never None
+            # Classic ZoneState only. A missing or empty sensorDataPoints stays None.
             if not d.get("sensorDataPoints"):
                 d["sensorDataPoints"] = None
 

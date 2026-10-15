@@ -48,7 +48,7 @@ def parse_temperature_offset(device: TadoXDevice | None) -> float | None:
 
 def _get_humidity(state: TadoXZoneState | None) -> float | None:
     """Extract current relative humidity (%) from Tado X zone state."""
-    if not state:
+    if not state or not state.sensor_data_points:
         return None
     rh = state.sensor_data_points.humidity.percentage
     return float(rh) if rh is not None else None
