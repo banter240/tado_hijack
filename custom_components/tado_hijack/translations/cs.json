@@ -485,7 +485,8 @@
       "wait_for_device": "Pro ověření otevřete následující odkaz a přihlaste se k Tado:\n\n{url}\n\nPokud se kód nezkopíroval automaticky, vložte následující kód pro autorizaci integrace:\n\n### {code}\n\nPokus o přihlášení vyprší za pět minut."
     },
     "abort": {
-      "already_configured": "Účet je již nakonfigurován.",
+      "already_configured": "Tato domácnost je již nakonfigurována.",
+      "all_homes_configured": "Všechny domácnosti tohoto účtu jsou už nastavené.",
       "could_not_authenticate": "Nepodařilo se ověřit účet Tado.",
       "no_homes_returned": "Ověření selhalo: Tado API nevrátilo žádné 'domácnosti' spojené s vaším účtem. Otevřete oficiální aplikaci Tado a zkontrolujte, zda nemusíte přijmout nové podmínky nebo dokončit nastavení domácnosti. Pokud problém přetrvává, nahlaste to na GitHubu.",
       "no_homes": "S tímto Tado účtem nejsou spojeny žádné domácnosti.",
@@ -497,6 +498,26 @@
     "step": {
       "user": {
         "title": "Propojit Tado Hijack",
+        "data": {
+          "generation": "Generace hardwaru Tado",
+          "full_cloud_mode": "Plný cloudový režim",
+          "fetch_extended_data": "Stáhnout rozšířená data"
+        },
+        "data_description": {
+          "full_cloud_mode": "Povolit ovládání teploty přes cloudové dotazování.\n\n**Povinné pro V2 bridge (GW)**, protože nepodporují HomeKit. U V3 (IB01/GW01) a Tado X nechte vypnuté a použijte místo toho HomeKit/Matter.",
+          "fetch_extended_data": "Stáhnout rozšířená data během **prvotního nastavení**. Stojí: **1 API dotaz na zařízení** (teplotní odchylka) + **1 API dotaz na topnou zónu** (teplota mimo domov). Po úvodním načtení se data stahují podle nastavených intervalů. Vypněte pro ušetření kvóty."
+        }
+      },
+      "select_home": {
+        "title": "Vybrat domácnost",
+        "description": "Vyberte jednu domácnost. Už přidané domácnosti se v seznamu nezobrazují. Integraci přidejte znovu a přihlaste se stejným účtem pro další domácnost.",
+        "data": {
+          "home_id": "Domácnost"
+        }
+      },
+      "hardware": {
+        "title": "Nastavit tuto domácnost",
+        "description": "Tato nastavení platí pro vybranou domácnost. Generace se otevře podle hodnoty, kterou domácnost hlásí.",
         "data": {
           "generation": "Generace hardwaru Tado",
           "full_cloud_mode": "Plný cloudový režim",

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
@@ -25,6 +26,7 @@ from homeassistant.helpers.selector import (
     SelectSelectorMode,
     TimeSelector,
 )
+from homeassistant.util import slugify
 from tadoasync import Tado, TadoError
 from yarl import URL
 
@@ -40,6 +42,7 @@ from .const import (
     CONF_FETCH_EXTENDED_DATA,
     CONF_FULL_CLOUD_MODE,
     CONF_GENERATION,
+    CONF_HOME_ID,
     CONF_JITTER_PERCENT,
     CONF_LOG_LEVEL,
     CONF_LOG_VERSION_PREFIX,
@@ -111,12 +114,24 @@ from .const import (
     MIN_SLOW_POLL_INTERVAL,
     MIN_WINDOW_RESUME_BATCH_S,
 )
+from .entity import entry_home_label
 from .helpers.logging_utils import get_redacted_logger
 from .lib.patches import apply_patches
 
 apply_patches()
 
 _LOGGER = get_redacted_logger(__name__)
+
+
+def _home_choice_labels(homes: list[tuple[int, str]]) -> dict[str, str]:
+    """Dropdown labels. A repeated home name keeps the home id so it can be told apart."""
+    counts: dict[str, int] = {}
+    for _, name in homes:
+        counts[name] = counts.get(name, 0) + 1
+    return {
+        str(home_id): name if counts[name] == 1 else f"{name} ({home_id})"
+        for home_id, name in homes
+    }
 
 
 class TadoHijackCommonFlow:
@@ -656,11 +671,61 @@ class TadoHijackConfigFlow(
         """Initialize config flow."""
         self._data: dict[str, Any] = {}
         self._generation: str | None = None
+        self._homes: list[tuple[int, str]] = []
+        self._chosen_home: tuple[int, str] | None = None
+
+    def _configured_home_ids(self) -> set[str]:
+        """Home ids that already have an entry."""
+        found: set[str] = set()
+        for entry in self._async_current_entries():
+            if entry.unique_id and str(entry.unique_id).isdigit():
+                found.add(str(entry.unique_id))
+            raw = entry.data.get(CONF_HOME_ID)
+            if raw is not None:
+                found.add(str(raw))
+        return found
+
+    def _available_homes(self, homes: list[tuple[int, str]]) -> list[tuple[int, str]]:
+        """Homes that can still be added."""
+        taken = self._configured_home_ids()
+        return [home for home in homes if str(home[0]) not in taken]
+
+    async def _async_generation_for_home(self, home_id: int) -> str:
+        """Default the generation form from the home. ``LINE_X`` is Tado X."""
+        if self.tado is None:
+            return GEN_CLASSIC
+        try:
+            raw = await self.tado._request(f"homes/{home_id}")
+            detail = json.loads(raw)
+        except TadoError, TypeError, ValueError:
+            _LOGGER.debug("Home generation lookup failed")
+            return GEN_CLASSIC
+        if isinstance(detail, dict) and detail.get("generation") == "LINE_X":
+            return GEN_X
+        return GEN_CLASSIC
+
+    async def _async_open_home_setup(
+        self, home: tuple[int, str] | None
+    ) -> ConfigFlowResult:
+        """Store the home, then show its settings."""
+        self._chosen_home = home
+        self._generation = (
+            GEN_CLASSIC
+            if home is None
+            else await self._async_generation_for_home(home[0])
+        )
+        return await self.async_step_hardware()
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Step 1: Choice of Tado Generation and Cloud Mode."""
+        """Log in first so the account's homes can be listed."""
+        return await self.async_step_tado_auth()
+
+    async def async_step_hardware(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Generation and cloud settings for the home just chosen."""
         if user_input is not None:
             self._generation = user_input[CONF_GENERATION]
             self._data[CONF_FULL_CLOUD_MODE] = user_input.get(
@@ -672,10 +737,12 @@ class TadoHijackConfigFlow(
             return await self.async_step_init()
 
         return self.async_show_form(
-            step_id="user",
+            step_id="hardware",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_GENERATION, default=GEN_CLASSIC): SelectSelector(
+                    vol.Required(
+                        CONF_GENERATION, default=self._generation or GEN_CLASSIC
+                    ): SelectSelector(
                         SelectSelectorConfig(
                             options=[GEN_CLASSIC, GEN_X],
                             mode=SelectSelectorMode.LIST,
@@ -709,7 +776,7 @@ class TadoHijackConfigFlow(
         if not api_proxy_token:
             self._data[CONF_PROXY_TOKEN] = None
 
-        if api_proxy_url:
+        if api_proxy_url and not self.refresh_token:
             _LOGGER.info("Proxy detected, skipping Tado Cloud Auth")
             self.refresh_token = "proxy_managed"
             await self.async_set_unique_id(f"proxy_{api_proxy_url}")
@@ -719,6 +786,8 @@ class TadoHijackConfigFlow(
                 data={CONF_REFRESH_TOKEN: self.refresh_token, **self._data},
             )
 
+        if self.refresh_token:
+            return await self._async_create_home_entry(self._chosen_home)
         return await self.async_step_tado_auth()
 
     async def async_step_tado_auth(
@@ -786,22 +855,20 @@ class TadoHijackConfigFlow(
         """Show error that the API returned no homes."""
         return self.async_abort(reason="no_homes_returned")
 
+    async def _async_load_homes(self) -> list[tuple[int, str]]:
+        """Homes on this account. ``GET /me`` returns every home, not one."""
+        if self._homes:
+            return self._homes
+        if self.tado is None:
+            return []
+        tado_me = await self.tado.get_me()
+        self._homes = [(home.id, home.name) for home in tado_me.homes]
+        return self._homes
+
     async def async_step_finish_login(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Complete login and create entry."""
-        # Use simple title for Tado X, detailed for v3
-        title = "Tado X Home"
-        if self.tado:
-            tado_me = await self.tado.get_me()
-            if tado_me.homes:
-                home = tado_me.homes[0]
-                await self.async_set_unique_id(str(home.id))
-                title = f"Tado {home.name}"
-
-        # Store generation as-is (no detection needed)
-        self._data[CONF_GENERATION] = self._generation
-
+        """After login, pick one free home, then its settings."""
         if self.source == config_entries.SOURCE_REAUTH:
             reauth_entry = self._get_reauth_entry()
             return self.async_update_reload_and_abort(
@@ -809,8 +876,71 @@ class TadoHijackConfigFlow(
                 data={**reauth_entry.data, CONF_REFRESH_TOKEN: self.refresh_token},
             )
 
-        self._abort_if_unique_id_configured()
+        homes = await self._async_load_homes()
+        available = self._available_homes(homes)
+        if homes and not available:
+            return self.async_abort(reason="all_homes_configured")
+        if len(homes) <= 1:
+            only = available[0] if available else None
+            return await self._async_open_home_setup(only)
+        return await self.async_step_select_home()
 
+    async def async_step_select_home(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Pick one home that is not set up yet."""
+        homes = self._available_homes(await self._async_load_homes())
+        if not homes:
+            return self.async_abort(reason="all_homes_configured")
+        if user_input is not None:
+            selected = int(user_input[CONF_HOME_ID])
+            if str(selected) in self._configured_home_ids():
+                return self.async_abort(reason="already_configured")
+            home = next((item for item in homes if item[0] == selected), None)
+            if home is None:
+                return self.async_abort(reason="no_homes")
+            return await self._async_open_home_setup(home)
+
+        return self.async_show_form(
+            step_id="select_home",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_HOME_ID): vol.In(_home_choice_labels(homes)),
+                }
+            ),
+        )
+
+    def _available_title(self, name: str) -> str:
+        """Title that does not share a name slug with an entry already added."""
+        base = f"Tado {name}"
+        entries = self._async_current_entries()
+        used_titles = {entry.title for entry in entries}
+        used_slugs = {slugify(entry_home_label(entry)) or "home" for entry in entries}
+
+        def taken(title: str) -> bool:
+            label = title[5:].strip() if title.startswith("Tado ") else title
+            return title in used_titles or (slugify(label) or "home") in used_slugs
+
+        if not taken(base):
+            return base
+        number = 2
+        while taken(f"{base} {number}"):
+            number += 1
+        return f"{base} {number}"
+
+    async def _async_create_home_entry(
+        self, home: tuple[int, str] | None
+    ) -> ConfigFlowResult:
+        """Create the entry for one home. The same home cannot be added twice."""
+        title = "Tado X Home"
+        if home is not None:
+            home_id, name = home
+            await self.async_set_unique_id(str(home_id))
+            self._abort_if_unique_id_configured()
+            title = self._available_title(name)
+            self._data[CONF_HOME_ID] = home_id
+
+        self._data[CONF_GENERATION] = self._generation
         return self.async_create_entry(
             title=title,
             data={CONF_REFRESH_TOKEN: self.refresh_token, **self._data},

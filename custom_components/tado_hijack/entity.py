@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING, cast
 
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.restore_state import RestoreEntity
@@ -23,6 +25,78 @@ from .const import (
 )
 from .helpers.device_linker import get_local_device
 from .models import TadoEntityDefinition
+
+
+def entry_home_label(entry: ConfigEntry) -> str:
+    """Entry title without the leading Tado marker. This is the name prefix."""
+    title = (entry.title or "").strip()
+    if title.startswith("Tado "):
+        title = title[5:].strip()
+    return title or "Home"
+
+
+def home_object_slug(hass: HomeAssistant, entry: ConfigEntry) -> str:
+    """Slug used in entity ids. A repeated home name keeps the entry id tail."""
+    slug = slugify(entry_home_label(entry)) or "home"
+    for other in hass.config_entries.async_entries(DOMAIN):
+        if other.entry_id == entry.entry_id:
+            continue
+        other_slug = slugify(entry_home_label(other)) or "home"
+        if other_slug == slug:
+            return f"{slug}_{entry.entry_id[-4:].lower()}"
+    return slug
+
+
+def zone_name_used_elsewhere(
+    hass: HomeAssistant, entry_id: str, zone_name: str
+) -> bool:
+    """True when another configured home has a room with this name."""
+    needle = zone_name.casefold()
+    for other in hass.config_entries.async_entries(DOMAIN):
+        if other.entry_id == entry_id:
+            continue
+        coordinator = getattr(other, "runtime_data", None)
+        zones = getattr(coordinator, "zones_meta", None)
+        if not zones:
+            continue
+        for meta in zones.values():
+            name = getattr(meta, "name", None)
+            if name and str(name).casefold() == needle:
+                return True
+    return False
+
+
+def zone_device_name(hass: HomeAssistant, entry: ConfigEntry, zone_name: str) -> str:
+    """Room name. The home name is added when another home uses the same room."""
+    if zone_name_used_elsewhere(hass, entry.entry_id, zone_name):
+        return f"{entry_home_label(entry)} {zone_name}"
+    return zone_name
+
+
+def sync_shared_room_device_names(hass: HomeAssistant) -> None:
+    """Rename zone devices that share a room name with another home.
+
+    A name the user set on the device stays as it is.
+    """
+    registry = dr.async_get(hass)
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        coordinator = getattr(entry, "runtime_data", None)
+        zones = getattr(coordinator, "zones_meta", None)
+        if not zones:
+            continue
+        for zone_id, meta in zones.items():
+            raw_name = getattr(meta, "name", None)
+            if not raw_name:
+                continue
+            device = registry.async_get_device(
+                identifiers={(DOMAIN, f"{entry.entry_id}_zone_{zone_id}")}
+            )
+            if device is None or device.name_by_user:
+                continue
+            wanted = zone_device_name(hass, entry, str(raw_name))
+            if device.name != wanted:
+                registry.async_update_device(device.id, name=wanted)
+
 
 if TYPE_CHECKING:
     from typing import Any
@@ -231,14 +305,12 @@ class TadoEntity(CoordinatorEntity):
             else self._entity_id_include_context
         )
 
-        title = (
-            self.coordinator.config_entry.title
-            if self.coordinator.config_entry
+        entry = self.coordinator.config_entry
+        home_slug = (
+            home_object_slug(self.coordinator.hass, entry)
+            if entry is not None
             else "home"
         )
-        if title.startswith("Tado "):
-            title = title[5:]
-        home_slug = slugify(title)
 
         # For zone/device entities, add the context ID to the slug
         suffix = f"_{key}"
@@ -457,7 +529,11 @@ class TadoZoneEntity(TadoEntity):
                     f"{self.coordinator.config_entry.entry_id}_zone_{self._zone_id}",
                 )
             },
-            name=self._zone_name,
+            name=zone_device_name(
+                self.coordinator.hass,
+                self.coordinator.config_entry,
+                self._zone_name,
+            ),
             manufacturer="Tado",
             model=model,
         )
@@ -488,7 +564,6 @@ class TadoHotWaterZoneEntity(TadoEntity):
         """Return device info for the hot water zone."""
         if self.coordinator.config_entry is None:
             raise RuntimeError("Config entry not available")
-        # Use zone name directly - Tado typically names it "Hot Water" already
         return DeviceInfo(
             identifiers={
                 (
@@ -496,7 +571,11 @@ class TadoHotWaterZoneEntity(TadoEntity):
                     f"{self.coordinator.config_entry.entry_id}_zone_{self._zone_id}",
                 )
             },
-            name=self._zone_name,
+            name=zone_device_name(
+                self.coordinator.hass,
+                self.coordinator.config_entry,
+                self._zone_name,
+            ),
             manufacturer="Tado",
             model="Hot Water Zone",
         )

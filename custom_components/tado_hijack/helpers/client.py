@@ -32,6 +32,13 @@ class TadoHijackClient(Tado):
         self.proxy_token = proxy_token
         self._on_token_rotated: Callable[[str], None] | None = None
 
+    def use_home(self, home_id: int) -> None:
+        """Point later calls at this home.
+
+        tadoasync always starts on the first home returned for the account.
+        """
+        self._home_id = home_id
+
     def set_on_token_rotated(self, callback: Callable[[str], None] | None) -> None:
         self._on_token_rotated = callback
 
