@@ -1,3 +1,173 @@
+## [5.11.0-dev.1](https://github.com/banter240/tado_hijack/compare/v5.10.0...v5.11.0-dev.1) (2026-10-15)
+
+### ✨ New Features
+
+* feat(schedule): cache weekly plans and refresh them after the quota reset
+
+  The four planning sensors followed the zone poll. During a manual
+  overlay Tado omits the next schedule change, so they stayed unknown.
+  They now read the same week cache as the calendar. A local timer
+  refreshes them when the next block starts.
+
+  General polling can fetch every zone plan once after the quota reset.
+  The fetch is off by default. One call per zone. Classic uses two calls
+  until the timetable id is known. Those GETs stay in the daily background
+  reserve. The option text does not spell that out.
+
+  issue 153
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🐛 FIXED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - next schedule change, temperature, mode, and the next block start
+    read the cached week
+  - a local timer refreshes them at the next block boundary
+  - classic and Tado X share one sensor each
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ✨ ADDED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - checkbox under general polling intervals, default off
+  - the reset poll fetches plans once, with a 20 hour gap
+  - auto quota counts those GETs in the daily background reserve
+* feat(schedule): write the Tado X hot water week
+
+  Tado X hot water already had boost and resume. The weekly ON/OFF
+  blocks were missing. One PUT per weekday goes to
+  programmer/domesticHotWater/schedule. Power is ON or OFF and has no
+  temperature. The zone calendar and the fetch button use the same
+  plan cache as the heating rooms. A write updates that cache only
+  after Tado accepts it.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🔧 CHANGED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - set_schedule on the hot water entity writes one weekday per call
+  - the zone calendar shows ON blocks without a temperature
+  - a fetch button reads the week on demand
+  - the programmer check, the zone list, and the week endpoint share
+    one helper each
+  - README, FEATURES, COMPATIBILITY, and TADO_API describe the week
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🌐 TRANSLATIONS
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - en, de, and cs say the hot water blocks take power ON or OFF
+* feat: set up each home on one Tado account
+
+  Setup logs in, lists the free homes, and you pick one. Settings
+  belong to that home. The generation form opens on what the home
+  reports. Add the integration again for the next home. A home that
+  is already set up is left out, and a duplicate still aborts.
+
+  Each add is its own device login and stores its own refresh token.
+  Tado invalidates a refresh token when it is used, so a copied token
+  fails the other home on the next refresh.
+
+  A repeated room name is shown with the home name in front. Two homes
+  with the same name get separate entry titles, and that title is the
+  entity id prefix. HomeKit and Matter keep the linked valve names.
+
+  The readme names V2, V3 Classic, and Tado X in the header and lists
+  several homes as a feature. Issue 154.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ✨ ADDED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - home picker when the account returns more than one home
+  - already set up homes are left out of that list
+  - entry title suffix when two homes share a name
+  - home name on a room device when that room exists in another home
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🔧 CHANGED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - startup uses the home stored on the entry
+  - login comes before the home list, then that home's settings
+  - service routing text no longer calls this multi-account
+
+### 🐛 Bug Fixes
+
+* fix: accept a disconnected Tado X room
+
+  A room from GET rooms can send sensorDataPoints null. The zone model
+  accepts that, and temperature and humidity stay unknown. A Hops 404
+  returns the stand-in the models already parse. roomsAndDevices uses
+  otherDevices.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🐛 FIXED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - TadoXZoneState.sensor_data_points is optional
+  - temperature and humidity stay unknown when that block is missing
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🔧 CHANGED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - the 404 log names the endpoint
+  - the roomsAndDevices stand-in uses otherDevices
+  - TADO_API matches the stand-in the client returns
+* fix(capabilities): restore AC modes from the stored cache
+
+  tadoasync writes Python field names and reads API aliases. A cache
+  saved by 5.10.0 came back with cool, heat, dry and fan empty, so the
+  climate kept only off and auto. One helper renames the names on save
+  and on load, including a cache that is already stored. The log-level
+  loop copies the logger map before it walks it.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🐛 FIXED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - stored capabilities round-trip through with_api_aliases
+  - a 5.10.0 cache still loads, and the next save writes the API names
+  - set_redacted_log_level no longer walks loggerDict while it changes
+* fix(early-start): keep a known switch state across metadata refresh
+
+  Classic early start was write-only. tadoasync Zone has no field, so a
+  metadata refresh rebuilt the zone and the switch fell back to off.
+  The switch state is the value. A GET runs only when that state is
+  unknown, or on a full refresh. Writes stay in the command batch, one
+  PUT per zone.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🐛 FIXED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - a known early start is copied back onto the zone after metadata
+    replace. Unknown stays unknown and is not treated as off
+  - the cloud is read only when no local state is known, and on a full
+    refresh. The daily hardware sync does not reserve those GETs
+  - a failed PUT restores the previous value
+  - README, FEATURES, ARCHITECTURE, and TADO_API describe that read
+* fix(window): hold a linked climate off while the window is open
+
+  A linked HomeKit or Matter climate stays off locally for the whole
+  open window. If it leaves off, it is turned off again. Close and the
+  timeout restore the stored setpoint. No Tado call. A zone with no
+  linked climate, including full cloud mode, sends one manual cloud off.
+  Direct has no end. Timeout sends that zone's open-window duration.
+
+  issue 152
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🐛 FIXED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - local open, close, and timeout stay on the linked climate
+  - a climate that leaves off while the window is open is turned off again
+  - full cloud mode and a zone with no climate send one manual cloud off
+  - turn off all stays an unlimited manual overlay
+  - cloud resumes still batch when that hold is on
+
 ## [5.10.0](https://github.com/banter240/tado_hijack/compare/v5.9.0...v5.10.0) (2026-10-11)
 
 ### ✨ New Features
