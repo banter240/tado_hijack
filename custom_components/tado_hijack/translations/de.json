@@ -485,7 +485,8 @@
       "wait_for_device": "Um dich zu authentifizieren, öffne die folgende URL und melde dich bei Tado an:\n\n{url}\n\nFalls der Code nicht automatisch übernommen wird, gib diesen Code ein, um die Integration zu autorisieren:\n\n### {code}\n\nDer Anmeldeversuch wird nach fünf Minuten abgebrochen."
     },
     "abort": {
-      "already_configured": "Konto ist bereits konfiguriert.",
+      "already_configured": "Dieses Haus ist bereits konfiguriert.",
+      "all_homes_configured": "Alle Häuser dieses Kontos sind schon eingerichtet.",
       "could_not_authenticate": "Authentifizierung bei Tado fehlgeschlagen.",
       "no_homes_returned": "Authentifizierung fehlgeschlagen: Die Tado API hat keine 'Häuser' (homes) für dein Konto zurückgegeben. Bitte öffne die offizielle Tado-App und prüfe, ob du neue Nutzungsbedingungen akzeptieren musst oder dein Zuhause noch nicht fertig eingerichtet ist. Falls das Problem bestehen bleibt, melde dich bitte auf GitHub.",
       "no_homes": "Mit diesem Tado-Konto sind keine Häuser verknüpft.",
@@ -497,6 +498,26 @@
     "step": {
       "user": {
         "title": "Tado Hijack verknüpfen",
+        "data": {
+          "generation": "Tado Hardware-Generation",
+          "full_cloud_mode": "Vollständiger Cloud-Modus",
+          "fetch_extended_data": "Erweiterte Daten laden"
+        },
+        "data_description": {
+          "full_cloud_mode": "Klimasteuerung über die Cloud aktivieren.\n\n**Nötig für V2-Bridges (GW)**, weil sie kein HomeKit unterstützen. Für V3 (IB01/GW01) und Tado X aus lassen und stattdessen HomeKit oder Matter nutzen.",
+          "fetch_extended_data": "Lädt zusätzliche Daten während der **ersten Einrichtung**. Kosten: **1 API-Aufruf pro Gerät** (Temperatur-Offset) + **1 API-Aufruf pro Heizzone** (Abwesenheitstemperatur). Danach gelten die eingestellten Intervalle. Aus, um Kontingent zu sparen."
+        }
+      },
+      "select_home": {
+        "title": "Haus wählen",
+        "description": "Ein Haus auswählen. Häuser, die schon eingerichtet sind, stehen nicht in der Liste. Die Integration danach noch einmal hinzufügen und sich mit demselben Konto anmelden, um das nächste einzurichten.",
+        "data": {
+          "home_id": "Haus"
+        }
+      },
+      "hardware": {
+        "title": "Dieses Haus einrichten",
+        "description": "Diese Einstellungen gelten für das gewählte Haus. Die Generation startet mit dem Wert, den das Haus meldet.",
         "data": {
           "generation": "Tado Hardware-Generation",
           "full_cloud_mode": "Vollständiger Cloud-Modus",

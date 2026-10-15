@@ -10,7 +10,7 @@ from homeassistant.components.calendar import CalendarEntity, CalendarEvent
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 
-from .entity import TadoZoneEntity
+from .entity import TadoZoneEntity, entry_home_label, zone_name_used_elsewhere
 from .helpers.schedule import (
     PLAN_LOOKAHEAD,
     iter_heat_windows,
@@ -27,7 +27,9 @@ if TYPE_CHECKING:
     from .coordinator import TadoDataUpdateCoordinator
 
 
-def _weekly_plan_title(zone_name: str, language: str | None) -> str:
+def _weekly_plan_title(
+    zone_name: str, language: str | None, home_label: str | None = None
+) -> str:
     """Full calendar name: Tado <room> Weekly Plan (localized suffix)."""
     lang = (language or "en").lower()
     if lang.startswith("de"):
@@ -36,7 +38,8 @@ def _weekly_plan_title(zone_name: str, language: str | None) -> str:
         suffix = "týdenní plán"
     else:
         suffix = "Weekly Plan"
-    return f"Tado {zone_name} {suffix}"
+    room = f"{home_label} {zone_name}" if home_label else zone_name
+    return f"Tado {room} {suffix}"
 
 
 def _as_local(value: datetime) -> datetime:
@@ -122,18 +125,34 @@ class TadoZonePlanCalendar(TadoZoneEntity, CalendarEntity):
         )
         self._attr_unique_id = f"{entry_id}_zone_{zone_id}_zone_plan"
         language = coordinator.hass.config.language if coordinator.hass else None
-        self._attr_name = _weekly_plan_title(zone_name, language)
+        self._language = language
+        self._apply_plan_name()
         self._set_entity_id("calendar", "zone_plan")
+
+    def _apply_plan_name(self) -> None:
+        """Use the room name. Add the home name when another home has that room."""
+        entry = self.coordinator.config_entry
+        home_label = None
+        if entry is not None and zone_name_used_elsewhere(
+            self.coordinator.hass, entry.entry_id, self._zone_name
+        ):
+            home_label = entry_home_label(entry)
+        self._plain_plan_name = _weekly_plan_title(self._zone_name, self._language)
+        self._attr_name = _weekly_plan_title(
+            self._zone_name, self._language, home_label
+        )
 
     async def async_added_to_hass(self) -> None:
         """Keep the full Tado <room> name; HA would otherwise prefix the zone device."""
         await super().async_added_to_hass()
+        self._apply_plan_name()
         registry = er.async_get(self.hass)
-        entry = registry.async_get(self.entity_id)
+        current = registry.async_get(self.entity_id)
         wanted = self._attr_name
-        if entry is None or wanted is None or entry.name is not None:
+        if current is None or wanted is None:
             return
-        registry.async_update_entity(self.entity_id, name=wanted)
+        if current.name in (None, self._plain_plan_name) and current.name != wanted:
+            registry.async_update_entity(self.entity_id, name=wanted)
 
     def _plan_entry(self) -> dict[str, Any]:
         plan = self.coordinator.data_manager.schedule_blocks_cache.get(self._zone_id)

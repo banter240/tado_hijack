@@ -23,6 +23,8 @@
 
 **An optimized Tado integration designed to handle strict API limits through intelligent quota management and command batching.**
 
+V2, V3 Classic, and Tado X.
+
 </div>
 
 <br>
@@ -60,6 +62,7 @@ The TRV stays on HomeKit (V3) or Matter (Tado X). Hijack attaches child lock, of
 - **Auto API Quota:** Dynamically adjusts polling intervals based on your remaining daily API calls and detects your account's specific reset time.
 - **Command Batching:** Classic zones in one window share one call. Tado X is one call per room, or one quick action when the whole heating batch matches.
 - **Multi-Generation Support:** Full support for V2 (GW bridges), V3 Classic (HomeKit), and Tado X (Matter) within a unified architecture.
+- **Several homes:** One account can hold more than one home, on V2, V3 Classic, and Tado X. Setup logs in, you pick one, and the next home is another add with its own login.
 - **Device Unification:** Cloud features attach to the HomeKit or Matter TRV when the serial matches. Details are under [The Local "Missing Link"](#the-local-missing-link).
 - **Indoor Climate Sensors:** Calculates dew point, absolute humidity, and mold risk per zone.
 - **Offset from an external temperature:** A linked sensor is compared with the TRV and the offset is written. Off until you choose an interval. [How it runs](#offset-from-an-external-temperature).
@@ -368,7 +371,7 @@ Tado Hijack is now an **official HACS integration**! No custom repository needed
 2. Search for **"Tado Hijack"** and click **Download**.
 3. **Restart Home Assistant**.
 4. Go to **Settings** -> **Devices & Services** -> **Add Integration** -> Search for **"Tado Hijack"**.
-5. **Select your hardware generation** (determined by your physical Tado bridge):
+5. Log in at Tado. If the account has more than one home, pick one. A home that is already set up is left out of the list. Then **select the hardware generation** (the form opens on the generation that home reports):
    - **Tado v3 Classic** - If you own an **IB01** or **GW01** bridge (black square box)
    - **Tado X** - If you own a **Bridge X (IB02)** or a **Wireless Receiver X (PR04)** (newer Matter-based system)
 
@@ -377,6 +380,11 @@ Tado Hijack is now an **official HACS integration**! No custom repository needed
 > [!IMPORTANT]
 > **Hardware Generation:**
 > Select your generation during setup based on your physical bridge: IB01/GW01 = **v3 Classic**, IB02 or PR04 = **Tado X**. If unsure, choose v3 Classic (most common). See [Generation Support](#generation-support-v3-classic--tado-x) for feature differences.
+
+<br>
+
+> [!NOTE]
+> **Several homes:** One Tado account can hold more than one home, on V2, V3 Classic, and Tado X. Setup logs in, lists the homes, and you pick one. A home already added is left out of that list. The settings after that belong to the chosen home. Add the integration again with the same account for the next home. Each entry keeps its own refresh token. A room that exists in two homes is shown with the home name in front. Two homes with the same name get separate entry titles, and that title is the prefix on entity ids. HomeKit and Matter keep the names of the linked valves.
 
 <br>
 
@@ -768,7 +776,7 @@ For advanced automation, use these services. All manual control services feature
 
 > [!TIP]
 > **Multi-Home Service Routing:**
-> Have multiple Tado Homes configured? Our service routing is fully multi-account aware!
+> A service call with no home and no entity runs on every configured home.
 >
 > - **Global Execution (Default):** Call `tado_hijack.resume_all_schedules` with empty data `{}` -> The command is sent to **all** configured Tado homes automatically.
 > - **Targeted Execution:** Use the new `config_entry` parameter in your service call (available in the UI) to select a specific home. -> The command is routed **exclusively** to the selected home.

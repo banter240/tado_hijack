@@ -485,7 +485,8 @@
       "wait_for_device": "To authenticate, open the following URL and login at Tado:\n\n{url}\n\nIf the code is not automatically copied, paste the following code to authorize the integration:\n\n### {code}\n\nThe login attempt will time out after five minutes."
     },
     "abort": {
-      "already_configured": "Account is already configured.",
+      "already_configured": "This home is already configured.",
+      "all_homes_configured": "Every home on this account is already set up.",
       "could_not_authenticate": "Could not authenticate with Tado.",
       "no_homes_returned": "Authentication failed: The Tado API did not return any 'homes' associated with your account. Please open the official Tado app to check if you need to accept new Terms & Conditions or finish your home setup. If the issue persists, please report this on GitHub.",
       "no_homes": "There are no homes linked to this Tado account.",
@@ -497,6 +498,26 @@
     "step": {
       "user": {
         "title": "Link Tado Hijack",
+        "data": {
+          "generation": "Tado Hardware Generation",
+          "full_cloud_mode": "Full Cloud Mode",
+          "fetch_extended_data": "Fetch Extended Data"
+        },
+        "data_description": {
+          "full_cloud_mode": "Enable climate entities via cloud polling.\n\n**Required for V2 bridges (GW)** as they have no HomeKit support. For V3 (IB01/GW01) and Tado X, leave disabled to use HomeKit/Matter instead.",
+          "fetch_extended_data": "Fetch extended data during **initial setup**. Costs: **1 API call per device** (temperature offset) + **1 API call per heating zone** (away temperature). After initial poll, data is fetched according to configured intervals. Disable to save quota."
+        }
+      },
+      "select_home": {
+        "title": "Choose a home",
+        "description": "Pick one home. Homes already added are left out. Add the integration again and log in with the same account for the next home.",
+        "data": {
+          "home_id": "Home"
+        }
+      },
+      "hardware": {
+        "title": "Set up this home",
+        "description": "These settings belong to the home you picked. The generation opens on what that home reports.",
         "data": {
           "generation": "Tado Hardware Generation",
           "full_cloud_mode": "Full Cloud Mode",

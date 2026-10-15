@@ -16,6 +16,7 @@ from tadoasync import TadoAuthenticationError
 from .const import (
     API_QUOTA_STANDARD,
     CONF_API_PROXY_URL,
+    CONF_HOME_ID,
     CONF_INITIAL_POLL_DONE,
     CONF_LOG_LEVEL,
     CONF_LOG_VERSION_PREFIX,
@@ -28,6 +29,7 @@ from .const import (
     HTTP_UNAUTHORIZED,
 )
 from .coordinator import TadoDataUpdateCoordinator
+from .entity import sync_shared_room_device_names
 from .helpers.auth_manager import persist_refresh_token
 from .helpers.client import TadoHijackClient
 from .helpers.device_linker import (
@@ -94,19 +96,32 @@ async def async_migrate_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bo
     return True
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bool:
-    """Set up Tado Hijack from a config entry."""
+def _entry_home_id(entry: TadoConfigEntry) -> int | None:
+    """Home chosen at setup. Older entries store it only as the unique id."""
+    raw = entry.data.get(CONF_HOME_ID, entry.unique_id)
+    if isinstance(raw, int):
+        return raw
+    return int(raw) if isinstance(raw, str) and raw.isdigit() else None
 
-    if CONF_REFRESH_TOKEN not in entry.data:
-        raise ConfigEntryAuthFailed
 
-    _LOGGER.debug("Setting up Tado connection")
+async def _bind_account_home(client: TadoHijackClient, entry: TadoConfigEntry) -> None:
+    """Point the client at this entry's home. tadoasync starts on the first one."""
+    chosen = _entry_home_id(entry)
+    if chosen is None:
+        return
+    me = await client.get_me()
+    if all(home.id != chosen for home in me.homes):
+        _LOGGER.error("Configured home is not on this Tado account")
+        raise ConfigEntryAuthFailed("Configured home is not on this Tado account")
+    client.use_home(chosen)
 
-    scan_interval = entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+
+async def _async_connect_client(
+    hass: HomeAssistant, entry: TadoConfigEntry
+) -> TadoHijackClient:
+    """Create the client for this entry and select its home."""
     proxy_url = entry.data.get(CONF_API_PROXY_URL)
     proxy_token = entry.data.get(CONF_PROXY_TOKEN)
-
-    # Use log_level from options if available, otherwise from data
     log_level = entry.options.get(CONF_LOG_LEVEL) or entry.data.get(
         CONF_LOG_LEVEL, DEFAULT_LOG_LEVEL
     )
@@ -114,18 +129,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bool
         CONF_LOG_VERSION_PREFIX,
         entry.data.get(CONF_LOG_VERSION_PREFIX, DEFAULT_LOG_VERSION_PREFIX),
     )
-
     set_redacted_log_level(log_level)
     set_version_prefix_enabled(bool(log_version_prefix))
 
-    from .const import CONF_GENERATION, GEN_CLASSIC, GEN_X
+    from .const import CONF_GENERATION, GEN_CLASSIC
 
     _LOGGER.info(
         "Tado Hijack %s starting (Generation: %s)",
         INTEGRATION_VERSION,
         entry.data.get(CONF_GENERATION, GEN_CLASSIC),
     )
-
     if proxy_url:
         _LOGGER.info("Using Tado API Proxy at %s", proxy_url)
 
@@ -136,17 +149,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bool
         proxy_url=proxy_url,
         proxy_token=proxy_token,
     )
-
     client.set_on_token_rotated(partial(persist_refresh_token, hass, entry))
 
     with log_secrets(proxy_token, entry.data.get(CONF_REFRESH_TOKEN)):
         try:
             await client.async_init()
+            await _bind_account_home(client, entry)
             _LOGGER.debug(
                 "Client initialized: home_id=%s, token_status=%s",
                 getattr(client, "_home_id", None),
                 "SET" if getattr(client, "_access_token", None) else "NOT SET",
             )
+        except ConfigEntryAuthFailed:
+            raise
         except TadoAuthenticationError as e:
             _LOGGER.error("Authentication failed during setup: %s", e)
             raise ConfigEntryAuthFailed(redact(str(e))) from None
@@ -171,7 +186,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bool
                 )
                 raise ConfigEntryAuthFailed(redact(str(e))) from None
             raise ConfigEntryNotReady(redact(str(e))) from None
+    return client
 
+
+async def async_setup_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bool:
+    """Set up Tado Hijack from a config entry."""
+
+    if CONF_REFRESH_TOKEN not in entry.data:
+        raise ConfigEntryAuthFailed
+
+    _LOGGER.debug("Setting up Tado connection")
+
+    from .const import GEN_X
+
+    scan_interval = entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+    client = await _async_connect_client(hass, entry)
     coordinator = TadoDataUpdateCoordinator(hass, entry, client, scan_interval)
     try:
         await coordinator.async_setup()
@@ -213,6 +242,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bool
         )
 
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+        sync_shared_room_device_names(hass)
         if bridge_serials:
             retire_empty_home_device(
                 hass,
