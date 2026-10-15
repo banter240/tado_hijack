@@ -398,6 +398,7 @@ Tado Hijack is now an **official HACS integration**! No custom repository needed
 | **Reduced Polling End**            | `07:00`   | End time for the economy window.                                                                                                                                                                                                                           |
 | **Reduced Polling Interval**       | `3600s`   | Polling interval during the economy window. Set to **0** to pause polling entirely.                                                                                                                                                                        |
 | **Hardware Sync**                  | `86400s`  | Interval for battery, firmware and device metadata. Set to 0 for initial load only.                                                                                                                                                                        |
+| **Refresh weekly plans after quota reset** | `Off` | Once after each quota reset, fetch every zone plan into the calendar cache. One call per zone. Classic uses two calls until the timetable id is known. |
 | **Offset Update**                  | `0` (Off) | Interval for temperature offsets. Costs 1 API call per valve. Calibration polls only when no offset is known. |
 | **Flow Temperature Optimization**  | `Off`     | Tado X option. The periodic poll does not call the flow-temperature GET, so the number and switch are not created from that poll. |
 | **Replay Cloud-Only On Recovery**  | `On`      | See [Offline TRV recovery](#offline-trv-recovery-homekit-and-matter). |
@@ -611,7 +612,7 @@ Advanced monitoring sensors in the diagnostics of that same home device:
 - `sensor.reduced_polling_start`, `sensor.reduced_polling_end`
 - `sensor.suppress_redundant_calls`, `sensor.suppress_redundant_buttons`
 - `binary_sensor.reduced_polling_active`, `binary_sensor.call_jitter_enabled`
-- `binary_sensor.disable_polling_when_throttled`, `binary_sensor.refresh_after_resume`
+- `binary_sensor.disable_polling_when_throttled`, `binary_sensor.refresh_after_resume`, `binary_sensor.refresh_plans_after_reset`
 
 **System Info:**
 - `sensor.outdoor_absolute_humidity` - Calculated absolute humidity (g/m³) from external weather entity
@@ -669,7 +670,7 @@ Cloud-only features that HomeKit does not support.
 | `button.refresh_all_timetables`     | Button        | Queue a debounced GET for all compatible zones (coalesced with per-zone refreshes in the same window; still 1 GET per zone). **v3 only.** |
 | `button.refresh_zone_plan`          | Button        | Fetch this zone's weekly plan from Tado (classic: 1 GET when the timetable type is cached, otherwise 2; Tado X room or hot water: 1 GET). Debounced; mashed button = 1 call. Does **not** run when you open the calendar. |
 | `button.refresh_all_zone_plans`     | Button        | Fetch every capable zone's weekly plan (1-2 GET per zone, coalesced with per-room fetches in the same window). Includes Tado X hot water when the programmer is controllable. Cheaper than a full poll. |
-| `calendar.zone_plan`                | Calendar      | Read-only week view of ON windows (`Tado <room> Weekly Plan`). Heating shows the temperature. Tado X hot water shows ON. **Cache only** - opening the calendar never hits Tado. Fetch with `refresh_zone_plan`, `refresh_all_zone_plans`, or `full_manual_poll` / `manual_poll` type `all` or `schedule`. `set_schedule` updates the cache only after Tado accepts the write; a failed write leaves the previous plan. Not part of periodic poll. Attributes `timetable`, `day`, `blocks`, `plan` match `set_schedule`. |
+| `calendar.zone_plan`                | Calendar      | Read-only week view of ON windows (`Tado <room> Weekly Plan`). Heating shows the temperature. Tado X hot water shows ON. **Cache only** - opening the calendar never hits Tado. Fetch with `refresh_zone_plan`, `refresh_all_zone_plans`, or `full_manual_poll` / `manual_poll` type `all` or `schedule`. General polling can fetch every plan once after the quota reset (default off). `set_schedule` updates the cache only after Tado accepts the write; a failed write leaves the previous plan. Not part of periodic poll. Attributes `timetable`, `day`, `blocks`, `plan` match `set_schedule`. |
 | `number.open_window_timeout`        | Number        | **Config:** Open window timeout (0=OFF, 5-1439min=ON). Requires Tado subscription for detection. |
 | `number.target_temperature`         | Number        | **HW & AC:** Set target temperature for hot water (manual mode) or AC zones.                                            |
 | `number.away_temperature`           | Number        | **v3 Only:** Set away mode temperature.                                                         |
@@ -688,10 +689,10 @@ Cloud-only features that HomeKit does not support.
 | `binary_sensor.mold_risk`           | Binary Sensor | **Climate:** `ON` when mold risk is `medium` or `high`. Ideal for automations and alerts.      |
 | `sensor.indoor_absolute_humidity`   | Sensor        | **Climate:** Indoor absolute humidity (g/m³). Shown when _Outdoor Weather Entity_ is configured. |
 | `binary_sensor.ventilation_recommended` | Binary Sensor | **Climate:** `ON` when indoor AH exceeds outdoor AH by ≥ threshold — opening windows reduces moisture. Shown when _Outdoor Weather Entity_ is configured. |
-| `sensor.next_schedule_change`       | Sensor        | **Planning:** Timestamp of next schedule transition (diagnostic).                               |
-| `sensor.next_schedule_temp`         | Sensor        | **Planning:** Target temp of the upcoming schedule block.                                       |
-| `sensor.next_schedule_mode`         | Sensor        | **Planning:** Mode (HEAT/OFF) of the upcoming schedule block.                                   |
-| `sensor.next_time_block_start`      | Sensor        | **Planning:** Start time of the next schedule block.                                            |
+| `sensor.next_schedule_change`       | Sensor        | **Planning:** When the cached week next changes power or temperature. Same cache as the calendar. |
+| `sensor.next_schedule_temp`         | Sensor        | **Planning:** Temperature at that change. Unknown when the next change is off or has no temperature. |
+| `sensor.next_schedule_mode`         | Sensor        | **Planning:** `HEATING` or `OFF` at that change.                                                |
+| `sensor.next_time_block_start`      | Sensor        | **Planning:** Start of the next block, including a block with the same setting.                 |
 | `button.resume_schedule`            | Button        | Force resume schedule (stateless). **Supports heating and AC zones** (all generations).                      |
 | `attribute.auto_target_temperature` | Metadata      | **Transparency:** Current schedule setpoint visible in attributes during `auto` mode (Heating, AC & HW). |
 
@@ -699,8 +700,7 @@ Cloud-only features that HomeKit does not support.
 
 > [!NOTE]
 > **Schedule Planning Sensors:**
-> The `next_schedule_*` sensors provide a peek into the future without extra polling.
-> However, during **Away Mode**, Tado often disables the standard schedule, causing these sensors to report `Unknown`. This is normal behavior as there is no active "next block" counting down.
+> These four sensors read the weekly plan cache, the same blocks as the zone calendar. They refresh when the plan is fetched or written, and on a local timer at the next block start. That timer does not call Tado. An empty cache stays `unknown` until a plan fetch.
 
 <br>
 

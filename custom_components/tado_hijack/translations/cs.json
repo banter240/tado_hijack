@@ -222,6 +222,9 @@
       "refresh_after_resume": {
         "name": "Obnovit stav po návratu k plánu"
       },
+      "refresh_plans_after_reset": {
+        "name": "Plány po resetu kvóty"
+      },
       "fetch_extended_data": {
         "name": "Stáhnout rozšířená data"
       },
@@ -521,12 +524,14 @@
             "data": {
               "scan_interval": "Interval aktualizace zón (sekundy)",
               "presence_poll_interval": "Interval aktualizace přítomnosti (sekundy)",
-              "slow_poll_interval": "Interval synchronizace hardwaru (sekundy)"
+              "slow_poll_interval": "Interval synchronizace hardwaru (sekundy)",
+              "refresh_plans_after_reset": "Týdenní plány načíst po resetu kvóty"
             },
             "data_description": {
               "scan_interval": "Interval pro data místnosti (teplota, vlhkost, výkon topení). DŮLEŽITÉ: Při zapnuté automatické kvótě API se tato hodnota přepisuje. Platí jen jako záloha, když je vypočtený rozpočet vyčerpán.",
               "presence_poll_interval": "Jak často kontrolovat stav Doma/Mimo domov. Nastavte na vyšší hodnotu (např. 43200s/12h) pro ušetření kvóty.",
-              "slow_poll_interval": "Jak často synchronizovat úroveň baterie, firmware, schopnosti a seznam zařízení. Doporučeno je 86400s (24h)."
+              "slow_poll_interval": "Jak často synchronizovat úroveň baterie, firmware, schopnosti a seznam zařízení. Doporučeno je 86400s (24h).",
+              "refresh_plans_after_reset": "Jednou po každém resetu kvóty načte plány všech zón do mezipaměti kalendáře. Jeden dotaz na zónu. Výchozí vypnuto."
             }
           },
           "reduced_polling": {
@@ -661,12 +666,14 @@
             "data": {
               "scan_interval": "Interval aktualizace zón (sekundy)",
               "presence_poll_interval": "Interval aktualizace přítomnosti (sekundy)",
-              "slow_poll_interval": "Interval synchronizace hardwaru (sekundy)"
+              "slow_poll_interval": "Interval synchronizace hardwaru (sekundy)",
+              "refresh_plans_after_reset": "Týdenní plány načíst po resetu kvóty"
             },
             "data_description": {
               "scan_interval": "Interval pro data místnosti (teplota, vlhkost, výkon topení). DŮLEŽITÉ: Při zapnuté automatické kvótě API se tato hodnota přepisuje. Platí jen jako záloha, když je vypočtený rozpočet vyčerpán.",
               "presence_poll_interval": "Jak často kontrolovat stav Doma/Mimo domov. Nastavte na vyšší hodnotu (např. 43200s/12h) pro ušetření kvóty.",
-              "slow_poll_interval": "Jak často synchronizovat úroveň baterie, firmware, schopnosti a seznam zařízení. Doporučeno je 86400s (24h)."
+              "slow_poll_interval": "Jak často synchronizovat úroveň baterie, firmware, schopnosti a seznam zařízení. Doporučeno je 86400s (24h).",
+              "refresh_plans_after_reset": "Jednou po každém resetu kvóty načte plány všech zón do mezipaměti kalendáře. Jeden dotaz na zónu. Výchozí vypnuto."
             }
           },
           "reduced_polling": {

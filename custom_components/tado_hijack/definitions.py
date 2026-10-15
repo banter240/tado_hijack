@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Final, cast
 
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
@@ -40,6 +41,7 @@ from .const import (
     CONF_REDUCED_POLLING_INTERVAL,
     CONF_REDUCED_POLLING_START,
     CONF_REFRESH_AFTER_RESUME,
+    CONF_REFRESH_PLANS_AFTER_RESET,
     CONF_SCAN_INTERVAL,
     CONF_SLOW_POLL_INTERVAL,
     CONF_SUPPRESS_REDUNDANT_BUTTONS,
@@ -70,6 +72,7 @@ from .const import (
     DEFAULT_REDUCED_POLLING_INTERVAL,
     DEFAULT_REDUCED_POLLING_START,
     DEFAULT_REFRESH_AFTER_RESUME,
+    DEFAULT_REFRESH_PLANS_AFTER_RESET,
     DEFAULT_SLOW_POLL_INTERVAL,
     DEFAULT_SUPPRESS_REDUNDANT_BUTTONS,
     DEFAULT_SUPPRESS_REDUNDANT_CALLS,
@@ -103,7 +106,14 @@ from .helpers.climate_physics import (
 )
 from .helpers.offset_calibrate import OFFSET_CAL_INHERIT, OFFSET_CAL_OPTIONS
 from .helpers.parsers import get_ac_capabilities
-from .helpers.schedule import zone_supports_schedule
+from .helpers.schedule import (
+    cached_plan,
+    next_block_start,
+    next_setting_change,
+    plan_span_mode,
+    plan_span_temperature,
+    zone_supports_schedule,
+)
 from .helpers.tadov3 import parsers as v3_parsers
 from .helpers.tadox import parsers as tadox_parsers
 from .helpers.timetable import home_select_value, zone_select_value
@@ -1159,6 +1169,36 @@ def _parse_zone_heating_power(c: Any, zid: int) -> float:
     return v3_parsers.parse_heating_power(state, ztype)
 
 
+def _zone_plan(c: Any, zid: int) -> tuple[dict[str, Any], str | None]:
+    """Cached week for a zone. Same store as the plan calendar."""
+    return cached_plan(c.data_manager.schedule_blocks_cache, zid)
+
+
+def _next_setting_span(c: Any, zid: int) -> Any:
+    days, timetable = _zone_plan(c, zid)
+    return next_setting_change(days, dt_util.now(), timetable) if days else None
+
+
+def _next_schedule_change(c: Any, zid: int) -> datetime | None:
+    span = _next_setting_span(c, zid)
+    return None if span is None else span.start
+
+
+def _next_schedule_temp(c: Any, zid: int) -> float | None:
+    span = _next_setting_span(c, zid)
+    return None if span is None else plan_span_temperature(span)
+
+
+def _next_schedule_mode(c: Any, zid: int) -> str | None:
+    span = _next_setting_span(c, zid)
+    return None if span is None else plan_span_mode(span)
+
+
+def _next_time_block_start(c: Any, zid: int) -> datetime | None:
+    days, timetable = _zone_plan(c, zid)
+    return next_block_start(days, dt_util.now(), timetable) if days else None
+
+
 def _parse_home_heating_demand(c: Any) -> bool:
     """True if any heating zone reports heating power greater than zero."""
     if not getattr(c, "data", None) or not c.data.zone_states or not c.zones_meta:
@@ -1525,71 +1565,30 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     ),
     create_diagnostic_zone_sensor(
         key="next_schedule_change",
-        value_fn=lambda c, zid: (
-            (
-                (state := c.data.zone_states.get(str(zid)))
-                and (nsc := getattr(state, "next_schedule_change", None))
-                and (start := getattr(nsc, "start", None))
-                and dt_util.parse_datetime(start)
-            )
-            or None
-        ),
+        value_fn=_next_schedule_change,
         device_class=SensorDeviceClass.TIMESTAMP,
         unique_id_suffix="next_sch",
     ),
     create_diagnostic_zone_sensor(
         key="next_schedule_temp",
-        value_fn=lambda c, zid: v3_parsers.parse_next_schedule_temp(
-            c.data.zone_states.get(str(zid))
-        ),
+        value_fn=_next_schedule_temp,
         unit=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         unique_id_suffix="next_sch_temp",
-        supported_generations={GEN_CLASSIC},
-    ),
-    create_diagnostic_zone_sensor(
-        key="next_schedule_temp",
-        value_fn=lambda c, zid: tadox_parsers.parse_next_schedule_temp(
-            c.data.zone_states.get(str(zid))
-        ),
-        unit=UnitOfTemperature.CELSIUS,
-        device_class=SensorDeviceClass.TEMPERATURE,
-        unique_id_suffix="next_sch_temp",
-        supported_generations={GEN_X},
+        supported_generations={GEN_CLASSIC, GEN_X},
     ),
     create_diagnostic_zone_sensor(
         key="next_schedule_mode",
-        value_fn=lambda c, zid: v3_parsers.parse_next_schedule_mode(
-            c.data.zone_states.get(str(zid))
-        ),
+        value_fn=_next_schedule_mode,
         unique_id_suffix="next_sch_mode",
-        supported_generations={GEN_CLASSIC},
-    ),
-    create_diagnostic_zone_sensor(
-        key="next_schedule_mode",
-        value_fn=lambda c, zid: tadox_parsers.parse_next_schedule_mode(
-            c.data.zone_states.get(str(zid))
-        ),
-        unique_id_suffix="next_sch_mode",
-        supported_generations={GEN_X},
+        supported_generations={GEN_CLASSIC, GEN_X},
     ),
     create_diagnostic_zone_sensor(
         key="next_time_block_start",
-        value_fn=lambda c, zid: v3_parsers.parse_next_time_block_start(
-            c.data.zone_states.get(str(zid))
-        ),
+        value_fn=_next_time_block_start,
         device_class=SensorDeviceClass.TIMESTAMP,
         unique_id_suffix="next_block_start",
-        supported_generations={GEN_CLASSIC},
-    ),
-    create_diagnostic_zone_sensor(
-        key="next_time_block_start",
-        value_fn=lambda c, zid: tadox_parsers.parse_next_time_block_start(
-            c.data.zone_states.get(str(zid))
-        ),
-        device_class=SensorDeviceClass.TIMESTAMP,
-        unique_id_suffix="next_block_start",
-        supported_generations={GEN_X},
+        supported_generations={GEN_CLASSIC, GEN_X},
     ),
     create_home_binary_sensor(
         key="reduced_polling_active",
@@ -1623,6 +1622,16 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
             )
         ),
         icon="mdi:refresh-auto",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    create_home_binary_sensor(
+        key="refresh_plans_after_reset",
+        value_fn=lambda c: bool(
+            c.config_entry.data.get(
+                CONF_REFRESH_PLANS_AFTER_RESET, DEFAULT_REFRESH_PLANS_AFTER_RESET
+            )
+        ),
+        icon="mdi:calendar-refresh",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     create_diagnostic_sensor(

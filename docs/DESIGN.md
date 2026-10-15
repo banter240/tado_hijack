@@ -132,7 +132,7 @@ alpha = RATELIMIT_SMOOTHING_ALPHA
 self._last_poll_cost = (self._last_poll_cost * (1 - alpha)) + (value * alpha)
 ```
 
-The getter floors the cost at 1.0. Future budget planning uses `data_manager._measure_zones_poll_cost()` as the per-cycle prediction, and `estimate_daily_reserved_cost()` for reserved background spend (hardware sync, presence, capabilities, offset calibration) over 24 h.
+The getter floors the cost at 1.0. Future budget planning uses `data_manager._measure_zones_poll_cost()` as the per-cycle prediction, and `estimate_daily_reserved_cost()` for reserved background spend (hardware sync, presence, capabilities, offset calibration, and the weekly-plan pass after quota reset when general polling has that fetch on) over 24 h.
 
 ### Budget Math (`helpers/quota_math.py`)
 

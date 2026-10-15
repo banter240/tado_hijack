@@ -57,6 +57,7 @@ from .const import (
     CONF_REDUCED_POLLING_INTERVAL,
     CONF_REDUCED_POLLING_START,
     CONF_REFRESH_AFTER_RESUME,
+    CONF_REFRESH_PLANS_AFTER_RESET,
     CONF_REFRESH_TOKEN,
     CONF_SLOW_POLL_INTERVAL,
     CONF_SUPPRESS_REDUNDANT_BUTTONS,
@@ -84,6 +85,7 @@ from .const import (
     DEFAULT_REDUCED_POLLING_INTERVAL,
     DEFAULT_REDUCED_POLLING_START,
     DEFAULT_REFRESH_AFTER_RESUME,
+    DEFAULT_REFRESH_PLANS_AFTER_RESET,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_SLOW_POLL_INTERVAL,
     DEFAULT_SUPPRESS_REDUNDANT_BUTTONS,
@@ -173,6 +175,7 @@ class TadoHijackCommonFlow:
                 CONF_SCAN_INTERVAL,
                 CONF_PRESENCE_POLL_INTERVAL,
                 CONF_SLOW_POLL_INTERVAL,
+                CONF_REFRESH_PLANS_AFTER_RESET,
             ],
             "reduced_polling": [
                 CONF_REDUCED_POLLING_ACTIVE,
@@ -271,6 +274,13 @@ class TadoHijackCommonFlow:
                                 vol.Coerce(int),
                                 vol.Range(min=MIN_SLOW_POLL_INTERVAL),
                             ),
+                            vol.Optional(
+                                CONF_REFRESH_PLANS_AFTER_RESET,
+                                default=self._get_current_data(
+                                    CONF_REFRESH_PLANS_AFTER_RESET,
+                                    DEFAULT_REFRESH_PLANS_AFTER_RESET,
+                                ),
+                            ): BooleanSelector(),
                         }
                     ),
                     {"collapsed": True},

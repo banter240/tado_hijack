@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, cast
 
 from homeassistant.components.calendar import CalendarEntity, CalendarEvent
@@ -12,6 +12,7 @@ from homeassistant.util import dt as dt_util
 
 from .entity import TadoZoneEntity
 from .helpers.schedule import (
+    PLAN_LOOKAHEAD,
     iter_heat_windows,
     plan_service_attrs,
     schedule_zone_names,
@@ -24,8 +25,6 @@ if TYPE_CHECKING:
 
     from . import TadoConfigEntry
     from .coordinator import TadoDataUpdateCoordinator
-
-_LOOKAHEAD = timedelta(days=8)
 
 
 def _weekly_plan_title(zone_name: str, language: str | None) -> str:
@@ -157,7 +156,7 @@ class TadoZonePlanCalendar(TadoZoneEntity, CalendarEntity):
             return None
         now = dt_util.now()
         events = _events_from_plan(
-            days, self._plan_entry().get("timetable_type"), now, now + _LOOKAHEAD
+            days, self._plan_entry().get("timetable_type"), now, now + PLAN_LOOKAHEAD
         )
         return events[0] if events else None
 

@@ -12,6 +12,7 @@ from homeassistant.core import (
     HomeAssistant,
 )
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.helpers.event import async_track_point_in_utc_time
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 from tadoasync import Tado, TadoError
@@ -44,6 +45,7 @@ from .const import (
     CONF_REDUCED_POLLING_INTERVAL,
     CONF_REDUCED_POLLING_START,
     CONF_REFRESH_AFTER_RESUME,
+    CONF_REFRESH_PLANS_AFTER_RESET,
     CONF_SLOW_POLL_INTERVAL,
     CONF_SUPPRESS_REDUNDANT_BUTTONS,
     CONF_SUPPRESS_REDUNDANT_CALLS,
@@ -62,6 +64,7 @@ from .const import (
     DEFAULT_REDUCED_POLLING_INTERVAL,
     DEFAULT_REDUCED_POLLING_START,
     DEFAULT_REFRESH_AFTER_RESUME,
+    DEFAULT_REFRESH_PLANS_AFTER_RESET,
     DEFAULT_SLOW_POLL_INTERVAL,
     DEFAULT_SUPPRESS_REDUNDANT_BUTTONS,
     DEFAULT_SUPPRESS_REDUNDANT_CALLS,
@@ -133,6 +136,7 @@ from .helpers.schedule import (
     build_x_payload,
     ensure_full_day,
     ha_days_for_tado_day,
+    next_block_start,
     parse_blocks,
     parse_classic_plan,
     parse_x_plan,
@@ -166,6 +170,7 @@ from .lib.patches import get_handler
 from .models import CommandType, RateLimit, TadoCommand, TadoData
 
 _LOGGER = get_redacted_logger(__name__)
+_PLAN_REFRESH_MIN_GAP = timedelta(hours=20)
 
 
 def _reject_tadox_hot_water_presence(overlay_mode: str | None) -> None:
@@ -251,6 +256,12 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         self._refresh_after_resume: bool = bool(
             entry.data.get(CONF_REFRESH_AFTER_RESUME, DEFAULT_REFRESH_AFTER_RESUME)
         )
+        self._refresh_plans_after_reset: bool = bool(
+            entry.data.get(
+                CONF_REFRESH_PLANS_AFTER_RESET, DEFAULT_REFRESH_PLANS_AFTER_RESET
+            )
+        )
+        self._last_plan_refresh_at: datetime | None = None
         self._suppress_redundant_calls: bool = bool(
             entry.data.get(
                 CONF_SUPPRESS_REDUNDANT_CALLS, DEFAULT_SUPPRESS_REDUNDANT_CALLS
@@ -302,6 +313,8 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         self.api_manager = TadoApiManager(hass, self, self._debounce_time)
         self._zone_plan_locks: dict[int, asyncio.Lock] = {}
         self._offset_cal_unsub: Callable[[], None] | None = None
+        self._plan_edge_unsub: Callable[[], None] | None = None
+        self._plan_edge_stopped = False
         self._offset_cal_threshold_unsubs: list[Callable[[], None]] = []
         self._offset_cal_threshold_handle: Callable[[], None] | None = None
         self._offset_cal_threshold_retry: Callable[[], None] | None = None
@@ -406,6 +419,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             restored_caps = self.data_manager.restore_capabilities_cache(caps_data)
             _LOGGER.debug("Restored capabilities cache for %d zone(s)", restored_caps)
         self._schedule_offset_cal_timer()
+        self._schedule_plan_edge()
 
     def get_open_window_timeout_seconds(self, zone_id: int) -> int:
         """Resolve the open window timeout (optimistic > zone metadata).
@@ -796,7 +810,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
 
     def _schedule_reset_poll(self) -> None:
         """Schedule automatic poll at daily quota reset time."""
-        if self._auto_api_quota_percent <= 0:
+        if self._auto_api_quota_percent <= 0 and not self._refresh_plans_after_reset:
             return
 
         next_reset = self.reset_tracker.get_next_reset_time()
@@ -832,6 +846,8 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             self.reset_tracker.record_reset(reset_time)
             self._save_reset_tracker()
             self._schedule_reset_poll()
+            if self._refresh_plans_after_reset:
+                self.hass.async_create_task(self._async_refresh_plans_after_reset())
 
             expected = self.reset_tracker.get_expected_window()
             _LOGGER.info(
@@ -848,14 +864,43 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         return reset
 
     async def _on_reset_poll(self) -> None:
-        """Execute automatic poll at quota reset time."""
-        _LOGGER.info("Quota: Executing scheduled reset poll to fetch fresh quota")
-
-        self._force_next_update = True
-
-        await self.async_refresh()
-
+        """Zone poll when auto quota is on, then weekly plans when that switch is on."""
+        if self._auto_api_quota_percent > 0:
+            _LOGGER.info("Quota: Executing scheduled reset poll to fetch fresh quota")
+            self._force_next_update = True
+            await self.async_refresh()
+        await self._async_refresh_plans_after_reset()
         self._schedule_reset_poll()
+
+    def _claim_plan_refresh(self) -> list[int] | None:
+        """Zone ids for this reset's plan fetch, or None when it already ran."""
+        if not self._refresh_plans_after_reset:
+            return None
+        now = dt_util.utcnow()
+        last = self._last_plan_refresh_at
+        if last is not None and now - last < _PLAN_REFRESH_MIN_GAP:
+            return None
+        zone_ids = [
+            zone_id
+            for zone_id in schedule_capable_zone_ids(self)
+            if not (self.dummy_handler and self.dummy_handler.is_dummy_zone(zone_id))
+        ]
+        if not zone_ids:
+            return None
+        self._last_plan_refresh_at = now
+        return zone_ids
+
+    async def _async_refresh_plans_after_reset(self) -> None:
+        """Fetch every weekly plan once after the quota reset. No zone poll."""
+        zone_ids = self._claim_plan_refresh()
+        if not zone_ids:
+            return
+        _LOGGER.info(
+            "Quota reset: refreshing weekly plans for %d zone(s) (generation=%s)",
+            len(zone_ids),
+            self.generation,
+        )
+        await self._execute_zone_plan_refreshes(zone_ids)
 
     def _schedule_expiry_poll(self, delay_s: int) -> None:
         """Schedule a poll to run when a timer expires."""
@@ -869,8 +914,58 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             RESUME_REFRESH_DELAY_S, lambda: self.async_manual_poll("zone", silent=True)
         )
 
+    def _cancel_plan_edge(self) -> None:
+        if self._plan_edge_unsub:
+            self._plan_edge_unsub()
+            self._plan_edge_unsub = None
+
+    def _soonest_plan_edge(self) -> datetime | None:
+        """Earliest future block start across the cached weeks."""
+        now = dt_util.now()
+        soonest: datetime | None = None
+        for entry in self.data_manager.schedule_blocks_cache.values():
+            if not isinstance(entry, dict):
+                continue
+            days = entry.get("days")
+            if not isinstance(days, dict) or not days:
+                continue
+            timetable = entry.get("timetable_type")
+            start = next_block_start(
+                days,
+                now,
+                str(timetable) if timetable else None,
+            )
+            if start is not None and (soonest is None or start < soonest):
+                soonest = start
+        return soonest
+
+    def _schedule_plan_edge(self) -> None:
+        """Refresh plan sensors when the next cached block starts. No Tado call."""
+        self._cancel_plan_edge()
+        if self._plan_edge_stopped:
+            return
+        when = self._soonest_plan_edge()
+        if when is None:
+            return
+        when_utc = max(
+            dt_util.as_utc(when),
+            dt_util.utcnow() + timedelta(seconds=1),
+        )
+        self._plan_edge_unsub = async_track_point_in_utc_time(
+            self.hass, self._on_plan_edge, when_utc
+        )
+
+    def _on_plan_edge(self, _now: datetime) -> None:
+        self._plan_edge_unsub = None
+        if self._plan_edge_stopped:
+            return
+        self.async_update_listeners()
+        self._schedule_plan_edge()
+
     def shutdown(self) -> None:
         """Cleanup listeners and tasks."""
+        self._plan_edge_stopped = True
+        self._cancel_plan_edge()
         if self._offset_cal_unsub:
             self._offset_cal_unsub()
             self._offset_cal_unsub = None
@@ -1924,6 +2019,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         if plan and plan.get("timetable_type") != canonical:
             self.data_manager.schedule_blocks_cache.pop(zone_id, None)
             self._save_schedule_blocks_cache()
+            self.async_update_listeners()
 
     def _canonical_schedule_blocks(
         self,
@@ -2083,6 +2179,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
 
     def _save_schedule_blocks_cache(self) -> None:
         """Persist zone plan cache."""
+        self._schedule_plan_edge()
         self.hass.async_create_task(
             self.storage.async_update(
                 "schedule_blocks_cache",
