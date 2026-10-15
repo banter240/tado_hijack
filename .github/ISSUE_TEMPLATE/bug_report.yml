@@ -20,6 +20,7 @@ body:
         - V3 Classic - Internet Bridge IB01 (HomeKit-enabled)
         - Tado X - Internet Bridge IB02 (Matter-enabled)
         - Not sure
+      default: 1
     validations:
       required: true
 
@@ -51,7 +52,7 @@ body:
     id: ha_version
     attributes:
       label: Home Assistant Version
-      description: Settings -> System -> About
+      description: Settings -> About
       placeholder: "e.g. 2025.3.0"
     validations:
       required: true
@@ -125,6 +126,14 @@ body:
             custom_components.tado_hijack: debug
         ```
       placeholder: Drag & drop a log file here, or paste relevant log lines.
+    validations:
+      required: false
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggestion
+      description: Optional. A fix, a workaround, or another way this could behave.
     validations:
       required: false
 
