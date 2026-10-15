@@ -124,7 +124,7 @@ graph TD
 
 ### `WindowController`
 
-`helpers/window_controller.py` — links an external contact `binary_sensor` per zone. Open turns the zone off, close resumes the schedule. Cloud calls go through the command queue. With the resume hold on, the linked climate is set at once and the cloud resume waits (see the README). `timeout` also resumes when the zone's open-window timer expires while the sensor is still open. Already-open windows are applied once at startup.
+`helpers/window_controller.py` — links an external contact `binary_sensor` per zone. A linked HomeKit or Matter climate is turned off locally and turned off again if it leaves off while the contact is open. Close and the timeout restore the stored setpoint on that climate. Full cloud mode and a zone with no linked climate send one manual cloud off through `async_set_zone_hvac_mode` (unlimited, or the open-window duration) and resume through the command queue. Already-open windows are applied once at startup.
 
 ### Local recovery
 

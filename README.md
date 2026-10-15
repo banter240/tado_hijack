@@ -490,15 +490,17 @@ Each zone device exposes two optional selectors that connect external contact se
 
 After a timer-triggered resume the cycle is complete: staying open without a new `close -> open` transition does not re-fire, so a stuck sensor cannot keep the zone off forever.
 
-**Queue and delay send of resume schedule** (default on, 120 seconds) changes only the cloud half of that resume:
+A linked HomeKit or Matter climate is turned off on open. While the contact stays open, that climate is turned off again if it leaves off, until the window closes or the timeout puts the stored setpoint back. No Tado call. The pre-open snapshot is kept across a restart.
 
-- The setpoint from **before** the window opened is set at once on the linked HomeKit or Matter climate. The room does not wait for the cloud.
-- If a schedule was running, the cloud resume waits. Every zone that closes or whose timeout ends inside that window is one batch. On v3 that is one call. On Tado X it is one call per room, or one quick action when every heating room is in the batch.
-- If no schedule was running, the cloud is left alone and only the local climate is restored. There is no resume, so a manual setpoint is not replaced by the schedule. Without a local climate the manual setpoint is sent in the same batch, because the open already sent off to the cloud.
-- Cloud off on open is still immediate. A running schedule would otherwise turn the room back on. The pre-open snapshot is stored and kept across a restart.
-- Turn the option off to get the previous behavior: cloud resume as soon as the window closes or the timeout ends.
+A zone with no linked climate sends one cloud off, the same manual off as `hvac_mode: off` with `overlay: manual`. Direct mode has no end. Timeout mode sends that zone's open-window duration. Close and the timeout resume the schedule. Full cloud mode always uses this path, because there is no local climate and no watcher.
 
-Commands flow through the coordinator's command queue, so batching, redundancy suppression and optimistic patches apply. On Home Assistant start (or when a sensor is first linked), an already-open window takes effect without waiting for a transition. A window that was already open at startup and has no stored snapshot resumes the schedule on close, same as before. Each zone uses its own open window detection timeout (`zone.open_window_detection.timeout_in_seconds`); if open window detection is disabled for a zone, timeout modes behave like `direct` for that zone.
+**Queue and delay send of resume schedule** (default on, 120 seconds) holds those cloud resumes:
+
+- Every zone that closes or whose timeout ends inside that window is one batch. On v3 that is one call. On Tado X it is one call per room, or one quick action when every heating room is in the batch.
+- If no schedule was running, the manual setpoint is sent in that batch.
+- With the option off, the cloud resume is sent as soon as the window closes or the timeout ends.
+
+Those cloud commands go through the coordinator's command queue, so batching, redundancy suppression and optimistic patches apply. On Home Assistant start (or when a sensor is first linked), an already-open window takes effect without waiting for a transition. A window that was already open at startup and has no stored snapshot resumes on close. Each zone uses its own open window detection timeout (`zone.open_window_detection.timeout_in_seconds`); if open window detection is disabled for a zone, timeout modes behave like `direct` for that zone.
 
 Changes take effect immediately — no integration reload required.
 
@@ -510,7 +512,7 @@ Changes take effect immediately — no integration reload required.
 
 Room commands still go to the Tado cloud. If the local climate entity for a TRV is `unavailable`, Hijack keeps the last intent for that serial and applies it when the entity is back: a temperature via `climate.set_temperature`, off via `climate.set_hvac_mode` (or a low setpoint if the entity has no off mode). Resume schedule cannot be done on the local entity. With **Replay Cloud-Only On Recovery** enabled, that resume is sent to the cloud again, once per zone.
 
-An open-window off in `timeout` mode expires. If the TRV returns after that deadline, recovery resumes the schedule instead of turning the zone off again. Devices that return within 0.2 s share one batch. A slower reboot is several batches, not one.
+A valve that is offline during an open window is turned off locally when it returns, until the window closes or the timeout restores the stored setpoint. On the cloud path, a timed off that expires while the valve is offline resumes the schedule when it returns. Devices that return within 0.2 s share one batch. A slower reboot is several batches, not one.
 
 The tracker reads the current entity state at mapping time and watches the entity registry, so a TRV that is already offline at startup, or whose HomeKit/Matter entity appears a bit later, is still covered.
 

@@ -85,13 +85,17 @@ def build_overlay_data(
     elif overlay_mode == OVERLAY_PRESENCE:
         termination = {"type": TERMINATION_TADO_MODE}
     elif overlay_mode == OVERLAY_TIMER or duration:
-        duration_seconds = duration * 60 if duration else 1800
+        seconds = duration * 60 if duration else 1800
         termination = {
+            "type": TERMINATION_TIMER,
             "typeSkillBasedApp": TERMINATION_TIMER,
-            "durationInSeconds": duration_seconds,
+            "durationInSeconds": seconds,
         }
     else:
-        termination = {"typeSkillBasedApp": TERMINATION_MANUAL}
+        termination = {
+            "type": TERMINATION_MANUAL,
+            "typeSkillBasedApp": TERMINATION_MANUAL,
+        }
 
     setting: dict[str, Any] = {"type": overlay_type, "power": power}
     if ac_mode:

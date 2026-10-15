@@ -72,8 +72,10 @@ from .const import (
     GEN_X,
     MIN_AUTO_QUOTA_INTERVAL_S,
     MIN_PROXY_INTERVAL_S,
+    OVERLAY_MANUAL,
     OVERLAY_NEXT_BLOCK,
     OVERLAY_PRESENCE,
+    OVERLAY_TIMER,
     POWER_OFF,
     POWER_ON,
     RESUME_REFRESH_DELAY_S,
@@ -1111,16 +1113,22 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
     ) -> None:
         """Set zone to OFF (frost protection mode).
 
-        OFF_MAGIC_TEMP is mapped to power=OFF by the executor. owd_timeout_s
-        lets a window-off expire into a schedule resume if the TRV was offline.
+        OFF_MAGIC_TEMP is mapped to power=OFF by the executor. A positive
+        owd_timeout_s is the cloud timer and the recovery deadline. Without
+        it the off stays until resume.
         """
         from .const import OFF_MAGIC_TEMP
 
+        minutes = (
+            int(owd_timeout_s // 60) if owd_timeout_s and owd_timeout_s > 0 else None
+        )
         data = build_overlay_data(
             zone_id,
             self.zones_meta,
             power="ON",
             temperature=OFF_MAGIC_TEMP,
+            duration=minutes,
+            overlay_mode=OVERLAY_TIMER if minutes else OVERLAY_MANUAL,
             supports_temp=self.supports_temperature(zone_id),
         )
         self._execute_overlay_command(
