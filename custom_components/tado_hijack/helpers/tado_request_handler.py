@@ -28,7 +28,7 @@ from tadoasync.tadoasync import (
 )
 from yarl import URL
 
-from ..const import TADO_USER_AGENT
+from ..const import PROXY_DOWN_MARKER, TADO_USER_AGENT
 from .logging_utils import get_redacted_logger, log_secrets, redact
 from .parsers import parse_ratelimit_headers
 
@@ -148,7 +148,7 @@ class TadoRequestHandler:
                     self._log_response(response, url)
 
                     if response.status >= http.HTTPStatus.BAD_REQUEST:
-                        await self._handle_error_response(response, url)
+                        await self._handle_error_response(response, url, proxy_url)
 
                     return (
                         ""
@@ -244,10 +244,41 @@ class TadoRequestHandler:
             raise TadoBadRequestError(message)
         raise TadoError(message)
 
-    async def _handle_error_response(self, response: Any, url: Any) -> None:
+    async def _handle_error_response(
+        self, response: Any, url: Any, proxy_url: str | None = None
+    ) -> None:
         """Handle error response by logging and raising."""
         path = getattr(url, "path", None) or str(url)
+        if proxy_url and response.status >= http.HTTPStatus.INTERNAL_SERVER_ERROR:
+            body = str(redact(await response.text()) or "")
+            content_type = str(response.headers.get("Content-Type", ""))
+            if "html" in content_type.lower() or body.lstrip().startswith(
+                ("<", "\ufeff<")
+            ):
+                self._raise_proxy_down_error(response.status, path, proxy_url, body)
+                return
         await self._raise_http_error(response, path)
+
+    def _raise_proxy_down_error(
+        self, status: int, where: str, proxy_url: str, body: str
+    ) -> None:
+        """Raise a clear error when the proxy itself fails (5xx, HTML error pages)."""
+        snippet = " ".join(body[:200].split())
+        _LOGGER.error(
+            "Tado API proxy at %s answered HTTP %d for %s — the proxy itself "
+            "seems to be down or misconfigured (Tado cloud is not the source "
+            "of this error). Check that the proxy container is running. "
+            "Response excerpt: %s",
+            proxy_url,
+            status,
+            where,
+            snippet,
+        )
+        message = (
+            f"{PROXY_DOWN_MARKER} HTTP {status} {where}. The API proxy "
+            f"({proxy_url}) seems to be down — check the proxy service."
+        )
+        raise TadoConnectionError(message)
 
     def _build_url(
         self,
