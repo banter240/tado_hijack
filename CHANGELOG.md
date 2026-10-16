@@ -1,3 +1,19 @@
+## [5.11.0-dev.5](https://github.com/banter240/tado_hijack/compare/v5.11.0-dev.4...v5.11.0-dev.5) (2026-10-16)
+
+### 🐛 Bug Fixes
+
+* fix: pass through select options unchanged
+
+  The proxied select tried to capitalize its options for a nicer
+  dropdown, but Home Assistant validates an incoming option against the
+  entity's own option list before async_select_option runs. Anything
+  still holding the raw lowercase value (frontend cache, restored state,
+  automations) then failed validation against the capitalized list, and
+  switching celsius to fahrenheit errored out. The select now passes
+  options, current_option and selections straight through, exactly like
+  the source integration, so the mapping cannot disagree with the service
+  layer.
+
 ## [5.11.0-dev.4](https://github.com/banter240/tado_hijack/compare/v5.11.0-dev.3...v5.11.0-dev.4) (2026-10-16)
 
 ### 🐛 Bug Fixes
