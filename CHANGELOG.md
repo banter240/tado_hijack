@@ -1,3 +1,27 @@
+## [5.11.0-dev.3](https://github.com/banter240/tado_hijack/compare/v5.11.0-dev.2...v5.11.0-dev.3) (2026-10-16)
+
+### 🐛 Bug Fixes
+
+* fix: post-release fixes for the local proxy feature
+
+  Two separate problems surfaced on the live system after 5.11.0-dev.2:
+
+  Home Assistant flagged registry.async_get_device(identifiers=...) as
+  deprecated because device identifiers are no longer unique across
+  config entries. sync_shared_room_device_names in entity.py now uses
+  async_get_device_by_identifier with the matching config_entry_id, which
+  resolves to the exact same zone device.
+
+  Every tado_*_local_climate entity then failed to add with an
+  AttributeError: TadoLocalClimateProxy fell back to super() for
+  temperature_unit, min_temp and max_temp whenever the source entity
+  exposed no corresponding attribute. ClimateEntity implements these as
+  cached_properties backed by _attr_* slots that the proxy never sets.
+  The fallbacks are now explicit: Celsius for the unit, and the new
+  TEMP_MIN_PROXY / TEMP_MAX_PROXY constants (5 / 30 degrees, a safe TRV
+  slider range that applies to every local device, regardless of platform
+  or generation) instead of borrowing the AC constants.
+
 ## [5.11.0-dev.2](https://github.com/banter240/tado_hijack/compare/v5.11.0-dev.1...v5.11.0-dev.2) (2026-10-16)
 
 ### ✨ New Features
