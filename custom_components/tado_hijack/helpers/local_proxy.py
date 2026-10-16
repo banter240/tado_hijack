@@ -653,20 +653,15 @@ class TadoLocalSelectProxy(TadoLocalProxyBase, SelectEntity):
     @property
     def current_option(self) -> str | None:
         state = self._source()
-        if state is None or state.state in _SKIP:
-            return None
-        return str(state.state).capitalize()
+        return None if state is None or state.state in _SKIP else str(state.state)
 
     @property
     def options(self) -> list[str]:
-        raw = _list_attr(self._source(), "options") or []
-        return [item.capitalize() for item in raw]
+        return _list_attr(self._source(), "options") or []
 
     async def async_select_option(self, option: str) -> None:
-        raw = _list_attr(self._source(), "options") or []
-        value = next((item for item in raw if item.lower() == option.lower()), option)
         await self._async_call(
-            SELECT_DOMAIN, SERVICE_SELECT_OPTION, {ATTR_OPTION: value}
+            SELECT_DOMAIN, SERVICE_SELECT_OPTION, {ATTR_OPTION: option}
         )
 
 
