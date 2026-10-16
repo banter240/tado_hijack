@@ -1,3 +1,42 @@
+## [5.11.0-dev.4](https://github.com/banter240/tado_hijack/compare/v5.11.0-dev.3...v5.11.0-dev.4) (2026-10-16)
+
+### 🐛 Bug Fixes
+
+* fix: post-release fixes for the local proxy feature
+
+  Five separate problems surfaced on the live system after 5.11.0-dev.2:
+
+  Home Assistant flagged registry.async_get_device(identifiers=...) as
+  deprecated because device identifiers are no longer unique across
+  config entries. sync_shared_room_device_names in entity.py now uses
+  async_get_device_by_identifier with the matching config_entry_id, which
+  resolves to the exact same zone device.
+
+  Every tado_*_local_climate entity then failed to add twice: first with
+  an AttributeError, because TadoLocalClimateProxy fell back to super()
+  for temperature_unit, min_temp and max_temp, which ClimateEntity
+  implements as cached_properties backed by _attr_* slots the proxy never
+  sets. The fallbacks are now explicit: Celsius for the unit and the new
+  TEMP_MIN_PROXY / TEMP_MAX_PROXY constants (5 / 30 degrees, a safe TRV
+  slider range for every local device) instead of borrowing the AC
+  constants.
+
+  Second with a TypeError, because supported_features returned the raw
+  integer from the source state while ClimateEntityFeature is a flag enum
+  and HA does membership checks like TARGET_HUMIDITY in supported_features
+  against it. The property now converts to ClimateEntityFeature.
+
+  Every proxied button was stuck unavailable although its source was
+  fine, because availability treated unknown like unavailable. Buttons
+  rest at unknown between presses, so the property now follows only
+  STATE_UNAVAILABLE; unknown stays a valid value (sensor and select still
+  skip it for their own state).
+
+  Proxied select options were shown exactly as the local integration
+  reports them (lowercase). The dropdown now capitalizes options like the
+  source integration does, while selecting maps the chosen label back to
+  the raw option the source expects.
+
 ## [5.11.0-dev.3](https://github.com/banter240/tado_hijack/compare/v5.11.0-dev.2...v5.11.0-dev.3) (2026-10-16)
 
 ### 🐛 Bug Fixes
