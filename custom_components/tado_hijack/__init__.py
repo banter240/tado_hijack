@@ -132,7 +132,7 @@ async def _async_connect_client(
     set_redacted_log_level(log_level)
     set_version_prefix_enabled(bool(log_version_prefix))
 
-    from .const import CONF_GENERATION, GEN_CLASSIC
+    from .const import CONF_GENERATION, GEN_CLASSIC, PROXY_DOWN_MARKER
 
     _LOGGER.info(
         "Tado Hijack %s starting (Generation: %s)",
@@ -168,6 +168,15 @@ async def _async_connect_client(
         except Exception as e:
             if "timeout" in str(e).lower():
                 _LOGGER.warning("Timeout connecting to Tado API, will retry: %s", e)
+                raise ConfigEntryNotReady(redact(str(e))) from None
+
+            if proxy_url and PROXY_DOWN_MARKER in str(e):
+                _LOGGER.error(
+                    "Failed to reach the Tado API proxy at %s. The proxy "
+                    "service appears to be down — verify the container/host "
+                    "running tado-api-proxy. Will retry.",
+                    proxy_url,
+                )
                 raise ConfigEntryNotReady(redact(str(e))) from None
 
             _LOGGER.error("Failed to initialize Tado API: %s", e)
