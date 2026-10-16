@@ -1,3 +1,56 @@
+## [5.11.0-dev.2](https://github.com/banter240/tado_hijack/compare/v5.11.0-dev.1...v5.11.0-dev.2) (2026-10-16)
+
+### ✨ New Features
+
+* feat: Proxy local devices on Hijack
+
+  Attach to the local device stays on by default. A second option, default
+  off, proxies every HomeKit or Matter entity for that serial onto the
+  Hijack device while attach is off. Unique ids use the Tado serial and
+  a stable role so automations keep the same entity after a reload.
+  Availability follows the local source, including recovery.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🔧 CHANGED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - Attach to HomeKit / Matter can be turned off after a reload
+  - Proxy local devices on Hijack puts climate, sensors, buttons and
+    the rest on the Hijack device when attach is off
+  - proxies use tado_{home}_{serial}_local_{role} entity ids
+  - unavailable on HomeKit or Matter is unavailable on the proxy
+  - diagnostic sensors report both options
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🌐 TRANSLATIONS
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - en, de, and cs for the options, sensors, and proxy names
+
+### 🐛 Bug Fixes
+
+* fix(proxy): name a dead API proxy instead of dumping its error page
+
+  A dead reverse proxy answers with its own HTML error page, the Synology
+  502 page in issue 155. The setup retry showed that page as the Tado
+  error, and the reporter had to find the cause himself.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🐛 FIXED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - a proxy 5xx with an HTML body raises a clear proxy-down error
+  - a JSON body is a Tado error the proxy passed through, unchanged path
+  - every 4xx keeps the auth and payload handling
+  - setup matches a [tado-api-proxy-down] marker instead of substrings
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🔧 CHANGED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - the proxy-down log carries a short response excerpt
+  - timeouts and auth errors keep their existing branches
+
 ## [5.11.0-dev.1](https://github.com/banter240/tado_hijack/compare/v5.10.0...v5.11.0-dev.1) (2026-10-15)
 
 ### ✨ New Features
