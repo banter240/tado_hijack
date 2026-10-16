@@ -27,6 +27,7 @@ from homeassistant.components.climate import (
     SERVICE_SET_SWING_MODE,
     SERVICE_SET_TEMPERATURE,
     ClimateEntity,
+    ClimateEntityFeature,
     HVACAction,
     HVACMode,
 )
@@ -363,7 +364,7 @@ class TadoLocalProxyBase(TadoEntity):
     @property
     def available(self) -> bool:
         state = self._source()
-        return state is not None and state.state not in _SKIP
+        return state is not None and state.state != STATE_UNAVAILABLE
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -512,11 +513,13 @@ class TadoLocalClimateProxy(TadoLocalProxyBase, ClimateEntity):
         return str(unit) if unit is not None else UnitOfTemperature.CELSIUS
 
     @property
-    def supported_features(self) -> int:
+    def supported_features(self) -> ClimateEntityFeature:
         state = self._source()
         if state is None:
-            return 0
-        return int(state.attributes.get(ATTR_SUPPORTED_FEATURES) or 0)
+            return ClimateEntityFeature(0)
+        return ClimateEntityFeature(
+            int(state.attributes.get(ATTR_SUPPORTED_FEATURES) or 0)
+        )
 
     @property
     def fan_mode(self) -> str | None:
@@ -650,15 +653,20 @@ class TadoLocalSelectProxy(TadoLocalProxyBase, SelectEntity):
     @property
     def current_option(self) -> str | None:
         state = self._source()
-        return None if state is None or state.state in _SKIP else str(state.state)
+        if state is None or state.state in _SKIP:
+            return None
+        return str(state.state).capitalize()
 
     @property
     def options(self) -> list[str]:
-        return _list_attr(self._source(), "options") or []
+        raw = _list_attr(self._source(), "options") or []
+        return [item.capitalize() for item in raw]
 
     async def async_select_option(self, option: str) -> None:
+        raw = _list_attr(self._source(), "options") or []
+        value = next((item for item in raw if item.lower() == option.lower()), option)
         await self._async_call(
-            SELECT_DOMAIN, SERVICE_SELECT_OPTION, {ATTR_OPTION: option}
+            SELECT_DOMAIN, SERVICE_SELECT_OPTION, {ATTR_OPTION: value}
         )
 
 
