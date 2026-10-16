@@ -66,6 +66,7 @@ from homeassistant.const import (
     STATE_ON,
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
+    UnitOfTemperature,
 )
 from homeassistant.core import Event, callback
 from homeassistant.helpers import device_registry as dr
@@ -79,6 +80,8 @@ from homeassistant.util import slugify
 from ..const import (
     DEVICE_TYPE_MAP,
     DOMAIN,
+    TEMP_MAX_PROXY,
+    TEMP_MIN_PROXY,
     bridge_display_name,
     bridge_model_name,
 )
@@ -488,11 +491,11 @@ class TadoLocalClimateProxy(TadoLocalProxyBase, ClimateEntity):
 
     @property
     def min_temp(self) -> float:
-        return _float_attr(self._source(), "min_temp") or super().min_temp
+        return _float_attr(self._source(), "min_temp") or TEMP_MIN_PROXY
 
     @property
     def max_temp(self) -> float:
-        return _float_attr(self._source(), "max_temp") or super().max_temp
+        return _float_attr(self._source(), "max_temp") or TEMP_MAX_PROXY
 
     @property
     def target_temperature_step(self) -> float | None:
@@ -506,7 +509,7 @@ class TadoLocalClimateProxy(TadoLocalProxyBase, ClimateEntity):
             if state is not None
             else None
         )
-        return str(unit or super().temperature_unit)
+        return str(unit) if unit is not None else UnitOfTemperature.CELSIUS
 
     @property
     def supported_features(self) -> int:

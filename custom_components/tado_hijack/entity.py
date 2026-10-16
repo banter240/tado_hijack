@@ -88,8 +88,9 @@ def sync_shared_room_device_names(hass: HomeAssistant) -> None:
             raw_name = getattr(meta, "name", None)
             if not raw_name:
                 continue
-            device = registry.async_get_device(
-                identifiers={(DOMAIN, f"{entry.entry_id}_zone_{zone_id}")}
+            device = registry.async_get_device_by_identifier(
+                (DOMAIN, f"{entry.entry_id}_zone_{zone_id}"),
+                config_entry_id=entry.entry_id,
             )
             if device is None or device.name_by_user:
                 continue
