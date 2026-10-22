@@ -50,6 +50,7 @@ async def async_setup_entry(
         },
     )
     coordinator: TadoDataUpdateCoordinator = entry.runtime_data
+    coordinator.local_proxy.register("binary_sensor", async_add_entities)
     if coordinator.generation == GEN_X:
         async_add_entities(
             TadoXHotWaterScheduleBinarySensor(coordinator, zone_id, zone_name)

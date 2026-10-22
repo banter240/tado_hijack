@@ -83,6 +83,15 @@
       "humidity": {
         "name": "Vlhkost"
       },
+      "local_humidity": {
+        "name": "Vlhkost"
+      },
+      "local_battery": {
+        "name": "Baterie"
+      },
+      "local_temperature": {
+        "name": "Teplota"
+      },
       "dew_point": {
         "name": "Rosný bod"
       },
@@ -182,6 +191,12 @@
       "battery_state": {
         "name": "Baterie"
       },
+      "local_occupancy": {
+        "name": "Přítomnost"
+      },
+      "local_window": {
+        "name": "Okno"
+      },
       "connection_state": {
         "name": "Připojení ke cloudu"
       },
@@ -237,6 +252,12 @@
       "full_cloud_mode": {
         "name": "Plný cloudový režim"
       },
+      "link_local_devices": {
+        "name": "Připojit k HomeKit / Matter"
+      },
+      "proxy_local_entities": {
+        "name": "Proxy místních zařízení v Hijack"
+      },
       "window_resume_batch": {
         "name": "Fronta obnovení plánu"
       },
@@ -267,6 +288,9 @@
         "name": "Chytrý plán"
       },
       "child_lock": {
+        "name": "Dětský zámek"
+      },
+      "local_child_lock": {
         "name": "Dětský zámek"
       },
       "hot_water": {
@@ -325,6 +349,9 @@
       "identify_device": {
         "name": "Identifikovat zařízení"
       },
+      "local_identify": {
+        "name": "Identifikovat"
+      },
       "refresh_timetable": {
         "name": "Aktualizovat týdenní plán"
       },
@@ -339,6 +366,9 @@
       }
     },
     "number": {
+      "local_valve": {
+        "name": "Ventil"
+      },
       "temperature_offset": {
         "name": "Teplotní odchylka"
       },
@@ -444,6 +474,9 @@
       }
     },
     "climate": {
+      "local_climate": {
+        "name": "Klima"
+      },
       "hot_water": {
         "name": "Ohřev vody",
         "state_attributes": {
@@ -629,6 +662,8 @@
           "features": {
             "name": "Funkce",
             "data": {
+              "link_local_devices": "Připojit k HomeKit / Matter",
+              "proxy_local_entities": "Proxy místních zařízení v Hijack",
               "feature_dew_point": "Senzor rosného bodu",
               "feature_flow_temperature_optimization": "Optimalizace teploty topné vody",
               "feature_mold_detection": "Senzory rizika plísně",
@@ -636,6 +671,8 @@
               "ventilation_ah_threshold": "Práh větrání (g/m³)"
             },
             "data_description": {
+              "link_local_devices": "Umístí dětský zámek, offset, baterii a připojení na HomeKit nebo Matter TRV, pokud sériové číslo sedí. Výchozí zapnuto.",
+              "proxy_local_entities": "Přenáší všechny entity HomeKit nebo Matter na zařízení Hijack přes proxy. Připojení musí být vypnuté. Výchozí vypnuto.",
               "feature_dew_point": "Vytvoří senzor teploty rosného bodu pro každou zónu. Vypočítává se z teploty a vlhkosti v místnosti. POVINNÉ pro Tado X: Vyžaduje propojený zdroj teploty na zařízení zóny, protože cloudové API neposkytuje žádnou teplotu pro Tado X.",
               "feature_flow_temperature_optimization": "Načítá nastavení optimalizace teploty topné vody u Tado X (vyžaduje OpenTherm regulaci kotle) a vystaví číslo maximální teploty a spínač automatického přizpůsobení. Stojí 1 dotaz API na načtení metadat. Ve výchozím stavu vypnuto, aby se šetřila kvóta.",
               "feature_mold_detection": "Vytvoří senzory rizika plísně pro každou zónu. Obsahuje úroveň rizika (žádné/nízké/střední/vysoké) a binární senzor pro akutní riziko plísně. POVINNÉ pro Tado X: Vyžaduje propojený zdroj teploty na zařízení zóny.",
@@ -771,6 +808,8 @@
           "features": {
             "name": "Funkce",
             "data": {
+              "link_local_devices": "Připojit k HomeKit / Matter",
+              "proxy_local_entities": "Proxy místních zařízení v Hijack",
               "feature_dew_point": "Senzor rosného bodu",
               "feature_flow_temperature_optimization": "Optimalizace teploty topné vody",
               "feature_mold_detection": "Senzory rizika plísně",
@@ -778,6 +817,8 @@
               "ventilation_ah_threshold": "Práh větrání (g/m³)"
             },
             "data_description": {
+              "link_local_devices": "Umístí dětský zámek, offset, baterii a připojení na HomeKit nebo Matter TRV, pokud sériové číslo sedí. Výchozí zapnuto.",
+              "proxy_local_entities": "Přenáší všechny entity HomeKit nebo Matter na zařízení Hijack přes proxy. Připojení musí být vypnuté. Výchozí vypnuto.",
               "feature_dew_point": "Vytvoří senzor teploty rosného bodu pro každou zónu. Vypočítává se z teploty a vlhkosti v místnosti. POVINNÉ pro Tado X: Vyžaduje propojený zdroj teploty na zařízení zóny, protože cloudové API neposkytuje žádnou teplotu pro Tado X.",
               "feature_flow_temperature_optimization": "Načítá nastavení optimalizace teploty topné vody u Tado X (vyžaduje OpenTherm regulaci kotle) a vystaví číslo maximální teploty a spínač automatického přizpůsobení. Stojí 1 dotaz API na načtení metadat. Ve výchozím stavu vypnuto, aby se šetřila kvóta.",
               "feature_mold_detection": "Vytvoří senzory rizika plísně pro každou zónu. Obsahuje úroveň rizika (žádné/nízké/střední/vysoké) a binární senzor pro akutní riziko plísně. POVINNÉ pro Tado X: Vyžaduje propojený zdroj teploty na zařízení zóny.",

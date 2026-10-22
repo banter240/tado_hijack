@@ -45,6 +45,7 @@ async def async_setup_entry(
         },
     )
     coordinator: TadoDataUpdateCoordinator = entry.runtime_data
+    coordinator.local_proxy.register("button", async_add_entities)
     zone_name = schedule_zone_names(coordinator).get(TADOX_VIRTUAL_HOT_WATER_ZONE_ID)
     if zone_name is not None:
         async_add_entities(

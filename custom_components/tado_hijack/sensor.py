@@ -47,6 +47,8 @@ async def async_setup_entry(
             "zone": TadoGenericZoneSensor,
         },
     )
+    coordinator: TadoDataUpdateCoordinator = entry.runtime_data
+    coordinator.local_proxy.register("sensor", async_add_entities)
 
 
 class TadoGenericHomeSensor(TadoHomeEntity, TadoGenericEntityMixin, SensorEntity):

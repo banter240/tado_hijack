@@ -44,3 +44,4 @@ async def async_setup_entry(
             )
 
     async_add_entities(entities)
+    coordinator.local_proxy.register("climate", async_add_entities)
