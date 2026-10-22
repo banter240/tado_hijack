@@ -10,7 +10,9 @@ from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
 from ..const import (
+    CONF_LINK_LOCAL_DEVICES,
     CONF_PRESENCE_POLL_INTERVAL,
+    CONF_PROXY_LOCAL_ENTITIES,
     CONF_SLOW_POLL_INTERVAL,
     DEFAULT_PRESENCE_POLL_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
@@ -131,6 +133,27 @@ async def _v10(hass: HomeAssistant, entry: TadoConfigEntry) -> None:
     )
 
 
+def _v11(hass: HomeAssistant, entry: TadoConfigEntry) -> None:
+    """v11: Reverse-link HomeKit and Matter unless a different pair was saved.
+
+    The old default was attach on and copies off. That pair, including a
+    missing key, becomes attach off and reverse linking on. Any other
+    saved combination stays. HomeKit Device or Matter stays the source.
+    """
+    link = entry.data.get(CONF_LINK_LOCAL_DEVICES, True)
+    proxy = entry.data.get(CONF_PROXY_LOCAL_ENTITIES, False)
+    if link is not True or proxy is not False:
+        return
+    hass.config_entries.async_update_entry(
+        entry,
+        data={
+            **entry.data,
+            CONF_LINK_LOCAL_DEVICES: False,
+            CONF_PROXY_LOCAL_ENTITIES: True,
+        },
+    )
+
+
 # Ordered list of (target_version, migration_fn) pairs.
 # Each step runs when entry.version < target_version.
 MIGRATION_STEPS: list[tuple[int, Any]] = [
@@ -142,4 +165,5 @@ MIGRATION_STEPS: list[tuple[int, Any]] = [
     (8, _v8),
     (9, _v9),
     (10, _v10),
+    (11, _v11),
 ]

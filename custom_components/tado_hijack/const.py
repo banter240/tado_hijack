@@ -151,9 +151,11 @@ DEFAULT_SUPPRESS_REDUNDANT_BUTTONS: Final = (
     False  # Opt-in button redundancy suppression
 )
 
-# Feature Flag Defaults (all on by default — zero cost when unused)
-DEFAULT_LINK_LOCAL_DEVICES: Final = True
-DEFAULT_PROXY_LOCAL_ENTITIES: Final = False
+# Feature Flag Defaults (on unless noted — zero cost when unused).
+# Reverse linking is the default: the climate stays created in HomeKit
+# Device (V3) or Matter (Tado X), and those entities are copied here.
+DEFAULT_LINK_LOCAL_DEVICES: Final = False
+DEFAULT_PROXY_LOCAL_ENTITIES: Final = True
 DEFAULT_FEATURE_DEW_POINT: Final = True
 DEFAULT_FEATURE_FLOW_TEMP: Final = False
 DEFAULT_FEATURE_MOLD_DETECTION: Final = True

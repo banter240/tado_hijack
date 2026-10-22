@@ -173,7 +173,7 @@ Two complementary utilities bridging Tado's cloud and Home Assistant's local reg
 
 **`EntityResolver`** (`helpers/entity_resolver.py`) resolves HA entity IDs to Tado zone IDs — caching lookups, parsing unique IDs, and performing deep registry scans, including resolving device entities (e.g. `child_lock_VA123`) back to their owning zone via serial number.
 
-**`DeviceLinker`** (`helpers/device_linker.py`) handles device unification. It builds a cache from the HA device registry keyed by `serial_number`, matching Tado devices regardless of platform (HomeKit or Matter). When a cloud serial matches a local device, the cloud entities link to that device. Optional, default on. A second option proxies the local device entities onto the Hijack device. Hijack still keeps its own device.
+**`DeviceLinker`** (`helpers/device_linker.py`) handles device unification. It builds a cache from the HA device registry keyed by `serial_number`, matching Tado devices regardless of platform (HomeKit Device on classic V3, Matter on Tado X). When a cloud serial matches a local device, that device is the one HomeKit or Matter created. By default the local entities are copied onto the Hijack device (`helpers/local_proxy.py`). With attach on, the cloud entities link onto the local device instead, and the copies stay off. Hijack still keeps its own device. HomeKit Device or Matter stays installed.
 
 ---
 

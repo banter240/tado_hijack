@@ -682,7 +682,7 @@ class TadoHijackConfigFlow(
 ):  # type: ignore[call-arg]
     """Handle a config flow for Tado Hijack."""
 
-    VERSION = 10
+    VERSION = 11
     login_task: asyncio.Task[Any] | None = None
     refresh_token: str | None = None
     tado: Tado | None = None

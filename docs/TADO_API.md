@@ -25,7 +25,7 @@ Tado cloud surfaces plus local protocols:
 | Energy Insights API | energy-insights.tado.com | Meter readings (EIQ) | All |
 | Hops API | hops.tado.com | Rooms, devices, manual control, quick actions, hot water programmer, flow temperature | Tado X |
 | OAuth2 | login.tado.com/oauth2 | Token + device authorization flow | All |
-| Local HomeKit / Matter | (local network) | Heating setpoints, measured values | All (via device_linker) |
+| Local HomeKit / Matter | (local network) | Heating setpoints, measured values | V3: HomeKit Device. X: Matter. Copied onto Hijack by default |
 
 **Why so many?** Tado X homes still use the classic v2 API for presence
 (/state, /presenceLock). Room state, manual control, and the weekly
@@ -759,24 +759,43 @@ Why aggressive batching? Every bulk overlay saves N-1 calls, device fusion
 saves 1 call, quick action inference saves N-1 calls. At scale these savings
 prevent quota exhaustion.
 
-## 4. Local Control: HomeKit & Matter Linking
+## 4. Local Control: Created in HomeKit & Matter
+
+The heating climate is created by the HomeKit Device integration (classic
+V3) or by Matter (Tado X). Those integrations stay installed. Hijack does
+not create that climate.
 
 ### 4.1 Serial-Based Matching (helpers/device_linker.py)
 
-Both HomeKit (classic) and Matter (Tado X) devices expose a serial number
-(serialNo). The linker:
+Both expose a serial number (serialNo). The linker:
 
 1. Fetches Tado devices from either generation.
-2. Matches by serial number to HomeKit/Matter accessories.
-3. Exposes a bidirectional map serial to/from entity_id.
+2. Matches by serial number to the HomeKit or Matter accessory.
+3. Maps that serial to the climate entity created there. Copies this
+   integration adds are skipped (`platform != tado_hijack`). Window
+   handling, recovery, and optimistic overlays follow the original entity.
 
-### 4.2 Why Local Control?
+### 4.2 Reverse linking (helpers/local_proxy.py)
+
+Default for a new setup, and for an entry still on the old attach default:
+attach is off and reverse linking is on. Every entity on the matched
+HomeKit or Matter device is copied onto the Hijack device for that serial,
+including entities that appear later. Writes on the copy call the original
+entity. Child lock, offset, battery, and connection stay on the Hijack
+device.
+
+Attach on is the old direction. Those cloud entities move onto the HomeKit
+or Matter device, and reverse linking stays off. An entry that already
+saved a different combination keeps it. Full cloud mode does neither.
+A V2 gateway has no HomeKit device.
+
+### 4.3 Why Local Control?
 
 - Latency: local commands bypass cloud round-trips.
 - Quota: local sets do NOT consume API quota.
 - Reliability: works even if Tado cloud has an outage (limited to heating).
 
-A local climate setpoint is not copied to the cloud. `climate.set_hvac_mode`
+A local climate setpoint is not sent to the Tado cloud. `climate.set_hvac_mode`
 of `auto` on a linked entity resumes the Tado schedule. Other local
 `set_temperature` / `set_hvac_mode` calls only set an optimistic overlay.
 
@@ -825,6 +844,7 @@ are not created from live data. The option defaults to off.
 | X executor (Hops) | helpers/tadox/executor.py |
 | Base executor (rollbacks, schedules) | helpers/executor_base.py |
 | Device linker (local) | helpers/device_linker.py |
+| Reverse link (local copy) | helpers/local_proxy.py |
 | Rate limiting | helpers/rate_limit_manager.py, helpers/parsers.py, helpers/quota_math.py |
 | Coordinator (pipeline orchestration) | coordinator.py |
 

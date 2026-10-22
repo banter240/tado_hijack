@@ -212,8 +212,9 @@ def ensure_bridge_devices(
 ) -> None:
     """Register each bridge-scoped device, even when HomeKit or Matter has one.
 
-    The empty Hijack device is the proof the device was registered. Entities
-    link onto the HomeKit or Matter device themselves when the serial matches.
+    The Hijack device stays registered. Reverse linking copies the entities
+    created there onto it. Attach, when turned on, moves the cloud entities
+    onto the HomeKit or Matter device instead.
     """
     registry = dr.async_get(hass)
     for bridge in bridges:

@@ -1,4 +1,8 @@
-"""Proxy local HomeKit / Matter device entities onto Hijack when attach is off."""
+"""Copy entities created in HomeKit or Matter onto the Hijack device.
+
+This is the default. It stays off while attach is on, and in full cloud mode.
+HomeKit Device (V3) or Matter (Tado X) remains the source.
+"""
 
 from __future__ import annotations
 

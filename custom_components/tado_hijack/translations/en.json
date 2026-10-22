@@ -256,7 +256,7 @@
         "name": "Attach to HomeKit / Matter"
       },
       "proxy_local_entities": {
-        "name": "Proxy local devices on Hijack"
+        "name": "Reverse link onto Hijack"
       },
       "window_resume_batch": {
         "name": "Queue Resume Schedule"
@@ -663,7 +663,7 @@
             "name": "Features",
             "data": {
               "link_local_devices": "Attach to HomeKit / Matter",
-              "proxy_local_entities": "Proxy local devices on Hijack",
+              "proxy_local_entities": "Reverse link onto Hijack",
               "feature_dew_point": "Dew Point Sensor",
               "feature_flow_temperature_optimization": "Flow Temperature Optimization",
               "feature_mold_detection": "Mold Risk Sensors",
@@ -671,8 +671,8 @@
               "ventilation_ah_threshold": "Ventilation Threshold (g/m³)"
             },
             "data_description": {
-              "link_local_devices": "Puts child lock, offset, battery, and connection on the HomeKit or Matter TRV when the serial matches. Default on.",
-              "proxy_local_entities": "Proxies every HomeKit or Matter entity onto the Hijack device. Attach must be off. Default off.",
+              "link_local_devices": "Puts child lock, offset, battery, and connection on the HomeKit or Matter TRV when the serial matches. Reverse linking stays off while this is on. Default off.",
+              "proxy_local_entities": "Copies every entity created in HomeKit (V3, HomeKit Device) or Matter (Tado X) for this serial onto the Hijack device, including later ones. HomeKit Device or Matter stays installed. Stays off while attach is on. Default on.",
               "feature_dew_point": "Create a dew point temperature sensor per zone. Calculated from room temperature and humidity. MANDATORY for Tado X: Requires a linked temperature source on the zone device as the cloud API provides no temperature for Tado X.",
               "feature_flow_temperature_optimization": "Poll Tado X flow temperature optimization settings (requires an OpenTherm boiler control device) and expose a max flow temperature number entity and an auto adaptation switch. Costs 1 API call per metadata poll. Disabled by default to conserve API quota.",
               "feature_mold_detection": "Create mold risk sensors per zone. Includes a risk level (none/low/medium/high) and a binary sensor for acute mold risk. MANDATORY for Tado X: Requires a linked temperature source on the zone device.",
@@ -809,7 +809,7 @@
             "name": "Features",
             "data": {
               "link_local_devices": "Attach to HomeKit / Matter",
-              "proxy_local_entities": "Proxy local devices on Hijack",
+              "proxy_local_entities": "Reverse link onto Hijack",
               "feature_dew_point": "Dew Point Sensor",
               "feature_flow_temperature_optimization": "Flow Temperature Optimization",
               "feature_mold_detection": "Mold Risk Sensors",
@@ -817,8 +817,8 @@
               "ventilation_ah_threshold": "Ventilation Threshold (g/m³)"
             },
             "data_description": {
-              "link_local_devices": "Puts child lock, offset, battery, and connection on the HomeKit or Matter TRV when the serial matches. Default on.",
-              "proxy_local_entities": "Proxies every HomeKit or Matter entity onto the Hijack device. Attach must be off. Default off.",
+              "link_local_devices": "Puts child lock, offset, battery, and connection on the HomeKit or Matter TRV when the serial matches. Reverse linking stays off while this is on. Default off.",
+              "proxy_local_entities": "Copies every entity created in HomeKit (V3, HomeKit Device) or Matter (Tado X) for this serial onto the Hijack device, including later ones. HomeKit Device or Matter stays installed. Stays off while attach is on. Default on.",
               "feature_dew_point": "Create a dew point temperature sensor per zone. Calculated from room temperature and humidity. MANDATORY for Tado X: Requires a linked temperature source on the zone device as the cloud API provides no temperature for Tado X.",
               "feature_flow_temperature_optimization": "Poll Tado X flow temperature optimization settings (requires an OpenTherm boiler control device) and expose a max flow temperature number entity and an auto adaptation switch. Costs 1 API call per metadata poll. Disabled by default to conserve API quota.",
               "feature_mold_detection": "Create mold risk sensors per zone. Includes a risk level (none/low/medium/high) and a binary sensor for acute mold risk. MANDATORY for Tado X: Requires a linked temperature source on the zone device.",

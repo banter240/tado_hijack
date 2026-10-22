@@ -173,7 +173,7 @@ Replacing a pending `flow_temp` command merges the payload instead of dropping t
 
 ### Local TRV recovery
 
-Cloud writes always go out. `AvailabilityTracker` follows the local climate entity for each TRV serial (HomeKit or Matter). It reads the current state when the entity is first mapped, so a device that is already `unavailable` at startup is queued, and it rebuilds the map when climate entities show up later.
+Cloud writes always go out. `AvailabilityTracker` follows the climate created in HomeKit (V3, HomeKit Device) or Matter (Tado X) for each TRV serial. The reverse-linked copy on the Hijack device is not that entity. The tracker reads the current state when the entity is first mapped, so a device that is already `unavailable` at startup is queued, and it rebuilds the map when climate entities show up later.
 
 `LocalRecoveryQueue.capture_overlay` / `capture_resume` record the latest intent only for serials that are unavailable. On recovery, a still-valid overlay is applied with `climate.set_temperature` or `climate.set_hvac_mode`. An intent whose `expires_at` has passed, or an explicit resume, is a schedule resume. Those are resent to the cloud only when `recovery_cloud_replay` is enabled, one call per zone. Serials that return within `RECOVERY_BATCH_DEBOUNCE_S` (0.2 s) share that batch. A router that brings devices back over several seconds produces more than one batch; each batch is still correct.
 
