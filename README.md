@@ -49,7 +49,7 @@ V2, V3 Classic, and Tado X.
 
 Tado Hijack is the cloud integration for a Tado account. Remove the official Home Assistant Tado integration before you add this one. Both poll the same account.
 
-The heating climate is created in HomeKit (V3, HomeKit Device) or Matter (Tado X). Those integrations stay installed. Hijack reverse-links that device onto its own: the local entities are copied across, and child lock, offset, battery, and connection stay on the Hijack device. The zone is a Hijack device too: schedules, hot water, indoor climate, and the source selects. Polling and command batching follow the limit in the last `RateLimit-Policy` header.
+The heating climate is created in HomeKit (V3) or Matter (Tado X). The entities are on the Hijack device. Do not remove that Tado HomeKit or Matter integration, or the clone is gone. The zone is a Hijack device too: schedules, hot water, indoor climate, and the source selects. Polling and command batching follow the limit in the last `RateLimit-Policy` header.
 
 > [!NOTE]
 > **High API Usage is Expected:**
@@ -63,7 +63,7 @@ The heating climate is created in HomeKit (V3, HomeKit Device) or Matter (Tado X
 - **Command Batching:** Classic zones in one window share one call. Tado X is one call per room, or one quick action when the whole heating batch matches.
 - **Multi-Generation Support:** Full support for V2 (GW bridges), V3 Classic (HomeKit), and Tado X (Matter) within a unified architecture.
 - **Several homes:** One account can hold more than one home, on V2, V3 Classic, and Tado X. Setup logs in, you pick one, and the next home is another add with its own login.
-- **Reverse linking:** Entities created in HomeKit or Matter are copied onto the Hijack device. HomeKit Device (V3) or Matter (Tado X) stays installed. Details are under [Created in HomeKit or Matter](#created-in-homekit-or-matter).
+- **Reverse linking:** HomeKit or Matter entities are on the Hijack device. Keep the Tado HomeKit or Matter integration, or the clone is gone. [Created in HomeKit or Matter](#created-in-homekit-or-matter).
 - **Indoor Climate Sensors:** Calculates dew point, absolute humidity, and mold risk per zone.
 - **Offset from an external temperature:** A linked sensor is compared with the TRV and the offset is written. Off until you choose an interval. [How it runs](#offset-from-an-external-temperature).
 - **External window contact:** A binary sensor per zone turns the room off and resumes the schedule afterwards. [Handler](#external-window-sensor-handler-all-generations).
@@ -166,21 +166,15 @@ While other integrations waste your precious API quota for every tiny interactio
 
 <br>
 
-The heating climate is created in HomeKit or in Matter. Those integrations stay installed.
+The heating climate is created in HomeKit or in Matter.
 
 - **V3 Classic:** pair the Tado bridge in the **HomeKit Device** integration.
 - **Tado X:** pair the bridge in the **Matter** integration.
 - **V2:** no local device. That home uses [Full Cloud Mode](#full-cloud-mode-all-generations).
 
-Hijack matches the cloud serial (`VA…`) to that device. Matter matches `serial_number` or `serial_VA…`. By default Hijack reverse-links: every entity HomeKit or Matter created for that serial is copied onto the Hijack device, including entities that show up later. Child lock, offset, battery, and connection stay on the Hijack device with them. The zone stays a Hijack device: schedules, hot water, indoor climate, and the source selects.
+Hijack matches the cloud serial (`VA…`) to that device. Matter matches `serial_number` or `serial_VA…`. The entities are on the Hijack device. Child lock, offset, battery, and connection are there too.
 
-Home Assistant keeps one registry device per integration, so the HomeKit or Matter page stays next to the Hijack page. Leave the HomeKit or Matter page. It is where the climate was created. Removing HomeKit Device or Matter removes the climate the copy follows. [Why both devices stay](#why-do-i-still-see-a-hijack-trv-and-a-homekitmatter-trv).
-
-Attach is off by default. Turn it on to put child lock, offset, battery, and connection onto the HomeKit or Matter TRV instead. Reverse linking stays off while attach is on. If no local device exposes the serial, the cloud entities stay on the Hijack device. Full cloud mode keeps them there and does not copy a local climate.
-
-On the next start, a setup still on the old attach default switches to reverse linking. A setup that already chose a different combination keeps that choice.
-
-Classic air conditioning is always a Hijack climate.
+Do not remove the Tado HomeKit or Matter integration. Those Hijack entities are a clone of it. Remove that integration and the clone is gone. [Why both devices stay](#why-do-i-still-see-a-hijack-trv-and-a-homekitmatter-trv).
 
 <br>
 
@@ -389,7 +383,7 @@ Tado Hijack is now an **official HACS integration**! No custom repository needed
 > **Hardware Generation:**
 > Select your generation during setup based on your physical bridge: IB01/GW01 = **v3 Classic**, IB02 or PR04 = **Tado X**. If unsure, choose v3 Classic (most common). See [Generation Support](#generation-support-v3-classic--tado-x) for feature differences.
 >
-> **Keep HomeKit or Matter installed.** V3 Classic still needs the HomeKit Device integration, with the Tado bridge paired. Tado X still needs the Matter integration. Hijack does not replace those. The heating climate is created there and reverse-linked onto the Hijack device. A V2 gateway has no HomeKit device and uses Full Cloud Mode. Remove only the official Tado integration.
+> **Do not remove the Tado HomeKit or Matter integration.** V3 needs HomeKit Device with the Tado bridge paired. Tado X needs Matter. The Hijack entities are a clone of that device. Remove the integration and the clone is gone. A V2 gateway has no HomeKit device and uses Full Cloud Mode. Remove only the official Tado cloud integration.
 
 <br>
 
@@ -420,8 +414,8 @@ Tado Hijack is now an **official HACS integration**! No custom repository needed
 | **Offset Update**                  | `0` (Off) | Interval for temperature offsets. Costs 1 API call per valve. Calibration polls only when no offset is known. |
 | **Flow Temperature Optimization**  | `Off`     | Tado X option. The periodic poll does not call the flow-temperature GET, so the number and switch are not created from that poll. |
 | **Replay Cloud-Only On Recovery**  | `On`      | See [Offline TRV recovery](#offline-trv-recovery-homekit-and-matter). |
-| **Attach to HomeKit / Matter**     | `Off`     | Puts child lock, offset, battery, and connection on the TRV when the serial matches. Reverse linking stays off while this is on. A setup still on the old default switches on the next start. A different saved combination stays. |
-| **Reverse link onto Hijack**       | `On`      | Copies every entity created in HomeKit (V3) or Matter (Tado X) onto the Hijack device, including later additions. HomeKit Device or Matter stays installed. Stays off while attach is on. |
+| **Attach to HomeKit / Matter**     | `Off`     | Puts child lock, offset, battery, and connection on the HomeKit or Matter TRV. The clone stays off while this is on. |
+| **Reverse link onto Hijack**       | `On`      | The HomeKit (V3) or Matter (Tado X) entities are on the Hijack device. Do not remove that integration, or the clone is gone. |
 | **Queue and delay resume schedule** | `On`    | Window close and window-timeout end. Behavior is in the window section below.                                                                                                                                                                              |
 | **Resume schedule batch window**   | `120s`    | How long those cloud resumes wait so nearby rooms share one batch. `0` sends on the next pass.                                                                                                                                                             |
 | **Offset threshold cooldown**      | `300` s   | After a threshold-mode offset write, wait this long before another one. A calibration that waited for an open window also waits until this cooldown has passed. |
@@ -1014,7 +1008,7 @@ logger:
 
 ### Where are my climate entities and current temperature?
 
-The heating climate is created in HomeKit (V3, HomeKit Device) or Matter (Tado X). Reverse linking shows that climate on the Hijack device. The original entity stays on the HomeKit or Matter device. Classic air conditioning is always a Hijack climate. Full cloud mode adds a Hijack heating climate, and a V2 gateway needs that mode.
+The heating climate is on the Hijack device. It was created in HomeKit (V3) or Matter (Tado X). Do not remove that integration, or the clone is gone. Classic air conditioning is always a Hijack climate. Full cloud mode adds a Hijack heating climate, and a V2 gateway needs that mode.
 
 See [Full Cloud Mode](#full-cloud-mode-all-generations).
 
@@ -1022,13 +1016,11 @@ See [Full Cloud Mode](#full-cloud-mode-all-generations).
 
 ### Why do I still see a Hijack TRV and a HomeKit/Matter TRV?
 
-The climate is created in HomeKit or Matter. Hijack keeps its own device and, by default, copies those local entities onto it. Home Assistant keeps one registry device per integration, so both pages remain.
+The entities are on the Hijack device. HomeKit or Matter is the Tado device they were cloned from.
 
-**Leave the HomeKit or Matter device, and leave HomeKit Device or Matter installed.** The copy follows the entity created there. Without it there is no local setpoint, and window handling and offline recovery have nothing local to write.
+**Do not remove the Tado HomeKit or Matter integration.** Remove it and the clone is gone.
 
-With attach turned on, child lock, offset, battery, and connection move onto the HomeKit or Matter device. Leave the Hijack device in that case too. If HomeKit or Matter disappears, those cloud entities are created on the Hijack device again.
-
-Zone-level entities (schedules, indoor climate, source selectors) always stay on Hijack zone devices.
+Zone-level entities (schedules, indoor climate, source selectors) stay on the Hijack zone device.
 
 <br>
 

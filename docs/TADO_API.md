@@ -761,9 +761,9 @@ prevent quota exhaustion.
 
 ## 4. Local Control: Created in HomeKit & Matter
 
-The heating climate is created by the HomeKit Device integration (classic
-V3) or by Matter (Tado X). Those integrations stay installed. Hijack does
-not create that climate.
+The heating climate is created by HomeKit Device (classic V3) or Matter
+(Tado X). The entities are on the Hijack device. Do not remove that
+integration. The Hijack entities are a clone of it.
 
 ### 4.1 Serial-Based Matching (helpers/device_linker.py)
 
@@ -777,17 +777,15 @@ Both expose a serial number (serialNo). The linker:
 
 ### 4.2 Reverse linking (helpers/local_proxy.py)
 
-Default for a new setup, and for an entry still on the old attach default:
-attach is off and reverse linking is on. Every entity on the matched
-HomeKit or Matter device is copied onto the Hijack device for that serial,
-including entities that appear later. Writes on the copy call the original
-entity. Child lock, offset, battery, and connection stay on the Hijack
-device.
+Reverse linking is the default. Every entity on the matched HomeKit or
+Matter device is on the Hijack device for that serial, including entities
+that appear later. A write on the clone calls the original entity. Child
+lock, offset, battery, and connection are on the Hijack device.
 
-Attach on is the old direction. Those cloud entities move onto the HomeKit
-or Matter device, and reverse linking stays off. An entry that already
-saved a different combination keeps it. Full cloud mode does neither.
-A V2 gateway has no HomeKit device.
+Attach on puts those cloud entities on the HomeKit or Matter device, and
+the clone stays off. Full cloud mode does neither. A V2 gateway has no
+HomeKit device. An entry still stored with attach on and the clone off
+switches on startup. Any other saved pair stays.
 
 ### 4.3 Why Local Control?
 

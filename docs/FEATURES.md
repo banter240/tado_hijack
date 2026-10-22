@@ -10,9 +10,9 @@ One home is one generation. **Classic** is the V2 gateway (`GW`) and the V3 brid
 
 Turn off the official Home Assistant Tado integration. It polls the same account. Hijack replaces it. V3 still needs the HomeKit Device integration, with the Tado bridge paired. Tado X still needs Matter.
 
-The heating climate is created there. Hijack does not copy an ordinary local temperature change to Tado. A local `climate.set_hvac_mode` of `auto` on that climate resumes the Tado schedule. Anything else is stored as an optimistic manual overlay. HomeKit and Matter have no auto mode. The copy on the Hijack device forwards to the climate that was created there.
+The heating climate is created there. The entities are on the Hijack device. Do not remove the Tado HomeKit or Matter integration. Remove it and the clone is gone. Hijack does not send an ordinary local temperature change to Tado. A local `climate.set_hvac_mode` of `auto` on that climate resumes the Tado schedule. Anything else is stored as an optimistic manual overlay. HomeKit and Matter have no auto mode. The clone forwards to the entity created there.
 
-By default every entity on that HomeKit or Matter device is copied onto the Hijack device for the same serial. Child lock, offset, battery, and connection stay on the Hijack device. Turn attach on to put those cloud entities on the HomeKit or Matter TRV instead. Reverse linking stays off while attach is on. A setup still on the old attach default switches on the next start. A different saved combination stays. Home Assistant keeps a separate registry device per integration, so both pages remain. Zone entities stay on the Hijack zone device.
+Child lock, offset, battery, and connection are on the Hijack device too. Attach puts those on the HomeKit or Matter TRV instead, and the clone stays off. Zone entities stay on the Hijack zone device.
 
 Full cloud mode (default off) creates a Hijack heating climate for classic heating zones, and a heating climate for every Tado X room. Classic air conditioning is created either way. The Tado X climate entity uses `off`, `heat`, and `auto`. It has no fan and no swing. `async_set_ac_setting` on Tado X does nothing.
 
