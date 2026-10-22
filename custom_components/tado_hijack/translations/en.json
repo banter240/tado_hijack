@@ -222,6 +222,9 @@
       "refresh_after_resume": {
         "name": "Refresh After Resume"
       },
+      "refresh_plans_after_reset": {
+        "name": "Refresh Plans After Reset"
+      },
       "fetch_extended_data": {
         "name": "Fetch Extended Data"
       },
@@ -521,12 +524,14 @@
             "data": {
               "scan_interval": "Status Polling Interval (Seconds)",
               "presence_poll_interval": "Presence Polling Interval (Seconds)",
-              "slow_poll_interval": "Hardware Sync Interval (Seconds)"
+              "slow_poll_interval": "Hardware Sync Interval (Seconds)",
+              "refresh_plans_after_reset": "Refresh weekly plans after quota reset"
             },
             "data_description": {
               "scan_interval": "Interval for room data (temp, humidity, heating power). IMPORTANT: Dynamically overridden by 'Auto API Quota' when enabled; serves as fallback when calculated budget is exhausted.",
               "presence_poll_interval": "How often to check Home/Away status. Set to a higher value (e.g. 43200s/12h) to save quota.",
-              "slow_poll_interval": "How often to sync battery levels, firmware, capabilities and device list. 86400s (24h) is recommended."
+              "slow_poll_interval": "How often to sync battery levels, firmware, capabilities and device list. 86400s (24h) is recommended.",
+              "refresh_plans_after_reset": "Once after each quota reset, fetch every zone plan into the calendar cache. One call per zone. Default off."
             }
           },
           "reduced_polling": {
@@ -661,12 +666,14 @@
             "data": {
               "scan_interval": "Status Polling Interval (Seconds)",
               "presence_poll_interval": "Presence Polling Interval (Seconds)",
-              "slow_poll_interval": "Hardware Sync Interval (Seconds)"
+              "slow_poll_interval": "Hardware Sync Interval (Seconds)",
+              "refresh_plans_after_reset": "Refresh weekly plans after quota reset"
             },
             "data_description": {
               "scan_interval": "Interval for room data (temp, humidity, heating power). IMPORTANT: Dynamically overridden by 'Auto API Quota' when enabled; serves as fallback when calculated budget is exhausted.",
               "presence_poll_interval": "How often to check Home/Away status. Set to a higher value (e.g. 43200s/12h) to save quota.",
-              "slow_poll_interval": "How often to sync battery levels, firmware, capabilities and device list. 86400s (24h) is recommended."
+              "slow_poll_interval": "How often to sync battery levels, firmware, capabilities and device list. 86400s (24h) is recommended.",
+              "refresh_plans_after_reset": "Once after each quota reset, fetch every zone plan into the calendar cache. One call per zone. Default off."
             }
           },
           "reduced_polling": {
@@ -973,7 +980,7 @@
         },
         "blocks": {
           "name": "Blocks",
-          "description": "List of start, end, temperature, and power. Must cover 00:00-24:00; gaps are filled as OFF."
+          "description": "List of start, end, temperature, and power. Must cover 00:00-24:00; gaps are filled as OFF. Tado X hot water is power ON or OFF and has no temperature."
         },
         "schedule_entity": {
           "name": "Schedule helper",

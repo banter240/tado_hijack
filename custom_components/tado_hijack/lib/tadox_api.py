@@ -241,6 +241,16 @@ class TadoXApi:
         """GET the Smart Schedule for a Tado X room."""
         return await self._request("GET", f"rooms/{room_id}/schedule")
 
+    async def async_get_hot_water_schedule(self) -> Any:
+        """GET the domestic-hot-water week (ON/OFF blocks, no temperature)."""
+        return await self._request("GET", "programmer/domesticHotWater/schedule")
+
+    async def async_set_hot_water_schedule(self, payload: dict[str, Any]) -> Any:
+        """Replace one domestic-hot-water weekday. Tado answers 204."""
+        return await self._request(
+            "PUT", "programmer/domesticHotWater/schedule", json_data=payload
+        )
+
     async def async_get_home_state(self) -> Any:
         """Get home presence state."""
         return await self._tado.get_home_state()

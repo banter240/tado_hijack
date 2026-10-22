@@ -326,12 +326,16 @@ class TadoDataManager:
             "offset_cal_total": daily_offset_cal_puts(self.coordinator),
             "zones_poll_cost": 1,
         }
+        from .schedule import plan_refresh_get_count
+
+        breakdown["plan_refresh_total"] = plan_refresh_get_count(self.coordinator)
         total = (
             breakdown["presence_poll_total"]
             + breakdown["slow_poll_total"]
             + breakdown["capabilities_total"]
             + breakdown["offset_poll_total"]
             + breakdown["offset_cal_total"]
+            + breakdown["plan_refresh_total"]
         )
         return total, breakdown
 

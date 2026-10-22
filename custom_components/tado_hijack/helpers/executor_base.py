@@ -21,6 +21,7 @@ from ..const import (
 )
 from .command_merger import manual_poll_includes
 from .logging_utils import get_redacted_logger
+from .schedule import tadox_hot_water_schedule_zone
 from .utils import apply_jitter
 
 if TYPE_CHECKING:
@@ -200,7 +201,10 @@ class TadoExecutorBase(ABC):
                 if bridge is None:
                     _LOGGER.error("Tado X schedule write skipped: no Hops bridge")
                     continue
-                coro = bridge.async_set_room_schedule(zid, payload)
+                if tadox_hot_water_schedule_zone(self.coordinator.generation, zid):
+                    coro = bridge.async_set_hot_water_schedule(payload)
+                else:
+                    coro = bridge.async_set_room_schedule(zid, payload)
             else:
                 coro = self.coordinator.client.set_timetable_blocks(
                     zid, int(slot["timetable_id"]), day_type, payload

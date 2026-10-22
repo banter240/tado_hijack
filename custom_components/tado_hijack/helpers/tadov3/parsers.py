@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
-
-import homeassistant.util.dt as dt_util
 
 from ...const import BOOST_MODE_TEMP, TEMP_TOLERANCE
 from ..climate_physics import (
@@ -52,43 +49,6 @@ def parse_heating_power(state: Any, zone_type: str | None = None) -> float:
         return float(state.activity_data_points.heating_power.percentage)
 
     return 0.0
-
-
-def parse_next_schedule_temp(state: Any) -> float | None:
-    """Extract next schedule target temperature from v3 zone state."""
-    nsc = getattr(state, "next_schedule_change", None)
-    if not nsc:
-        return None
-    setting = getattr(nsc, "setting", None)
-    if not setting:
-        return None
-    temp = getattr(setting, "temperature", None)
-    return None if temp is None else temp.celsius or None
-
-
-def parse_next_schedule_mode(state: Any) -> str | None:
-    """Extract next schedule mode from v3 zone state."""
-    if nsc := getattr(state, "next_schedule_change", None):
-        return (
-            (
-                (setting.power == "ON" and (setting.mode or "HEATING"))
-                or (setting.power == "OFF" and "OFF")
-            )
-            or None
-            if (setting := getattr(nsc, "setting", None))
-            else None
-        )
-    else:
-        return None
-
-
-def parse_next_time_block_start(state: Any) -> datetime | None:
-    """Extract next time block start datetime from v3 zone state (dict-based)."""
-    ntb = getattr(state, "next_time_block", None)
-    if not ntb or not isinstance(ntb, dict):
-        return None
-    start = ntb.get("start")
-    return dt_util.parse_datetime(start) if start else None
 
 
 def get_overlay_type(state: Any) -> str | None:

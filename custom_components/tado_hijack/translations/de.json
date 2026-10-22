@@ -222,6 +222,9 @@
       "refresh_after_resume": {
         "name": "Status nach Fortsetzen abrufen"
       },
+      "refresh_plans_after_reset": {
+        "name": "Wochenpläne nach Reset"
+      },
       "fetch_extended_data": {
         "name": "Erweiterte Daten laden"
       },
@@ -521,12 +524,14 @@
             "data": {
               "scan_interval": "Abfrageintervall Status (Sekunden)",
               "presence_poll_interval": "Abfrageintervall Anwesenheit (Sekunden)",
-              "slow_poll_interval": "Hardware-Sync Intervall (Sekunden)"
+              "slow_poll_interval": "Hardware-Sync Intervall (Sekunden)",
+              "refresh_plans_after_reset": "Wochenpläne nach dem Kontingent-Reset holen"
             },
             "data_description": {
               "scan_interval": "Intervall für Raumdaten (Temperatur, Feuchtigkeit, Heizleistung). WICHTIG: Bei aktivem automatischen API-Kontingent wird dieser Wert überschrieben. Er gilt nur als Ersatz, wenn das berechnete Kontingent aufgebraucht ist.",
               "presence_poll_interval": "Wie oft Zuhause oder Abwesend geprüft wird. Ein hoher Wert (z. B. 43200 s / 12 h) spart API-Aufrufe, wenn die Anwesenheit aus Home Assistant kommt.",
-              "slow_poll_interval": "Wie oft Batterie, Firmware, Fähigkeiten und die Geräteliste geprüft werden. 86400 s (24 h) ist empfohlen."
+              "slow_poll_interval": "Wie oft Batterie, Firmware, Fähigkeiten und die Geräteliste geprüft werden. 86400 s (24 h) ist empfohlen.",
+              "refresh_plans_after_reset": "Einmal nach jedem Kontingent-Reset alle Zonenpläne in den Kalender-Cache holen. Ein Aufruf pro Zone. Standard: aus."
             }
           },
           "reduced_polling": {
@@ -661,12 +666,14 @@
             "data": {
               "scan_interval": "Abfrageintervall Status (Sekunden)",
               "presence_poll_interval": "Abfrageintervall Anwesenheit (Sekunden)",
-              "slow_poll_interval": "Hardware-Sync Intervall (Sekunden)"
+              "slow_poll_interval": "Hardware-Sync Intervall (Sekunden)",
+              "refresh_plans_after_reset": "Wochenpläne nach dem Kontingent-Reset holen"
             },
             "data_description": {
               "scan_interval": "Intervall für Raumdaten (Temperatur, Feuchtigkeit, Heizleistung). WICHTIG: Bei aktivem automatischen API-Kontingent wird dieser Wert überschrieben. Er gilt nur als Ersatz, wenn das berechnete Kontingent aufgebraucht ist.",
               "presence_poll_interval": "Wie oft Zuhause oder Abwesend geprüft wird. Ein hoher Wert (z. B. 43200 s / 12 h) spart API-Aufrufe, wenn die Anwesenheit aus Home Assistant kommt.",
-              "slow_poll_interval": "Wie oft Batterie, Firmware, Fähigkeiten und die Geräteliste geprüft werden. 86400 s (24 h) ist empfohlen."
+              "slow_poll_interval": "Wie oft Batterie, Firmware, Fähigkeiten und die Geräteliste geprüft werden. 86400 s (24 h) ist empfohlen.",
+              "refresh_plans_after_reset": "Einmal nach jedem Kontingent-Reset alle Zonenpläne in den Kalender-Cache holen. Ein Aufruf pro Zone. Standard: aus."
             }
           },
           "reduced_polling": {
@@ -973,7 +980,7 @@
         },
         "blocks": {
           "name": "Blöcke",
-          "description": "Liste aus start, end, temperature und power. Muss 00:00-24:00 abdecken; Lücken werden als AUS gefüllt."
+          "description": "Liste aus start, end, temperature und power. Muss 00:00-24:00 abdecken; Lücken werden als AUS gefüllt. Tado X Warmwasser nimmt power ON oder OFF, ohne Temperatur."
         },
         "schedule_entity": {
           "name": "Zeitplan-Helfer",

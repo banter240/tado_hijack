@@ -16,6 +16,7 @@ from .const import (
     DOMAIN,
     GEN_X,
     INTERNET_BRIDGE_DEVICE_TYPES,
+    TADOX_VIRTUAL_HOT_WATER_ZONE_ID,
     ZONE_TYPE_HOT_WATER,
     bridge_display_name,
     bridge_model_name,
@@ -441,17 +442,13 @@ class TadoZoneEntity(TadoEntity):
         if self.coordinator.config_entry is None:
             raise RuntimeError("Config entry not available")
 
-        from .const import GEN_X
-
-        if self.tado_coordinator.generation == GEN_X:
-            model = "Heating Zone"
+        zone = self.tado_coordinator.zones_meta.get(self._zone_id)
+        if self._zone_id == TADOX_VIRTUAL_HOT_WATER_ZONE_ID or (
+            getattr(zone, "type", None) == ZONE_TYPE_HOT_WATER
+        ):
+            model = "Hot Water Zone"
         else:
-            zone = self.tado_coordinator.zones_meta.get(self._zone_id)
-            model = (
-                "Hot Water Zone"
-                if zone and zone.type == ZONE_TYPE_HOT_WATER
-                else "Heating Zone"
-            )
+            model = "Heating Zone"
 
         return DeviceInfo(
             identifiers={

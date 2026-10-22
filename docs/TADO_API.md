@@ -522,6 +522,31 @@ Payload: {"boost": "ON"} or {"boost": "OFF"}. Tado X keeps a boost for 60 minute
 
 POST: programmer/domesticHotWater/resumeSchedule
 
+#### async_get_hot_water_schedule() -> dict
+
+GET: programmer/domesticHotWater/schedule
+
+`schedule` is a flat list. Each block has `dayType` (`MONDAY` through `SUNDAY`), `start`, `end` (`00:00` to `24:00`), and `power` (`ON` or `OFF`). There is no temperature and no timetable switch.
+
+#### async_set_hot_water_schedule(payload: dict) -> None
+
+PUT: programmer/domesticHotWater/schedule
+
+One weekday per call. Tado answers 204 with an empty body.
+
+```json
+{
+  "dayType": "MONDAY",
+  "daySchedule": [
+    {"start": "00:00", "end": "05:00", "power": "OFF"},
+    {"start": "05:00", "end": "20:00", "power": "ON"},
+    {"start": "20:00", "end": "24:00", "power": "OFF"}
+  ]
+}
+```
+
+`set_schedule` on `water_heater.hot_water` writes that once per named weekday. `all_days` is seven PUTs. The cache updates only after Tado accepts the write.
+
 ### 4.7 Open Window Helper
 
 #### async_set_open_window(room_id: int) -> None
@@ -830,6 +855,8 @@ are not created from live data. The option defaults to off.
 | Schedule | POST | /rooms/{id}/schedule | Replace one weekday |
 | Flow temperature | GET/PATCH | /settings/flowTemperatureOptimization | Client method and 404 cache. The zone and metadata polls do not call the GET, so the entities are not created from live data |
 | Hot Water | GET | /programmer/domesticHotWater/state | HW programmer state |
+| Hot Water | GET | /programmer/domesticHotWater/schedule | HW week, power ON/OFF |
+| Hot Water | PUT | /programmer/domesticHotWater/schedule | Replace one HW weekday |
 | Hot Water | POST | /programmer/domesticHotWater/boost | HW boost |
 | Hot Water | POST | /programmer/domesticHotWater/resumeSchedule | HW resume schedule |
 | Open Window | POST/DELETE | /rooms/{id}/openWindow | Open window set/clear |

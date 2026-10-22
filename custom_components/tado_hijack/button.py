@@ -7,14 +7,17 @@ from typing import TYPE_CHECKING, Any, cast
 from homeassistant.components.button import ButtonEntity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .const import TADOX_VIRTUAL_HOT_WATER_ZONE_ID
 from .entity import (
     TadoDeviceEntity,
     TadoGenericEntityMixin,
     TadoHomeEntity,
+    TadoHotWaterZoneEntity,
     TadoZoneEntity,
 )
 from .helpers.entity_setup import async_setup_generic_platform
 from .helpers.logging_utils import get_redacted_logger
+from .helpers.schedule import schedule_zone_names
 from .models import TadoEntityDefinition
 
 if TYPE_CHECKING:
@@ -41,6 +44,37 @@ async def async_setup_entry(
             "device": TadoGenericDeviceButton,
         },
     )
+    coordinator: TadoDataUpdateCoordinator = entry.runtime_data
+    zone_name = schedule_zone_names(coordinator).get(TADOX_VIRTUAL_HOT_WATER_ZONE_ID)
+    if zone_name is not None:
+        async_add_entities(
+            [
+                TadoXHotWaterPlanButton(
+                    coordinator, TADOX_VIRTUAL_HOT_WATER_ZONE_ID, zone_name
+                )
+            ]
+        )
+
+
+class TadoXHotWaterPlanButton(TadoHotWaterZoneEntity, ButtonEntity):
+    """Fetch the Tado X hot-water week. Same device as the water heater."""
+
+    _attr_translation_key = "refresh_zone_plan"
+    _attr_icon = "mdi:calendar-sync"
+
+    def __init__(
+        self,
+        coordinator: TadoDataUpdateCoordinator,
+        zone_id: int,
+        zone_name: str,
+    ) -> None:
+        super().__init__(coordinator, "refresh_zone_plan", zone_id, zone_name)
+        entry_id = coordinator.config_entry.entry_id if coordinator.config_entry else ""
+        self._attr_unique_id = f"{entry_id}_refresh_zone_plan_{zone_id}"
+
+    async def async_press(self) -> None:
+        """Queue one debounced GET of the hot-water week."""
+        await self.tado_coordinator.async_refresh_zone_plan(self._zone_id)
 
 
 class TadoGenericHomeButton(TadoHomeEntity, TadoGenericEntityMixin, ButtonEntity):
