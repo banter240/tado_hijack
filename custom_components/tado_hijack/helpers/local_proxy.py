@@ -11,23 +11,37 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from homeassistant.components.binary_sensor import DOMAIN as BINARY_SENSOR_DOMAIN
 from homeassistant.components.binary_sensor import BinarySensorEntity
-from homeassistant.components.button import ButtonEntity
+from homeassistant.components.button import DOMAIN as BUTTON_DOMAIN
+from homeassistant.components.button import SERVICE_PRESS, ButtonEntity
 from homeassistant.components.climate import (
     ATTR_CURRENT_HUMIDITY,
     ATTR_CURRENT_TEMPERATURE,
     ATTR_FAN_MODE,
     ATTR_FAN_MODES,
+    ATTR_HUMIDITY,
     ATTR_HVAC_ACTION,
     ATTR_HVAC_MODE,
     ATTR_HVAC_MODES,
+    ATTR_MAX_HUMIDITY,
+    ATTR_MAX_TEMP,
+    ATTR_MIN_HUMIDITY,
+    ATTR_MIN_TEMP,
     ATTR_PRESET_MODE,
     ATTR_PRESET_MODES,
+    ATTR_SWING_HORIZONTAL_MODE,
+    ATTR_SWING_HORIZONTAL_MODES,
     ATTR_SWING_MODE,
     ATTR_SWING_MODES,
+    ATTR_TARGET_TEMP_HIGH,
+    ATTR_TARGET_TEMP_LOW,
+    ATTR_TARGET_TEMP_STEP,
     SERVICE_SET_FAN_MODE,
+    SERVICE_SET_HUMIDITY,
     SERVICE_SET_HVAC_MODE,
     SERVICE_SET_PRESET_MODE,
+    SERVICE_SET_SWING_HORIZONTAL_MODE,
     SERVICE_SET_SWING_MODE,
     SERVICE_SET_TEMPERATURE,
     ClimateEntity,
@@ -37,6 +51,10 @@ from homeassistant.components.climate import (
 )
 from homeassistant.components.climate import (
     DOMAIN as CLIMATE_DOMAIN,
+)
+from homeassistant.components.climate.const import (
+    DEFAULT_MAX_HUMIDITY,
+    DEFAULT_MIN_HUMIDITY,
 )
 from homeassistant.components.number import (
     ATTR_MAX,
@@ -53,13 +71,16 @@ from homeassistant.components.number import (
 )
 from homeassistant.components.select import (
     ATTR_OPTION,
+    ATTR_OPTIONS,
     SERVICE_SELECT_OPTION,
     SelectEntity,
 )
 from homeassistant.components.select import (
     DOMAIN as SELECT_DOMAIN,
 )
+from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
 from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import (
     ATTR_ENTITY_ID,
@@ -74,6 +95,7 @@ from homeassistant.const import (
     UnitOfTemperature,
 )
 from homeassistant.core import Event, callback
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -103,18 +125,8 @@ if TYPE_CHECKING:
     from ..coordinator import TadoDataUpdateCoordinator
 
 _LOGGER = get_redacted_logger(__name__)
+_SERVICE_TARGET_KEYS = frozenset(marker.schema for marker in cv.TARGET_SERVICE_FIELDS)
 _SKIP = {STATE_UNAVAILABLE, STATE_UNKNOWN}
-_PROXY_DOMAINS = frozenset(
-    {
-        "binary_sensor",
-        "button",
-        "climate",
-        "number",
-        "select",
-        "sensor",
-        "switch",
-    }
-)
 
 
 @dataclass(frozen=True)
@@ -171,9 +183,9 @@ def _hosts(coordinator: TadoDataUpdateCoordinator) -> Iterator[ProxyHost]:
 
 def _proxy_key(source: er.RegistryEntry) -> str:
     """Stable role for this copy. Serial + key is the identity, not HomeKit's id."""
-    if source.domain == "climate":
-        return "climate"
-    if source.domain == "button":
+    if source.domain == CLIMATE_DOMAIN:
+        return str(CLIMATE_DOMAIN)
+    if source.domain == BUTTON_DOMAIN:
         return "identify"
     if source.original_device_class:
         return str(slugify(str(source.original_device_class)))
@@ -438,10 +450,14 @@ class TadoLocalProxyBase(TadoEntity):
     async def _async_call(
         self, domain: str, service: str, data: dict[str, Any]
     ) -> None:
+        payload = {
+            key: value for key, value in data.items() if key not in _SERVICE_TARGET_KEYS
+        }
+        payload[ATTR_ENTITY_ID] = self._source_entity_id
         await self.hass.services.async_call(
             domain,
             service,
-            {ATTR_ENTITY_ID: self._source_entity_id, **data},
+            payload,
             blocking=True,
         )
 
@@ -491,20 +507,44 @@ class TadoLocalClimateProxy(TadoLocalProxyBase, ClimateEntity):
         return _float_attr(self._source(), ATTR_TEMPERATURE)
 
     @property
+    def target_temperature_high(self) -> float | None:
+        return _float_attr(self._source(), ATTR_TARGET_TEMP_HIGH)
+
+    @property
+    def target_temperature_low(self) -> float | None:
+        return _float_attr(self._source(), ATTR_TARGET_TEMP_LOW)
+
+    @property
     def current_humidity(self) -> float | None:
         return _float_attr(self._source(), ATTR_CURRENT_HUMIDITY)
 
     @property
+    def target_humidity(self) -> float | None:
+        return _float_attr(self._source(), ATTR_HUMIDITY)
+
+    @property
+    def min_humidity(self) -> float:
+        return _float_attr_default(
+            self._source(), ATTR_MIN_HUMIDITY, DEFAULT_MIN_HUMIDITY
+        )
+
+    @property
+    def max_humidity(self) -> float:
+        return _float_attr_default(
+            self._source(), ATTR_MAX_HUMIDITY, DEFAULT_MAX_HUMIDITY
+        )
+
+    @property
     def min_temp(self) -> float:
-        return _float_attr(self._source(), "min_temp") or TEMP_MIN_PROXY
+        return _float_attr_default(self._source(), ATTR_MIN_TEMP, TEMP_MIN_PROXY)
 
     @property
     def max_temp(self) -> float:
-        return _float_attr(self._source(), "max_temp") or TEMP_MAX_PROXY
+        return _float_attr_default(self._source(), ATTR_MAX_TEMP, TEMP_MAX_PROXY)
 
     @property
     def target_temperature_step(self) -> float | None:
-        return _float_attr(self._source(), "target_temp_step")
+        return _float_attr(self._source(), ATTR_TARGET_TEMP_STEP)
 
     @property
     def temperature_unit(self) -> str:
@@ -542,6 +582,14 @@ class TadoLocalClimateProxy(TadoLocalProxyBase, ClimateEntity):
         return _list_attr(self._source(), ATTR_SWING_MODES)
 
     @property
+    def swing_horizontal_mode(self) -> str | None:
+        return _str_attr(self._source(), ATTR_SWING_HORIZONTAL_MODE)
+
+    @property
+    def swing_horizontal_modes(self) -> list[str] | None:
+        return _list_attr(self._source(), ATTR_SWING_HORIZONTAL_MODES)
+
+    @property
     def preset_mode(self) -> str | None:
         return _str_attr(self._source(), ATTR_PRESET_MODE)
 
@@ -568,16 +616,28 @@ class TadoLocalClimateProxy(TadoLocalProxyBase, ClimateEntity):
             CLIMATE_DOMAIN, SERVICE_SET_SWING_MODE, {ATTR_SWING_MODE: swing_mode}
         )
 
+    async def async_set_swing_horizontal_mode(self, swing_horizontal_mode: str) -> None:
+        await self._async_call(
+            CLIMATE_DOMAIN,
+            SERVICE_SET_SWING_HORIZONTAL_MODE,
+            {ATTR_SWING_HORIZONTAL_MODE: swing_horizontal_mode},
+        )
+
     async def async_set_preset_mode(self, preset_mode: str) -> None:
         await self._async_call(
             CLIMATE_DOMAIN, SERVICE_SET_PRESET_MODE, {ATTR_PRESET_MODE: preset_mode}
         )
 
-    async def async_turn_on(self) -> None:
-        await self._async_call(CLIMATE_DOMAIN, SERVICE_TURN_ON, {})
+    async def async_set_humidity(self, humidity: int) -> None:
+        await self._async_call(
+            CLIMATE_DOMAIN, SERVICE_SET_HUMIDITY, {ATTR_HUMIDITY: humidity}
+        )
 
-    async def async_turn_off(self) -> None:
-        await self._async_call(CLIMATE_DOMAIN, SERVICE_TURN_OFF, {})
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self._async_call(CLIMATE_DOMAIN, SERVICE_TURN_ON, kwargs)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self._async_call(CLIMATE_DOMAIN, SERVICE_TURN_OFF, kwargs)
 
 
 class TadoLocalSensorProxy(TadoLocalProxyBase, SensorEntity):
@@ -610,7 +670,7 @@ class TadoLocalButtonProxy(TadoLocalProxyBase, ButtonEntity):
     """Copy of a local button."""
 
     async def async_press(self) -> None:
-        await self._async_call("button", "press", {})
+        await self._async_call(BUTTON_DOMAIN, SERVICE_PRESS, {})
 
 
 class TadoLocalNumberProxy(TadoLocalProxyBase, NumberEntity):
@@ -622,15 +682,15 @@ class TadoLocalNumberProxy(TadoLocalProxyBase, NumberEntity):
 
     @property
     def native_min_value(self) -> float:
-        return _float_attr(self._source(), ATTR_MIN) or 0.0
+        return _float_attr_default(self._source(), ATTR_MIN, 0.0)
 
     @property
     def native_max_value(self) -> float:
-        return _float_attr(self._source(), ATTR_MAX) or 100.0
+        return _float_attr_default(self._source(), ATTR_MAX, 100.0)
 
     @property
     def native_step(self) -> float:
-        return _float_attr(self._source(), ATTR_STEP) or 1.0
+        return _float_attr_default(self._source(), ATTR_STEP, 1.0)
 
     async def async_set_native_value(self, value: float) -> None:
         await self._async_call(NUMBER_DOMAIN, NUMBER_SET_VALUE, {ATTR_VALUE: value})
@@ -645,10 +705,10 @@ class TadoLocalSwitchProxy(TadoLocalProxyBase, SwitchEntity):
         return state is not None and state.state == STATE_ON
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        await self._async_call("switch", SERVICE_TURN_ON, {})
+        await self._async_call(SWITCH_DOMAIN, SERVICE_TURN_ON, kwargs)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        await self._async_call("switch", SERVICE_TURN_OFF, {})
+        await self._async_call(SWITCH_DOMAIN, SERVICE_TURN_OFF, kwargs)
 
 
 class TadoLocalSelectProxy(TadoLocalProxyBase, SelectEntity):
@@ -661,7 +721,7 @@ class TadoLocalSelectProxy(TadoLocalProxyBase, SelectEntity):
 
     @property
     def options(self) -> list[str]:
-        return _list_attr(self._source(), "options") or []
+        return _list_attr(self._source(), ATTR_OPTIONS) or []
 
     async def async_select_option(self, option: str) -> None:
         await self._async_call(
@@ -670,14 +730,15 @@ class TadoLocalSelectProxy(TadoLocalProxyBase, SelectEntity):
 
 
 _CLASSES: dict[str, type[TadoLocalProxyBase]] = {
-    "climate": TadoLocalClimateProxy,
-    "sensor": TadoLocalSensorProxy,
-    "binary_sensor": TadoLocalBinarySensorProxy,
-    "button": TadoLocalButtonProxy,
-    "number": TadoLocalNumberProxy,
-    "switch": TadoLocalSwitchProxy,
-    "select": TadoLocalSelectProxy,
+    CLIMATE_DOMAIN: TadoLocalClimateProxy,
+    SENSOR_DOMAIN: TadoLocalSensorProxy,
+    BINARY_SENSOR_DOMAIN: TadoLocalBinarySensorProxy,
+    BUTTON_DOMAIN: TadoLocalButtonProxy,
+    NUMBER_DOMAIN: TadoLocalNumberProxy,
+    SWITCH_DOMAIN: TadoLocalSwitchProxy,
+    SELECT_DOMAIN: TadoLocalSelectProxy,
 }
+_PROXY_DOMAINS = frozenset(_CLASSES)
 
 
 def _float_attr(state: State | None, key: str) -> float | None:
@@ -688,6 +749,11 @@ def _float_attr(state: State | None, key: str) -> float | None:
         return None if raw is None else float(raw)
     except TypeError, ValueError:
         return None
+
+
+def _float_attr_default(state: State | None, key: str, default: float) -> float:
+    value = _float_attr(state, key)
+    return default if value is None else value
 
 
 def _float_state(state: State | None) -> float | None:
