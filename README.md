@@ -489,12 +489,16 @@ An open window skips the write. The pause after close and the cooldown after a t
 
 <br>
 
-Each zone device exposes two optional selectors that connect external contact sensors to zone control:
+Each zone device exposes selectors that connect external contact sensors to zone control. One zone holds up to 8 contacts. The room is open while any of them is open, and closed only when all of them are closed.
 
-| Select Entity                | Purpose                                                        | Accepted values |
-| :--------------------------- | :------------------------------------------------------------- | :-------------- |
-| `select.zone_window_sensor`  | Link a contact sensor as the zone's window state              | Any `binary_sensor`, or `none` (unlink) |
-| `select.zone_window_mode`    | How open/close transitions are translated into zone actions   | `direct`, `timeout` |
+| Entity                           | Purpose                                                        | Accepted values |
+| :------------------------------- | :------------------------------------------------------------- | :-------------- |
+| `select.zone_window_sensor`      | Add a contact. One contact shows that sensor, and `none` unlinks it. Several contacts show `multiple` | Any `binary_sensor`, `none`, or `multiple` |
+| `select.zone_window_sensor_remove` | Remove one linked contact                                    | A linked `binary_sensor`, or `none` |
+| `sensor.window_contacts`         | Diagnostic list of the linked contacts                         | Entity ids, or `none` |
+| `select.zone_window_mode`        | How open/close transitions are translated into zone actions   | `direct`, `timeout` |
+| `number.window_open_delay`       | Wait after the room opens before the zone turns off           | Seconds, `0`–`3600`, default `0` |
+| `number.window_close_delay`      | Wait after the room closes before the zone resumes            | Seconds, `0`–`3600`, default `0` |
 
 **Mode matrix (timer = the zone's open window detection timeout):**
 
@@ -504,6 +508,8 @@ Each zone device exposes two optional selectors that connect external contact se
 | `timeout`           | Zone off + self-heal timer armed                | Timer cancelled, schedule resumes    | Schedule resumes (window may still be open) |
 
 After a timer-triggered resume the cycle is complete: staying open without a new `close -> open` transition does not re-fire, so a stuck sensor cannot keep the zone off forever.
+
+The open delay and the close delay are their own timer. `0` acts at once. They follow the room, so one contact closing while another stays open does not resume. A flip back before the wait ends cancels that wait, so no cloud call goes out. A room that is already open or already closed at startup is not delayed again. The timeout is a second timer. It starts only after the zone has actually turned off, and a close cancels it. `sensor.window_contacts` lists the linked entity ids. The same list is the `contacts` attribute. An empty list is `none`. Unlinking the last contact does not send a resume.
 
 A linked HomeKit or Matter climate is turned off on open. While the contact stays open, that climate is turned off again if it leaves off, until the window closes or the timeout puts the stored setpoint back. No Tado call. The pre-open snapshot is kept across a restart.
 

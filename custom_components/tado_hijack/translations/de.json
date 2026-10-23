@@ -107,6 +107,9 @@
       "indoor_absolute_humidity": {
         "name": "Absolute Luftfeuchtigkeit (Innen)"
       },
+      "window_contacts": {
+        "name": "Fenster-Kontakte"
+      },
       "next_schedule_change": {
         "name": "Nächster Zeitplan-Wechsel"
       },
@@ -378,6 +381,12 @@
       "open_window_timeout": {
         "name": "Zeitlimit bei offenem Fenster"
       },
+      "window_open_delay": {
+        "name": "Fenster-Öffnungsverzögerung"
+      },
+      "window_close_delay": {
+        "name": "Fenster-Schließverzögerung"
+      },
       "target_temperature": {
         "name": "Soll-Temperatur"
       },
@@ -410,7 +419,14 @@
         }
       },
       "zone_window_sensor": {
-        "name": "Fenster-Sensor",
+        "name": "Fenster-Sensor hinzufügen",
+        "state": {
+          "none": "Keiner",
+          "multiple": "Mehrere"
+        }
+      },
+      "zone_window_sensor_remove": {
+        "name": "Fenster-Sensor entfernen",
         "state": {
           "none": "Keiner"
         }

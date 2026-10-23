@@ -110,9 +110,11 @@ Throttling skips interval, threshold, and manual calibration. A calibration trig
 
 ## Windows
 
-The zone selects store a `binary_sensor` and a mode, `direct` (default) or `timeout`.
+The zone stores up to 8 `binary_sensor` contacts and a mode, `direct` (default) or `timeout`. The room is open while any contact is open, and closed only when all are closed. A stored single string is still one contact. `sensor.window_contacts` lists them.
 
-`direct`: open turns the zone off, close restores what was running. `timeout` does that and also restores when the open-window timeout elapses while the contact is still open. A timeout of 0 is not armed, so disabled open-window detection makes `timeout` behave like `direct`. `on` and `open` count as open. `unavailable` and `unknown` are ignored. A contact that is already open at startup is applied.
+`direct`: open turns the zone off, close restores what was running. `timeout` does that and also restores when the open-window timeout elapses while the room is still open. A timeout of 0 is not armed, so disabled open-window detection makes `timeout` behave like `direct`. `on` and `open` count as open. `unavailable` and `unknown` are ignored. A room that is already open at startup is applied.
+
+Each zone has an open delay and a close delay in seconds, default 0, max 3600. That wait is a separate timer from the timeout. Nothing is sent until the wait ends, and the opposite edge cancels it. Startup does not delay a room that is already open or already closed. The timeout starts only after the off has happened, and a close cancels it.
 
 A linked HomeKit or Matter climate is turned off locally, and turned off again if it leaves off while the contact is open. Close and timeout restore the stored setpoint on that climate. No Tado call. A zone with no linked climate, and every zone in full cloud mode, sends one manual cloud off (unlimited in `direct`, the open-window duration in `timeout`). Those cloud resumes are batched by default for 120 seconds. A second zone does not restart the timer. Snapshots are stored under `window_pre_states`.
 

@@ -54,6 +54,8 @@ from .const import (
     CONF_WINDOW_RESUME_BATCH_S,
     CONF_ZONE_HUMIDITY_ENTITIES,
     CONF_ZONE_TEMP_ENTITIES,
+    CONF_ZONE_WINDOW_CLOSE_DELAY_S,
+    CONF_ZONE_WINDOW_OPEN_DELAY_S,
     DEFAULT_AUTO_API_QUOTA_PERCENT,
     DEFAULT_DEBOUNCE_TIME,
     DEFAULT_FEATURE_DEW_POINT,
@@ -86,6 +88,7 @@ from .const import (
     DEFAULT_WINDOW_RESUME_BATCH_S,
     GEN_CLASSIC,
     GEN_X,
+    MAX_WINDOW_DELAY_S,
     MIN_OWD_TIMEOUT_MIN,
     MIN_OWD_TIMEOUT_S,
     PROTECTION_MODE_TEMP,
@@ -96,6 +99,7 @@ from .const import (
     TEMP_MIN_HOT_WATER,
     TIMETABLE_SELECT_OPTIONS,
     TIMETABLE_ZONE_TYPES,
+    WINDOW_CONTACTS,
     ZONE_MODE_MIXED,
     ZONE_MODE_SCHEDULE,
     ZONE_TYPE_AIR_CONDITIONING,
@@ -921,6 +925,44 @@ def create_zone_number(
         suggested_display_precision=suggested_display_precision,
         icon=icon,
         translation_key=translation_key,
+    )
+
+
+_WINDOW_ZONE_TYPES = {
+    ZONE_TYPE_HEATING,
+    ZONE_TYPE_AIR_CONDITIONING,
+    ZONE_TYPE_HOT_WATER,
+}
+
+
+def _not_dummy_zone(coordinator: Any, zone_id: int) -> bool:
+    """Real rooms only. A dummy zone has no window contacts."""
+    dummy = coordinator.dummy_handler
+    return not (dummy and dummy.is_dummy_zone(zone_id))
+
+
+def _window_delay_number(key: str, conf_key: str) -> TadoEntityDefinition:
+    """Zone number for the open wait or the close wait. Timeout is a second clock."""
+    return create_zone_number(
+        key=key,
+        value_fn=lambda c, zid, conf_key=conf_key: (
+            c.window_controller.get_zone_window_delay(zid, conf_key)
+        ),
+        set_fn=lambda c, zid, val, conf_key=conf_key: (
+            c.window_controller.async_set_zone_window_delay(zid, conf_key, val)
+        ),
+        min_value=0,
+        max_value=MAX_WINDOW_DELAY_S,
+        step=1,
+        unit=UnitOfTime.SECONDS,
+        icon="mdi:timer-sand",
+        entity_category=EntityCategory.CONFIG,
+        supported_zone_types=_WINDOW_ZONE_TYPES,
+        supported_generations={GEN_CLASSIC, GEN_X},
+        unique_id_suffix=key,
+        translation_key=key,
+        suggested_display_precision=0,
+        is_supported_fn=_not_dummy_zone,
     )
 
 
@@ -2012,6 +2054,17 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
             and owd.supported
         ),
         suggested_display_precision=0,
+    ),
+    _window_delay_number("window_open_delay", CONF_ZONE_WINDOW_OPEN_DELAY_S),
+    _window_delay_number("window_close_delay", CONF_ZONE_WINDOW_CLOSE_DELAY_S),
+    create_zone_sensor(
+        key=WINDOW_CONTACTS,
+        value_fn=lambda c, zid: c.window_controller.zone_window_contacts_state(zid),
+        icon="mdi:format-list-bulleted",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        supported_zone_types=_WINDOW_ZONE_TYPES,
+        supported_generations={GEN_CLASSIC, GEN_X},
+        is_supported_fn=_not_dummy_zone,
     ),
     create_home_button(
         key="refresh_metadata",

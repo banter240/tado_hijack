@@ -12,6 +12,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
     GEN_X,
+    WINDOW_CONTACTS,
     ZONE_TYPE_HOT_WATER,
 )
 from .definitions import home_mode_room_attributes
@@ -104,3 +105,13 @@ class TadoGenericZoneSensor(TadoZoneEntity, TadoGenericEntityMixin, SensorEntity
 
         TadoZoneEntity.__init__(self, coordinator, trans_key, zone_id, zone_name)
         TadoGenericEntityMixin.__init__(self, definition)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """The linked window contacts, when this sensor is that list."""
+        attrs: dict[str, Any] = dict(super().extra_state_attributes or {})
+        if self._definition["key"] == WINDOW_CONTACTS:
+            attrs["contacts"] = self.coordinator.window_controller.zone_window_contacts(
+                self._zone_id
+            )
+        return attrs

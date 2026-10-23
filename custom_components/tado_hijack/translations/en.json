@@ -107,6 +107,9 @@
       "indoor_absolute_humidity": {
         "name": "Indoor Absolute Humidity"
       },
+      "window_contacts": {
+        "name": "Window Contacts"
+      },
       "next_schedule_change": {
         "name": "Next Schedule Change"
       },
@@ -378,6 +381,12 @@
       "open_window_timeout": {
         "name": "Open Window Timeout"
       },
+      "window_open_delay": {
+        "name": "Window Open Delay"
+      },
+      "window_close_delay": {
+        "name": "Window Close Delay"
+      },
       "target_temperature": {
         "name": "Target Temperature"
       },
@@ -410,7 +419,14 @@
         }
       },
       "zone_window_sensor": {
-        "name": "Window Sensor",
+        "name": "Add Window Sensor",
+        "state": {
+          "none": "None",
+          "multiple": "Multiple"
+        }
+      },
+      "zone_window_sensor_remove": {
+        "name": "Remove Window Sensor",
         "state": {
           "none": "None"
         }

@@ -55,9 +55,13 @@ CONF_ZONE_TEMP_ENTITIES: Final = "zone_temp_entities"
 CONF_ZONE_HUMIDITY_ENTITIES: Final = "zone_humidity_entities"
 CONF_ZONE_WINDOW_ENTITIES: Final = "zone_window_entities"
 CONF_ZONE_WINDOW_MODES: Final = "zone_window_modes"
+CONF_ZONE_WINDOW_OPEN_DELAY_S: Final = "zone_window_open_delay_s"
+CONF_ZONE_WINDOW_CLOSE_DELAY_S: Final = "zone_window_close_delay_s"
 
-# Sentinel value for "no window sensor linked" (select + controller).
+# Sentinel values for the window-contact select. Neither is a stored entity.
 WINDOW_SENSOR_NONE: Final = "none"
+WINDOW_SENSOR_MULTIPLE: Final = "multiple"
+WINDOW_SENSOR_SENTINELS: Final = frozenset({WINDOW_SENSOR_NONE, WINDOW_SENSOR_MULTIPLE})
 
 # Window handler modes (select options, persisted per zone)
 WINDOW_MODE_DIRECT: Final = "direct"
@@ -78,6 +82,10 @@ DEFAULT_WINDOW_RESUME_BATCH: Final = True
 DEFAULT_WINDOW_RESUME_BATCH_S: Final = 120
 MIN_WINDOW_RESUME_BATCH_S: Final = 0
 MAX_WINDOW_RESUME_BATCH_S: Final = 3600
+DEFAULT_WINDOW_DELAY_S: Final = 0
+MAX_WINDOW_DELAY_S: Final = 3600
+MAX_WINDOW_CONTACTS: Final = 8
+WINDOW_CONTACTS: Final = "window_contacts"
 CONF_OFFSET_CAL_INTERVAL: Final = "offset_cal_interval"
 CONF_OFFSET_CAL_SPREAD_THRESHOLD: Final = "offset_cal_spread_threshold"
 CONF_ZONE_OFFSET_CAL_INTERVALS: Final = "zone_offset_cal_intervals"

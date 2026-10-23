@@ -5,11 +5,12 @@ from __future__ import annotations
 import asyncio
 import time
 from collections import defaultdict
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import asdict, dataclass
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.const import (
+    MAX_LENGTH_STATE_STATE,
     STATE_ON,
     STATE_OPEN,
     STATE_UNAVAILABLE,
@@ -24,10 +25,15 @@ from homeassistant.helpers.event import (
 from ..const import (
     CONF_WINDOW_RESUME_BATCH,
     CONF_WINDOW_RESUME_BATCH_S,
+    CONF_ZONE_WINDOW_CLOSE_DELAY_S,
     CONF_ZONE_WINDOW_ENTITIES,
     CONF_ZONE_WINDOW_MODES,
+    CONF_ZONE_WINDOW_OPEN_DELAY_S,
+    DEFAULT_WINDOW_DELAY_S,
     DEFAULT_WINDOW_RESUME_BATCH,
     DEFAULT_WINDOW_RESUME_BATCH_S,
+    MAX_WINDOW_CONTACTS,
+    MAX_WINDOW_DELAY_S,
     MAX_WINDOW_RESUME_BATCH_S,
     MIN_WINDOW_RESUME_BATCH_S,
     OVERLAY_MANUAL,
@@ -38,6 +44,7 @@ from ..const import (
     WINDOW_MODE_TIMEOUT,
     WINDOW_MODES,
     WINDOW_SENSOR_NONE,
+    WINDOW_SENSOR_SENTINELS,
 )
 from .local_climate import (
     async_apply_available,
@@ -56,6 +63,37 @@ _LOGGER = get_redacted_logger(__name__)
 
 # Contact sensors report "on" (binary_sensor convention) or "open" (covers).
 _OPEN_STATES = {STATE_ON, STATE_OPEN}
+_IGNORED_STATES = {STATE_UNAVAILABLE, STATE_UNKNOWN}
+_KIND_OPEN = "open"
+_KIND_CLOSED = "closed"
+_KIND_UNKNOWN = "unknown"
+
+
+def normalize_window_contacts(value: Any) -> list[str]:
+    """One stored string or a list, capped, without blanks or duplicates."""
+    if isinstance(value, str):
+        items: list[Any] = [value]
+    elif isinstance(value, list):
+        items = value
+    else:
+        return []
+    contacts: list[str] = []
+    for item in items:
+        if not isinstance(item, str):
+            continue
+        entity_id = item.strip()
+        if (
+            not entity_id
+            or entity_id in WINDOW_SENSOR_SENTINELS
+            or entity_id in contacts
+        ):
+            continue
+        contacts.append(entity_id)
+        if len(contacts) >= MAX_WINDOW_CONTACTS:
+            break
+    return contacts
+
+
 _STORE_KEY = "window_pre_states"
 _PENDING_RESUME = "resume"
 _PENDING_RESTORE = "restore"
@@ -113,7 +151,10 @@ class WindowController:
         self._subs: dict[str, Callable[[], None]] = {}
         self._zones_by_sensor: dict[str, set[int]] = defaultdict(set)
         self._reoff_at: dict[str, float] = {}
-        self._timers: dict[int, Callable[..., Any]] = {}
+        # Self-heal while the contact stays open. Not the open/close wait.
+        self._timers: dict[int, Callable[[], None]] = {}
+        # Wait before the off, or before the resume. One edge at a time.
+        self._delay_timers: dict[int, Callable[[], None]] = {}
         # Close or the self-heal timer resumes only if this zone was turned off.
         self._off_active: set[int] = set()
         self._snaps: dict[int, _WindowPreState] = {}
@@ -123,16 +164,97 @@ class WindowController:
         self._persist_task: asyncio.Task[None] | None = None
         self._persist_again = False
 
-    def zone_window_is_open(self, zone_id: int) -> bool:
-        entity_id = self._sensor_map().get(str(zone_id))
-        if not entity_id:
-            return False
-        state = self._hass.states.get(entity_id)
-        return bool(state and state.state in _OPEN_STATES)
+    def zone_window_contacts(self, zone_id: int) -> list[str]:
+        """Linked contacts. A legacy single string is a one-item list."""
+        return list(self._contacts_by_zone().get(str(zone_id), ()))
 
-    def _sensor_map(self) -> dict[str, str]:
+    def zone_window_contact_ids(self, zone_ids: Iterable[int]) -> list[str]:
+        """Unique contact entity ids for these zones, in zone then list order."""
+        seen: list[str] = []
+        for zone_id in zone_ids:
+            for entity_id in self.zone_window_contacts(zone_id):
+                if entity_id not in seen:
+                    seen.append(entity_id)
+        return seen
+
+    def zone_window_contacts_state(self, zone_id: int) -> str:
+        """Entity ids for the diagnostic sensor. Empty is ``none``."""
+        contacts = self.zone_window_contacts(zone_id)
+        if not contacts:
+            return WINDOW_SENSOR_NONE
+        joined = ", ".join(contacts)
+        return joined if len(joined) <= MAX_LENGTH_STATE_STATE else str(len(contacts))
+
+    def zone_window_is_open(
+        self,
+        zone_id: int,
+        *,
+        override: tuple[str, str] | None = None,
+    ) -> bool:
+        """True when any linked contact is open. Unknown contacts are skipped."""
+        return self._window_kind(zone_id, override=override) == _KIND_OPEN
+
+    def _window_kind(
+        self,
+        zone_id: int,
+        *,
+        override: tuple[str, str] | None = None,
+    ) -> str:
+        """``open`` if any contact is open, ``closed`` if one is shut, else ``unknown``."""
+        saw_closed = False
+        for entity_id in self.zone_window_contacts(zone_id):
+            if override is not None and entity_id == override[0]:
+                state_value: str | None = override[1]
+            else:
+                state = self._hass.states.get(entity_id)
+                state_value = state.state if state is not None else None
+            if state_value in _OPEN_STATES:
+                return _KIND_OPEN
+            if state_value is None or state_value in _IGNORED_STATES:
+                continue
+            saw_closed = True
+        if saw_closed:
+            return _KIND_CLOSED
+        return _KIND_UNKNOWN
+
+    def _contacts_by_zone(self) -> dict[str, list[str]]:
         raw = self._coordinator.config_entry.data.get(CONF_ZONE_WINDOW_ENTITIES) or {}
-        return {str(zid): eid for zid, eid in raw.items() if eid}
+        if not isinstance(raw, dict):
+            return {}
+        mapped: dict[str, list[str]] = {}
+        for zid, value in raw.items():
+            if contacts := normalize_window_contacts(value):
+                mapped[str(zid)] = contacts
+        return mapped
+
+    def get_zone_window_delay(self, zone_id: int, key: str) -> float:
+        """Seconds to wait before acting. Missing or junk is 0."""
+        raw = (self._coordinator.config_entry.data.get(key) or {}).get(
+            str(zone_id), DEFAULT_WINDOW_DELAY_S
+        )
+        try:
+            seconds = float(raw)
+        except TypeError, ValueError:
+            return float(DEFAULT_WINDOW_DELAY_S)
+        return float(min(MAX_WINDOW_DELAY_S, max(0.0, seconds)))
+
+    async def async_set_zone_window_delay(
+        self, zone_id: int, key: str, seconds: float
+    ) -> None:
+        """Store a per-zone wait. 0 removes it. No Tado call."""
+        if key not in (
+            CONF_ZONE_WINDOW_OPEN_DELAY_S,
+            CONF_ZONE_WINDOW_CLOSE_DELAY_S,
+        ):
+            raise ValueError(f"Unknown window delay '{key}'")
+        stored = int(min(MAX_WINDOW_DELAY_S, max(0, round(seconds))))
+        current = dict(self._coordinator.config_entry.data.get(key) or {})
+        if stored <= 0:
+            current.pop(str(zone_id), None)
+        else:
+            current[str(zone_id)] = stored
+        self._update_entry_data({key: current})
+        self._coordinator.async_update_listeners()
 
     def get_zone_window_mode(self, zone_id: int) -> str:
         modes = self._coordinator.config_entry.data.get(CONF_ZONE_WINDOW_MODES) or {}
@@ -204,16 +326,52 @@ class WindowController:
                 continue
             self._snaps[zone_id] = _WindowPreState.from_dict(value)
 
-    async def async_set_zone_window_sensor(self, zone_id: int, entity_id: str) -> None:
-        current = dict(self._sensor_map())
-        if entity_id in (WINDOW_SENSOR_NONE, ""):
-            current.pop(str(zone_id), None)
-            self._forget_zone(zone_id)
+    def _store_contacts(self, zone_id: int, contacts: list[str]) -> None:
+        current = dict(
+            self._coordinator.config_entry.data.get(CONF_ZONE_WINDOW_ENTITIES) or {}
+        )
+        if stored := normalize_window_contacts(contacts):
+            current[str(zone_id)] = stored
         else:
-            current[str(zone_id)] = entity_id
+            current.pop(str(zone_id), None)
         self._update_entry_data({CONF_ZONE_WINDOW_ENTITIES: current})
         self.reload_subscriptions()
-        await self._async_evaluate_zone_startup(zone_id)
+        self._coordinator.async_update_listeners()
+
+    async def async_add_zone_window_sensor(self, zone_id: int, entity_id: str) -> None:
+        """Append one contact. An already-open room is applied at once."""
+        if not entity_id or entity_id in WINDOW_SENSOR_SENTINELS:
+            return
+        contacts = self.zone_window_contacts(zone_id)
+        if entity_id in contacts:
+            return
+        if len(contacts) >= MAX_WINDOW_CONTACTS:
+            _LOGGER.warning(
+                "Zone %s already has %s window contacts",
+                zone_id,
+                MAX_WINDOW_CONTACTS,
+            )
+            return
+        was_open = self.zone_window_is_open(zone_id)
+        self._store_contacts(zone_id, [*contacts, entity_id])
+        if not was_open and self._window_kind(zone_id) == _KIND_OPEN:
+            await self._async_evaluate_zone_startup(zone_id)
+
+    async def async_remove_zone_window_sensor(
+        self, zone_id: int, entity_id: str
+    ) -> None:
+        """Drop one contact. The last one unlinks the zone without a cloud resume."""
+        contacts = self.zone_window_contacts(zone_id)
+        if entity_id not in contacts:
+            return
+        was_open = self.zone_window_is_open(zone_id)
+        remaining = [item for item in contacts if item != entity_id]
+        self._store_contacts(zone_id, remaining)
+        if not remaining:
+            self._forget_zone(zone_id)
+            return
+        if was_open and self._window_kind(zone_id) == _KIND_CLOSED:
+            await self._async_dispatch_transition(zone_id, opened=False)
 
     async def async_set_zone_window_mode(self, zone_id: int, mode: str) -> None:
         if mode not in WINDOW_MODES:
@@ -226,9 +384,9 @@ class WindowController:
         else:
             modes[str(zone_id)] = mode
         self._update_entry_data({CONF_ZONE_WINDOW_MODES: modes})
-        self._cancel_timer(zone_id)
+        self._drop_zone_clocks(zone_id)
 
-    def _update_entry_data(self, patch: dict[str, dict[str, str]]) -> None:
+    def _update_entry_data(self, patch: dict[str, Any]) -> None:
         entry = self._coordinator.config_entry
         self._hass.config_entries.async_update_entry(
             entry, data={**entry.data, **patch}
@@ -236,7 +394,7 @@ class WindowController:
 
     def _forget_zone(self, zone_id: int) -> None:
         """Drop a zone whose sensor was unlinked. Do not invent a cloud resume."""
-        self._cancel_timer(zone_id)
+        self._drop_zone_clocks(zone_id)
         self._off_active.discard(zone_id)
         self._bump(zone_id)
         snap = self._snaps.pop(zone_id, None)
@@ -249,8 +407,10 @@ class WindowController:
     @callback
     def reload_subscriptions(self) -> None:
         self._zones_by_sensor.clear()
-        for zid, entity_id in self._sensor_map().items():
-            self._zones_by_sensor[entity_id].add(int(zid))
+        for zid, entity_ids in self._contacts_by_zone().items():
+            zone_id = int(zid)
+            for entity_id in entity_ids:
+                self._zones_by_sensor[entity_id].add(zone_id)
 
         desired = set(self._zones_by_sensor)
         for entity_id, unsub in list(self._subs.items()):
@@ -263,10 +423,10 @@ class WindowController:
                     self._hass, [entity_id], self._async_on_sensor_event
                 )
 
-        active_zones = {int(zid) for zid in self._sensor_map()}
-        for zone_id in list(self._timers):
+        active_zones = {int(zid) for zid in self._contacts_by_zone()}
+        for zone_id in set(self._timers) | set(self._delay_timers):
             if zone_id not in active_zones:
-                self._cancel_timer(zone_id)
+                self._drop_zone_clocks(zone_id)
                 self._off_active.discard(zone_id)
 
         if desired:
@@ -287,19 +447,18 @@ class WindowController:
         ):
             await self._async_flush()
         self.reload_subscriptions()
-        for zone_id in {int(zid) for zid in self._sensor_map()}:
+        for zone_id in {int(zid) for zid in self._contacts_by_zone()}:
             await self._async_evaluate_zone_startup(zone_id)
         self._arm_batch()
 
     async def _async_evaluate_zone_startup(self, zone_id: int) -> None:
         """Apply an already-open window once. Closed windows wait for a transition."""
-        entity_id = self._sensor_map().get(str(zone_id))
-        if not entity_id:
+        if not self.zone_window_contacts(zone_id):
             return
-        state = self._hass.states.get(entity_id)
-        if state is None or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+        kind = self._window_kind(zone_id)
+        if kind == _KIND_UNKNOWN:
             return
-        if state.state not in _OPEN_STATES:
+        if kind == _KIND_CLOSED:
             if self._batch_enabled():
                 await self._async_startup_closed(zone_id)
             else:
@@ -361,8 +520,9 @@ class WindowController:
         self._subs.clear()
         self._zones_by_sensor.clear()
         self._off_active.clear()
-        for zone_id in list(self._timers):
-            self._cancel_timer(zone_id)
+        for clock in (self._timers, self._delay_timers):
+            for zone_id in list(clock):
+                self._drop_clock(clock, zone_id)
         if self._batch_handle is not None:
             self._batch_handle()
             self._batch_handle = None
@@ -374,52 +534,111 @@ class WindowController:
 
         if new_state is None or old_state is None:
             return
-        if new_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+        if new_state.state in _IGNORED_STATES:
+            return
+        if new_state.state == old_state.state:
             return
 
-        is_open = new_state.state in _OPEN_STATES
-        was_open = old_state.state in _OPEN_STATES
-        if is_open == was_open:
-            return
-
-        for zone_id in self._zones_by_sensor.get(entity_id, set()):
-            await self._async_dispatch_transition(zone_id, is_open)
+        for zone_id in list(self._zones_by_sensor.get(entity_id, ())):
+            was_open = self.zone_window_is_open(
+                zone_id, override=(entity_id, old_state.state)
+            )
+            now_open = self.zone_window_is_open(
+                zone_id, override=(entity_id, new_state.state)
+            )
+            if was_open == now_open:
+                continue
+            await self._async_dispatch_transition(zone_id, now_open)
 
     async def _async_dispatch_transition(self, zone_id: int, opened: bool) -> None:
-        """Turn the zone off on open. Close resumes unless the self-heal already did."""
-        mode = self.get_zone_window_mode(zone_id)
+        """Wait on the delay timer, then off or resume.
 
+        The timeout timer is separate. It starts only after the off, and a
+        close cancels it. A flap the other way cancels the delay, so no
+        cloud call goes out. Startup does not come through here.
+        A zone that is already off skips the open wait.
+        """
+        self._drop_clock(self._delay_timers, zone_id)
         if opened:
-            self._cancel_timer(zone_id)
-            await self._async_handle_open(zone_id, startup=False)
-            if mode == WINDOW_MODE_TIMEOUT and zone_id in self._off_active:
-                self._start_timer(zone_id)
+            if zone_id in self._off_active or not self._arm_delay(zone_id, opened=True):
+                await self._async_commit_open(zone_id)
             return
+        self._drop_clock(self._timers, zone_id)
+        if not self._window_episode(zone_id):
+            return
+        if not self._arm_delay(zone_id, opened=False):
+            await self._async_resume(zone_id, still_open=False)
 
-        self._cancel_timer(zone_id)
-        if zone_id not in self._off_active and zone_id not in self._snaps:
-            return
-        await self._async_resume(zone_id, still_open=False)
+    def _delay_key(self, *, opened: bool) -> str:
+        return (
+            CONF_ZONE_WINDOW_OPEN_DELAY_S if opened else CONF_ZONE_WINDOW_CLOSE_DELAY_S
+        )
+
+    def _arm_delay(self, zone_id: int, *, opened: bool) -> bool:
+        """Arm the open or close wait. 0 means act now."""
+        seconds = self.get_zone_window_delay(zone_id, self._delay_key(opened=opened))
+        if seconds <= 0:
+            return False
+        self._arm_clock(
+            self._delay_timers,
+            zone_id,
+            seconds,
+            self._make_delay_action(zone_id, opened=opened),
+        )
+        _LOGGER.debug(
+            "Window %s delay armed for zone %s (%ss)",
+            "open" if opened else "close",
+            zone_id,
+            seconds,
+        )
+        return True
+
+    def _make_delay_action(
+        self, zone_id: int, *, opened: bool
+    ) -> Callable[[], Awaitable[None]]:
+
+        async def _fire() -> None:
+            if self.zone_window_is_open(zone_id) != opened:
+                return
+            if opened:
+                await self._async_commit_open(zone_id)
+                return
+            if not self._window_episode(zone_id):
+                return
+            await self._async_resume(zone_id, still_open=False)
+
+        return _fire
+
+    async def _async_commit_open(self, zone_id: int) -> None:
+        """Turn the zone off, then arm the separate timeout timer."""
+        await self._async_handle_open(zone_id, startup=False)
+        if (
+            self.get_zone_window_mode(zone_id) == WINDOW_MODE_TIMEOUT
+            and zone_id in self._off_active
+        ):
+            self._start_timer(zone_id)
 
     def _start_timer(self, zone_id: int) -> bool:
-        self._cancel_timer(zone_id)
         timeout_s = self._coordinator.get_open_window_timeout_seconds(zone_id)
         if timeout_s <= 0:
+            self._drop_clock(self._timers, zone_id)
             _LOGGER.debug(
                 "Zone %s has open window detection disabled; skipping timer",
                 zone_id,
             )
             return False
-        self._timers[zone_id] = async_call_later(
-            self._hass, timeout_s, self._make_timer_action(zone_id)
+        self._arm_clock(
+            self._timers,
+            zone_id,
+            timeout_s,
+            self._make_timer_action(zone_id),
         )
         _LOGGER.debug("Window timer armed for zone %s (%ss)", zone_id, timeout_s)
         return True
 
-    def _make_timer_action(self, zone_id: int) -> Callable[..., Any]:
+    def _make_timer_action(self, zone_id: int) -> Callable[[], Awaitable[None]]:
 
-        async def _expire(_now: object) -> None:
-            self._timers.pop(zone_id, None)
+        async def _expire() -> None:
             if zone_id not in self._off_active:
                 return
             _LOGGER.warning(
@@ -431,11 +650,37 @@ class WindowController:
 
         return _expire
 
+    def _window_episode(self, zone_id: int) -> bool:
+        """True when this zone was turned off or still has a stored pre-state."""
+        return zone_id in self._off_active or zone_id in self._snaps
+
     @callback
-    def _cancel_timer(self, zone_id: int) -> None:
-        """Drop the zone's pending timer (flapping inside the window)."""
-        if unsub := self._timers.pop(zone_id, None):
+    def _drop_zone_clocks(self, zone_id: int) -> None:
+        """Cancel both clocks for one zone. Each clock stays its own dict."""
+        self._drop_clock(self._timers, zone_id)
+        self._drop_clock(self._delay_timers, zone_id)
+
+    @callback
+    def _drop_clock(self, clock: dict[int, Callable[[], None]], zone_id: int) -> None:
+        """Cancel one zone on this clock. The other clock stays armed."""
+        if unsub := clock.pop(zone_id, None):
             unsub()
+
+    def _arm_clock(
+        self,
+        clock: dict[int, Callable[[], None]],
+        zone_id: int,
+        seconds: float,
+        action: Callable[[], Awaitable[None]],
+    ) -> None:
+        """Replace one zone on this clock. A fire only drops the slot."""
+        self._drop_clock(clock, zone_id)
+
+        async def _fire(_now: object) -> None:
+            clock.pop(zone_id, None)
+            await action()
+
+        clock[zone_id] = async_call_later(self._hass, seconds, _fire)
 
     async def _async_handle_open(self, zone_id: int, *, startup: bool) -> None:
         if not self._batch_enabled():
@@ -715,7 +960,7 @@ class WindowController:
 
     def _held_zones(self, entity_id: str) -> list[int]:
         zones: list[int] = []
-        for key in self._sensor_map():
+        for key in self._contacts_by_zone():
             zone_id = int(key)
             if entity_id not in self._local_entity_ids(zone_id):
                 continue
@@ -743,7 +988,7 @@ class WindowController:
 
     async def _async_catch_open_holds(self) -> None:
         seen: set[str] = set()
-        for key in self._sensor_map():
+        for key in self._contacts_by_zone():
             zone_id = int(key)
             if not self._hold_active(zone_id):
                 continue

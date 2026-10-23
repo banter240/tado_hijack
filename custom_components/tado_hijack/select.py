@@ -11,8 +11,8 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import (
     CONF_ZONE_HUMIDITY_ENTITIES,
     CONF_ZONE_TEMP_ENTITIES,
-    CONF_ZONE_WINDOW_ENTITIES,
     WINDOW_MODE_OPTIONS,
+    WINDOW_SENSOR_MULTIPLE,
     WINDOW_SENSOR_NONE,
 )
 from .entity import TadoGenericEntityMixin, TadoHomeEntity, TadoZoneEntity
@@ -80,6 +80,7 @@ async def async_setup_entry(
                 TadoZoneTempSourceSelect(coordinator, zone.id, zone.name),
                 TadoZoneHumiditySourceSelect(coordinator, zone.id, zone.name),
                 TadoZoneWindowSensorSelect(coordinator, zone.id, zone.name),
+                TadoZoneWindowSensorRemoveSelect(coordinator, zone.id, zone.name),
                 TadoZoneWindowModeSelect(coordinator, zone.id, zone.name),
             )
         )
@@ -310,16 +311,32 @@ class TadoZoneHumiditySourceSelect(TadoZoneSourceSelectBase):
         )
 
 
-class TadoZoneWindowSensorSelect(TadoZoneEntity, SelectEntity):
-    """Select entity to link an external contact sensor as the zone window state.
-
-    Available for all hardware generations.  When set, the chosen
-    ``binary_sensor`` drives window open/close reactions handled by the
-    coordinator's ``WindowController`` (zone off / schedule resume, optionally
-    delayed by the zone's open-window detection timeout).
-    """
+class _ZoneWindowContactSelect(TadoZoneEntity, SelectEntity):
+    """Shared lookup for the zone's linked window contacts."""
 
     _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(
+        self,
+        coordinator: TadoDataUpdateCoordinator,
+        zone_id: int,
+        zone_name: str,
+        translation_key: str,
+        unique_suffix: str,
+    ) -> None:
+        super().__init__(coordinator, translation_key, zone_id, zone_name)
+        entry_id = coordinator.config_entry.entry_id
+        self._attr_unique_id = f"{entry_id}_zone_{zone_id}_{unique_suffix}"
+
+    def _contacts(self) -> list[str]:
+        return self.tado_coordinator.window_controller.zone_window_contacts(
+            self._zone_id
+        )
+
+
+class TadoZoneWindowSensorSelect(_ZoneWindowContactSelect):
+    """Add a contact. One linked contact still shows here and ``none`` clears it."""
+
     _attr_icon = "mdi:window-open-variant"
 
     def __init__(
@@ -328,35 +345,88 @@ class TadoZoneWindowSensorSelect(TadoZoneEntity, SelectEntity):
         zone_id: int,
         zone_name: str,
     ) -> None:
-        """Initialize the window sensor select."""
-        super().__init__(coordinator, "zone_window_sensor", zone_id, zone_name)
-        self._attr_unique_id = (
-            f"{coordinator.config_entry.entry_id}_zone_{zone_id}_window_sensor"
+        super().__init__(
+            coordinator,
+            zone_id,
+            zone_name,
+            "zone_window_sensor",
+            "window_sensor",
         )
 
     @property
     def options(self) -> list[str]:
-        """Return all binary sensors plus the unlink sentinel."""
-        return [
-            WINDOW_SENSOR_NONE,
-            *sorted(self.hass.states.async_entity_ids("binary_sensor")),
-        ]
+        """Sensors that are not linked yet, plus the current single contact."""
+        linked = set(self._contacts())
+        current = self.current_option
+        choices = [WINDOW_SENSOR_NONE]
+        if len(linked) > 1:
+            choices.append(WINDOW_SENSOR_MULTIPLE)
+        sensors = sorted(self.hass.states.async_entity_ids("binary_sensor"))
+        for entity_id in sensors:
+            if entity_id not in linked or entity_id == current:
+                choices.append(entity_id)
+        if current not in choices:
+            choices.append(current)
+        return choices
 
     @property
     def current_option(self) -> str:
-        """Return the linked sensor entity ID, or the sentinel if none."""
-        saved = self.coordinator.config_entry.data.get(
-            CONF_ZONE_WINDOW_ENTITIES, {}
-        ).get(str(self._zone_id))
-        if saved and self.hass.states.get(str(saved)) is not None:
-            return str(saved)
+        """One contact shows that sensor. Several show ``multiple``. Empty is ``none``."""
+        contacts = self._contacts()
+        if len(contacts) > 1:
+            return WINDOW_SENSOR_MULTIPLE
+        if len(contacts) == 1 and self.hass.states.get(contacts[0]) is not None:
+            return contacts[0]
         return WINDOW_SENSOR_NONE
 
     async def async_select_option(self, option: str) -> None:
-        """Link the chosen sensor and re-subscribe without reload."""
-        entity_id = "" if option == WINDOW_SENSOR_NONE else option
-        await self.coordinator.window_controller.async_set_zone_window_sensor(
-            self._zone_id, entity_id
+        """Append a contact. ``none`` unlinks a zone that has exactly one."""
+        controller = self.tado_coordinator.window_controller
+        if option == WINDOW_SENSOR_MULTIPLE:
+            return
+        if option == WINDOW_SENSOR_NONE:
+            contacts = self._contacts()
+            if len(contacts) == 1:
+                await controller.async_remove_zone_window_sensor(
+                    self._zone_id, contacts[0]
+                )
+            return
+        await controller.async_add_zone_window_sensor(self._zone_id, option)
+        self.async_write_ha_state()
+
+
+class TadoZoneWindowSensorRemoveSelect(_ZoneWindowContactSelect):
+    """Remove one linked contact. Options are only the contacts on this zone."""
+
+    _attr_icon = "mdi:window-closed"
+
+    def __init__(
+        self,
+        coordinator: TadoDataUpdateCoordinator,
+        zone_id: int,
+        zone_name: str,
+    ) -> None:
+        super().__init__(
+            coordinator,
+            zone_id,
+            zone_name,
+            "zone_window_sensor_remove",
+            "window_sensor_remove",
+        )
+
+    @property
+    def options(self) -> list[str]:
+        return [WINDOW_SENSOR_NONE, *self._contacts()]
+
+    @property
+    def current_option(self) -> str:
+        return WINDOW_SENSOR_NONE
+
+    async def async_select_option(self, option: str) -> None:
+        if option == WINDOW_SENSOR_NONE:
+            return
+        await self.tado_coordinator.window_controller.async_remove_zone_window_sensor(
+            self._zone_id, option
         )
         self.async_write_ha_state()
 

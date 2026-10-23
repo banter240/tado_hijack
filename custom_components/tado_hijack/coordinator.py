@@ -352,7 +352,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         self.optimistic = OptimisticManager()
         self.entity_resolver = EntityResolver(self)
         self.event_handler = TadoEventHandler(self)
-        self.window_controller = WindowController(self)
+        self.window_controller: WindowController = WindowController(self)
         self._window_controller_started = False
         self.availability_tracker = AvailabilityTracker(self)
         self.local_proxy = LocalProxyManager(self)

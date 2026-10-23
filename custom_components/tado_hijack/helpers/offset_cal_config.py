@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
@@ -14,6 +14,7 @@ from .logging_utils import get_redacted_logger
 
 if TYPE_CHECKING:
     from .. import TadoConfigEntry
+    from .window_controller import WindowController
 
 from ..const import (
     CONF_OFFSET_CAL_INTERVAL,
@@ -23,7 +24,6 @@ from ..const import (
     CONF_ZONE_OFFSET_CAL_INTERVALS,
     CONF_ZONE_OFFSET_CAL_THRESHOLDS,
     CONF_ZONE_TEMP_ENTITIES,
-    CONF_ZONE_WINDOW_ENTITIES,
     DEFAULT_OFFSET_CAL_INTERVAL,
     DEFAULT_OFFSET_CAL_SEND_COOLDOWN_S,
     DEFAULT_OFFSET_CAL_SPREAD_THRESHOLD,
@@ -166,9 +166,19 @@ class OffsetCalSchedulerMixin(OffsetCalConfigMixin):
             self._sync_interval_window_watch()
             await self._async_flush_interval_cal()
 
-    def _offset_cal_window_open(self, zone_id: int) -> bool:
+    def _window(self) -> WindowController | None:
+        """The window controller, once the coordinator has built it."""
         window = getattr(self, "window_controller", None)
+        return None if window is None else cast("WindowController", window)
+
+    def _offset_cal_window_open(self, zone_id: int) -> bool:
+        window = self._window()
         return bool(window and window.zone_window_is_open(zone_id))
+
+    def _window_contact_ids(self, zone_ids: list[int]) -> list[str]:
+        """Contacts linked to these zones. The window controller owns the list."""
+        window = self._window()
+        return [] if window is None else window.zone_window_contact_ids(zone_ids)
 
     def _interval_cal_must_wait(self, zone_id: int) -> bool:
         if self._offset_cal_window_open(zone_id):
@@ -215,12 +225,7 @@ class OffsetCalSchedulerMixin(OffsetCalConfigMixin):
     def _sync_interval_window_watch(self) -> None:
         from homeassistant.helpers.event import async_track_state_change_event
 
-        windows = self.config_entry.data.get(CONF_ZONE_WINDOW_ENTITIES) or {}
-        wanted: list[str] = []
-        if isinstance(windows, dict):
-            for zone_id in sorted(self._offset_cal_interval_pending):
-                if entity_id := windows.get(str(zone_id)):
-                    wanted.append(str(entity_id))
+        wanted = self._window_contact_ids(sorted(self._offset_cal_interval_pending))
         watched = tuple(wanted)
         if watched == self._offset_cal_interval_watched:
             return
@@ -346,13 +351,11 @@ class OffsetCalSchedulerMixin(OffsetCalConfigMixin):
         if not zones:
             return
         linked = self.config_entry.data.get(CONF_ZONE_TEMP_ENTITIES) or {}
-        windows = self.config_entry.data.get(CONF_ZONE_WINDOW_ENTITIES) or {}
         entity_ids: list[str] = []
         for zone_id in zones:
             if isinstance(linked, dict) and (entity_id := linked.get(str(zone_id))):
                 entity_ids.append(str(entity_id))
-            if isinstance(windows, dict) and (window_id := windows.get(str(zone_id))):
-                entity_ids.append(str(window_id))
+        entity_ids.extend(self._window_contact_ids(list(zones)))
         if not entity_ids:
             return
         self._offset_cal_threshold_unsubs.append(
