@@ -290,6 +290,9 @@
       "schedule": {
         "name": "Zeitplan"
       },
+      "window_resume_schedule": {
+        "name": "Zeitplan nach dem Schließen"
+      },
       "child_lock": {
         "name": "Kindersicherung"
       },

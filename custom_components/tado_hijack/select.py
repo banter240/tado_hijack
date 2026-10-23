@@ -435,7 +435,8 @@ class TadoZoneWindowModeSelect(TadoZoneEntity, SelectEntity):
     """Select entity to configure the zone's external window reaction mode.
 
     Modes:
-    - ``direct``: window open turns the zone off immediately, close resumes.
+    - ``direct``: window open turns the zone off immediately, close resumes
+      the schedule when it was running. The zone switch can keep the setpoint.
     - ``timeout``: like ``direct``, plus a self-healing resume — heating
       resumes after the open window detection timeout even while the
       window is still open (protection against a stuck sensor or a dead

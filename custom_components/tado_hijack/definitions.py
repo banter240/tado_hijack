@@ -2057,6 +2057,23 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     ),
     _window_delay_number("window_open_delay", CONF_ZONE_WINDOW_OPEN_DELAY_S),
     _window_delay_number("window_close_delay", CONF_ZONE_WINDOW_CLOSE_DELAY_S),
+    create_zone_switch(
+        key="window_resume_schedule",
+        value_fn=lambda c, zid: c.window_controller.zone_resumes_schedule(zid),
+        turn_on_fn=lambda c, zid: (
+            c.window_controller.async_set_zone_window_resume_schedule(zid, True)
+        ),
+        turn_off_fn=lambda c, zid: (
+            c.window_controller.async_set_zone_window_resume_schedule(zid, False)
+        ),
+        icon="mdi:calendar-sync",
+        entity_category=EntityCategory.CONFIG,
+        supported_zone_types=_WINDOW_ZONE_TYPES,
+        supported_generations={GEN_CLASSIC, GEN_X},
+        translation_key="window_resume_schedule",
+        unique_id_suffix="window_resume_schedule",
+        is_supported_fn=_not_dummy_zone,
+    ),
     create_zone_sensor(
         key=WINDOW_CONTACTS,
         value_fn=lambda c, zid: c.window_controller.zone_window_contacts_state(zid),

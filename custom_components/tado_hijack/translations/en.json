@@ -290,6 +290,9 @@
       "schedule": {
         "name": "Schedule"
       },
+      "window_resume_schedule": {
+        "name": "Resume Schedule After Close"
+      },
       "child_lock": {
         "name": "Child Lock"
       },

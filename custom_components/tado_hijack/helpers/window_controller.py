@@ -29,9 +29,11 @@ from ..const import (
     CONF_ZONE_WINDOW_ENTITIES,
     CONF_ZONE_WINDOW_MODES,
     CONF_ZONE_WINDOW_OPEN_DELAY_S,
+    CONF_ZONE_WINDOW_RESUME_SCHEDULE,
     DEFAULT_WINDOW_DELAY_S,
     DEFAULT_WINDOW_RESUME_BATCH,
     DEFAULT_WINDOW_RESUME_BATCH_S,
+    DEFAULT_ZONE_WINDOW_RESUME_SCHEDULE,
     MAX_WINDOW_CONTACTS,
     MAX_WINDOW_DELAY_S,
     MAX_WINDOW_RESUME_BATCH_S,
@@ -141,8 +143,10 @@ class WindowController:
 
     A linked climate stays local: off, and off again if it leaves off while
     the contact is open. Full cloud mode and a zone with no linked climate
-    send one manual cloud off. Timeout mode also resumes when the open-window
-    timer ends while the sensor is still open.
+    send one manual cloud off. When the room still resumes the schedule,
+    close and the timeout queue that cloud resume after the local setpoint
+    is back. Timeout mode also resumes when the open-window timer ends
+    while the sensor is still open.
     """
 
     def __init__(self, coordinator: TadoDataUpdateCoordinator) -> None:
@@ -260,6 +264,37 @@ class WindowController:
         modes = self._coordinator.config_entry.data.get(CONF_ZONE_WINDOW_MODES) or {}
         mode = str(modes.get(str(zone_id), ""))
         return mode if mode in WINDOW_MODES else WINDOW_MODE_DIRECT
+
+    def _resume_flags(self) -> dict[str, Any]:
+        raw = (
+            self._coordinator.config_entry.data.get(CONF_ZONE_WINDOW_RESUME_SCHEDULE)
+            or {}
+        )
+        return raw if isinstance(raw, dict) else {}
+
+    def zone_resumes_schedule(self, zone_id: int) -> bool:
+        """True unless this room opted out. A missing value is on."""
+        raw = self._resume_flags()
+        if str(zone_id) not in raw:
+            return DEFAULT_ZONE_WINDOW_RESUME_SCHEDULE
+        return bool(raw[str(zone_id)])
+
+    async def async_set_zone_window_resume_schedule(
+        self, zone_id: int, enabled: bool
+    ) -> None:
+        """Store the per-room choice. The default is removed, not written."""
+        current = dict(self._resume_flags())
+        if enabled == DEFAULT_ZONE_WINDOW_RESUME_SCHEDULE:
+            current.pop(str(zone_id), None)
+        else:
+            current[str(zone_id)] = enabled
+        self._update_entry_data({CONF_ZONE_WINDOW_RESUME_SCHEDULE: current})
+        self._coordinator.async_update_listeners()
+
+    def _schedule_resume_wanted(self, zone_id: int, snap: _WindowPreState) -> bool:
+        return self.zone_resumes_schedule(zone_id) and (
+            snap.schedule_active or snap.assume_schedule
+        )
 
     def _batch_enabled(self) -> bool:
         return bool(
@@ -796,23 +831,26 @@ class WindowController:
             if snap is not None:
                 await self._async_finish_local(zone_id, snap, still_open=still_open)
             return
-        if not self._batch_enabled():
-            self._snaps.pop(zone_id, None)
-            self._schedule_persist()
-            _LOGGER.info("Window closed: resuming zone %s", zone_id)
-            await self._coordinator.async_set_zone_auto(zone_id)
-            return
-        snap = self._snaps.get(zone_id)
         if snap and snap.released:
             if not still_open and not snap.pending:
                 self._snaps.pop(zone_id, None)
                 self._schedule_persist()
             return
         if snap is None:
-            _LOGGER.info(
-                "Window closed: resuming zone %s (no pre-open snapshot)", zone_id
+            if not self.zone_resumes_schedule(zone_id):
+                _LOGGER.info("Window closed: zone %s resume is off", zone_id)
+                return
+            snap = _WindowPreState(
+                schedule_active=True,
+                temperature=None,
+                power=None,
+                cloud_off_sent=True,
+                assume_schedule=True,
+                released=still_open,
             )
-            await self._coordinator.async_set_zone_auto(zone_id)
+            self._snaps[zone_id] = snap
+            self._queue_cloud_intent(zone_id, snap, _PENDING_RESUME)
+            self._schedule_persist()
             return
 
         epoch = self._bump(zone_id)
@@ -821,17 +859,11 @@ class WindowController:
             return
         if still_open:
             snap.released = True
-        wants_resume = snap.schedule_active or snap.assume_schedule
+        wants_resume = self._schedule_resume_wanted(zone_id, snap)
         if wants_resume and snap.cloud_off_sent:
-            snap.pending = _PENDING_RESUME
-            self._mark_resume_optimistic(zone_id, snap)
-            self._arm_batch()
-            _LOGGER.info("Window resume queued for zone %s", zone_id)
+            self._queue_cloud_intent(zone_id, snap, _PENDING_RESUME)
         elif not wants_resume and snap.cloud_off_sent:
-            snap.pending = _PENDING_RESTORE
-            self._mark_restore_optimistic(zone_id, snap)
-            self._arm_batch()
-            _LOGGER.info("Window manual restore queued for zone %s", zone_id)
+            self._queue_cloud_intent(zone_id, snap, _PENDING_RESTORE)
         else:
             self._coordinator.optimistic.clear_zone(zone_id)
             self._coordinator.async_update_listeners()
@@ -839,6 +871,19 @@ class WindowController:
             if not still_open:
                 self._snaps.pop(zone_id, None)
         self._schedule_persist()
+
+    def _queue_cloud_intent(
+        self, zone_id: int, snap: _WindowPreState, kind: str
+    ) -> None:
+        """Hold one cloud resume or manual restore for the shared batch."""
+        snap.pending = kind
+        if kind == _PENDING_RESUME:
+            self._mark_resume_optimistic(zone_id, snap)
+            _LOGGER.info("Window resume queued for zone %s", zone_id)
+        else:
+            self._mark_restore_optimistic(zone_id, snap)
+            _LOGGER.info("Window manual restore queued for zone %s", zone_id)
+        self._arm_batch()
 
     def _mark_resume_optimistic(self, zone_id: int, snap: _WindowPreState) -> None:
         self._show(
@@ -864,7 +909,7 @@ class WindowController:
             return
         if not any(snap.pending for snap in self._snaps.values()):
             return
-        delay = self._batch_seconds()
+        delay = self._batch_seconds() if self._batch_enabled() else 0.0
         if delay <= 0:
             self._hass.async_create_task(self._async_flush())
             return
@@ -1035,6 +1080,10 @@ class WindowController:
         epoch = self._bump(zone_id)
         await self._async_restore_local(zone_id, snap)
         if self._epoch.get(zone_id) != epoch:
+            return
+        if self._schedule_resume_wanted(zone_id, snap):
+            self._queue_cloud_intent(zone_id, snap, _PENDING_RESUME)
+            self._schedule_persist()
             return
         self._coordinator.optimistic.clear_zone(zone_id)
         self._coordinator.async_update_listeners()

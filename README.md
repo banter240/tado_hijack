@@ -499,6 +499,7 @@ Each zone device exposes selectors that connect external contact sensors to zone
 | `select.zone_window_mode`        | How open/close transitions are translated into zone actions   | `direct`, `timeout` |
 | `number.window_open_delay`       | Wait after the room opens before the zone turns off           | Seconds, `0`–`3600`, default `0` |
 | `number.window_close_delay`      | Wait after the room closes before the zone resumes            | Seconds, `0`–`3600`, default `0` |
+| `switch.window_resume_schedule`  | After close, resume the schedule when it was running          | On by default. Off keeps the restored setpoint |
 
 **Mode matrix (timer = the zone's open window detection timeout):**
 
@@ -511,9 +512,9 @@ After a timer-triggered resume the cycle is complete: staying open without a new
 
 The open delay and the close delay are their own timer. `0` acts at once. They follow the room, so one contact closing while another stays open does not resume. A flip back before the wait ends cancels that wait, so no cloud call goes out. A room that is already open or already closed at startup is not delayed again. The timeout is a second timer. It starts only after the zone has actually turned off, and a close cancels it. `sensor.window_contacts` lists the linked entity ids. The same list is the `contacts` attribute. An empty list is `none`. Unlinking the last contact does not send a resume.
 
-A linked HomeKit or Matter climate is turned off on open. While the contact stays open, that climate is turned off again if it leaves off, until the window closes or the timeout puts the stored setpoint back. No Tado call. The pre-open snapshot is kept across a restart.
+A linked HomeKit or Matter climate is turned off on open. While the contact stays open, that climate is turned off again if it leaves off. Close and the timeout put the stored setpoint back on that climate. When the schedule was running before the window, that resume is the same batched cloud call as a zone with no local climate. A manual setpoint from before the window stays manual. The zone switch is on by default. Off skips the resume and leaves the restored setpoint. The pre-open snapshot is kept across a restart.
 
-A zone with no linked climate sends one cloud off, the same manual off as `hvac_mode: off` with `overlay: manual`. Direct mode has no end. Timeout mode sends that zone's open-window duration. Close and the timeout resume the schedule. Full cloud mode always uses this path, because there is no local climate and no watcher.
+A zone with no linked climate sends one cloud off, the same manual off as `hvac_mode: off` with `overlay: manual`. Direct mode has no end. Timeout mode sends that zone's open-window duration. Close and the timeout resume the schedule when it was running. With the zone switch off, the stored setpoint is sent back as a manual overlay instead. Full cloud mode always uses this path, because there is no local climate and no watcher.
 
 **Queue and delay send of resume schedule** (default on, 120 seconds) holds those cloud resumes:
 

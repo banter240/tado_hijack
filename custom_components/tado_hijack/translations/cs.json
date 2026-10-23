@@ -290,6 +290,9 @@
       "schedule": {
         "name": "Chytrý plán"
       },
+      "window_resume_schedule": {
+        "name": "Obnovit plán po zavření"
+      },
       "child_lock": {
         "name": "Dětský zámek"
       },

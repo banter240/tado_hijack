@@ -57,6 +57,7 @@ CONF_ZONE_WINDOW_ENTITIES: Final = "zone_window_entities"
 CONF_ZONE_WINDOW_MODES: Final = "zone_window_modes"
 CONF_ZONE_WINDOW_OPEN_DELAY_S: Final = "zone_window_open_delay_s"
 CONF_ZONE_WINDOW_CLOSE_DELAY_S: Final = "zone_window_close_delay_s"
+CONF_ZONE_WINDOW_RESUME_SCHEDULE: Final = "zone_window_resume_schedule"
 
 # Sentinel values for the window-contact select. Neither is a stored entity.
 WINDOW_SENSOR_NONE: Final = "none"
@@ -83,6 +84,7 @@ DEFAULT_WINDOW_RESUME_BATCH_S: Final = 120
 MIN_WINDOW_RESUME_BATCH_S: Final = 0
 MAX_WINDOW_RESUME_BATCH_S: Final = 3600
 DEFAULT_WINDOW_DELAY_S: Final = 0
+DEFAULT_ZONE_WINDOW_RESUME_SCHEDULE: Final = True
 MAX_WINDOW_DELAY_S: Final = 3600
 MAX_WINDOW_CONTACTS: Final = 8
 WINDOW_CONTACTS: Final = "window_contacts"
