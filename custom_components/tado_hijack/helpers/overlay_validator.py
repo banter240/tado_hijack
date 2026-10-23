@@ -34,6 +34,14 @@ def validate_overlay_payload(
         (is_valid, error_message) - error_message is None if valid
 
     """
+    termination = data.get("termination")
+    if (
+        isinstance(termination, dict)
+        and "type" in termination
+        and "typeSkillBasedApp" in termination
+    ):
+        return False, "termination must not set type and typeSkillBasedApp together"
+
     setting = data.get("setting", {})
     power = setting.get("power")
     # Temperature is a dict like {'celsius': 21.0}
