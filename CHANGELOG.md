@@ -1,3 +1,21 @@
+## [5.11.1](https://github.com/banter240/tado_hijack/compare/v5.11.0...v5.11.1) (2026-10-23)
+
+### 🐛 Bug Fixes
+
+* fix: drop the extra type field on classic overlays
+
+  Timer and manual overlays sent type next to typeSkillBasedApp.
+  Classic rejects that pair. The window hold still uses duration and
+  overlay mode.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🐛 FIXED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - timed overlays no longer send termination.type
+  - manual overlays no longer send termination.type
+  - the overlay validator rejects the pair before the call
+
 ## [5.11.0](https://github.com/banter240/tado_hijack/compare/v5.10.0...v5.11.0) (2026-10-22)
 
 ### ✨ New Features
