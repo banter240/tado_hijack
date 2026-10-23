@@ -23,6 +23,11 @@ from .const import (
     bridge_display_name,
     bridge_model_name,
 )
+from .helpers.device_link import (
+    device_identifier,
+    home_device_identifier,
+    zone_device_identifier,
+)
 from .helpers.device_linker import get_local_device
 from .models import TadoEntityDefinition
 
@@ -89,7 +94,7 @@ def sync_shared_room_device_names(hass: HomeAssistant) -> None:
             if not raw_name:
                 continue
             device = registry.async_get_device_by_identifier(
-                (DOMAIN, f"{entry.entry_id}_zone_{zone_id}"),
+                zone_device_identifier(entry.entry_id, zone_id),
                 config_entry_id=entry.entry_id,
             )
             if device is None or device.name_by_user:
@@ -428,7 +433,7 @@ class TadoHomeEntity(TadoEntity):
         device_type = getattr(bridge, "device_type", None) if bridge else None
         short_serial = getattr(bridge, "short_serial_no", None) or serial_no[-4:]
         return DeviceInfo(
-            identifiers={(DOMAIN, serial_no)},
+            identifiers={device_identifier(serial_no)},
             name=bridge_display_name(device_type, short_serial),
             manufacturer="Tado",
             model=bridge_model_name(device_type),
@@ -450,10 +455,9 @@ class TadoHomeEntity(TadoEntity):
 
         return DeviceInfo(
             identifiers={
-                (
-                    DOMAIN,
-                    self.coordinator.config_entry.unique_id
-                    or self.coordinator.config_entry.entry_id,
+                home_device_identifier(
+                    self.coordinator.config_entry.unique_id,
+                    self.coordinator.config_entry.entry_id,
                 )
             },
             name=self.coordinator.config_entry.title,
@@ -529,9 +533,8 @@ class TadoZoneEntity(TadoEntity):
 
         return DeviceInfo(
             identifiers={
-                (
-                    DOMAIN,
-                    f"{self.coordinator.config_entry.entry_id}_zone_{self._zone_id}",
+                zone_device_identifier(
+                    self.coordinator.config_entry.entry_id, self._zone_id
                 )
             },
             name=zone_device_name(
@@ -571,9 +574,8 @@ class TadoHotWaterZoneEntity(TadoEntity):
             raise RuntimeError("Config entry not available")
         return DeviceInfo(
             identifiers={
-                (
-                    DOMAIN,
-                    f"{self.coordinator.config_entry.entry_id}_zone_{self._zone_id}",
+                zone_device_identifier(
+                    self.coordinator.config_entry.entry_id, self._zone_id
                 )
             },
             name=zone_device_name(
@@ -620,9 +622,8 @@ class TadoDeviceEntity(TadoEntity):
         try:
             via_device_id = dr.async_get_device_id_by_identifier(
                 self.coordinator.hass,
-                (
-                    DOMAIN,
-                    f"{self.coordinator.config_entry.entry_id}_zone_{self._zone_id}",
+                zone_device_identifier(
+                    self.coordinator.config_entry.entry_id, self._zone_id
                 ),
                 config_entry_id=self.coordinator.config_entry.entry_id,
             )
@@ -630,7 +631,7 @@ class TadoDeviceEntity(TadoEntity):
             via_device_id = None
 
         info = DeviceInfo(
-            identifiers={(DOMAIN, self._serial_no)},
+            identifiers={device_identifier(self._serial_no)},
             name=f"tado {model_name} {self._short_serial}",
             manufacturer="Tado",
             model=model_name,

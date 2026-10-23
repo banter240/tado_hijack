@@ -91,6 +91,7 @@ from ..const import (
     bridge_model_name,
 )
 from ..entity import TadoEntity
+from .device_link import device_identifier, zone_device_identifier
 from .device_linker import get_local_device, invalidate_cache
 from .discovery import get_bridges, yield_devices
 from .logging_utils import get_redacted_logger
@@ -402,7 +403,7 @@ class TadoLocalProxyBase(TadoEntity):
         serial = self._host.serial
         if self._host.is_bridge:
             return DeviceInfo(
-                identifiers={(DOMAIN, serial)},
+                identifiers={device_identifier(serial)},
                 name=bridge_display_name(
                     self._host.device_type, self._host.short_serial
                 ),
@@ -415,16 +416,15 @@ class TadoLocalProxyBase(TadoEntity):
         try:
             via_device_id = dr.async_get_device_id_by_identifier(
                 self.coordinator.hass,
-                (
-                    DOMAIN,
-                    f"{self.coordinator.config_entry.entry_id}_zone_{self._host.zone_id}",
+                zone_device_identifier(
+                    self.coordinator.config_entry.entry_id, self._host.zone_id
                 ),
                 config_entry_id=self.coordinator.config_entry.entry_id,
             )
         except ValueError:
             via_device_id = None
         info = DeviceInfo(
-            identifiers={(DOMAIN, serial)},
+            identifiers={device_identifier(serial)},
             name=f"tado {model_name} {self._host.short_serial}",
             manufacturer="Tado",
             model=model_name,

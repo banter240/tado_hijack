@@ -10,7 +10,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
 from ..const import DOMAIN, GEN_X, bridge_display_name, bridge_model_name
-from .device_link import identifier_pairs
+from .device_link import device_identifier, identifier_pairs
 from .logging_utils import get_redacted_logger
 from .tadov3.device_link import matches_serial as matches_homekit
 from .tadox.device_link import matches_serial as matches_matter
@@ -155,12 +155,12 @@ def detach_home_from_local_bridges(
     if not bridge_serials:
         return
     registry = dr.async_get(hass)
-    home_identifier = (DOMAIN, home_key)
+    home_identifier = device_identifier(home_key)
     home = _device_for_identifier(registry, home_identifier, entry_id)
     if home is None:
         return
 
-    drop = {(DOMAIN, serial) for serial in bridge_serials}
+    drop = {device_identifier(serial) for serial in bridge_serials}
     for serial in bridge_serials:
         local = get_local_device(hass, serial, generation, exclude_entry_id=entry_id)
         if local is not None:
@@ -184,6 +184,38 @@ def detach_home_from_local_bridges(
     )
 
 
+def release_foreign_devices(
+    hass: HomeAssistant,
+    *,
+    entry_id: str,
+    bridge_serials: list[str],
+) -> None:
+    """Remove devices of this entry that carry no entities.
+
+    Disabled entities and reverse-linked copies keep their device. Bridge
+    devices stay too: they are registered before an entity is on them.
+    """
+    registry = dr.async_get(hass)
+    ent_reg = er.async_get(hass)
+    bridges = {device_identifier(serial) for serial in bridge_serials if serial}
+    released = 0
+    for device in list(dr.async_entries_for_config_entry(registry, entry_id)):
+        if bridges.intersection(identifier_pairs(device.identifiers)):
+            continue
+        if er.async_entries_for_device(
+            ent_reg, device.id, include_disabled_entities=True
+        ):
+            continue
+        registry.async_remove_device(device.id)
+        released += 1
+        _LOGGER.info(
+            "Removed empty foreign device %s",
+            device.name_by_user or device.name or device.id,
+        )
+    if released:
+        _LOGGER.info("Removed %d empty foreign device(s)", released)
+
+
 def retire_empty_home_device(
     hass: HomeAssistant,
     *,
@@ -193,7 +225,7 @@ def retire_empty_home_device(
     if not home_key:
         return
     registry = dr.async_get(hass)
-    home = _device_for_identifier(registry, (DOMAIN, home_key), entry_id)
+    home = _device_for_identifier(registry, device_identifier(home_key), entry_id)
     if home is None:
         return
     if er.async_entries_for_device(
@@ -226,7 +258,7 @@ def ensure_bridge_devices(
         device_type = getattr(bridge, "device_type", None)
         registry.async_get_or_create(
             config_entry_id=entry_id,
-            identifiers={(DOMAIN, serial)},
+            identifiers={device_identifier(serial)},
             name=bridge_display_name(device_type, short),
             manufacturer="Tado",
             model=bridge_model_name(device_type),

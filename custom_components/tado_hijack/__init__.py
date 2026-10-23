@@ -32,9 +32,11 @@ from .coordinator import TadoDataUpdateCoordinator
 from .entity import sync_shared_room_device_names
 from .helpers.auth_manager import persist_refresh_token
 from .helpers.client import TadoHijackClient
+from .helpers.device_link import home_device_key
 from .helpers.device_linker import (
     detach_home_from_local_bridges,
     ensure_bridge_devices,
+    release_foreign_devices,
     retire_empty_home_device,
 )
 from .helpers.logging_utils import (
@@ -237,10 +239,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bool
             for bridge in coordinator.bridges
             if (serial := getattr(bridge, "serial_no", None))
         ]
+        home_key = home_device_key(entry.unique_id, entry.entry_id)
         detach_home_from_local_bridges(
             hass,
             entry_id=entry.entry_id,
-            home_key=entry.unique_id or entry.entry_id,
+            home_key=home_key,
             bridge_serials=bridge_serials,
             generation=coordinator.generation,
         )
@@ -252,11 +255,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> bool
 
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
         sync_shared_room_device_names(hass)
+        release_foreign_devices(
+            hass,
+            entry_id=entry.entry_id,
+            bridge_serials=bridge_serials,
+        )
         if bridge_serials:
             retire_empty_home_device(
                 hass,
                 entry_id=entry.entry_id,
-                home_key=entry.unique_id or entry.entry_id,
+                home_key=home_key,
             )
 
         await async_setup_services(hass)

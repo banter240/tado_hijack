@@ -6,10 +6,30 @@ from collections.abc import Iterable, Iterator
 
 from homeassistant.helpers.device_registry import DeviceEntry
 
-from ..const import IDENTIFIER_DOMAIN_KIND_VALUE, IDENTIFIER_NS_VALUE
+from ..const import DOMAIN, IDENTIFIER_DOMAIN_KIND_VALUE, IDENTIFIER_NS_VALUE
 from .logging_utils import get_redacted_logger
 
 _LOGGER = get_redacted_logger(__name__)
+
+
+def device_identifier(value: str) -> tuple[str, str]:
+    """Identifier this integration registers for one home, bridge, or serial."""
+    return (DOMAIN, value)
+
+
+def home_device_key(unique_id: str | None, entry_id: str) -> str:
+    """Value half of the home device identifier."""
+    return unique_id or entry_id
+
+
+def home_device_identifier(unique_id: str | None, entry_id: str) -> tuple[str, str]:
+    """Identifier registered for the home device."""
+    return device_identifier(home_device_key(unique_id, entry_id))
+
+
+def zone_device_identifier(entry_id: str, zone_id: object) -> tuple[str, str]:
+    """Identifier registered for a zone device."""
+    return device_identifier(f"{entry_id}_zone_{zone_id}")
 
 
 def identifier_root(namespace: str) -> str:
