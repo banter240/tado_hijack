@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any, cast
 import aiohttp
 from homeassistant.core import (
     HomeAssistant,
+    callback,
 )
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.event import async_track_point_in_utc_time
@@ -967,6 +968,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             self.hass, self._on_plan_edge, when_utc
         )
 
+    @callback
     def _on_plan_edge(self, _now: datetime) -> None:
         self._plan_edge_unsub = None
         if self._plan_edge_stopped:
