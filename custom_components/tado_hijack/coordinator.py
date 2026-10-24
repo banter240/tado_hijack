@@ -598,6 +598,17 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             self.zones_meta = self.data_manager.zones_meta
             self.devices_meta = self.data_manager.devices_meta
 
+            entry = self.config_entry
+            if entry is not None:
+                from .helpers.device_linker import drop_absent_registry
+
+                drop_absent_registry(
+                    self.hass,
+                    entry_id=entry.entry_id,
+                    zones_meta=self.zones_meta,
+                    devices_meta=self.devices_meta,
+                )
+
             from .helpers.discovery import get_bridges
 
             self.bridges = get_bridges(self.devices_meta, self.generation)

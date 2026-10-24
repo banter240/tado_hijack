@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Iterator
 
 from homeassistant.helpers.device_registry import DeviceEntry
@@ -40,6 +41,40 @@ def identifier_root(namespace: str) -> str:
 def normalize_serial(serial_no: str) -> str:
     """Return a comparable serial, or empty if none."""
     return serial_no.strip().upper() if serial_no else ""
+
+
+_SERIAL_TOKEN = re.compile(r"(?i)^[a-z]{2,3}(?=[a-z0-9]*\d)[a-z0-9]{8,12}$")
+
+
+def zone_id_from_device_key(value: str, entry_id: str) -> int | None:
+    """Zone id from ``{entry_id}_zone_{id}``, or None."""
+    prefix = f"{entry_id}_zone_"
+    if not value.startswith(prefix):
+        return None
+    zone_id = value.removeprefix(prefix)
+    if not zone_id.isdigit():
+        return None
+    return int(zone_id)
+
+
+def zone_id_from_unique_id(unique_id: str) -> int | None:
+    """Zone id encoded in a Hijack unique id. Home entities have none."""
+    parts = unique_id.split("_")
+    for index, part in enumerate(parts[:-1]):
+        if part == "zone" and parts[index + 1].isdigit():
+            return int(parts[index + 1])
+    tail = parts[-1]
+    if tail.isdigit():
+        return int(tail)
+    return None
+
+
+def serial_from_unique_id(unique_id: str) -> str | None:
+    """Serial token encoded in a Hijack unique id."""
+    for part in unique_id.split("_"):
+        if _SERIAL_TOKEN.fullmatch(part):
+            return normalize_serial(part)
+    return None
 
 
 def parse_identifier(item: object) -> tuple[str, str] | None:
