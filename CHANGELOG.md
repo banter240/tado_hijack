@@ -1,3 +1,97 @@
+## [5.12.0](https://github.com/banter240/tado_hijack/compare/v5.11.1...v5.12.0) (2026-10-24)
+
+### ✨ New Features
+
+* feat: delay a window and link several contacts
+
+  Each zone can wait before it turns off, and again before it resumes.
+  The wait is its own timer. The open-window timeout starts only after
+  the zone has turned off. A flap cancels the wait, so nothing is sent
+  until the contact stays in that state. Default 0 acts at once.
+  A zone stores up to 8 contacts. It is open while any contact is open,
+  and closed only when all of them are closed. The delays follow that
+  combined edge. One diagnostic sensor lists the linked contacts.
+  The add select shows that sensor when one contact is linked, none when
+  the list is empty, and multiple when several are linked. Choosing
+  multiple does nothing and is not stored. None unlinks the one contact.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ✨ ADDED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - per-zone open delay and close delay, in seconds, default 0
+  - the delay timer stays separate from the open-window timeout
+  - add and remove selects for several contacts on one zone
+  - the zone is open while any linked contact is open
+  - a diagnostic sensor lists the linked contacts
+  - several linked contacts show multiple on the add select
+* feat: resume the schedule after a window closes
+
+  A linked climate gets its stored setpoint at once. When the
+  schedule was running before the window, the resume joins the
+  existing cloud batch. A manual setpoint stays manual.
+
+  The zone switch is on by default. Off keeps the restored setpoint.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ✨ ADDED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - per-room switch to resume the schedule after close
+  - local setpoint is restored before that batched cloud resume
+  - rooms that close inside the batch window still share one flush
+
+### 🐛 Bug Fixes
+
+* fix: remove empty foreign devices outright
+
+  A HomeKit or Matter shell can keep this config entry after its
+  entities moved onto the serial device. Home Assistant will not
+  delete that shell while the entry is listed, and it retired
+  remove_config_entry_id. A device belongs to one config entry, so
+  an empty shell is removed with async_remove_device.
+
+  A device that still has any entity stays, including disabled entities
+  and reverse-linked copies. Bridge devices stay too.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🐛 FIXED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - empty foreign devices are removed without the deprecated call
+  - devices with entities stay, including reverse-linked copies
+  - bridge devices stay, even before an entity is on them
+  - home, zone, and serial identifiers come from one helper
+* fix: run the plan edge refresh on the event loop
+
+  The block-boundary timer called a plain function. Home Assistant
+  ran it in the executor, and the listener update left the loop.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🐛 FIXED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - the plan edge callback stays on the event loop
+  - schedule sensors still refresh when the next block starts
+* fix: stop a local proxy climate calling itself
+
+  set_temperature forwards the service data, including entity_id.
+  That id came last and replaced the source, so the proxy called
+  itself until it recursed.
+
+  The source entity is set after the target fields are dropped.
+  Those fields are the ones Home Assistant uses for a service target.
+  Every proxied write uses that path, including off, identify,
+  humidity and horizontal swing.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🐛 FIXED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - a proxied climate no longer calls itself on set_temperature
+  - device, area, floor, and label targets are dropped the same way
+  - off, identify, humidity and horizontal swing call the source entity
+
 ## [5.11.1](https://github.com/banter240/tado_hijack/compare/v5.11.0...v5.11.1) (2026-10-23)
 
 ### 🐛 Bug Fixes
