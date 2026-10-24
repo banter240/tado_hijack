@@ -53,10 +53,10 @@ from .local_climate import (
     async_set_off,
     async_set_temperature,
     climate_is_off,
+    linked_climate_ids,
 )
 from .logging_utils import get_redacted_logger
 from .optimistic_manager import ZoneOverlayFields
-from .zone_utils import trv_serials
 
 if TYPE_CHECKING:
     from ..coordinator import TadoDataUpdateCoordinator
@@ -316,14 +316,7 @@ class WindowController:
         )
 
     def _local_entity_ids(self, zone_id: int) -> list[str]:
-        if self._coordinator.full_cloud_mode:
-            return []
-        tracker = self._coordinator.availability_tracker
-        return [
-            entity_id
-            for serial in trv_serials(self._coordinator.zones_meta, zone_id)
-            if (entity_id := tracker.get_entity_id(serial))
-        ]
+        return linked_climate_ids(self._coordinator, zone_id)
 
     def _bump(self, zone_id: int) -> int:
         epoch = self._epoch.get(zone_id, 0) + 1

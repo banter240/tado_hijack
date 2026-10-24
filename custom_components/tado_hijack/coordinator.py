@@ -113,6 +113,10 @@ from .helpers.hot_water_duration import (
     programmer_next_block,
     programmer_return_mode,
 )
+from .helpers.local_climate import (
+    async_apply_known_setpoint,
+    linked_climate_ids,
+)
 from .helpers.local_proxy import LocalProxyManager
 from .helpers.logging_utils import get_redacted_logger, log_secrets, redact
 from .helpers.offset_cal_config import OffsetCalSchedulerMixin
@@ -140,6 +144,8 @@ from .helpers.schedule import (
     build_set_schedule_command,
     build_x_hot_water_payload,
     build_x_payload,
+    cached_plan,
+    current_plan_span,
     ensure_full_day,
     ha_days_for_tado_day,
     next_block_start,
@@ -1185,6 +1191,40 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         )
         self.recovery_queue.capture_resume(zone_id)
 
+    async def _async_preview_schedule_on_local(self, zone_id: int) -> None:
+        """Set linked climates to the cached block that covers now.
+
+        No Tado call. An empty plan, a gap, an open window, and a climate
+        that is unavailable or unknown do not write.
+        """
+        if self._is_tadox_hot_water_zone(zone_id):
+            return
+        zone = self.zones_meta.get(zone_id)
+        if zone is None or get_zone_type(zone) != ZONE_TYPE_HEATING:
+            return
+        if self.window_controller.zone_window_is_open(zone_id):
+            return
+        days, timetable = cached_plan(self.data_manager.schedule_blocks_cache, zone_id)
+        if not days:
+            return
+        span = current_plan_span(days, dt_util.now(), timetable)
+        if span is None or (span.power == POWER_ON and span.temperature is None):
+            return
+        entity_ids = linked_climate_ids(self, zone_id)
+        if not entity_ids:
+            return
+        _LOGGER.debug(
+            "Schedule preview zone %s from cache (%s)",
+            zone_id,
+            "off" if span.power == POWER_OFF else span.temperature,
+        )
+        await async_apply_known_setpoint(
+            self.hass,
+            entity_ids,
+            power=span.power,
+            temperature=span.temperature,
+        )
+
     async def async_set_zone_auto(
         self,
         zone_id: int,
@@ -1192,6 +1232,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         ignore_global_config: bool = False,
     ) -> None:
         """Set zone to auto mode (resume schedule)."""
+        await self._async_preview_schedule_on_local(zone_id)
         self._execute_resume_command(zone_id)
 
         # Trigger refresh only for AC and Hot Water zones (TRVs are excluded)

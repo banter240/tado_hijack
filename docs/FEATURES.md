@@ -12,6 +12,8 @@ Turn off the official Home Assistant Tado integration. It polls the same account
 
 The heating climate is created there. The entities are on the Hijack device. Do not remove the Tado HomeKit or Matter integration. Remove it and the clone is gone. Hijack does not send an ordinary local temperature change to Tado. A local `climate.set_hvac_mode` of `auto` on that climate resumes the Tado schedule. Anything else is stored as an optimistic manual overlay. HomeKit and Matter have no auto mode. The clone forwards to the entity created there.
 
+When a heating zone resumes, and that zone's weekly plan is already cached, each linked HomeKit or Matter climate that is reachable is set to the block covering now. Off turns it off. Heat sets that temperature. An empty plan, a gap in the plan, an open window, full cloud mode, and an unavailable or unknown climate do not write. The local write is not a Tado call. The cloud resume still runs, and later blocks still come from the cloud.
+
 Child lock, offset, battery, and connection are on the Hijack device too. Attach puts those on the HomeKit or Matter TRV instead, and the clone stays off. Zone entities stay on the Hijack zone device.
 
 Full cloud mode (default off) creates a Hijack heating climate for classic heating zones, and a heating climate for every Tado X room. Classic air conditioning is created either way. The Tado X climate entity uses `off`, `heat`, and `auto`. It has no fan and no swing. `async_set_ac_setting` on Tado X does nothing.

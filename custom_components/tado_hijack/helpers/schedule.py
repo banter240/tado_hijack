@@ -950,6 +950,22 @@ def _setting_key(span: PlanSpan) -> tuple[str, float | None]:
     return (POWER_ON, span.temperature)
 
 
+def current_plan_span(
+    days: dict[str, list[dict[str, Any]]],
+    now: datetime,
+    timetable_type: str | None = None,
+) -> PlanSpan | None:
+    """Block that covers now, or None when the cached plan has a gap there."""
+    return next(
+        (
+            span
+            for span in _spans_from(days, now, timetable_type)
+            if span.start <= now < span.end
+        ),
+        None,
+    )
+
+
 def next_setting_change(
     days: dict[str, list[dict[str, Any]]],
     now: datetime,
@@ -957,10 +973,7 @@ def next_setting_change(
 ) -> PlanSpan | None:
     """Next block whose power or temperature differs from the block covering now."""
     spans = _spans_from(days, now, timetable_type)
-    current: PlanSpan | None = None
-    for span in spans:
-        if span.start <= now < span.end:
-            current = span
+    current = current_plan_span(days, now, timetable_type)
     if current is None:
         return next((span for span in spans if span.start > now), None)
     current_key = _setting_key(current)
