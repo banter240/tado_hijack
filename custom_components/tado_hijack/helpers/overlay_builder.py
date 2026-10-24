@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from ..const import (
+    DEFAULT_OVERLAY_DURATION_S,
     OFF_MAGIC_TEMP,
     OVERLAY_NEXT_BLOCK,
     OVERLAY_PRESENCE,
@@ -85,7 +86,7 @@ def build_overlay_data(
     elif overlay_mode == OVERLAY_PRESENCE:
         termination = {"type": TERMINATION_TADO_MODE}
     elif overlay_mode == OVERLAY_TIMER or duration:
-        seconds = duration * 60 if duration else 1800
+        seconds = duration * 60 if duration else DEFAULT_OVERLAY_DURATION_S
         termination = {
             "typeSkillBasedApp": TERMINATION_TIMER,
             "durationInSeconds": seconds,

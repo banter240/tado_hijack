@@ -79,6 +79,7 @@ from .const import (
     DEFAULT_REDUCED_POLLING_START,
     DEFAULT_REFRESH_AFTER_RESUME,
     DEFAULT_REFRESH_PLANS_AFTER_RESET,
+    DEFAULT_SCAN_INTERVAL,
     DEFAULT_SLOW_POLL_INTERVAL,
     DEFAULT_SUPPRESS_REDUNDANT_BUTTONS,
     DEFAULT_SUPPRESS_REDUNDANT_CALLS,
@@ -94,9 +95,11 @@ from .const import (
     PROTECTION_MODE_TEMP,
     TADOX_VIRTUAL_HOT_WATER_ZONE_ID,
     TEMP_MAX_AC,
+    TEMP_MAX_HEATING,
     TEMP_MAX_HOT_WATER_OVERRIDE,
     TEMP_MIN_AC,
     TEMP_MIN_HOT_WATER,
+    TEMP_STEP_HEATING,
     TIMETABLE_SELECT_OPTIONS,
     TIMETABLE_ZONE_TYPES,
     WINDOW_CONTACTS,
@@ -1767,7 +1770,9 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
     ),
     create_diagnostic_sensor(
         key="scan_interval",
-        value_fn=lambda c: int(c.config_entry.data.get(CONF_SCAN_INTERVAL, 1800)),
+        value_fn=lambda c: int(
+            c.config_entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+        ),
         icon="mdi:update",
         unit="s",
         state_class=SensorStateClass.MEASUREMENT,
@@ -1966,7 +1971,7 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
             zid, None if val < PROTECTION_MODE_TEMP else val
         ),
         min_value=0,
-        max_value=25.0,
+        max_value=TEMP_MAX_HEATING,
         step=0.1,
         unit=UnitOfTemperature.CELSIUS,
         optimistic_key="away_temp",
@@ -2021,7 +2026,7 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
             float(caps.temperatures.celsius.step)
             if (caps := c.data_manager.capabilities_cache.get(zid))
             and caps.temperatures
-            else 0.5
+            else TEMP_STEP_HEATING
         ),
         unit=UnitOfTemperature.CELSIUS,
         optimistic_key="temperature",

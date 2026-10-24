@@ -277,8 +277,10 @@ TEMP_DEFAULT_HOT_WATER: Final = 30.0
 TEMP_DEFAULT_AC: Final = 22.0
 
 # Temperature Steps
+TEMP_STEP_HEATING: Final = 0.5
 TEMP_STEP_HOT_WATER: Final = 1.0
 TEMP_STEP_AC: Final = 1.0
+DEFAULT_OVERLAY_DURATION_S: Final = 1800  # Timer length when duration is omitted
 
 # Overlay/Termination Types
 OVERLAY_MANUAL: Final = "manual"

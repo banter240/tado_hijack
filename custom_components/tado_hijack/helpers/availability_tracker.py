@@ -165,6 +165,10 @@ class AvailabilityTracker:
         """Get the local climate entity ID for a serial, or None."""
         return self._entity_by_serial.get(serial)
 
+    def serial_for_entity(self, entity_id: str) -> str | None:
+        """Serial for a tracked climate, or None."""
+        return self._serial_by_entity.get(entity_id)
+
     def register_on_available(self, callback: Callable[[str], None]) -> None:
         """Register a callback fired when a tracked device becomes reachable."""
         if callback not in self._on_available_callbacks:

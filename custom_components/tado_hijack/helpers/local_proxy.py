@@ -95,6 +95,7 @@ from homeassistant.const import (
     UnitOfTemperature,
 )
 from homeassistant.core import Event, callback
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
@@ -117,6 +118,10 @@ from .device_link import device_identifier, zone_device_identifier
 from .device_linker import get_local_device, invalidate_cache
 from .discovery import get_bridges, yield_devices
 from .logging_utils import get_redacted_logger
+from .zone_utils import (
+    cloud_climate_can_follow_schedule,
+    zone_follows_cloud_schedule,
+)
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant, State
@@ -463,10 +468,31 @@ class TadoLocalProxyBase(TadoEntity):
 
 
 class TadoLocalClimateProxy(TadoLocalProxyBase, ClimateEntity):
-    """Copy of a local climate entity."""
+    """Copy of a local climate entity.
+
+    HomeKit and Matter have no auto mode. Auto is added when the cloud
+    climate for this zone can resume onto its plan. The cached week is not
+    required. Auto resumes through Hijack and is not sent to the source.
+    """
+
+    def _on_cloud_schedule(self) -> bool:
+        """True when Hijack, not the valve, says this zone is on its plan."""
+        coordinator = self.tado_coordinator
+        zone_id = self._host.zone_id
+        return cloud_climate_can_follow_schedule(
+            coordinator, zone_id
+        ) and zone_follows_cloud_schedule(coordinator, zone_id)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        attrs = super().extra_state_attributes
+        attrs.pop(ATTR_HVAC_MODES, None)
+        return attrs
 
     @property
     def hvac_mode(self) -> HVACMode:
+        if self._on_cloud_schedule():
+            return HVACMode.AUTO
         state = self._source()
         if state is None:
             return HVACMode.OFF
@@ -480,12 +506,20 @@ class TadoLocalClimateProxy(TadoLocalProxyBase, ClimateEntity):
         state = self._source()
         raw = state.attributes.get(ATTR_HVAC_MODES) if state else None
         if not raw:
-            return [HVACMode.OFF, HVACMode.HEAT]
-        modes: list[HVACMode] = []
-        for item in raw:
-            with contextlib.suppress(ValueError):
-                modes.append(HVACMode(item))
-        return modes or [HVACMode.OFF]
+            modes = [HVACMode.OFF, HVACMode.HEAT]
+        else:
+            modes = []
+            for item in raw:
+                with contextlib.suppress(ValueError):
+                    modes.append(HVACMode(item))
+            if not modes:
+                modes = [HVACMode.OFF]
+        if (
+            cloud_climate_can_follow_schedule(self.tado_coordinator, self._host.zone_id)
+            and HVACMode.AUTO not in modes
+        ):
+            modes.append(HVACMode.AUTO)
+        return modes
 
     @property
     def hvac_action(self) -> HVACAction | None:
@@ -602,6 +636,15 @@ class TadoLocalClimateProxy(TadoLocalProxyBase, ClimateEntity):
         await self._async_call(CLIMATE_DOMAIN, SERVICE_SET_TEMPERATURE, data)
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
+        if hvac_mode == HVACMode.AUTO:
+            if not cloud_climate_can_follow_schedule(
+                self.tado_coordinator, self._host.zone_id
+            ):
+                raise ServiceValidationError(
+                    "This zone cannot follow a cloud schedule."
+                )
+            await self.coordinator.async_set_zone_auto(self._host.zone_id)
+            return
         await self._async_call(
             CLIMATE_DOMAIN, SERVICE_SET_HVAC_MODE, {ATTR_HVAC_MODE: hvac_mode}
         )

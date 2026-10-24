@@ -17,3 +17,11 @@ class TadoRateLimitError(TadoBridgeError):
 
 class TadoCommunicationError(TadoBridgeError):
     """Error communicating with Tado API."""
+
+
+class TadoOfflineError(TadoBridgeError):
+    """Tado cannot be called. The last change is kept until it answers."""
+
+    def __init__(self) -> None:
+        """One message for the UI and for callers."""
+        super().__init__("Tado is offline. The last change is kept until it answers.")

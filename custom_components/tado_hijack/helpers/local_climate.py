@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from typing import Any
 
 from homeassistant.components.climate import (
     ATTR_HVAC_MODE,
@@ -22,8 +23,9 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant, State
 
-from ..const import PROTECTION_MODE_TEMP
+from ..const import POWER_OFF, PROTECTION_MODE_TEMP
 from .logging_utils import get_redacted_logger
+from .zone_utils import trv_serials
 
 _LOGGER = get_redacted_logger(__name__)
 _SKIP = {STATE_UNAVAILABLE, STATE_UNKNOWN}
@@ -100,6 +102,55 @@ async def async_set_temperature(
         SERVICE_SET_TEMPERATURE,
         {ATTR_ENTITY_ID: entity_id, ATTR_TEMPERATURE: temperature},
         blocking=blocking,
+    )
+
+
+def linked_climate_ids(coordinator: Any, zone_id: int) -> list[str]:
+    """HomeKit or Matter climates for one zone. Empty in full cloud mode."""
+    if getattr(coordinator, "full_cloud_mode", False):
+        return []
+    tracker = coordinator.availability_tracker
+    return [
+        entity_id
+        for serial in trv_serials(coordinator.zones_meta, zone_id)
+        if (entity_id := tracker.get_entity_id(serial))
+    ]
+
+
+async def async_apply_known_setpoint(
+    hass: HomeAssistant,
+    entity_ids: list[str],
+    *,
+    power: str,
+    temperature: float | None,
+) -> None:
+    """Set reachable climates to one known block. Off, or heat at a temperature.
+
+    Unavailable and unknown climates are skipped. Heat without a temperature
+    is not written.
+    """
+    if power == POWER_OFF:
+        await async_apply_available(
+            hass,
+            entity_ids,
+            lambda entity_id: async_set_off(hass, entity_id, blocking=True),
+            failure="Schedule preview off failed for %s",
+        )
+        return
+    if temperature is None:
+        return
+    target = float(temperature)
+    await async_apply_available(
+        hass,
+        entity_ids,
+        lambda entity_id: async_set_temperature(
+            hass,
+            entity_id,
+            target,
+            blocking=True,
+            ensure_heat=True,
+        ),
+        failure="Schedule preview failed for %s",
     )
 
 

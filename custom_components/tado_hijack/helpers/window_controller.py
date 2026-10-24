@@ -53,10 +53,11 @@ from .local_climate import (
     async_set_off,
     async_set_temperature,
     climate_is_off,
+    linked_climate_ids,
 )
 from .logging_utils import get_redacted_logger
 from .optimistic_manager import ZoneOverlayFields
-from .zone_utils import trv_serials
+from .zone_utils import zone_follows_cloud_schedule
 
 if TYPE_CHECKING:
     from ..coordinator import TadoDataUpdateCoordinator
@@ -316,14 +317,7 @@ class WindowController:
         )
 
     def _local_entity_ids(self, zone_id: int) -> list[str]:
-        if self._coordinator.full_cloud_mode:
-            return []
-        tracker = self._coordinator.availability_tracker
-        return [
-            entity_id
-            for serial in trv_serials(self._coordinator.zones_meta, zone_id)
-            if (entity_id := tracker.get_entity_id(serial))
-        ]
+        return linked_climate_ids(self._coordinator, zone_id)
 
     def _bump(self, zone_id: int) -> int:
         epoch = self._epoch.get(zone_id, 0) + 1
@@ -754,13 +748,7 @@ class WindowController:
         if coord.data is not None:
             states = getattr(coord.data, "zone_states", None) or {}
             state = states.get(str(zone_id))
-        opt_overlay = coord.optimistic.get_zone_overlay(zone_id)
-        if opt_overlay is True:
-            schedule = False
-        elif opt_overlay is False:
-            schedule = True
-        else:
-            schedule = not bool(state and getattr(state, "overlay_active", False))
+        schedule = zone_follows_cloud_schedule(coord, zone_id)
         if assume_schedule:
             # Already open at startup: the live state may be our own previous off.
             schedule = True
@@ -1059,6 +1047,7 @@ class WindowController:
             sorted(zones),
         )
         try:
+            self._coordinator.offline_fallback.suppress_writes([entity_id])
             await async_set_off(self._hass, entity_id, blocking=False)
         except Exception:
             _LOGGER.warning(
@@ -1119,6 +1108,9 @@ class WindowController:
 
     async def _async_local_off(self, zone_id: int) -> None:
         """Turn linked climates off."""
+        self._coordinator.offline_fallback.suppress_writes(
+            self._local_entity_ids(zone_id)
+        )
         await async_apply_available(
             self._hass,
             self._local_entity_ids(zone_id),
@@ -1128,6 +1120,9 @@ class WindowController:
 
     async def _async_local_temperature(self, zone_id: int, temperature: float) -> None:
         """Set the pre-open temperature on linked TRVs without waiting for the cloud."""
+        self._coordinator.offline_fallback.suppress_writes(
+            self._local_entity_ids(zone_id)
+        )
         await async_apply_available(
             self._hass,
             self._local_entity_ids(zone_id),

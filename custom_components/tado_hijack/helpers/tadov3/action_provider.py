@@ -50,6 +50,7 @@ class TadoV3ActionProvider(TadoActionProvider):
             )
 
             self.coordinator.optimistic.set_zone(zone_id, False)
+            self.coordinator.offline_fallback.remember_schedule(zone_id)
 
             self.coordinator.api_manager.queue_command(
                 f"zone_{zone_id}",
@@ -113,13 +114,18 @@ class TadoV3ActionProvider(TadoActionProvider):
                 self.coordinator.data.zone_states.get(str(zone_id)), data
             )
 
+            power = setting.get("power", POWER_ON)
+            temperature = setting.get("temperature", {}).get("celsius")
             self.coordinator.optimistic.apply_zone_state(
                 zone_id,
                 overlay=True,
                 fields=ZoneOverlayFields(
-                    power=setting.get("power", POWER_ON),
-                    temperature=setting.get("temperature", {}).get("celsius"),
+                    power=power,
+                    temperature=temperature,
                 ),
+            )
+            self.coordinator.offline_fallback.remember_manual(
+                zone_id, power=power, temperature=temperature
             )
 
             self.coordinator.api_manager.queue_command(

@@ -544,8 +544,16 @@ def build_set_schedule_command(
     payload: Any,
     timetable_type: str,
     canonical: list[dict[str, Any]],
+    rollback_blocks: list[dict[str, Any]] | None,
+    *,
+    replaced_timetable: bool,
 ) -> TadoCommand:
-    """Queue payload for one dayType write."""
+    """Queue payload for one dayType write.
+
+    ``rollback_blocks`` is the day before this write. None means the day was
+    absent. A refused call restores it. ``replaced_timetable`` means the zone
+    cache was a different timetable, so a refusal refetches the week.
+    """
     return TadoCommand(
         CommandType.SET_SCHEDULE,
         zone_id=zone_id,
@@ -556,6 +564,8 @@ def build_set_schedule_command(
             "payload": payload,
             "timetable_type": timetable_type,
             "canonical": canonical,
+            "rollback_blocks": rollback_blocks,
+            "replaced_timetable": replaced_timetable,
         },
     )
 
@@ -950,6 +960,20 @@ def _setting_key(span: PlanSpan) -> tuple[str, float | None]:
     return (POWER_ON, span.temperature)
 
 
+def _span_at(spans: list[PlanSpan], now: datetime) -> PlanSpan | None:
+    """Block that covers now, or None when the list has a gap there."""
+    return next((span for span in spans if span.start <= now < span.end), None)
+
+
+def current_plan_span(
+    days: dict[str, list[dict[str, Any]]],
+    now: datetime,
+    timetable_type: str | None = None,
+) -> PlanSpan | None:
+    """Block that covers now, or None when the cached plan has a gap there."""
+    return _span_at(_spans_from(days, now, timetable_type), now)
+
+
 def next_setting_change(
     days: dict[str, list[dict[str, Any]]],
     now: datetime,
@@ -957,10 +981,7 @@ def next_setting_change(
 ) -> PlanSpan | None:
     """Next block whose power or temperature differs from the block covering now."""
     spans = _spans_from(days, now, timetable_type)
-    current: PlanSpan | None = None
-    for span in spans:
-        if span.start <= now < span.end:
-            current = span
+    current = _span_at(spans, now)
     if current is None:
         return next((span for span in spans if span.start > now), None)
     current_key = _setting_key(current)
