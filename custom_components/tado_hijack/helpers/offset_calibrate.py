@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from ..const import CAPABILITY_INSIDE_TEMP
+from .zone_utils import cloud_reading_is_live
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant, State
@@ -130,7 +131,7 @@ def inside_from_zone_state(state: Any) -> float | None:
     if not sdp:
         return None
     inside = getattr(sdp, "inside_temperature", None)
-    if inside is None:
+    if inside is None or not cloud_reading_is_live(inside):
         return None
     val = getattr(inside, "celsius", None)
     if val is None:

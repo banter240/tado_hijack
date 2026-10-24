@@ -48,6 +48,7 @@ CONF_INITIAL_POLL_DONE: Final = "initial_poll_done"
 # Feature Flags
 CONF_FEATURE_DEW_POINT: Final = "feature_dew_point"
 CONF_FEATURE_FLOW_TEMP: Final = "feature_flow_temperature_optimization"
+CONF_FEATURE_ZONE_CIRCUIT: Final = "feature_zone_circuit"
 CONF_FEATURE_MOLD_DETECTION: Final = "feature_mold_detection"
 CONF_OUTDOOR_WEATHER_ENTITY: Final = "outdoor_weather_entity"
 CONF_VENTILATION_AH_THRESHOLD: Final = "ventilation_ah_threshold"
@@ -136,6 +137,18 @@ IDENTIFIER_DOMAIN_KIND_VALUE: Final = (
     3  # HomeKit Controller legacy (domain, kind, value)
 )
 
+# A cloud sample older than this is not the live room. The stamp belongs to
+# the sample, so a slow poll does not age a fresh reading. No stamp stays
+# visible: the age cannot be shown.
+ZONE_SAMPLE_MAX_AGE_S: Final = 4 * 60 * 60
+
+# Select token. This heating zone does not call a boiler driver.
+CIRCUIT_UNASSIGNED: Final = "none"
+
+# One driver is the normal home. The room select and the per-room reads
+# exist only when a zone can call more than one.
+MIN_BOILER_DRIVERS_FOR_SELECT: Final = 2
+
 # Default Intervals
 DEFAULT_SCAN_INTERVAL: Final = 1800  # 30 minutes (Zone States)
 DEFAULT_PRESENCE_POLL_INTERVAL: Final = 43200  # 12 hours
@@ -168,6 +181,7 @@ DEFAULT_LINK_LOCAL_DEVICES: Final = False
 DEFAULT_PROXY_LOCAL_ENTITIES: Final = True
 DEFAULT_FEATURE_DEW_POINT: Final = True
 DEFAULT_FEATURE_FLOW_TEMP: Final = False
+DEFAULT_FEATURE_ZONE_CIRCUIT: Final = False
 DEFAULT_FEATURE_MOLD_DETECTION: Final = True
 DEFAULT_VENTILATION_AH_THRESHOLD: Final = 1.0  # g/m³
 

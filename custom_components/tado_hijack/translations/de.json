@@ -474,6 +474,12 @@
           "seven_day": "Pro Wochentag"
         }
       },
+      "zone_circuit": {
+        "name": "Heizkreis",
+        "state": {
+          "none": "Fordert keine Wärme an"
+        }
+      },
       "offset_cal_interval": {
         "name": "Offset auto-kalibrieren",
         "state": {
@@ -685,6 +691,7 @@
               "proxy_local_entities": "Rückwärts auf Hijack verlinken",
               "feature_dew_point": "Taupunkt-Sensor",
               "feature_flow_temperature_optimization": "Vorlauftemperatur-Optimierung",
+              "feature_zone_circuit": "Heizkreise",
               "feature_mold_detection": "Schimmelrisiko-Sensoren",
               "outdoor_weather_entity": "Lüftungsempfehlung-Sensor (Benötigt Wetter-Entität)",
               "ventilation_ah_threshold": "Lüftungs-Schwellenwert (g/m³)"
@@ -694,6 +701,7 @@
               "proxy_local_entities": "Kopiert jede Entity, die HomeKit (V3, HomeKit Device) oder Matter (Tado X) für diese Seriennummer angelegt hat, auf das Hijack-Gerät, auch spätere. HomeKit Device bzw. Matter bleibt installiert. Solange Anhängen an ist, bleibt das aus. Standard an.",
               "feature_dew_point": "Erstellt einen Taupunkt-Sensor pro Zone. Berechnet aus Raumtemperatur und Luftfeuchtigkeit. WICHTIG für Tado X: Erfordert zwingend eine verknüpfte Temperaturquelle am Zonen-Gerät, da die Cloud-API für Tado X keine Temperatur liefert.",
               "feature_flow_temperature_optimization": "Fragt die Tado-X-Einstellungen zur Vorlauftemperatur-Optimierung ab (benötigt ein OpenTherm-Kesselregelungsgerät) und stellt eine Zahl für die maximale Vorlauftemperatur sowie einen Schalter für die automatische Anpassung bereit. Kostet 1 API-Aufruf pro Metadaten-Abfrage. Standardmäßig aus, um API-Kontingent zu sparen.",
+              "feature_zone_circuit": "Nur Classic-Wohnungen. Ein Heizraum kann einen Boiler-Treiber anfordern. Eine Tado-X-Wohnung wird noch nicht gelesen. Standard aus, damit eine Wohnung ohne Therme oder mit einem Heizkreis nichts verbraucht. Wenn an: ein Aufruf listet die Treiber. Raum-Abfragen laufen nur bei zwei oder mehr Treibern, einmal pro Setup, nicht im Poll.",
               "feature_mold_detection": "Erstellt Schimmelrisiko-Sensoren pro Zone. Enthält eine Risikostufe (keins/niedrig/mittel/hoch) und einen binären Sensor für akutes Schimmelrisiko. WICHTIG für Tado X: Erfordert eine verknüpfte Temperaturquelle am Zonen-Gerät.",
               "outdoor_weather_entity": "Wähle eine Wetter-Entität (z. B. weather.home) aus, die Außentemperatur und Luftfeuchtigkeit bereitstellt. Dies wird benötigt, um die absolute Luftfeuchtigkeit innen zu berechnen und 'Lüften empfohlen'-Sensoren zu aktivieren. Der Sensor meldet 'Ja', wenn Lüften die Feuchtigkeit im Raum effektiv senkt.",
               "ventilation_ah_threshold": "Mindest-Differenz der absoluten Luftfeuchtigkeit zwischen innen und außen, ab der 'Lüften empfohlen' auf 'Ja' springt. Ein Wert von 1,0 g/m³ (Gramm Wasser pro Kubikmeter Luft) bedeutet, dass die Außenluft deutlich trockener sein muss als die Innenluft, bevor eine Empfehlung erfolgt. Verhindert flatternde Sensoren bei minimalen Unterschieden. Standard: 1,0."
@@ -831,6 +839,7 @@
               "proxy_local_entities": "Rückwärts auf Hijack verlinken",
               "feature_dew_point": "Taupunkt-Sensor",
               "feature_flow_temperature_optimization": "Vorlauftemperatur-Optimierung",
+              "feature_zone_circuit": "Heizkreise",
               "feature_mold_detection": "Schimmelrisiko-Sensoren",
               "outdoor_weather_entity": "Lüftungsempfehlung-Sensor (Benötigt Wetter-Entität)",
               "ventilation_ah_threshold": "Lüftungs-Schwellenwert (g/m³)"
@@ -840,6 +849,7 @@
               "proxy_local_entities": "Kopiert jede Entity, die HomeKit (V3, HomeKit Device) oder Matter (Tado X) für diese Seriennummer angelegt hat, auf das Hijack-Gerät, auch spätere. HomeKit Device bzw. Matter bleibt installiert. Solange Anhängen an ist, bleibt das aus. Standard an.",
               "feature_dew_point": "Erstellt einen Taupunkt-Sensor pro Zone. Berechnet aus Raumtemperatur und Luftfeuchtigkeit. WICHTIG für Tado X: Erfordert zwingend eine verknüpfte Temperaturquelle am Zonen-Gerät, da die Cloud-API für Tado X keine Temperatur liefert.",
               "feature_flow_temperature_optimization": "Fragt die Tado-X-Einstellungen zur Vorlauftemperatur-Optimierung ab (benötigt ein OpenTherm-Kesselregelungsgerät) und stellt eine Zahl für die maximale Vorlauftemperatur sowie einen Schalter für die automatische Anpassung bereit. Kostet 1 API-Aufruf pro Metadaten-Abfrage. Standardmäßig aus, um API-Kontingent zu sparen.",
+              "feature_zone_circuit": "Nur Classic-Wohnungen. Ein Heizraum kann einen Boiler-Treiber anfordern. Eine Tado-X-Wohnung wird noch nicht gelesen. Standard aus, damit eine Wohnung ohne Therme oder mit einem Heizkreis nichts verbraucht. Wenn an: ein Aufruf listet die Treiber. Raum-Abfragen laufen nur bei zwei oder mehr Treibern, einmal pro Setup, nicht im Poll.",
               "feature_mold_detection": "Erstellt Schimmelrisiko-Sensoren pro Zone. Enthält eine Risikostufe (keins/niedrig/mittel/hoch) und einen binären Sensor für akutes Schimmelrisiko. WICHTIG für Tado X: Erfordert eine verknüpfte Temperaturquelle am Zonen-Gerät.",
               "outdoor_weather_entity": "Wähle eine Wetter-Entität (z. B. weather.home) aus, die Außentemperatur und Luftfeuchtigkeit bereitstellt. Dies wird benötigt, um die absolute Luftfeuchtigkeit innen zu berechnen und 'Lüften empfohlen'-Sensoren zu aktivieren. Der Sensor meldet 'Ja', wenn Lüften die Feuchtigkeit im Raum effektiv senkt.",
               "ventilation_ah_threshold": "Mindest-Differenz der absoluten Luftfeuchtigkeit zwischen innen und außen, ab der 'Lüften empfohlen' auf 'Ja' springt. Ein Wert von 1,0 g/m³ (Gramm Wasser pro Kubikmeter Luft) bedeutet, dass die Außenluft deutlich trockener sein muss als die Innenluft, bevor eine Empfehlung erfolgt. Verhindert flatternde Sensoren bei minimalen Unterschieden. Standard: 1,0."

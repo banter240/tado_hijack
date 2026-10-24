@@ -46,7 +46,7 @@ Order in the coordinator: unknown limit, then throttle, then the economy window 
 - Economy window: off by default, 22:00–07:00 local, interval 3600 seconds. Interval `0` skips the poll inside the window. While the window is on, the night interval is used in those hours and the remaining budget is spread over the other hours. With the window off there is no daytime/night split.
 - Auto quota at `0` keeps the base scan interval. The default is 80% of the usable budget.
 
-Usable budget is `(limit − background over 24 h − threshold)`, scaled by the percent, then reduced by inferred use outside this integration, by background calls still to come, and by the safety reserve (default 2). The zone poll is counted as 1 call when spacing the day. Background is presence (default every 12 h), a slow poll every 24 h, and classic offset GETs when that interval is above 0 (default 0). When weekly plans are fetched after the quota reset, those GETs are reserved too: one per capable zone. Classic uses a second call only while the active timetable is not cached yet. That fetch is off by default. The slow-poll estimate is 2 for both generations, plus one capabilities GET per classic zone. The Tado X fetch itself is one `roomsAndDevices`. Classic slow poll is `GET /zones` and `GET /devices`. Tado X has no capabilities call. Classic early start is not part of that reserve: the switch state is kept, and a GET runs only when that state is unknown or a full refresh asks for it.
+Usable budget is `(limit − background over 24 h − threshold)`, scaled by the percent, then reduced by inferred use outside this integration, by background calls still to come, and by the safety reserve (default 2). The zone poll is counted as 1 call when spacing the day. Background is presence (default every 12 h), a slow poll every 24 h, and classic offset GETs when that interval is above 0 (default 0). When weekly plans are fetched after the quota reset, those GETs are reserved too: one per capable zone. Classic uses a second call only while the active timetable is not cached yet. That fetch is off by default. The slow-poll estimate is 2 for both generations, plus one capabilities GET per classic zone. The Tado X fetch itself is one `roomsAndDevices`. Classic slow poll is `GET /zones` and `GET /devices`. Tado X has no capabilities call. Classic early start is not part of that reserve: the switch state is kept, and a GET runs only when that state is unknown or a full refresh asks for it. Boiler-driver reads are outside that reserve and off by default. A Tado X home is not read. With the option on, one list runs once per setup on a classic home, and a control read per heating zone runs only when that list has two or more drivers.
 
 A reset is remaining going up to at least 80% of the limit. The first sample is not a reset. Two consecutive resets in the same UTC hour confirm the pattern (five are stored). Until then the expected time is 11:30 UTC, shown in Europe/Berlin: 12:30 CET, 13:30 CEST. The safety reserve is spread across the three hours centered on that hour.
 
@@ -90,6 +90,8 @@ Absolute humidity and ventilation exist only when an outdoor weather entity is s
 
 Room temperature (`_get_room_temp_celsius`): the temperature-source select when it is not `device`, else the full-cloud climate or the HomeKit/Matter climate in `_climate_to_zone` (`current_temperature`), else the zone inside temperature. Room humidity (`_get_room_rh`): the humidity-source select when it is not `device`. A climate selected there is read as `current_humidity`. On `device`, humidity is this integration's humidity sensor, then the zone humidity. The serial match does not read the Matter climate's humidity. Offset calibration is separate and runs only with an explicit temperature-source entity.
 
+A cloud inside temperature or humidity is used only while its own timestamp is at most four hours old. A sample with no timestamp stays, which includes every Tado X cloud sample. A linked Home Assistant entity is unchanged. The full-cloud climate drops the same stale temperature and humidity. The HomeKit or Matter clone keeps the value from that device.
+
 Heating power is the zone percentage from the room poll. The home binary `heating_demand` is on when any heating zone's power is above 0. That is not a boiler-modulation reading.
 
 ---
@@ -104,7 +106,7 @@ The home interval defaults to `off`. Choices: `off`, `3h`, `6h`, `9h`, `12h`, `1
 
 An open window skips the write. After it closes, settle defaults to 300 seconds. A threshold write starts a send cooldown, also 300 seconds. An hour slot that fell during either wait runs once both have passed.
 
-The offset is read from the cloud only when none is known. The periodic offset poll is classic-only and defaults to off. Calibration itself uses the last zone poll and the HA sensor.
+The offset is read from the cloud only when none is known. The periodic offset poll is classic-only and defaults to off. Calibration itself uses the last zone poll and the HA sensor. A cloud inside temperature whose own timestamp is older than four hours is skipped, so that sample does not move the offset. A sample with no timestamp is still used.
 
 Throttling skips interval, threshold, and manual calibration. A calibration triggered by the quota reset is not skipped for throttle.
 
@@ -186,6 +188,7 @@ If a write is invoked anyway, both fields share the queue key `flow_temp` and on
 
 - **Child lock:** a device switch when `child_lock_enabled` is not `None`. Classic is one call per serial. Tado X can share a device PATCH with a queued offset.
 - **Dazzle and early start:** classic only. Tado X marks both unsupported. Early start keeps the switch state. A GET runs only when that state is unknown, or on a full refresh.
+- **Heating circuit:** classic heating, option off by default. A Tado X home is not read yet. With the option on, one call lists the drivers. Zero or one driver stops there: no select, no further reads. Two or more drivers add one control read per heating zone, once per setup, and the select lists those drivers plus `none` (this room does not call for heat). The write is queued with the other zone settings, so the last choice is the one sent, including while calls are held. A failed read is logged and tried again only after a reload.
 - **Away temperature:** classic heating. At or below 5°C the number shows 0 and the away setpoint is cleared.
 - **Identify:** both generations, only in full cloud mode.
 - **Meter readings:** Energy IQ, not Hops. The schema marks `config_entry` required. The handler sends the reading to every coordinator when the field is missing.

@@ -315,6 +315,26 @@ class OptimisticManager:
         """Clear optimistic early start."""
         self.clear_optimistic("zone", zone_id, "early_start")
 
+    def set_zone_circuit(
+        self, zone_id: int, value: int | str, grace_period: float | None = None
+    ) -> None:
+        """Set the optimistic boiler-driver choice.
+
+        An assigned driver is its number. No driver is the select token.
+        """
+        self.set_optimistic("zone", zone_id, "zone_circuit", value, grace_period)
+
+    def get_zone_circuit(self, zone_id: int) -> int | str | None:
+        """Return the optimistic driver number or the unassigned token."""
+        return cast(
+            "int | str | None",
+            self.get_optimistic("zone", zone_id, "zone_circuit"),
+        )
+
+    def clear_zone_circuit(self, zone_id: int) -> None:
+        """Clear the optimistic boiler-driver choice."""
+        self.clear_optimistic("zone", zone_id, "zone_circuit")
+
     def set_open_window(
         self, zone_id: int, timeout: int, grace_period: float | None = None
     ) -> None:

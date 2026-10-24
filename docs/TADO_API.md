@@ -295,6 +295,17 @@ part of device fusion (Part 4).
 - Payload: `{"enabled": bool}`
 - **Why:** pre-heating so the target temperature is reached at schedule time. The switch state is kept. A GET runs only when that state is unknown, or on a full refresh. tadoasync `Zone` does not parse the field, so a known value is copied back onto the Zone after metadata replace.
 
+### Boiler drivers
+
+Classic home API. A Tado X home is not read yet. The option defaults off, so these reads do not run. With it on, the list runs once after zones are known, not on the repeating poll. Fewer than two drivers creates no select and skips the per-room reads. A failed load is logged and tried again only when the entry is set up again.
+
+- `list_boiler_drivers()` → `GET homes/{home_id}/heatingCircuits`
+  - A list of `{number, driverSerialNo, driverShortSerialNo}`. A non-list is no drivers.
+- `read_zone_control(zone_id)` → `GET homes/{home_id}/zones/{zone_id}/control`
+  - The raw `heatingCircuit` field is the driver number. Missing or null means this zone does not call a driver.
+- `assign_zone_circuit(zone_id, circuit_number)` → `PUT homes/{home_id}/zones/{zone_id}/control/heatingCircuit`
+  - Body `{"circuitNumber": n}`, or `{"circuitNumber": null}` to clear.
+
 ### Open Window Detection
 
 - `set_open_window_detection(zone_id, payload)` → `PUT .../zones/{zone_id}/openWindowDetection`
@@ -355,6 +366,9 @@ our overridden `_request`:
 | `get/set_away_configuration` | `GET/PUT /zones/{z}/awayConfiguration` | Away behavior |
 | `set_dazzle_mode` | `PUT /zones/{z}/dazzle` | Dazzle protection |
 | `get/set_early_start` | `GET/PUT /zones/{z}/earlyStart` | Pre-heating |
+| `list_boiler_drivers` | `GET /heatingCircuits` | Boiler drivers, once per setup, option off by default |
+| `read_zone_control` | `GET /zones/{z}/control` | Current driver, only when two or more drivers exist |
+| `assign_zone_circuit` | `PUT /zones/{z}/control/heatingCircuit` | Assign or clear a driver |
 | `set_open_window_detection` | `PUT /zones/{z}/openWindowDetection` | OWD config |
 | `identify_device` | `POST /devices/{serial}/identify` | Flash device |
 | `get/set_active_timetable` | `GET/PUT /zones/{z}/schedule/activeTimetable` | Switch timetable |

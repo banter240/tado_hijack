@@ -29,6 +29,7 @@ if TYPE_CHECKING:
 
 from .const import (
     BOOST_MODE_TEMP,
+    CIRCUIT_UNASSIGNED,
     CONF_API_PROXY_URL,
     CONF_AUTO_API_QUOTA_PERCENT,
     CONF_DEBOUNCE_TIME,
@@ -596,6 +597,17 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
 
             self.zones_meta = self.data_manager.zones_meta
             self.devices_meta = self.data_manager.devices_meta
+
+            entry = self.config_entry
+            if entry is not None:
+                from .helpers.device_linker import drop_absent_registry
+
+                drop_absent_registry(
+                    self.hass,
+                    entry_id=entry.entry_id,
+                    zones_meta=self.zones_meta,
+                    devices_meta=self.devices_meta,
+                )
 
             from .helpers.discovery import get_bridges
 
@@ -1990,6 +2002,35 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             self.optimistic.set_early_start,
             enabled,
             rollback_context=old_val,
+        )
+
+    async def async_assign_zone_circuit(self, zone_id: int, option: str) -> None:
+        """Queue a boiler-driver assignment. ``none`` clears it.
+
+        The select updates immediately. The last write for the zone is the
+        one sent, including while calls are held.
+        """
+        manager = self.data_manager
+        if option.casefold() == CIRCUIT_UNASSIGNED:
+            number: int | None = None
+        else:
+            number = manager.circuit_number_for_option(option)
+            if number is None:
+                _LOGGER.warning(
+                    "Zone %s has no boiler driver named %s", zone_id, option
+                )
+                return
+        known = zone_id in manager.zone_circuit_cache
+        previous = manager.zone_circuit_cache.get(zone_id)
+        manager.remember_zone_circuit(zone_id, number)
+        token: int | str = CIRCUIT_UNASSIGNED if number is None else number
+        await self.property_manager.async_set_zone_property(
+            zone_id,
+            CommandType.SET_ZONE_CIRCUIT,
+            {"zone_id": zone_id, "circuit": number},
+            self.optimistic.set_zone_circuit,
+            token,
+            rollback_context={"known": known, "circuit": previous},
         )
 
     async def async_set_open_window_detection(

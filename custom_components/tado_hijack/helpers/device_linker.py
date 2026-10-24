@@ -2,20 +2,46 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from typing import Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
-from ..const import DOMAIN, GEN_X, bridge_display_name, bridge_model_name
-from .device_link import device_identifier, identifier_pairs
+from ..const import (
+    DOMAIN,
+    DUMMY_ZONE_ID_AC,
+    DUMMY_ZONE_ID_HOT_WATER,
+    DUMMY_ZONE_ID_TADOX_HOT_WATER,
+    GEN_X,
+    TADOX_VIRTUAL_HOT_WATER_ZONE_ID,
+    bridge_display_name,
+    bridge_model_name,
+)
+from .device_link import (
+    device_identifier,
+    identifier_pairs,
+    identifier_root,
+    normalize_serial,
+    serial_from_unique_id,
+    zone_id_from_device_key,
+    zone_id_from_unique_id,
+)
 from .logging_utils import get_redacted_logger
 from .tadov3.device_link import matches_serial as matches_homekit
 from .tadox.device_link import matches_serial as matches_matter
 
 _LOGGER = get_redacted_logger(__name__)
+
+_OWN_ZONE_IDS = frozenset(
+    {
+        TADOX_VIRTUAL_HOT_WATER_ZONE_ID,
+        DUMMY_ZONE_ID_HOT_WATER,
+        DUMMY_ZONE_ID_AC,
+        DUMMY_ZONE_ID_TADOX_HOT_WATER,
+    }
+)
 
 _cache_built = False
 _cached_devices: list[dr.DeviceEntry] = []
@@ -214,6 +240,157 @@ def release_foreign_devices(
         )
     if released:
         _LOGGER.info("Removed %d empty foreign device(s)", released)
+
+
+def _add_serial(found: set[str], raw: object) -> None:
+    if not isinstance(raw, str):
+        return
+    serial = normalize_serial(raw)
+    if serial:
+        found.add(serial)
+
+
+def _field(item: object, name: str) -> object:
+    if isinstance(item, dict):
+        return item.get(name)
+    return getattr(item, name, None)
+
+
+def _live_zone_ids(zones_meta: Mapping[Any, Any]) -> set[int] | None:
+    """Cloud zone ids plus the rooms this integration creates itself."""
+    cloud: set[int] = set()
+    for key in zones_meta:
+        if isinstance(key, int) and not isinstance(key, bool):
+            cloud.add(key)
+        elif isinstance(key, str) and key.isdigit():
+            cloud.add(int(key))
+    if not cloud:
+        return None
+    return cloud | _OWN_ZONE_IDS
+
+
+def _live_serials(
+    devices_meta: Mapping[Any, Any], zones_meta: Mapping[Any, Any]
+) -> set[str] | None:
+    """Serials from the device list. None when that list is missing or unreadable."""
+    if not devices_meta:
+        return None
+    found: set[str] = set()
+    devices: list[object] = []
+    for key, device in devices_meta.items():
+        _add_serial(found, key)
+        devices.append(device)
+    for zone in zones_meta.values():
+        nested = _field(zone, "devices")
+        if isinstance(nested, list | tuple):
+            devices.extend(nested)
+    for device in devices:
+        _add_serial(found, _field(device, "serial_no"))
+        _add_serial(found, _field(device, "short_serial_no"))
+    return found or None
+
+
+def _other_hijack_entry_ids(hass: HomeAssistant, entry_id: str) -> set[str]:
+    """Config entries of the other homes on this Home Assistant."""
+    return {
+        item.entry_id
+        for item in hass.config_entries.async_entries(DOMAIN)
+        if item.entry_id != entry_id
+    }
+
+
+def _tagged_as_other_home(value: str, other_ids: set[str]) -> bool:
+    """True when the id was built for a different Hijack config entry."""
+    return any(value.startswith(f"{other}_") for other in other_ids)
+
+
+def _entity_is_absent(
+    unique_id: str, zones: set[int], serials: set[str] | None
+) -> bool:
+    serial = serial_from_unique_id(unique_id)
+    if serial is not None:
+        return serials is not None and serial not in serials
+    zone_id = zone_id_from_unique_id(unique_id)
+    return zone_id is not None and zone_id not in zones
+
+
+def _device_is_absent(
+    device: dr.DeviceEntry,
+    entry_id: str,
+    zones: set[int],
+    serials: set[str] | None,
+) -> bool:
+    values = [
+        value
+        for namespace, value in identifier_pairs(device.identifiers)
+        if identifier_root(namespace) == DOMAIN
+    ]
+    if not values:
+        return False
+    absent: list[bool] = []
+    for value in values:
+        zone_id = zone_id_from_device_key(value, entry_id)
+        if zone_id is not None:
+            absent.append(zone_id not in zones)
+            continue
+        serial = serial_from_unique_id(value)
+        if serial is None or serial != normalize_serial(value) or serials is None:
+            return False
+        absent.append(serial not in serials)
+    return all(absent)
+
+
+def drop_absent_registry(
+    hass: HomeAssistant,
+    *,
+    entry_id: str,
+    zones_meta: Mapping[Any, Any],
+    devices_meta: Mapping[Any, Any],
+) -> None:
+    """Remove zones and devices of this config entry that the cloud no longer lists.
+
+    Another Hijack home is another config entry and is not touched.
+    """
+    zones = _live_zone_ids(zones_meta)
+    if zones is None:
+        return
+    serials = _live_serials(devices_meta, zones_meta)
+    other_ids = _other_hijack_entry_ids(hass, entry_id)
+    ent_reg = er.async_get(hass)
+    registry = dr.async_get(hass)
+    removed_entities = 0
+    for entity in list(er.async_entries_for_config_entry(ent_reg, entry_id)):
+        unique_id = entity.unique_id
+        if (
+            entity.config_entry_id != entry_id
+            or entity.platform != DOMAIN
+            or not unique_id
+            or _tagged_as_other_home(unique_id, other_ids)
+        ):
+            continue
+        if _entity_is_absent(unique_id, zones, serials):
+            ent_reg.async_remove(entity.entity_id)
+            removed_entities += 1
+    removed_devices = 0
+    for device in list(dr.async_entries_for_config_entry(registry, entry_id)):
+        if device.config_entry_id != entry_id:
+            continue
+        values = [
+            value
+            for namespace, value in identifier_pairs(device.identifiers)
+            if identifier_root(namespace) == DOMAIN
+        ]
+        if any(_tagged_as_other_home(value, other_ids) for value in values):
+            continue
+        if _device_is_absent(device, entry_id, zones, serials):
+            registry.async_remove_device(device.id)
+            removed_devices += 1
+    if removed_entities or removed_devices:
+        _LOGGER.info(
+            "Removed %d entities and %d devices that Tado no longer lists",
+            removed_entities,
+            removed_devices,
+        )
 
 
 def retire_empty_home_device(

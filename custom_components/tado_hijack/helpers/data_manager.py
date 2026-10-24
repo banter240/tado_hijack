@@ -18,19 +18,88 @@ if TYPE_CHECKING:
 
 from ..const import (
     CAPABILITY_INSIDE_TEMP,
+    CIRCUIT_UNASSIGNED,
+    CONF_FEATURE_ZONE_CIRCUIT,
+    DEFAULT_FEATURE_ZONE_CIRCUIT,
     DEFAULT_PRESENCE_POLL_INTERVAL,
+    GEN_CLASSIC,
     GEN_X,
+    MIN_BOILER_DRIVERS_FOR_SELECT,
     SLOW_POLL_CYCLE_S,
+    ZONE_TYPE_HEATING,
 )
-from ..models import TadoData
+from ..models import CommandType, TadoData
 from .logging_utils import get_redacted_logger
 from .model_aliases import with_api_aliases
+from .zone_utils import get_zone_type
 
 _LOGGER = get_redacted_logger(__name__)
 
 # Tolerance for polling intervals to handle scheduler jitter (5% of interval, max 10s)
 _JITTER_TOLERANCE_FACTOR = 0.05
 _MAX_JITTER_TOLERANCE_S = 10.0
+
+
+def _driver_number(raw: object) -> int | None:
+    """Parse a boiler-driver number. Booleans are not numbers."""
+    if isinstance(raw, bool) or raw is None:
+        return None
+    if isinstance(raw, int):
+        return raw
+    if isinstance(raw, str):
+        text = raw.strip()
+        if text.lstrip("-").isdigit():
+            return int(text)
+    return None
+
+
+def _label_taken(label: str, used: set[str]) -> bool:
+    """True when this select label is reserved or already shown."""
+    folded = label.casefold()
+    return (
+        not label
+        or folded == CIRCUIT_UNASSIGNED
+        or folded in used
+        or label.lower() in used
+    )
+
+
+def _free_driver_label(preferred: str, number: int, used: set[str]) -> str:
+    """A label the select can show once. The option list is lowercased."""
+    candidates = [preferred, str(number)] if preferred else [str(number)]
+    for candidate in candidates:
+        if not _label_taken(candidate, used):
+            return candidate
+    extra = 2
+    while _label_taken(candidate := f"{number}-{extra}", used):
+        extra += 1
+    return candidate
+
+
+def _boiler_driver_labels(rows: list[dict[str, Any]]) -> dict[int, str]:
+    """Map each driver number to the label shown on the select.
+
+    The short serial is the label. A missing, repeated, or reserved label
+    uses the driver number, then ``number-2``, ``number-3``, and so on.
+    """
+    labels: dict[int, str] = {}
+    used: set[str] = set()
+    for row in rows:
+        number = _driver_number(row.get("number"))
+        if number is None:
+            continue
+        short = row.get("driverShortSerialNo")
+        preferred = str(short).strip() if short else ""
+        label = _free_driver_label(preferred, number, used)
+        used.add(label.casefold())
+        used.add(label.lower())
+        labels[number] = label
+    return labels
+
+
+def _assigned_driver_number(payload: dict[str, Any]) -> int | None:
+    """Driver number on a zone control payload, or None when unassigned."""
+    return _driver_number(payload.get("heatingCircuit"))
 
 
 class PollTask:
@@ -68,6 +137,9 @@ class TadoDataManager:
         self.offsets_cache: dict[str, TemperatureOffset] = {}
         self.away_cache: dict[int, float] = {}
         self.early_start_cache: dict[int, bool] = {}
+        self.boiler_drivers: dict[int, str] = {}
+        self.zone_circuit_cache: dict[int, int | None] = {}
+        self._zone_circuits_loaded = False
         self.timetable_cache: dict[int, dict[str, Any]] = {}
         self.schedule_blocks_cache: dict[int, dict[str, Any]] = {}
         self._capability_locks: dict[int, asyncio.Lock] = {}
@@ -374,6 +446,8 @@ class TadoDataManager:
                 await task.coroutine()
                 self._last_capabilities_poll = now
 
+        await self._load_zone_circuits_once()
+
         if self.coordinator.generation != GEN_X:
             return TadoData(
                 home_state=home_state
@@ -499,6 +573,123 @@ class TadoDataManager:
         )
 
         self._last_slow_poll = now
+
+    def _real_heating_zone_ids(self) -> list[int]:
+        """Classic heating zones, without the dummy rooms."""
+        dummy = self.coordinator.dummy_handler
+        found: list[int] = []
+        for zone_id, zone in self.zones_meta.items():
+            if get_zone_type(zone) != ZONE_TYPE_HEATING:
+                continue
+            if dummy is not None and dummy.is_dummy_zone(zone_id):
+                continue
+            found.append(zone_id)
+        return found
+
+    def _zone_circuits_enabled(self) -> bool:
+        """True when a classic home asked for the room-to-driver select."""
+        if self.coordinator.generation != GEN_CLASSIC:
+            return False
+        entry = self.coordinator.config_entry
+        if entry is None:
+            return False
+        return bool(
+            entry.data.get(CONF_FEATURE_ZONE_CIRCUIT, DEFAULT_FEATURE_ZONE_CIRCUIT)
+        )
+
+    async def _load_zone_circuits_once(self) -> None:
+        """Read boiler drivers once, after zones exist. Not a poll.
+
+        The option defaults off. Only a classic home is read. One list
+        when it is on. Per-room reads run only when the home has more
+        than one driver. A failure is logged and not retried until the
+        entry is set up again.
+        """
+        if self._zone_circuits_loaded:
+            return
+        if not self._metadata_init or not self._zone_circuits_enabled():
+            return
+        self._zone_circuits_loaded = True
+        heating = self._real_heating_zone_ids()
+        if not heating:
+            return
+        try:
+            rows = await self.client.list_boiler_drivers()
+        except Exception as err:
+            _LOGGER.warning("Boiler drivers were not loaded: %s", err)
+            return
+        self.boiler_drivers = _boiler_driver_labels(rows)
+        if len(self.boiler_drivers) < MIN_BOILER_DRIVERS_FOR_SELECT:
+            _LOGGER.info(
+                "DataManager: %d boiler driver(s). Zone circuit select stays off.",
+                len(self.boiler_drivers),
+            )
+            self.boiler_drivers = {}
+            return
+        _LOGGER.info(
+            "DataManager: %d boiler drivers, reading %d zone assignments",
+            len(self.boiler_drivers),
+            len(heating),
+        )
+        pending = self.coordinator.api_manager.pending_keys
+        prefix = CommandType.SET_ZONE_CIRCUIT.value
+        for zone_id in heating:
+            if f"{prefix}_{zone_id}" in pending:
+                continue
+            try:
+                payload = await self.client.read_zone_control(zone_id)
+            except Exception as err:
+                _LOGGER.warning(
+                    "Zone %s boiler assignment was not loaded: %s", zone_id, err
+                )
+                continue
+            self.zone_circuit_cache[zone_id] = _assigned_driver_number(payload)
+
+    def zone_circuit_options(self) -> list[str]:
+        """Select options: no driver, then each boiler driver."""
+        return [CIRCUIT_UNASSIGNED, *self.boiler_drivers.values()]
+
+    def circuit_number_for_option(self, option: str) -> int | None:
+        """Driver number for a select label. The unassigned token is None."""
+        folded = option.casefold()
+        if folded == CIRCUIT_UNASSIGNED:
+            return None
+        return next(
+            (
+                number
+                for number, label in self.boiler_drivers.items()
+                if label.casefold() == folded
+            ),
+            None,
+        )
+
+    def _label_for_driver(self, circuit: object) -> str:
+        if circuit is None or circuit == CIRCUIT_UNASSIGNED:
+            return CIRCUIT_UNASSIGNED
+        number = _driver_number(circuit)
+        if number is None:
+            return CIRCUIT_UNASSIGNED
+        return self.boiler_drivers.get(number, str(number))
+
+    def zone_circuit_option(self, zone_id: int) -> str | None:
+        """Label for the select. Optimistic, then a held write, then cache."""
+        opt = self.coordinator.optimistic.get_zone_circuit(zone_id)
+        if isinstance(opt, str):
+            return opt
+        if isinstance(opt, int) and not isinstance(opt, bool):
+            return self._label_for_driver(opt)
+        queued = self.coordinator.api_manager.queued_command(
+            f"{CommandType.SET_ZONE_CIRCUIT.value}_{zone_id}"
+        )
+        if queued is not None and queued.data and "circuit" in queued.data:
+            return self._label_for_driver(queued.data.get("circuit"))
+        if zone_id not in self.zone_circuit_cache:
+            return None
+        return self._label_for_driver(self.zone_circuit_cache[zone_id])
+
+    def remember_zone_circuit(self, zone_id: int, circuit: int | None) -> None:
+        """Keep the assignment that was queued or accepted."""
+        self.zone_circuit_cache[zone_id] = circuit
 
     def known_early_start(self, zone_id: int) -> bool | None:
         """Local early start: optimistic, cache, Zone attribute, then the switch."""
