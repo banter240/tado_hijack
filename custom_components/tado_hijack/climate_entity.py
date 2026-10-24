@@ -38,7 +38,7 @@ from .helpers.parsers import (
     get_ac_capabilities,
     parse_schedule_temperature,
 )
-from .helpers.zone_utils import zone_follows_cloud_schedule
+from .helpers.zone_utils import cloud_reading_is_live, zone_follows_cloud_schedule
 
 if TYPE_CHECKING:
     from .coordinator import TadoDataUpdateCoordinator
@@ -141,14 +141,15 @@ class TadoClimateEntity(
     def current_humidity(self) -> int | None:
         """Return current humidity."""
         state = self._current_state
-        if (
-            state
-            and hasattr(state, "sensor_data_points")
-            and state.sensor_data_points
-            and hasattr(state.sensor_data_points, "humidity")
-            and state.sensor_data_points.humidity
-        ):
-            return int(state.sensor_data_points.humidity.percentage)
+        humidity = (
+            getattr(state.sensor_data_points, "humidity", None)
+            if state is not None and getattr(state, "sensor_data_points", None)
+            else None
+        )
+        if humidity is not None and cloud_reading_is_live(humidity):
+            percentage = getattr(humidity, "percentage", None)
+            if percentage is not None:
+                return int(percentage)
         return None
 
     @property
@@ -209,7 +210,7 @@ class TadoClimateEntity(
         state = self._current_state
         if state and state.sensor_data_points:
             temp_obj = getattr(state.sensor_data_points, "inside_temperature", None)
-            if temp_obj is not None:
+            if temp_obj is not None and cloud_reading_is_live(temp_obj):
                 temp = getattr(temp_obj, "celsius", getattr(temp_obj, "value", None))
                 if temp is not None:
                     result = float(temp)

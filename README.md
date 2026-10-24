@@ -413,6 +413,7 @@ Tado Hijack is now an **official HACS integration**! No custom repository needed
 | **Refresh weekly plans after quota reset** | `Off` | Once after each quota reset, fetch every zone plan into the calendar cache. One call per zone. Classic uses two calls until the timetable id is known. |
 | **Offset Update**                  | `0` (Off) | Interval for temperature offsets. Costs 1 API call per valve. Calibration polls only when no offset is known. |
 | **Flow Temperature Optimization**  | `Off`     | Tado X option. The periodic poll does not call the flow-temperature GET, so the number and switch are not created from that poll. |
+| **Heating circuits**               | `Off`     | Classic homes. A Tado X home is not read yet. Off spends nothing. On: one list call. Room reads and the select appear only when that list has two or more drivers. |
 | **Replay Cloud-Only On Recovery**  | `On`      | See [Offline TRV recovery](#offline-trv-recovery-homekit-and-matter). |
 | **Attach to HomeKit / Matter**     | `Off`     | Puts child lock, offset, battery, and connection on the HomeKit or Matter TRV. The clone stays off while this is on. |
 | **Reverse link onto Hijack**       | `On`      | The HomeKit (V3) or Matter (Tado X) entities are on the Hijack device. Do not remove that integration, or the clone is gone. |
@@ -467,6 +468,8 @@ Each zone device exposes two optional source selectors that override the data us
 
 On `device`, temperature uses the serial-matched climate. Humidity on `device` stays the cloud percentage until the humidity select points at that climate's `current_humidity`.
 
+A cloud sample is left out when its own timestamp is older than four hours. Linked entities stay. A sample with no timestamp stays, and Tado X cloud readings have none.
+
 Changes take effect on the next coordinator update — no integration reload required.
 
 <br>
@@ -477,7 +480,7 @@ Changes take effect on the next coordinator update — no integration reload req
 
 Point the zone temperature select at a climate or a temperature sensor. On `device` that select feeds dew point and mold. Calibration starts once an entity is chosen.
 
-The reference is that entity's `current_temperature`, or its state. The raw reading is the TRV inside temperature minus the current offset. The written offset is `reference − raw`, clamped to −10…10°C, step 0.1. A gap under the spread, or under 0.1°C, is left as it is. One write per measuring device in the room. The cloud is read only when no offset is known. The offset number on the valve still sets a value by hand.
+The reference is that entity's `current_temperature`, or its state. The raw reading is the TRV inside temperature minus the current offset. The written offset is `reference − raw`, clamped to −10…10°C, step 0.1. A gap under the spread, or under 0.1°C, is left as it is. One write per measuring device in the room. The cloud is read only when no offset is known. A cloud inside temperature whose own timestamp is older than four hours is skipped, so that frozen sample does not move the offset. A sample with no timestamp is still used. The offset number on the valve still sets a value by hand.
 
 The home select starts at `off`. Clock slots are `3h` through `24h`, local time, on the hour. `threshold` watches the linked sensor, waits 5 seconds, and writes when the gap reaches the spread (home default 0.5°C). A zone number above 0 replaces that spread. `0` on the zone number clears the override. `on_reset` runs from the quota-reset detector only when the **home** select is `on_reset`, and then for every linked zone. A zone select of `inherit` uses the home choice. The home button runs the same pass immediately, including while the interval is `off`.
 
@@ -687,6 +690,7 @@ Cloud-only features that HomeKit does not support.
 | `binary_sensor.overlay`   | Binary Sensor | **HW Only:** Manual override active status.                                                     |
 | `binary_sensor.connectivity` | Binary Sensor | **HW Only:** Zone connectivity based on device connections.                                  |
 | `switch.early_start`                | Switch        | **v3 Only:** Toggle pre-heating before schedule block.                                          |
+| `select.zone_circuit`               | Select        | **v3 heating:** Boiler driver this room calls. `none` does not call for heat. Hidden unless Heating circuits is on and the home has two or more drivers. One list call, then one read per heating zone, once per setup. Writes debounce, then the last choice is sent. |
 | `select.timetable_type`             | Select        | Active timetable: same every day, Mon-Fri/Sat/Sun, or per weekday. Writes debounce then merge (1 PUT per zone; API has no bulk). **v3 only** (heating and hot water). Tado X has no schedule mode; the week is always seven weekdays. |
 | `select.timetable_type_all_zones`   | Select        | Same options for all compatible zones at once. Unknown if zones differ or nothing is cached. **v3 only.** |
 | `button.refresh_timetable`          | Button        | Queue a debounced GET of the active timetable for one zone (same zone mashed = 1 call). **v3 only.** |

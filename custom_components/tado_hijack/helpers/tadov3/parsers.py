@@ -17,6 +17,7 @@ from ..climate_physics import (
     compute_dew_point as _compute_dew_point,
 )
 from ..parsers import resolve_zone_mode
+from ..zone_utils import cloud_reading_is_live
 
 # Re-export for callers that import it directly (e.g. definitions.py uses
 # compute_absolute_humidity via this module).
@@ -94,6 +95,8 @@ def _get_temp_and_humidity(state: Any) -> tuple[float, float] | None:
     inside_temp = getattr(sdp, "inside_temperature", None)
     humidity = getattr(sdp, "humidity", None)
     if inside_temp is None or humidity is None:
+        return None
+    if not cloud_reading_is_live(inside_temp) or not cloud_reading_is_live(humidity):
         return None
     temp = getattr(inside_temp, "celsius", None)
     rh = getattr(humidity, "percentage", None)

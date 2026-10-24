@@ -60,6 +60,7 @@ class CommandType(StrEnum):
     SET_AWAY_TEMP = "set_away_temp"
     SET_DAZZLE = "set_dazzle"
     SET_EARLY_START = "set_early_start"
+    SET_ZONE_CIRCUIT = "set_zone_circuit"
     SET_OPEN_WINDOW = "set_open_window"
     SET_TIMETABLE = "set_timetable"
     SET_SCHEDULE = "set_schedule"

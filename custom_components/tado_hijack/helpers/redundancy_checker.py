@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..const import (
     BOOST_MODE_TEMP,
+    CIRCUIT_UNASSIGNED,
     POWER_OFF,
     POWER_ON,
     TEMP_STRICT_TOLERANCE,
@@ -263,6 +264,30 @@ def _check_early_start_redundancy(
     )
 
 
+def _check_zone_circuit_redundancy(
+    command: TadoCommand, optimistic: OptimisticState
+) -> bool:
+    """Skip when this zone is already on the requested driver."""
+    if not command.data or "circuit" not in command.data:
+        return False
+    zone_id = command.data.get("zone_id")
+    if zone_id is None:
+        return False
+    current = optimistic.get_zone_circuit(int(zone_id))
+    if current is None:
+        return False
+    target = command.data.get("circuit")
+    wanted: int | str = CIRCUIT_UNASSIGNED if target is None else int(target)
+    if current != wanted:
+        return False
+    _LOGGER.debug(
+        "Skipping redundant SET_ZONE_CIRCUIT zone_%s: already %s",
+        zone_id,
+        target,
+    )
+    return True
+
+
 def _check_flow_temp_redundancy(
     command: TadoCommand, optimistic: OptimisticState
 ) -> bool:
@@ -336,6 +361,7 @@ _REDUNDANCY_CHECKERS = {
     CommandType.SET_AWAY_TEMP: _check_away_temp_redundancy,
     CommandType.SET_DAZZLE: _check_dazzle_redundancy,
     CommandType.SET_EARLY_START: _check_early_start_redundancy,
+    CommandType.SET_ZONE_CIRCUIT: _check_zone_circuit_redundancy,
     CommandType.SET_OPEN_WINDOW: _check_open_window_redundancy,
     CommandType.SET_FLOW_TEMP: _check_flow_temp_redundancy,
 }

@@ -128,6 +128,7 @@ from .helpers.schedule import (
 from .helpers.tadov3 import parsers as v3_parsers
 from .helpers.tadox import parsers as tadox_parsers
 from .helpers.timetable import home_select_value, zone_select_value
+from .helpers.zone_utils import cloud_reading_is_live
 from .models import TadoEntityDefinition
 
 
@@ -140,6 +141,8 @@ def _get_zone_sensor_data(
         return None
 
     if (data := getattr(sdp, attr, None)) is not None:
+        if not cloud_reading_is_live(data):
+            return None
         if (val := getattr(data, sub_attr, None)) is not None:
             return float(val)
     return None
@@ -200,7 +203,8 @@ def _get_room_temp_celsius(c: Any, zid: int) -> float | None:
     Priority:
     1. Linked temperature source entity (sensor or climate) from CONF_ZONE_TEMP_ENTITIES
     2. Fallback: Climate entity (Full-Cloud Hijack or HomeKit)
-    3. GEN_CLASSIC fallback: zone state sensor_data_points.inside_temperature
+    3. Zone inside temperature, only while that sample's own timestamp is
+       still current. A missing timestamp stays.
     """
     entity_id = c.config_entry.data.get(CONF_ZONE_TEMP_ENTITIES, {}).get(
         str(zid)
@@ -215,7 +219,7 @@ def _get_room_temp_celsius(c: Any, zid: int) -> float | None:
     if zone_state := c.data.zone_states.get(str(zid)):
         if sdp := getattr(zone_state, "sensor_data_points", None):
             inside_temp = getattr(sdp, "inside_temperature", None)
-            if inside_temp is not None:
+            if inside_temp is not None and cloud_reading_is_live(inside_temp):
                 # GEN_CLASSIC uses .celsius, GEN_X uses .value
                 val = getattr(
                     inside_temp, "celsius", getattr(inside_temp, "value", None)
@@ -245,7 +249,8 @@ def _get_room_rh(c: Any, zid: int) -> float | None:
     Priority:
     1. Linked humidity source entity (sensor or climate) from CONF_ZONE_HUMIDITY_ENTITIES
     2. Fallback: The integration's own humidity sensor entity
-    3. Zone state sensor_data_points.humidity (both GEN_CLASSIC and GEN_X)
+    3. Zone humidity, only while that sample's own timestamp is still
+       current. A missing timestamp stays.
     """
     entity_id = c.config_entry.data.get(CONF_ZONE_HUMIDITY_ENTITIES, {}).get(
         str(zid)
@@ -259,7 +264,7 @@ def _get_room_rh(c: Any, zid: int) -> float | None:
     if zone_state := c.data.zone_states.get(str(zid)):
         if sdp := getattr(zone_state, "sensor_data_points", None):
             humidity = getattr(sdp, "humidity", None)
-            if humidity is not None:
+            if humidity is not None and cloud_reading_is_live(humidity):
                 pct = getattr(humidity, "percentage", None)
                 if pct is not None:
                     return float(pct)
@@ -2357,6 +2362,20 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         translation_key="early_start",
         unique_id_suffix="early",
         is_supported_fn=lambda c, zid: c.generation == GEN_CLASSIC,
+    ),
+    create_zone_select(
+        key="zone_circuit",
+        value_fn=lambda c, zid: c.data_manager.zone_circuit_option(zid),
+        options_fn=lambda c, _zid: c.data_manager.zone_circuit_options(),
+        select_option_fn=lambda c, zid, val: c.async_assign_zone_circuit(zid, val),
+        icon="mdi:radiator",
+        entity_category=EntityCategory.CONFIG,
+        optimistic_key="zone_circuit",
+        supported_zone_types={ZONE_TYPE_HEATING},
+        supported_generations={GEN_CLASSIC},
+        translation_key="zone_circuit",
+        unique_id_suffix="zone_circuit",
+        is_supported_fn=lambda c, _zid: bool(c.data_manager.boiler_drivers),
     ),
     create_zone_select(
         key="fan_speed",

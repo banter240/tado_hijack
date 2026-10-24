@@ -137,6 +137,9 @@ class TadoApiManager:
                 f"(zone={command.zone_id}, day={data.get('day_type', '?')}, "
                 f"timetable_id={data.get('timetable_id', '?')})"
             ),
+            CommandType.SET_ZONE_CIRCUIT: (
+                f"(zone={command.zone_id}, circuit={data.get('circuit', '?')})"
+            ),
             CommandType.QUICK_ACTION: f"(action={data.get('action', '?')})",
             CommandType.SET_FLOW_TEMP: f"(flow_temp={data})",
         }
@@ -194,6 +197,7 @@ class TadoApiManager:
             CommandType.SET_AWAY_TEMP,
             CommandType.SET_DAZZLE,
             CommandType.SET_EARLY_START,
+            CommandType.SET_ZONE_CIRCUIT,
             CommandType.SET_OPEN_WINDOW,
         ):
             # Zone properties

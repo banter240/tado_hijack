@@ -397,6 +397,26 @@ class TadoExecutorBase(ABC):
 
         return self._rollback_optimistic("zone", zone_id, "early_start", restore)
 
+    def _create_zone_circuit_rollback(
+        self, zone_id: int, previous: Any
+    ) -> Callable[[], Coroutine[Any, Any, None]]:
+        """Create rollback for a boiler-driver assignment.
+
+        ``previous`` is ``{"known": bool, "circuit": int | None}``. A known
+        empty assignment is restored as no driver, not as a missing cache row.
+        """
+
+        def restore() -> None:
+            cache = self.coordinator.data_manager.zone_circuit_cache
+            if isinstance(previous, dict) and previous.get("known"):
+                raw = previous.get("circuit")
+                cache[zone_id] = None if raw is None else int(raw)
+            else:
+                cache.pop(zone_id, None)
+            _LOGGER.info("Rolled back zone circuit for zone %d", zone_id)
+
+        return self._rollback_optimistic("zone", zone_id, "zone_circuit", restore)
+
     def _create_timetable_rollback(
         self, zone_id: int, old_id: int | None
     ) -> Callable[[], Coroutine[Any, Any, None]]:

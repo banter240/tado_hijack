@@ -4,9 +4,16 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from ..const import ZONE_TYPE_AIR_CONDITIONING, ZONE_TYPE_HEATING
+from homeassistant.util import dt as dt_util
+
+from ..const import (
+    ZONE_SAMPLE_MAX_AGE_S,
+    ZONE_TYPE_AIR_CONDITIONING,
+    ZONE_TYPE_HEATING,
+)
 
 if TYPE_CHECKING:
     from ..coordinator import TadoDataUpdateCoordinator
@@ -58,6 +65,26 @@ def zone_follows_cloud_schedule(
     states = getattr(data, "zone_states", None) if data is not None else None
     state = states.get(str(zone_id)) if isinstance(states, dict) else None
     return not bool(state and getattr(state, "overlay_active", False))
+
+
+def cloud_reading_is_live(sample: Any, *, now: datetime | None = None) -> bool:
+    """True when this cloud sample can still stand in for the room.
+
+    Age is the sample's own timestamp. A slow poll does not age a fresh
+    stamp. No stamp means the age is unknown, so the sample stays.
+    """
+    stamp = getattr(sample, "timestamp", None) if sample is not None else None
+    if not stamp:
+        return True
+    parsed = (
+        stamp if isinstance(stamp, datetime) else dt_util.parse_datetime(str(stamp))
+    )
+    if parsed is None:
+        return True
+    moment = now or dt_util.utcnow()
+    parsed_utc = dt_util.as_utc(parsed)
+    age_s = float((moment - parsed_utc).total_seconds())
+    return age_s <= ZONE_SAMPLE_MAX_AGE_S
 
 
 def trv_serials(zones_meta: Mapping[int, Any], zone_id: int | None = None) -> list[str]:

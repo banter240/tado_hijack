@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from ...const import CIRCUIT_UNASSIGNED
 from ..executor_base import TadoExecutorBase, map_magic_temp_to_power
 from ..logging_utils import get_redacted_logger
 
@@ -144,6 +145,22 @@ class TadoV3Executor(TadoExecutorBase):
                 context={"zone_id": zid, "enabled": enabled},
             )
 
+        rollback_zone_circuits = merged.get("rollback_zone_circuits", {})
+        for zid, circuit in merged["zone_circuits"].items():
+            if self._should_skip_zone(zid):  # [DUMMY_HOOK]
+                continue
+            await self._safe_execute(
+                f"zone_circuit_{zid}",
+                self.client.assign_zone_circuit(zid, circuit),
+                rollback_fn=self._create_zone_circuit_rollback(
+                    zid, rollback_zone_circuits.get(zid)
+                ),
+                success_fn=lambda zid=zid, c=circuit: self._confirm_zone_circuit(
+                    zid, c
+                ),
+                context={"zone_id": zid, "circuit": circuit},
+            )
+
         rollback_open_windows = merged.get("rollback_open_windows", {})
         for zid, data in merged["open_windows"].items():
             if self._should_skip_zone(zid):  # [DUMMY_HOOK]
@@ -173,6 +190,12 @@ class TadoV3Executor(TadoExecutorBase):
 
         await self._execute_schedules(merged)
         await self._execute_timetables(merged)
+
+    def _confirm_zone_circuit(self, zone_id: int, circuit: int | None) -> None:
+        """Store the assignment Tado accepted and keep the select on it."""
+        self.coordinator.data_manager.remember_zone_circuit(zone_id, circuit)
+        shown: int | str = CIRCUIT_UNASSIGNED if circuit is None else circuit
+        self.coordinator.optimistic.set_zone_circuit(zone_id, shown, grace_period=2.0)
 
     async def _execute_zone_actions(self, merged: dict[str, Any]) -> None:
         """Execute overlays and resumes using v3 bulk endpoints."""

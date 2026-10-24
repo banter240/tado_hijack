@@ -68,6 +68,7 @@ class CommandMerger:
         self.away_temps: dict[int, float | None] = {}
         self.dazzle_modes: dict[int, bool] = {}
         self.early_starts: dict[int, bool] = {}
+        self.zone_circuits: dict[int, int | None] = {}
         self.open_windows: dict[int, Any] = {}
         self.timetables: dict[int, int] = {}
         self.refresh_timetables: set[int] = set()
@@ -90,6 +91,7 @@ class CommandMerger:
         self.rollback_away_temps: dict[int, float] = {}
         self.rollback_dazzle_modes: dict[int, bool] = {}
         self.rollback_early_starts: dict[int, bool] = {}
+        self.rollback_zone_circuits: dict[int, Any] = {}
         self.rollback_open_windows: dict[int, bool] = {}
         self.rollback_timetables: dict[int, Any] = {}
 
@@ -103,6 +105,7 @@ class CommandMerger:
             CommandType.SET_AWAY_TEMP: self._merge_away_temp,
             CommandType.SET_DAZZLE: self._merge_dazzle,
             CommandType.SET_EARLY_START: self._merge_early_start,
+            CommandType.SET_ZONE_CIRCUIT: self._merge_zone_circuit,
             CommandType.SET_OPEN_WINDOW: self._merge_open_window,
             CommandType.SET_TIMETABLE: self._merge_timetable,
             CommandType.SET_SCHEDULE: self._merge_schedule,
@@ -221,6 +224,16 @@ class CommandMerger:
             bool,
         )
 
+    def _merge_zone_circuit(self, cmd: TadoCommand) -> None:
+        """Last assignment wins. None clears the driver and must be kept."""
+        if not cmd.data or "zone_id" not in cmd.data or "circuit" not in cmd.data:
+            return
+        zone_id = int(cmd.data["zone_id"])
+        raw = cmd.data["circuit"]
+        self.zone_circuits[zone_id] = None if raw is None else int(raw)
+        if isinstance(cmd.rollback_context, dict):
+            self.rollback_zone_circuits.setdefault(zone_id, cmd.rollback_context)
+
     def _merge_open_window(self, cmd: TadoCommand) -> None:
         self._merge_keyed(
             cmd,
@@ -324,6 +337,7 @@ class CommandMerger:
             "away_temps": self.away_temps,
             "dazzle_modes": self.dazzle_modes,
             "early_starts": self.early_starts,
+            "zone_circuits": self.zone_circuits,
             "open_windows": self.open_windows,
             "timetables": self.timetables,
             "refresh_timetables": self.refresh_timetables,
@@ -346,6 +360,7 @@ class CommandMerger:
             "rollback_away_temps": self.rollback_away_temps,
             "rollback_dazzle_modes": self.rollback_dazzle_modes,
             "rollback_early_starts": self.rollback_early_starts,
+            "rollback_zone_circuits": self.rollback_zone_circuits,
             "rollback_open_windows": self.rollback_open_windows,
             "rollback_timetables": self.rollback_timetables,
         }

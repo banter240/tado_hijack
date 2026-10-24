@@ -236,3 +236,32 @@ class TadoHijackClient(Tado):
         )
         parsed = orjson.loads(response)
         return parsed if isinstance(parsed, list) else []
+
+    async def list_boiler_drivers(self) -> list[dict[str, Any]]:
+        """Return the home's boiler drivers.
+
+        Each row has ``number`` and usually ``driverShortSerialNo``.
+        An empty list means this home has nothing to assign.
+        """
+        response = await self._request(f"homes/{self._home_id}/heatingCircuits")
+        parsed = orjson.loads(response)
+        if not isinstance(parsed, list):
+            return []
+        return [row for row in parsed if isinstance(row, dict)]
+
+    async def read_zone_control(self, zone_id: int) -> dict[str, Any]:
+        """Return one zone's control block, including its driver number."""
+        response = await self._request(f"homes/{self._home_id}/zones/{zone_id}/control")
+        parsed = orjson.loads(response)
+        return parsed if isinstance(parsed, dict) else {}
+
+    async def assign_zone_circuit(
+        self, zone_id: int, circuit_number: int | None
+    ) -> None:
+        """Put a heating zone on a boiler driver. None clears it."""
+        payload: dict[str, object] = {"circuitNumber": circuit_number}
+        await self._request(
+            f"homes/{self._home_id}/zones/{zone_id}/control/heatingCircuit",
+            data=payload,
+            method=HttpMethod.PUT,
+        )
