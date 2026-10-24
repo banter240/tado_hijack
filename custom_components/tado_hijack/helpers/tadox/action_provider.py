@@ -36,22 +36,33 @@ class TadoXActionProvider(TadoActionProvider):
 
     async def async_resume_all_schedules(self) -> None:
         """Resume schedule for all zones (Tado X bulk API)."""
+        zone_ids = self.get_active_zone_ids(include_heating=True)
+        for zone_id in zone_ids:
+            self.coordinator.offline_fallback.remember_schedule(zone_id)
         self._queue_quick_action("resume_all")
-        for zone_id in self.get_active_zone_ids(include_heating=True):
+        for zone_id in zone_ids:
             self.coordinator.recovery_queue.capture_resume(zone_id)
 
     async def async_boost_all_zones(self) -> None:
         """Boost all zones (Tado X bulk API)."""
+        zone_ids = self.get_active_zone_ids(include_heating=True)
+        for zone_id in zone_ids:
+            self.coordinator.offline_fallback.remember_manual(
+                zone_id, power=POWER_ON, temperature=BOOST_MODE_TEMP
+            )
         self._queue_quick_action("boost_all")
-        for zone_id in self.get_active_zone_ids(include_heating=True):
+        for zone_id in zone_ids:
             self.coordinator.recovery_queue.capture_overlay(
                 zone_id, power=POWER_ON, temperature=BOOST_MODE_TEMP
             )
 
     async def async_turn_off_all_zones(self) -> None:
         """Turn off all zones (Tado X bulk API)."""
+        zone_ids = self.get_active_zone_ids(include_heating=True)
+        for zone_id in zone_ids:
+            self.coordinator.offline_fallback.remember_manual(zone_id, power=POWER_OFF)
         self._queue_quick_action("all_off")
-        for zone_id in self.get_active_zone_ids(include_heating=True):
+        for zone_id in zone_ids:
             self.coordinator.recovery_queue.capture_overlay(
                 zone_id, power=POWER_OFF, temperature=None
             )

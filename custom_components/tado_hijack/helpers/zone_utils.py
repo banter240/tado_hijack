@@ -42,6 +42,18 @@ def trv_serials(zones_meta: Mapping[int, Any], zone_id: int | None = None) -> li
     return serials
 
 
+def zone_id_for_serial(zones_meta: Mapping[int, Any], serial: str) -> int | None:
+    """Zone that owns this TRV serial, or None."""
+    return next(
+        (
+            int(zone_id)
+            for zone_id in zones_meta
+            if serial in trv_serials(zones_meta, int(zone_id))
+        ),
+        None,
+    )
+
+
 def unify_zone(zone: Any) -> TadoUnifiedZone:
     """Convert a generation-specific zone object into a unified representation."""
     # Tado X (HopsRoomSnapshot)

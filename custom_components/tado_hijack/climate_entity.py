@@ -20,10 +20,16 @@ from .const import (
     OVERLAY_MANUAL,
     POWER_OFF,
     POWER_ON,
+    PROTECTION_MODE_TEMP,
     TEMP_DEFAULT_AC,
+    TEMP_DEFAULT_HEATING,
     TEMP_MAX_AC,
+    TEMP_MAX_HEATING,
+    TEMP_MAX_PROXY,
     TEMP_MIN_AC,
+    TEMP_MIN_PROXY,
     TEMP_STEP_AC,
+    TEMP_STEP_HEATING,
 )
 from .entity import TadoOptimisticMixin, TadoStateMemoryMixin, TadoZoneEntity
 from .helpers.ac_overlay import pick_cap_value, resolve_ac_attr
@@ -86,9 +92,9 @@ class TadoClimateEntity(
     async def _async_update_capabilities(self) -> None:
         """Fetch and refresh capabilities."""
         if self.tado_coordinator.generation == GEN_X:
-            self._attr_min_temp = 5.0
-            self._attr_max_temp = 30.0
-            self._attr_target_temperature_step = 0.5
+            self._attr_min_temp = TEMP_MIN_PROXY
+            self._attr_max_temp = TEMP_MAX_PROXY
+            self._attr_target_temperature_step = TEMP_STEP_HEATING
             if isinstance(self, TadoAirConditioning):
                 self._attr_hvac_modes = [
                     HVACMode.OFF,
@@ -405,7 +411,7 @@ class TadoAirConditioning(TadoClimateEntity):
 
     def _get_defaults_tadox(self) -> tuple[float, float]:
         """Get defaults for Tado X (Heating-compatible)."""
-        return 21.0, 5.0
+        return TEMP_DEFAULT_HEATING, TEMP_MIN_PROXY
 
     def _get_defaults_v3(self) -> tuple[float, float]:
         """Get defaults for v3 Classic (AC specific)."""
@@ -686,9 +692,9 @@ class TadoHeating(TadoClimateEntity):
         | ClimateEntityFeature.TURN_ON
         | ClimateEntityFeature.TURN_OFF
     )
-    _attr_min_temp = 5.0
-    _attr_max_temp = 25.0
-    _attr_target_temperature_step = 0.5
+    _attr_min_temp = PROTECTION_MODE_TEMP
+    _attr_max_temp = TEMP_MAX_HEATING
+    _attr_target_temperature_step = TEMP_STEP_HEATING
     _attr_hvac_modes: ClassVar[list[HVACMode]] = [  # type: ignore[misc]
         HVACMode.OFF,
         HVACMode.HEAT,
@@ -704,8 +710,8 @@ class TadoHeating(TadoClimateEntity):
             "heating",
             zone_id,
             zone_name,
-            default_temp=21.0,
-            min_temp=5.0,
+            default_temp=TEMP_DEFAULT_HEATING,
+            min_temp=PROTECTION_MODE_TEMP,
         )
         self._attr_unique_id = (
             f"{coordinator.config_entry.entry_id}_climate_heating_{zone_id}"

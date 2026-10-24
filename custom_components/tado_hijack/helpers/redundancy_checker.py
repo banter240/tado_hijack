@@ -5,7 +5,13 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from ..const import POWER_OFF, POWER_ON, TEMP_STRICT_TOLERANCE, TEMP_TOLERANCE
+from ..const import (
+    BOOST_MODE_TEMP,
+    POWER_OFF,
+    POWER_ON,
+    TEMP_STRICT_TOLERANCE,
+    TEMP_TOLERANCE,
+)
 from ..models import CommandType, TadoCommand
 from .logging_utils import get_redacted_logger
 
@@ -415,7 +421,7 @@ def should_skip_all_action(
 
         elif action_type == "boost_all":
             # Check if ALL zones already at 25°C manual
-            BOOST_TEMP = 25.0
+
             for zone_id in zone_ids:
                 cache_state = optimistic.get_zone(zone_id)
                 if not cache_state:
@@ -429,7 +435,7 @@ def should_skip_all_action(
                 if (
                     cache_power != POWER_ON
                     or cache_temp is None
-                    or abs(cache_temp - BOOST_TEMP) > TEMP_TOLERANCE
+                    or abs(cache_temp - BOOST_MODE_TEMP) > TEMP_TOLERANCE
                     or not overlay_active
                 ):
                     return False  # At least one needs boost → send
@@ -495,7 +501,7 @@ def should_skip_all_action_provider(
     try:
         if action_type == "boost_all":
             # Check if ALL zones already at 25°C manual
-            BOOST_TEMP = 25.0
+
             for zone_id in zone_ids:
                 power = action_provider.get_zone_power(zone_id)
                 temp = action_provider.get_zone_temperature(zone_id)
@@ -505,7 +511,7 @@ def should_skip_all_action_provider(
                 if (
                     power != POWER_ON
                     or temp is None
-                    or abs(temp - BOOST_TEMP) > TEMP_TOLERANCE
+                    or abs(temp - BOOST_MODE_TEMP) > TEMP_TOLERANCE
                     or in_schedule  # in_schedule=True means no overlay
                 ):
                     return False  # At least one needs boost → send

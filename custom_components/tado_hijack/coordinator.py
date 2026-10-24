@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from .lib.tadox_models import HopsRoomSnapshot
 
 from .const import (
+    BOOST_MODE_TEMP,
     CONF_API_PROXY_URL,
     CONF_AUTO_API_QUOTA_PERCENT,
     CONF_DEBOUNCE_TIME,
@@ -99,6 +100,7 @@ from .const import (
     ZONE_TYPE_HOT_WATER,
 )
 from .dummy.dummy_handler import TadoDummyHandler  # [DUMMY_HOOK]
+from .exceptions import TadoOfflineError
 from .helpers.ac_overlay import pick_cap_value, resolve_ac_attr
 from .helpers.api_manager import TadoApiManager
 from .helpers.auth_manager import AuthManager
@@ -113,12 +115,9 @@ from .helpers.hot_water_duration import (
     programmer_next_block,
     programmer_return_mode,
 )
-from .helpers.local_climate import (
-    async_apply_known_setpoint,
-    linked_climate_ids,
-)
 from .helpers.local_proxy import LocalProxyManager
 from .helpers.logging_utils import get_redacted_logger, log_secrets, redact
+from .helpers.offline_fallback import OfflineFallback
 from .helpers.offset_cal_config import OffsetCalSchedulerMixin
 from .helpers.optimistic_manager import OptimisticManager, ZoneOverlayFields
 from .helpers.overlay_builder import build_overlay_data
@@ -144,8 +143,6 @@ from .helpers.schedule import (
     build_set_schedule_command,
     build_x_hot_water_payload,
     build_x_payload,
-    cached_plan,
-    current_plan_span,
     ensure_full_day,
     ha_days_for_tado_day,
     next_block_start,
@@ -364,6 +361,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         self.availability_tracker = AvailabilityTracker(self)
         self.local_proxy = LocalProxyManager(self)
         self.recovery_queue = LocalRecoveryQueue(self, self.availability_tracker)
+        self.offline_fallback = OfflineFallback(self)
         self.recovery_listener = LocalRecoveryListener(
             hass, self, self.availability_tracker, self.recovery_queue
         )
@@ -439,6 +437,9 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             _LOGGER.debug("Restored capabilities cache for %d zone(s)", restored_caps)
         self._schedule_offset_cal_timer()
         self._schedule_plan_edge()
+        held = await self.storage.async_get("held_commands")
+        self.api_manager.restore_held(held)
+        self.api_manager.release_held()
 
     def get_open_window_timeout_seconds(self, zone_id: int) -> int:
         """Resolve the open window timeout (optimistic > zone metadata).
@@ -564,6 +565,8 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
                 self.rate_limit.throttle_threshold,
             )
             if self.data:
+                if self.rate_limit.out_of_quota:
+                    self.offline_fallback.note_quota_exhausted()
                 return cast(TadoData, self.data)
 
             # If no data exists yet, allow first fetch
@@ -607,6 +610,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             )
             data.api_status = self.rate_limit.api_status
 
+            self.offline_fallback.note_reachable()
             self._adjust_interval_for_auto_quota()
 
             # Reset force flag only after a successful fetch
@@ -629,6 +633,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             return cast(TadoData, data)
         except (TimeoutError, TadoError, aiohttp.ClientError) as err:
             self._force_next_update = False
+            self.offline_fallback.note_call_failed(err)
 
             if self.data:
                 _LOGGER.warning("Tado API transient error, using cached data: %s", err)
@@ -980,6 +985,8 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         if self._plan_edge_stopped:
             return
         self.async_update_listeners()
+        if self.offline_fallback.active:
+            self.hass.async_create_task(self.offline_fallback.async_apply_schedules())
         self._schedule_plan_edge()
 
     def shutdown(self) -> None:
@@ -1001,6 +1008,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         self._cancel_interval_cal_hold()
         self.hot_water_duration.shutdown()
         self.window_controller.shutdown()
+        self.offline_fallback.shutdown()
         self.recovery_listener.shutdown()
         self.availability_tracker.shutdown()
         self.local_proxy.shutdown()
@@ -1014,6 +1022,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         await self.availability_tracker.async_start()
         await self.local_proxy.async_start()
         await self.recovery_listener.async_start()
+        self.offline_fallback.start()
 
     async def _execute_manual_poll(
         self,
@@ -1152,6 +1161,9 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             ),
         )
         self.async_update_listeners()
+        self.offline_fallback.remember_manual(
+            zone_id, power=power, temperature=temperature
+        )
         self.api_manager.queue_command(
             f"zone_{zone_id}",
             TadoCommand(
@@ -1181,6 +1193,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             fields=ZoneOverlayFields(operation_mode=operation_mode),
         )
         self.async_update_listeners()
+        self.offline_fallback.remember_schedule(zone_id)
         self.api_manager.queue_command(
             f"zone_{zone_id}",
             TadoCommand(
@@ -1191,40 +1204,6 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         )
         self.recovery_queue.capture_resume(zone_id)
 
-    async def _async_preview_schedule_on_local(self, zone_id: int) -> None:
-        """Set linked climates to the cached block that covers now.
-
-        No Tado call. An empty plan, a gap, an open window, and a climate
-        that is unavailable or unknown do not write.
-        """
-        if self._is_tadox_hot_water_zone(zone_id):
-            return
-        zone = self.zones_meta.get(zone_id)
-        if zone is None or get_zone_type(zone) != ZONE_TYPE_HEATING:
-            return
-        if self.window_controller.zone_window_is_open(zone_id):
-            return
-        days, timetable = cached_plan(self.data_manager.schedule_blocks_cache, zone_id)
-        if not days:
-            return
-        span = current_plan_span(days, dt_util.now(), timetable)
-        if span is None or (span.power == POWER_ON and span.temperature is None):
-            return
-        entity_ids = linked_climate_ids(self, zone_id)
-        if not entity_ids:
-            return
-        _LOGGER.debug(
-            "Schedule preview zone %s from cache (%s)",
-            zone_id,
-            "off" if span.power == POWER_OFF else span.temperature,
-        )
-        await async_apply_known_setpoint(
-            self.hass,
-            entity_ids,
-            power=span.power,
-            temperature=span.temperature,
-        )
-
     async def async_set_zone_auto(
         self,
         zone_id: int,
@@ -1232,7 +1211,10 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         ignore_global_config: bool = False,
     ) -> None:
         """Set zone to auto mode (resume schedule)."""
-        await self._async_preview_schedule_on_local(zone_id)
+        if await self.offline_fallback.async_take_auto(zone_id):
+            self._execute_resume_command(zone_id)
+            return
+        await self.offline_fallback.async_paint_cached_block(zone_id)
         self._execute_resume_command(zone_id)
 
         # Trigger refresh only for AC and Hot Water zones (TRVs are excluded)
@@ -1249,8 +1231,11 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         ) and is_refresh_eligible:
             self._schedule_queued_refresh()
 
-    async def async_set_zone_heat(self, zone_id: int, temp: float = 25.0) -> None:
+    async def async_set_zone_heat(
+        self, zone_id: int, temp: float = BOOST_MODE_TEMP
+    ) -> None:
         """Set zone to manual mode with temperature."""
+        await self.offline_fallback.async_take_manual(zone_id, POWER_ON, temp)
         data = build_overlay_data(
             zone_id,
             self.zones_meta,
@@ -1269,6 +1254,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         owd_timeout_s is the cloud timer and the recovery deadline. Without
         it the off stays until resume.
         """
+        await self.offline_fallback.async_take_manual(zone_id, POWER_OFF, None)
         from .const import OFF_MAGIC_TEMP
 
         minutes = (
@@ -1298,6 +1284,10 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         ignore_global_config: bool = False,
     ) -> None:
         """Set hot water zone to auto mode (resume schedule)."""
+        if await self.offline_fallback.async_take_auto(zone_id):
+            if not self._is_tadox_hot_water_zone(zone_id):
+                self._execute_resume_command(zone_id, operation_mode="auto")
+            raise TadoOfflineError()
         if self._is_tadox_hot_water_zone(zone_id):
             await self.hot_water_duration.async_cancel()
             await self._async_set_hot_water_tadox_resume()
@@ -1316,6 +1306,17 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         overlay_mode: str | None = None,
     ) -> None:
         """Set hot water zone to off (manual overlay)."""
+        if await self.offline_fallback.async_take_manual(zone_id, POWER_OFF, None):
+            if not self._is_tadox_hot_water_zone(zone_id):
+                data = build_overlay_data(
+                    zone_id,
+                    self.zones_meta,
+                    power="OFF",
+                    overlay_type="HOT_WATER",
+                    supports_temp=self.supports_temperature(zone_id),
+                )
+                self._execute_overlay_command(zone_id, data, power="OFF")
+            raise TadoOfflineError()
         if self._is_tadox_hot_water_zone(zone_id):
             _reject_tadox_hot_water_presence(overlay_mode)
             if await self._async_arm_tadox_hot_water("off", duration, overlay_mode):
@@ -1387,6 +1388,11 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         )
         return True
 
+    def _release_optimistic_unless_held(self, zone_id: int, err: Exception) -> None:
+        """Drop the optimistic row unless the call has to wait and be retried."""
+        if not self.offline_fallback.note_call_failed(err):
+            self.optimistic.clear_zone(zone_id)
+
     async def _async_set_hot_water_tadox_resume(self, *, force: bool = False) -> bool:
         from .helpers.overlay_validator import validate_tadox_hot_water_resume
         from .helpers.redundancy_checker import should_skip_hot_water_resume
@@ -1424,12 +1430,14 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         self.async_update_listeners()
 
         _LOGGER.debug("Sending TadoX hot water resumeSchedule for zone %s", zid)
+        self.offline_fallback.remember_schedule(zid)
         try:
             await self.tadox_bridge.async_resume_hot_water_schedule()
         except Exception as e:
             _LOGGER.error("Failed to resume Tado X hot water schedule: %s", e)
-            self.optimistic.clear_zone(zid)
+            self._release_optimistic_unless_held(zid, e)
             return False
+        self.offline_fallback.note_reachable()
         self.recovery_queue.capture_resume(zid)
         self._schedule_queued_refresh()
         return True
@@ -1479,12 +1487,14 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         self.async_update_listeners()
 
         _LOGGER.debug("Sending TadoX hot water boost OFF for zone %s", zid)
+        self.offline_fallback.remember_manual(zid, power=POWER_OFF)
         try:
             await self.tadox_bridge.async_set_hot_water_off()
         except Exception as e:
             _LOGGER.error("Failed to set Tado X hot water OFF: %s", e)
-            self.optimistic.clear_zone(zid)
+            self._release_optimistic_unless_held(zid, e)
             return False
+        self.offline_fallback.note_reachable()
         self.recovery_queue.capture_overlay(zid, power="OFF", temperature=None)
         self._schedule_queued_refresh()
         return True
@@ -1535,12 +1545,14 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         self.async_update_listeners()
 
         _LOGGER.debug("Sending TadoX hot water boost ON for zone %s", zid)
+        self.offline_fallback.remember_manual(zid, power=POWER_ON)
         try:
             await self.tadox_bridge.async_set_hot_water_on()
         except Exception as e:
             _LOGGER.error("Failed to boost Tado X hot water ON: %s", e)
-            self.optimistic.clear_zone(zid)
+            self._release_optimistic_unless_held(zid, e)
             return False
+        self.offline_fallback.note_reachable()
         self.recovery_queue.capture_overlay(zid, power="ON", temperature=None)
         self._schedule_queued_refresh()
         return True
@@ -1553,6 +1565,23 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         overlay_mode: str | None = None,
     ) -> None:
         """Set hot water zone to heat mode (manual overlay)."""
+        if await self.offline_fallback.async_take_manual(
+            zone_id, POWER_ON, temperature
+        ):
+            if not self._is_tadox_hot_water_zone(zone_id):
+                temp = temperature or TEMP_DEFAULT_HOT_WATER
+                data = build_overlay_data(
+                    zone_id,
+                    self.zones_meta,
+                    power="ON",
+                    temperature=temp,
+                    overlay_type="HOT_WATER",
+                    supports_temp=self.supports_temperature(zone_id),
+                )
+                self._execute_overlay_command(
+                    zone_id, data, operation_mode="heat", temperature=temp
+                )
+            raise TadoOfflineError()
         if self._is_tadox_hot_water_zone(zone_id):
             _reject_tadox_hot_water_presence(overlay_mode)
             if await self._async_arm_tadox_hot_water("boost", duration, overlay_mode):
@@ -2194,45 +2223,46 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
                 require_temperature=not power_only,
             )
 
-        for day_type in day_types:
-            canonical = self._canonical_schedule_blocks(
-                day_type=day_type,
-                blocks=blocks,
-                schedule_entity=schedule_entity,
-                geolocation_override=geolocation_override,
-                reuse_blocks=shared_blocks,
-                require_temperature=not power_only,
-            )
-            payload: dict[str, Any] | list[dict[str, Any]]
-            if power_only:
-                payload = build_x_hot_water_payload(day_type, canonical)
-            elif self.generation == GEN_X:
-                payload = build_x_payload(day_type, canonical)
-            else:
-                payload = build_classic_blocks(day_type, setting_type, canonical)
-            _LOGGER.info(
-                "Queued schedule write for zone %s day %s "
-                "(%d blocks, timetable=%s, generation=%s)",
-                zone_id,
-                day_type,
-                len(canonical),
-                timetable_type,
-                self.generation,
-            )
-            self.api_manager.queue_command(
-                schedule_queue_key(zone_id, timetable_id, day_type),
-                build_set_schedule_command(
+        with self.api_manager.collecting():
+            for day_type in day_types:
+                canonical = self._canonical_schedule_blocks(
+                    day_type=day_type,
+                    blocks=blocks,
+                    schedule_entity=schedule_entity,
+                    geolocation_override=geolocation_override,
+                    reuse_blocks=shared_blocks,
+                    require_temperature=not power_only,
+                )
+                payload: dict[str, Any] | list[dict[str, Any]]
+                if power_only:
+                    payload = build_x_hot_water_payload(day_type, canonical)
+                elif self.generation == GEN_X:
+                    payload = build_x_payload(day_type, canonical)
+                else:
+                    payload = build_classic_blocks(day_type, setting_type, canonical)
+                _LOGGER.info(
+                    "Queued schedule write for zone %s day %s "
+                    "(%d blocks, timetable=%s, generation=%s)",
                     zone_id,
-                    timetable_id,
                     day_type,
-                    payload,
+                    len(canonical),
                     timetable_type,
-                    canonical,
-                ),
-            )
+                    self.generation,
+                )
+                self.api_manager.queue_command(
+                    schedule_queue_key(zone_id, timetable_id, day_type),
+                    build_set_schedule_command(
+                        zone_id,
+                        timetable_id,
+                        day_type,
+                        payload,
+                        timetable_type,
+                        canonical,
+                    ),
+                )
 
-        if activate and self.generation != GEN_X:
-            await self.async_set_timetable(zone_id, timetable_type)
+            if activate and self.generation != GEN_X:
+                await self.async_set_timetable(zone_id, timetable_type)
 
     def _save_schedule_blocks_cache(self) -> None:
         """Persist zone plan cache."""
@@ -2729,8 +2759,9 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
     ) -> None:
         """Set a manual overlay with timer/duration support."""
         final_temp = self._resolve_zone_temperature(zone_id, temperature, power)
+        await self.offline_fallback.async_take_manual(zone_id, power, final_temp)
 
-        if additional_setting_fields is None:
+        if additional_setting_fields is None and not self.offline_fallback.active:
             ac_fields = await self._ensure_ac_setting_fields(zone_id, ac_mode, power)
             if ac_fields:
                 additional_setting_fields = ac_fields
@@ -2760,6 +2791,9 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             ),
         )
         self.async_update_listeners()
+        self.offline_fallback.remember_manual(
+            zone_id, power=power, temperature=final_temp
+        )
 
         self.api_manager.queue_command(
             f"zone_{zone_id}",
@@ -2794,6 +2828,21 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
     ) -> None:
         """Set manual overlays for multiple zones in a single batched process."""
         if not zone_ids:
+            return
+        if self.offline_fallback.active:
+            with self.api_manager.collecting():
+                for zone_id in zone_ids:
+                    await self.async_set_zone_overlay(
+                        zone_id,
+                        power=power,
+                        temperature=temperature,
+                        duration=duration,
+                        overlay_mode=overlay_mode,
+                        overlay_type=overlay_type,
+                        ac_mode=ac_mode,
+                        refresh_after=refresh_after,
+                        additional_setting_fields=additional_setting_fields,
+                    )
             return
 
         _LOGGER.debug(
@@ -2841,6 +2890,9 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             old_state = patch_zone_overlay(
                 self.data.zone_states.get(str(zone_id)), data
             )
+            self.offline_fallback.remember_manual(
+                zone_id, power=power, temperature=zone_temp
+            )
 
             self.api_manager.queue_command(
                 f"zone_{zone_id}",
@@ -2861,8 +2913,20 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
 
         self._handle_overlay_side_effects(duration, overlay_mode, refresh_after)
 
+    def _bulk_control_zone_ids(self) -> list[int]:
+        """Heating rooms, plus classic air conditioning. Same set as the bulk buttons."""
+        return self.action_provider.get_active_zone_ids(
+            include_heating=True,
+            include_ac=self.generation != GEN_X,
+        )
+
     async def async_resume_all_schedules(self) -> None:
         """Resume all heating zone schedules."""
+        if self.offline_fallback.active:
+            with self.api_manager.collecting():
+                for zone_id in self._bulk_control_zone_ids():
+                    await self.async_set_zone_auto(zone_id)
+            return
         _LOGGER.debug("Resume all schedules triggered")
 
         # Redundancy check (Toggle 2 - Aggressive Button Suppression)
@@ -2881,6 +2945,11 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
 
     async def async_turn_off_all_zones(self) -> None:
         """Turn off all heating zones."""
+        if self.offline_fallback.active:
+            with self.api_manager.collecting():
+                for zone_id in self._bulk_control_zone_ids():
+                    await self.async_set_zone_off(zone_id)
+            return
         _LOGGER.debug("Turn off all zones triggered")
 
         # Redundancy check (Toggle 2 - Aggressive Button Suppression)
@@ -2899,6 +2968,11 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
 
     async def async_boost_all_zones(self) -> None:
         """Boost all heating zones (25C)."""
+        if self.offline_fallback.active:
+            with self.api_manager.collecting():
+                for zone_id in self._bulk_control_zone_ids():
+                    await self.async_set_zone_heat(zone_id, BOOST_MODE_TEMP)
+            return
         _LOGGER.debug("Boost all zones triggered")
 
         # Redundancy check (Toggle 2 - Aggressive Button Suppression)

@@ -80,6 +80,9 @@ class TadoExecutorBase(ABC):
             True if successful, False otherwise
 
         """
+        if self.coordinator.offline_fallback.active:
+            return False
+
         await self._apply_jitter()
 
         # Log payload before execution
@@ -95,8 +98,10 @@ class TadoExecutorBase(ABC):
                 if asyncio.iscoroutine(res := success_fn()):
                     await res
 
+            self.coordinator.offline_fallback.note_reachable()
             return True
         except Exception as e:
+            self.coordinator.offline_fallback.note_call_failed(e)
             if (
                 label == "presence"
                 and context

@@ -132,6 +132,8 @@ A stored resume, or an intent that has expired, is sent to the cloud again only 
 
 Zone 9001 has no valve serials on the room list, so a hot-water capture stores nothing unless a device is mapped there. Replay does not call the hot-water programmer.
 
+A transport failure (timeout, connection error, HTTP 500) is a different outage: the cloud is unreachable and the linked climate still answers. Two failures in a row, or one command that cannot be sent, switch that home over. A spent daily quota (`remaining` 0, or HTTP 429) uses the same local plan and does not send until the counter is above 0 again. HTTP 4xx otherwise stays a rejected call. Heating zones whose weekly plan is already cached stay on that plan. Each block edge sets the reachable climates to the block that covers now. A hand change on the climate, or a manual heat or off, leaves the plan. Auto while the cloud is down clears that and follows the plan again. Resume all, boost all, and all off do the same locally. An open window is left to the window controller. Hot water has no local actuator, so the same choice is only remembered, and a zone that was on its plan is resumed when the cloud answers. When a call reaches Tado again, each touched zone is sent once: resume if it is on the plan, the last manual setpoint if it is not. A write during that hold raises an error and stays queued. The last write for that target is the one sent when calls work again, including after a restart. A read waits without an error. HTTP 4xx is still dropped.
+
 ---
 
 ## Schedules and calendars

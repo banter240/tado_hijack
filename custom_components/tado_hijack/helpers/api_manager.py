@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -16,6 +18,7 @@ from ..const import (
     CONF_JITTER_PERCENT,
     DEFAULT_JITTER_PERCENT,
 )
+from ..exceptions import TadoOfflineError
 from ..models import CommandType, TadoCommand
 from .command_merger import (
     CommandMerger,
@@ -32,6 +35,14 @@ if TYPE_CHECKING:
     from ..coordinator import TadoDataUpdateCoordinator
 
 _LOGGER = get_redacted_logger(__name__)
+_HELD_KEY = "held_commands"
+_READ_COMMANDS = frozenset(
+    {
+        CommandType.MANUAL_POLL,
+        CommandType.REFRESH_TIMETABLE,
+        CommandType.REFRESH_SCHEDULE,
+    }
+)
 
 
 def _merge_pending_flow_temp(existing: TadoCommand, incoming: TadoCommand) -> None:
@@ -71,6 +82,8 @@ class TadoApiManager:
         self._pending_timers: dict[str, CALLBACK_TYPE] = {}
         self._worker_task: asyncio.Task[Any] | None = None
         self._pending_keys: set[str] = set()  # Track in-flight commands
+        self._collecting = 0
+        self._announce_offline = False
 
         # Modular Executor Gateway
         self._executor = TadoUnifiedExecutor(coordinator)
@@ -258,9 +271,18 @@ class TadoApiManager:
 
         self._action_queue[key] = command
         self._pending_keys.add(key)  # Mark key as pending
+        self._persist_held()
 
-        # Log queuing details
         action_desc = self._describe_command(command)
+        if self._holding():
+            _LOGGER.error("Tado is offline. Holding %s until it answers.", key)
+            if command.cmd_type in _READ_COMMANDS:
+                return
+            if self._collecting:
+                self._announce_offline = True
+                return
+            raise TadoOfflineError()
+
         status = "replaced pending" if was_replaced else "queued"
         _LOGGER.debug(
             "Command %s: %s [key=%s, debounce=%ds] %s",
@@ -270,8 +292,94 @@ class TadoApiManager:
             self._debounce_time,
             action_desc,
         )
-
         self._rearm_pending_debounce()
+
+    def _holding(self) -> bool:
+        """True while cloud calls wait."""
+        fallback = getattr(self.coordinator, "offline_fallback", None)
+        return bool(fallback and fallback.active)
+
+    @contextmanager
+    def collecting(self) -> Iterator[None]:
+        """Queue every write in the block, then raise once if any was held."""
+        self._collecting += 1
+        try:
+            yield
+        finally:
+            self._collecting -= 1
+            if self._collecting == 0 and self._announce_offline:
+                self._announce_offline = False
+                raise TadoOfflineError()
+
+    def held_zone_ids(self) -> set[int]:
+        """Zones whose last overlay or resume is still waiting."""
+        return {
+            int(cmd.zone_id)
+            for key, cmd in self._action_queue.items()
+            if key.startswith("zone_") and cmd.zone_id is not None
+        }
+
+    def hold_commands(self, commands: list[TadoCommand]) -> None:
+        """Put these calls back. A newer write for the same key stays."""
+        for cmd in commands:
+            key = self._get_command_key(cmd)
+            self._action_queue.setdefault(key, cmd)
+            self._pending_keys.add(key)
+        self._persist_held()
+        _LOGGER.error(
+            "Tado is offline. Holding %d command(s) until it answers.",
+            len(self._action_queue),
+        )
+
+    def release_held(self) -> None:
+        """Send the waiting calls once Tado can be called."""
+        if self._holding() or not self._action_queue:
+            return
+        self._rearm_pending_debounce()
+
+    def restore_held(self, raw: Any) -> None:
+        """Load calls that were still waiting at the last shutdown."""
+        if not isinstance(raw, list):
+            return
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            cmd_type = item.get("cmd_type")
+            key = item.get("key")
+            if not isinstance(cmd_type, str) or not isinstance(key, str):
+                continue
+            try:
+                parsed = CommandType(cmd_type)
+            except ValueError:
+                continue
+            zone = item.get("zone_id")
+            data = item.get("data")
+            self._action_queue[key] = TadoCommand(
+                parsed,
+                zone_id=int(zone) if isinstance(zone, int) else None,
+                data=data if isinstance(data, dict) else None,
+            )
+            self._pending_keys.add(key)
+        if self._action_queue:
+            _LOGGER.error(
+                "Restored %d held command(s). They go out when Tado answers.",
+                len(self._action_queue),
+            )
+
+    def _persist_held(self) -> None:
+        storage = getattr(self.coordinator, "storage", None)
+        if storage is None:
+            return
+        payload = [
+            {
+                "key": key,
+                "cmd_type": cmd.cmd_type.value,
+                "zone_id": cmd.zone_id,
+                "data": cmd.data if isinstance(cmd.data, dict) else None,
+            }
+            for key, cmd in self._action_queue.items()
+        ]
+        self.hass.async_create_task(storage.async_update(_HELD_KEY, payload))
 
     def _arm_key_timer(self, key: str) -> None:
         """Start or reset the debounce timer that flushes this queue key."""
@@ -283,6 +391,7 @@ class TadoApiManager:
             self._pending_timers.pop(target_key, None)
             if cmd := self._action_queue.pop(target_key, None):
                 self._api_queue.put_nowait(cmd)
+                self._persist_held()
 
         self._pending_timers[key] = async_call_later(
             self.hass,
@@ -327,6 +436,10 @@ class TadoApiManager:
 
     async def _process_batch(self, commands: list[TadoCommand]) -> None:
         """Merge and execute a batch of commands."""
+        if self._holding():
+            self.hold_commands(commands)
+            return
+
         # Initial jitter to break temporal correlation with triggers (1.0s base)
         await self._maybe_apply_call_jitter(base_delay=1.0)
 
@@ -386,6 +499,9 @@ class TadoApiManager:
 
         # Delegate execution to the Unified Executor
         await self._executor.execute_batch(merged)
+        if self._holding():
+            self.hold_commands(commands)
+            return
 
         # Clear pending keys after batch execution
         for key in batch_keys:

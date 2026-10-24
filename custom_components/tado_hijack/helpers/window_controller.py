@@ -1052,6 +1052,7 @@ class WindowController:
             sorted(zones),
         )
         try:
+            self._coordinator.offline_fallback.suppress_writes([entity_id])
             await async_set_off(self._hass, entity_id, blocking=False)
         except Exception:
             _LOGGER.warning(
@@ -1112,6 +1113,9 @@ class WindowController:
 
     async def _async_local_off(self, zone_id: int) -> None:
         """Turn linked climates off."""
+        self._coordinator.offline_fallback.suppress_writes(
+            self._local_entity_ids(zone_id)
+        )
         await async_apply_available(
             self._hass,
             self._local_entity_ids(zone_id),
@@ -1121,6 +1125,9 @@ class WindowController:
 
     async def _async_local_temperature(self, zone_id: int, temperature: float) -> None:
         """Set the pre-open temperature on linked TRVs without waiting for the cloud."""
+        self._coordinator.offline_fallback.suppress_writes(
+            self._local_entity_ids(zone_id)
+        )
         await async_apply_available(
             self._hass,
             self._local_entity_ids(zone_id),

@@ -73,9 +73,14 @@ class RateLimitManager:
         return self._internal_remaining < self._throttle_threshold
 
     @property
+    def out_of_quota(self) -> bool:
+        """True when the counter says no calls are left."""
+        return self._internal_remaining <= 0
+
+    @property
     def api_status(self) -> str:
         """Return current API status string."""
-        if self._internal_remaining <= 0:
+        if self.out_of_quota:
             return "rate_limited"
         return "throttled" if self.is_throttled else "connected"
 
