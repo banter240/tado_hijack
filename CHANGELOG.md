@@ -1,3 +1,129 @@
+## [5.13.0-dev.1](https://github.com/banter240/tado_hijack/compare/v5.12.0...v5.13.0-dev.1) (2026-10-24)
+
+### ✨ New Features
+
+* feat: add auto to the local climate clone
+
+  HomeKit and Matter have no auto mode. The clone adds it when the
+  cloud climate for that zone can resume onto its plan. Heating and
+  air conditioning can. The cached week is not required. Auto resumes
+  through Hijack, including the offline hold, and is not sent to the
+  source climate. The cached week is only the fallback inside that
+  resume.
+
+  Whether the zone is on the plan is one helper. The cloud climate,
+  the clone, hot water, the offline seed, and the window snapshot use
+  it.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ✨ ADDED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - the local climate clone offers auto when the cloud climate can resume
+  - auto resumes through Hijack and is not sent to the source climate
+  - the cached week stays the fallback inside that resume
+  - one helper decides whether a zone is on the cloud plan
+* feat: apply a schedule edit while calls are held
+
+  set_schedule writes the cached week when the service runs. A zone
+  that is still on the plan moves to the block that covers now, so a
+  new temperature in the current block is not left until the next
+  edge. A new block is followed from the moment it covers now. The
+  cloud write stays queued. A manual setpoint is left alone.
+
+  A refused day is put back. When the timetable itself changed, the
+  week is fetched again. A held call keeps the edited plan.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ✨ ADDED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - set_schedule updates the cached week before Tado accepts it
+  - a zone on the plan moves to the block that covers now
+  - a new block is followed as soon as it covers now
+  - a refused day is restored, and a held call keeps the edit
+  - a manual setpoint is left alone
+* feat: drop a stale room sample and add boiler drivers
+
+  A cloud inside temperature or humidity is used only while its own
+  timestamp is at most four hours old. A sample with no timestamp stays,
+  which includes every Tado X cloud sample. A linked entity and the
+  HomeKit or Matter clone keep their own value. Offset calibration skips
+  a frozen inside temperature.
+
+  Classic heating can assign a room to a boiler driver. The option is
+  off, so a home with no boiler or one circuit spends no calls. A Tado X
+  home is not read yet. With the option on, one call lists the drivers.
+  Room reads and the select run only when two or more drivers exist,
+  once per setup. The write goes through the queue.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ✨ ADDED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - a cloud sample older than four hours is left out of the room
+  - offset calibration skips that frozen inside temperature
+  - classic heating can assign a room to a boiler driver
+  - the option is off, so one circuit or no boiler spends nothing
+  - two or more drivers add one list call and one read per heating zone
+* feat: follow the cached plan while Tado cannot be called
+
+  When the Tado cloud cannot be reached, or the daily quota is spent,
+  a heating zone whose weekly plan is already cached keeps that plan
+  on the linked HomeKit or Matter climate. Two transport failures, or
+  one failed command, switch that home over. Remaining 0 or HTTP 429
+  does the same at once and does not send until the counter is above
+  0 again. A soft throttle still sends. Any other HTTP 4xx stays a
+  rejected call.
+
+  A hand change, or a manual heat or off, leaves the plan. Auto,
+  resume all, boost all, and all off run locally while calls are held.
+  Hot water has no local actuator, so the choice is only remembered.
+  A write raises an error and stays queued. The last write for that
+  target replaces the one before it. The same queue is loaded again
+  after a restart. A read waits without an error. A rejected payload
+  is still dropped.
+
+  When a call is allowed again, each touched zone is sent once:
+  resume on the plan, or the last manual setpoint. The online preview
+  and the offline runner share one paint of the cached block. Heating
+  and boost temperatures, and the scan interval default, use the names
+  in const.py.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ✨ ADDED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - two transport failures, or one failed command, switch that home over
+  - remaining 0 or HTTP 429 follows the cached plan and does not send
+  - linked climates follow the cached week until someone leaves the plan
+  - auto, resume all, boost all, and all off run locally while offline
+  - hot water keeps the same choice and is sent when the cloud answers
+  - an offline write raises and the last write per target is kept
+  - the held queue survives a restart
+  - the return is one batch: resume for the plan, overlay for manual
+  - one paint serves the online preview and the offline runner
+  - schedule and manual intent are no longer one mode string
+  - the block that covers now is found with one walk of the plan
+  - heating limits and the scan interval default use names in const.py
+* feat: preview the cached block on a local climate
+
+  A heating resume sets each reachable HomeKit or Matter climate to
+  the cached block that covers now, then queues the cloud resume.
+  Off turns the climate off. Heat sets that temperature. An empty
+  plan, a gap, an open window, full cloud mode, and an unavailable
+  or unknown climate do not write. The local write is not a Tado call.
+  Later blocks still come from the cloud.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ✨ ADDED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - a resume paints the current cached block on linked climates
+  - the plan must already be loaded, and the climate must be reachable
+  - an open window, a gap, and full cloud mode skip the local write
+  - the cloud resume still runs
+
 ## [5.12.0](https://github.com/banter240/tado_hijack/compare/v5.11.1...v5.12.0) (2026-10-24)
 
 ### ✨ New Features
