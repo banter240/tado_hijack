@@ -248,6 +248,24 @@ class OfflineFallback:
             if self._mode.get(zone_id) == _MODE_SCHEDULE:
                 await self._async_apply_zone(zone_id)
 
+    async def note_plan_changed(self, zone_id: int) -> None:
+        """Follow a schedule edit now. A manual zone keeps its setpoint.
+
+        The current block may have a new temperature, or a new block may
+        cover now. Later edges still come from the plan timer.
+        """
+        if not self._offline:
+            return
+        if self._mode.get(zone_id) == _MODE_MANUAL:
+            return
+        if self._mode.get(zone_id) != _MODE_SCHEDULE:
+            if not self._zone_on_schedule(zone_id):
+                return
+            self._mode[zone_id] = _MODE_SCHEDULE
+            if self._is_hot_water(zone_id):
+                self._dirty.add(zone_id)
+        await self._async_apply_zone(zone_id)
+
     async def async_apply_entered(self) -> None:
         """Paint the plan, and any manual intent captured as the link dropped."""
         if not self._offline:

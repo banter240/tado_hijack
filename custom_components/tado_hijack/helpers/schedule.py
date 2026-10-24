@@ -544,8 +544,16 @@ def build_set_schedule_command(
     payload: Any,
     timetable_type: str,
     canonical: list[dict[str, Any]],
+    rollback_blocks: list[dict[str, Any]] | None,
+    *,
+    replaced_timetable: bool,
 ) -> TadoCommand:
-    """Queue payload for one dayType write."""
+    """Queue payload for one dayType write.
+
+    ``rollback_blocks`` is the day before this write. None means the day was
+    absent. A refused call restores it. ``replaced_timetable`` means the zone
+    cache was a different timetable, so a refusal refetches the week.
+    """
     return TadoCommand(
         CommandType.SET_SCHEDULE,
         zone_id=zone_id,
@@ -556,6 +564,8 @@ def build_set_schedule_command(
             "payload": payload,
             "timetable_type": timetable_type,
             "canonical": canonical,
+            "rollback_blocks": rollback_blocks,
+            "replaced_timetable": replaced_timetable,
         },
     )
 

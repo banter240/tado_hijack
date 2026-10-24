@@ -217,6 +217,9 @@ class TadoExecutorBase(ABC):
             await self._safe_execute(
                 f"schedule_{zid}_{day_type}",
                 coro,
+                rollback_fn=lambda data=slot: (
+                    self.coordinator.revert_rejected_schedule_write(data)
+                ),
                 success_fn=lambda data=slot: (
                     self.coordinator.apply_successful_schedule_write(data)
                 ),

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 from collections.abc import Callable, Iterable
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, cast
@@ -2162,7 +2163,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
 
         cached = self.data_manager.timetable_cache.get(zone_id)
         cached_type = (cached or {}).get("type")
-        if timetable is None and not cached_type:
+        if timetable is None and not cached_type and not self.offline_fallback.active:
             try:
                 raw = await self.client.get_active_timetable(zone_id)
                 self.update_rate_limit_local(silent=True)
@@ -2249,8 +2250,15 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
                     timetable_type,
                     self.generation,
                 )
+                queue_key = schedule_queue_key(zone_id, timetable_id, day_type)
+                rollback_blocks, replaced_timetable = self._schedule_rollback(
+                    zone_id, timetable_id, timetable_type, day_type, queue_key
+                )
+                self._store_zone_plan_day(
+                    zone_id, timetable_id, timetable_type, day_type, canonical
+                )
                 self.api_manager.queue_command(
-                    schedule_queue_key(zone_id, timetable_id, day_type),
+                    queue_key,
                     build_set_schedule_command(
                         zone_id,
                         timetable_id,
@@ -2258,11 +2266,16 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
                         payload,
                         timetable_type,
                         canonical,
+                        rollback_blocks,
+                        replaced_timetable=replaced_timetable,
                     ),
                 )
 
             if activate and self.generation != GEN_X:
                 await self.async_set_timetable(zone_id, timetable_type)
+            self._save_schedule_blocks_cache()
+            self.async_update_listeners()
+            await self.offline_fallback.note_plan_changed(zone_id)
 
     def _save_schedule_blocks_cache(self) -> None:
         """Persist zone plan cache."""
@@ -2302,16 +2315,96 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         days[day_type] = canonical
         entry["updated_at"] = dt_util.utcnow().isoformat()
 
+    def _schedule_rollback(
+        self,
+        zone_id: int,
+        timetable_id: int,
+        timetable_type: str,
+        day_type: str,
+        queue_key: str,
+    ) -> tuple[list[dict[str, Any]] | None, bool]:
+        """Day to restore if Tado refuses this write.
+
+        A second write of the same day keeps the first snapshot. A different
+        timetable cannot be rebuilt from one day.
+        """
+        existing = self.api_manager.queued_command(queue_key)
+        if (
+            existing
+            and isinstance(existing.data, dict)
+            and "rollback_blocks" in existing.data
+        ):
+            blocks = existing.data.get("rollback_blocks")
+            saved = blocks if isinstance(blocks, list) else None
+            return saved, bool(existing.data.get("replaced_timetable"))
+        entry = self.data_manager.schedule_blocks_cache.get(zone_id)
+        if (
+            not isinstance(entry, dict)
+            or entry.get("timetable_id") != timetable_id
+            or entry.get("timetable_type") != timetable_type
+        ):
+            return None, True
+        days = entry.get("days")
+        raw = days.get(day_type) if isinstance(days, dict) else None
+        if not isinstance(raw, list):
+            return None, False
+        return cast("list[dict[str, Any]]", copy.deepcopy(raw)), False
+
+    async def revert_rejected_schedule_write(self, slot: dict[str, Any]) -> None:
+        """Restore a day Tado refused. A held call keeps the edited plan."""
+        if self.offline_fallback.active:
+            return
+        zone_id = int(slot["zone_id"])
+        queue_key = schedule_queue_key(
+            zone_id, int(slot["timetable_id"]), str(slot["day_type"])
+        )
+        if self.api_manager.queued_command(queue_key):
+            return
+        if slot.get("replaced_timetable"):
+            await self.async_refresh_zone_plan(zone_id)
+            return
+        elif "rollback_blocks" not in slot:
+            return
+        entry = self.data_manager.schedule_blocks_cache.get(zone_id)
+        if not isinstance(entry, dict) or int(entry.get("timetable_id", -1)) != int(
+            slot["timetable_id"]
+        ):
+            await self.async_refresh_zone_plan(zone_id)
+            return
+        day_type = str(slot["day_type"])
+        days = entry.setdefault("days", {})
+        blocks = slot.get("rollback_blocks")
+        if isinstance(blocks, list):
+            days[day_type] = blocks
+        else:
+            days.pop(day_type, None)
+            if not days:
+                self.data_manager.schedule_blocks_cache.pop(zone_id, None)
+        self._save_schedule_blocks_cache()
+        self.async_update_listeners()
+
     def apply_successful_schedule_write(self, slot: dict[str, Any]) -> None:
-        """Update the calendar cache only after Tado accepted the write."""
+        """Confirm a day Tado accepted. The service already stored it."""
         canonical = slot.get("canonical")
         if not isinstance(canonical, list):
             return
+        zone_id = int(slot["zone_id"])
+        timetable_id = int(slot["timetable_id"])
+        day_type = str(slot["day_type"])
+        queued = self.api_manager.queued_command(
+            schedule_queue_key(zone_id, timetable_id, day_type)
+        )
+        if (
+            queued
+            and isinstance(queued.data, dict)
+            and queued.data.get("canonical") != canonical
+        ):
+            return
         self._store_zone_plan_day(
-            int(slot["zone_id"]),
-            int(slot["timetable_id"]),
+            zone_id,
+            timetable_id,
             str(slot["timetable_type"]),
-            str(slot["day_type"]),
+            day_type,
             canonical,
         )
         self._save_schedule_blocks_cache()

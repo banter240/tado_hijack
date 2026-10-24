@@ -210,6 +210,10 @@ class TadoApiManager:
         """Return set of currently pending command keys."""
         return self._pending_keys.copy()
 
+    def queued_command(self, key: str) -> TadoCommand | None:
+        """Command still waiting on this key, if any."""
+        return self._action_queue.get(key)
+
     @property
     def _suppress_calls(self) -> bool:
         return getattr(self.coordinator, "_suppress_redundant_calls", False)
