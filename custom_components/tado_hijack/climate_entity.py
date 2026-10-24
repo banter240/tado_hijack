@@ -38,6 +38,7 @@ from .helpers.parsers import (
     get_ac_capabilities,
     parse_schedule_temperature,
 )
+from .helpers.zone_utils import zone_follows_cloud_schedule
 
 if TYPE_CHECKING:
     from .coordinator import TadoDataUpdateCoordinator
@@ -153,12 +154,8 @@ class TadoClimateEntity(
     @property
     def hvac_mode(self) -> HVACMode:
         """Return current operation mode."""
-        opt_overlay = self.tado_coordinator.optimistic.get_zone_overlay(self._zone_id)
-
-        if opt_overlay is False:
+        if zone_follows_cloud_schedule(self.tado_coordinator, self._zone_id):
             return HVACMode.AUTO
-
-        is_manual_intent = opt_overlay is True
 
         resolved_state = self._resolve_state()
         power = (
@@ -166,13 +163,6 @@ class TadoClimateEntity(
             if isinstance(resolved_state, dict)
             else str(resolved_state)
         )
-
-        state = self._current_state
-        api_has_overlay = bool(state and getattr(state, "overlay_active", False))
-
-        if not api_has_overlay and not is_manual_intent:
-            return HVACMode.AUTO
-
         return HVACMode.OFF if power == POWER_OFF else self._get_active_hvac_mode()
 
     @property

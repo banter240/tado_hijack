@@ -57,6 +57,7 @@ from .local_climate import (
 )
 from .logging_utils import get_redacted_logger
 from .optimistic_manager import ZoneOverlayFields
+from .zone_utils import zone_follows_cloud_schedule
 
 if TYPE_CHECKING:
     from ..coordinator import TadoDataUpdateCoordinator
@@ -747,13 +748,7 @@ class WindowController:
         if coord.data is not None:
             states = getattr(coord.data, "zone_states", None) or {}
             state = states.get(str(zone_id))
-        opt_overlay = coord.optimistic.get_zone_overlay(zone_id)
-        if opt_overlay is True:
-            schedule = False
-        elif opt_overlay is False:
-            schedule = True
-        else:
-            schedule = not bool(state and getattr(state, "overlay_active", False))
+        schedule = zone_follows_cloud_schedule(coord, zone_id)
         if assume_schedule:
             # Already open at startup: the live state may be our own previous off.
             schedule = True

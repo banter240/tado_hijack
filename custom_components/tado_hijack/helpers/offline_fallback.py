@@ -35,7 +35,11 @@ from .local_climate import (
 from .logging_utils import get_redacted_logger
 from .optimistic_manager import ZoneOverlayFields
 from .schedule import PlanSpan, cached_plan, current_plan_span
-from .zone_utils import get_zone_type, zone_id_for_serial
+from .zone_utils import (
+    get_zone_type,
+    zone_follows_cloud_schedule,
+    zone_id_for_serial,
+)
 
 if TYPE_CHECKING:
     from ..coordinator import TadoDataUpdateCoordinator
@@ -259,7 +263,7 @@ class OfflineFallback:
         if self._mode.get(zone_id) == _MODE_MANUAL:
             return
         if self._mode.get(zone_id) != _MODE_SCHEDULE:
-            if not self._zone_on_schedule(zone_id):
+            if not zone_follows_cloud_schedule(self._coordinator, zone_id):
                 return
             self._mode[zone_id] = _MODE_SCHEDULE
             if self._is_hot_water(zone_id):
@@ -319,7 +323,7 @@ class OfflineFallback:
         for zone_id in self._plan_zone_ids():
             if zone_id in self._mode:
                 continue
-            if self._zone_on_schedule(zone_id):
+            if zone_follows_cloud_schedule(self._coordinator, zone_id):
                 self._mode[zone_id] = _MODE_SCHEDULE
                 if self._is_hot_water(zone_id):
                     self._dirty.add(zone_id)
@@ -338,17 +342,6 @@ class OfflineFallback:
             if days:
                 ids.append(zone_id)
         return ids
-
-    def _zone_on_schedule(self, zone_id: int) -> bool:
-        overlay = self._coordinator.optimistic.get_zone_overlay(zone_id)
-        if overlay is True:
-            return False
-        if overlay is False:
-            return True
-        state = None
-        if self._coordinator.data is not None:
-            state = self._coordinator.data.zone_states.get(str(zone_id))
-        return not bool(state and getattr(state, "overlay_active", False))
 
     def _known_power_temp(self, zone_id: int) -> tuple[str, float | None] | None:
         """Power and target already stored for a manual zone. None when unknown."""

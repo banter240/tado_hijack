@@ -4,9 +4,16 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from ..const import ZONE_TYPE_HEATING
+from ..const import ZONE_TYPE_AIR_CONDITIONING, ZONE_TYPE_HEATING
+
+if TYPE_CHECKING:
+    from ..coordinator import TadoDataUpdateCoordinator
+
+# Cloud climates for these zones always offer auto. Hot water is a water heater.
+# The cached week is not part of this: resume paints it when it is already loaded.
+_CLOUD_CLIMATE_TYPES = frozenset({ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING})
 
 
 @dataclass(frozen=True)
@@ -24,6 +31,33 @@ def get_zone_type(
 ) -> str | None:
     """Safely extract zone type with consistent fallback."""
     return default if zone is None else getattr(zone, "type", default)
+
+
+def cloud_climate_can_follow_schedule(
+    coordinator: TadoDataUpdateCoordinator, zone_id: int
+) -> bool:
+    """True when this zone's cloud climate can resume onto its plan.
+
+    Heating and air conditioning can. The cached week is not required.
+    """
+    zone = coordinator.zones_meta.get(zone_id)
+    return False if zone is None else get_zone_type(zone) in _CLOUD_CLIMATE_TYPES
+
+
+def zone_follows_cloud_schedule(
+    coordinator: TadoDataUpdateCoordinator, zone_id: int
+) -> bool:
+    """True when no manual overlay is set. Optimistic state wins.
+
+    A missing cloud state counts as following the plan.
+    """
+    overlay = coordinator.optimistic.get_zone_overlay(zone_id)
+    if overlay is not None:
+        return not overlay
+    data = coordinator.data
+    states = getattr(data, "zone_states", None) if data is not None else None
+    state = states.get(str(zone_id)) if isinstance(states, dict) else None
+    return not bool(state and getattr(state, "overlay_active", False))
 
 
 def trv_serials(zones_meta: Mapping[int, Any], zone_id: int | None = None) -> list[str]:
