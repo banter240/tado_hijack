@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from ...const import BOOST_MODE_TEMP, POWER_OFF, POWER_ON, TEMP_TOLERANCE
 from ...lib.tadox_api import TadoXApi
-from ..executor_base import TadoExecutorBase, map_magic_temp_to_power
+from ..executor_base import TadoExecutorBase, resolve_overlay_power
 from ..logging_utils import get_redacted_logger
 from ..optimistic_manager import ZoneOverlayFields
 
@@ -198,12 +198,10 @@ class TadoXExecutor(TadoExecutorBase):
     def _zone_power_temp(
         self, data: dict[str, Any] | None
     ) -> tuple[str | None, float | None]:
-        """Resume is (None, None); overlay is (power, temp after magic mapping)."""
+        """Resume is (None, None); overlay is (power, temp)."""
         if data is None:
             return None, None
-        setting = data.get("setting") or {}
-        temp = (setting.get("temperature") or {}).get("celsius")
-        temp, power = map_magic_temp_to_power(temp)
+        temp, power = resolve_overlay_power(data.get("setting"))
         return power, temp
 
     def _covered_by_quick_action(
@@ -323,14 +321,7 @@ class TadoXExecutor(TadoExecutorBase):
                     context={"zone_id": zone_id},
                 )
             else:
-                # Manual Control - rebuild overlay from merged data
-                setting = data.get("setting", {})
-
-                temp_dict = setting.get("temperature", {})
-                temp = temp_dict.get("celsius")
-
-                # Magic number mapping: temp=-1 → power=OFF (last call wins)
-                temp, power = map_magic_temp_to_power(temp)
+                temp, power = resolve_overlay_power(data.get("setting"))
 
                 termination = data.get("termination", {})
                 termination_type = (

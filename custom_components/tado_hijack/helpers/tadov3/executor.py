@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from ...const import CIRCUIT_UNASSIGNED
-from ..executor_base import TadoExecutorBase, map_magic_temp_to_power
+from ...const import CIRCUIT_UNASSIGNED, POWER_OFF
+from ..executor_base import TadoExecutorBase, resolve_overlay_power
 from ..logging_utils import get_redacted_logger
 
 if TYPE_CHECKING:
@@ -255,20 +255,16 @@ class TadoV3Executor(TadoExecutorBase):
             elif data is None:
                 resumes.append(zid)
             else:
-                # Rebuild overlay from merged data (magic number mapping)
-                setting = data.get("setting", {})
-                temp_dict = setting.get("temperature", {})
-                temp = temp_dict.get("celsius")
-
-                # Magic number mapping: temp=-1 → power=OFF (last call wins)
-                _final_temp, power = map_magic_temp_to_power(temp)
-
+                setting = data.get("setting") or {}
+                _temp, power = resolve_overlay_power(setting)
                 overlay_data = data
-                if power == "OFF":
-                    # Rebuild setting for OFF mode
-                    setting = {**setting, "power": "OFF"}
-                    if "temperature" in setting:
-                        del setting["temperature"]
+                if power == POWER_OFF:
+                    setting = {
+                        key: value
+                        for key, value in setting.items()
+                        if key != "temperature"
+                    }
+                    setting["power"] = POWER_OFF
                     overlay_data = {**data, "setting": setting}
 
                 overlays.append({"room": zid, "overlay": overlay_data})
