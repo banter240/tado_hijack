@@ -351,6 +351,8 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         self._offset_cal_threshold_handle: Callable[[], None] | None = None
         self._offset_cal_threshold_retry: Callable[[], None] | None = None
         self._offset_cal_send_ready_at: dict[int, datetime] = {}
+        # serial -> (inside temperature used, offset written)
+        self._offset_cal_inside_anchor: dict[str, tuple[float, float]] = {}
         self._offset_cal_window_settle_until: dict[int, datetime] = {}
         self._offset_cal_window_was_open: set[int] = set()
         self._offset_cal_interval_pending: set[int] = set()
@@ -1892,6 +1894,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             current_device_offset,
             inside_from_zone_state,
             measuring_devices,
+            offset_reading_is_anchored,
             read_entity_temperature,
         )
 
@@ -1942,6 +1945,12 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
                         current,
                     )
                 continue
+            if reason != "manual" and offset_reading_is_anchored(
+                self._offset_cal_inside_anchor.get(serial),
+                current=current,
+                tado_inside=tado_inside,
+            ):
+                continue
             desired = compute_device_offset(thermostat, tado_inside, current)
             threshold = self.get_zone_offset_cal_threshold(zid)
             if abs(desired - current) < max(threshold, OFFSET_STEP):
@@ -1956,6 +1965,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
                 desired,
             )
             await self.async_set_temperature_offset(serial, desired)
+            self._offset_cal_inside_anchor[serial] = (tado_inside, desired)
             wrote += 1
         return wrote
 

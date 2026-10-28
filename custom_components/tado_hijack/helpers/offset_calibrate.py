@@ -108,6 +108,25 @@ def hours_from_midnight(option: str) -> list[int] | None:
     return None if step not in OFFSET_CAL_HOUR_STEPS else list(range(0, 24, step))
 
 
+def offset_reading_is_anchored(
+    anchor: tuple[float, float] | None,
+    *,
+    current: float,
+    tado_inside: float,
+) -> bool:
+    """True when this inside reading was already used for the current offset.
+
+    The reading includes the offset, so another pass would add the same gap.
+    """
+    if anchor is None:
+        return False
+    anchored_inside, anchored_offset = anchor
+    return (
+        abs(current - anchored_offset) < OFFSET_STEP
+        and abs(tado_inside - anchored_inside) < OFFSET_STEP
+    )
+
+
 def compute_device_offset(
     thermostat: float, tado_inside: float, current_offset: float
 ) -> float:
