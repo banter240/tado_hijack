@@ -64,6 +64,10 @@ CONF_ZONE_WINDOW_RESUME_SCHEDULE: Final = "zone_window_resume_schedule"
 WINDOW_SENSOR_NONE: Final = "none"
 WINDOW_SENSOR_MULTIPLE: Final = "multiple"
 WINDOW_SENSOR_SENTINELS: Final = frozenset({WINDOW_SENSOR_NONE, WINDOW_SENSOR_MULTIPLE})
+# on means open. A lock's on means unlocked, so it is not a contact.
+WINDOW_CONTACT_DEVICE_CLASSES: Final[frozenset[str]] = frozenset(
+    {"door", "window", "opening"}
+)
 
 # Window handler modes (select options, persisted per zone)
 WINDOW_MODE_DIRECT: Final = "direct"
