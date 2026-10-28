@@ -18,6 +18,8 @@ from ..const import (
     GEN_X,
     HTTP_UNPROCESSABLE_ENTITY,
     OFF_MAGIC_TEMP,
+    POWER_OFF,
+    POWER_ON,
 )
 from .command_merger import manual_poll_includes
 from .logging_utils import get_redacted_logger
@@ -44,7 +46,19 @@ def map_magic_temp_to_power(temp: float | None) -> tuple[float | None, str]:
         - (temp, "ON") for normal temperatures
 
     """
-    return (None, "OFF") if temp == OFF_MAGIC_TEMP else (temp, "ON")
+    return (None, POWER_OFF) if temp == OFF_MAGIC_TEMP else (temp, POWER_ON)
+
+
+def resolve_overlay_power(
+    setting: dict[str, Any] | None,
+) -> tuple[float | None, str]:
+    """Temperature and power for one merged overlay."""
+    setting = setting or {}
+    temp = (setting.get("temperature") or {}).get("celsius")
+    # A later off keeps an older temperature in the merged setting.
+    if setting.get("power") == POWER_OFF:
+        return None, POWER_OFF
+    return map_magic_temp_to_power(temp)
 
 
 class TadoExecutorBase(ABC):
