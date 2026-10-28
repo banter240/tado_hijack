@@ -390,6 +390,9 @@
       "window_close_delay": {
         "name": "Window Close Delay"
       },
+      "linked_resume_delay": {
+        "name": "Linked Resume Delay"
+      },
       "target_temperature": {
         "name": "Target Temperature"
       },

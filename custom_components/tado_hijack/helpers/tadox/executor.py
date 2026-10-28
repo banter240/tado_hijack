@@ -7,9 +7,10 @@ from typing import TYPE_CHECKING, Any
 
 from ...const import BOOST_MODE_TEMP, POWER_OFF, POWER_ON, TEMP_TOLERANCE
 from ...lib.tadox_api import TadoXApi
-from ..executor_base import TadoExecutorBase, resolve_overlay_power
+from ..executor_base import TadoExecutorBase
 from ..logging_utils import get_redacted_logger
 from ..optimistic_manager import ZoneOverlayFields
+from ..overlay_power import resolve_overlay_power
 
 if TYPE_CHECKING:
     from ...coordinator import TadoDataUpdateCoordinator

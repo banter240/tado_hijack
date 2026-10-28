@@ -118,6 +118,7 @@ from .helpers.hot_water_duration import (
     programmer_next_block,
     programmer_return_mode,
 )
+from .helpers.linked_resume import LinkedResume
 from .helpers.local_proxy import LocalProxyManager
 from .helpers.logging_utils import get_redacted_logger, log_secrets, redact
 from .helpers.offline_fallback import OfflineFallback
@@ -380,6 +381,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         self.availability_tracker = AvailabilityTracker(self)
         self.local_proxy = LocalProxyManager(self)
         self.recovery_queue = LocalRecoveryQueue(self, self.availability_tracker)
+        self.linked_resume = LinkedResume(self)
         self.offline_fallback = OfflineFallback(self)
         self.recovery_listener = LocalRecoveryListener(
             hass, self, self.availability_tracker, self.recovery_queue
@@ -1038,6 +1040,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         self._cancel_interval_cal_hold()
         self.hot_water_duration.shutdown()
         self.window_controller.shutdown()
+        self.linked_resume.shutdown()
         self.offline_fallback.shutdown()
         self.recovery_listener.shutdown()
         self.availability_tracker.shutdown()
@@ -1213,7 +1216,10 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         )
 
     def _execute_resume_command(
-        self, zone_id: int, operation_mode: str | None = None
+        self,
+        zone_id: int,
+        operation_mode: str | None = None,
+        grace_period: float | None = None,
     ) -> None:
         """Apply optimistic resume state and queue the RESUME_SCHEDULE command."""
         old_state = patch_zone_resume(self.data.zone_states.get(str(zone_id)))
@@ -1221,6 +1227,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             zone_id,
             overlay=False,
             fields=ZoneOverlayFields(operation_mode=operation_mode),
+            grace_period=grace_period,
         )
         self.async_update_listeners()
         self.offline_fallback.remember_schedule(zone_id)
@@ -1244,7 +1251,10 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         if await self.offline_fallback.async_take_auto(zone_id):
             self._execute_resume_command(zone_id)
             return
+        held = self.linked_resume.hold(zone_id)
         await self.offline_fallback.async_paint_cached_block(zone_id)
+        if held:
+            return
         self._execute_resume_command(zone_id)
 
         # Trigger refresh only for AC and Hot Water zones (TRVs are excluded)

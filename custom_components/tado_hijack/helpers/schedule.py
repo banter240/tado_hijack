@@ -965,6 +965,14 @@ def _span_at(spans: list[PlanSpan], now: datetime) -> PlanSpan | None:
     return next((span for span in spans if span.start <= now < span.end), None)
 
 
+def cached_current_span(
+    cache: dict[Any, Any], zone_id: int, now: datetime
+) -> PlanSpan | None:
+    """Block that covers now in one cached plan, or None when it does not."""
+    days, timetable = cached_plan(cache, zone_id)
+    return current_plan_span(days, now, timetable) if days else None
+
+
 def current_plan_span(
     days: dict[str, list[dict[str, Any]]],
     now: datetime,

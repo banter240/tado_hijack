@@ -16,27 +16,27 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
 
 import aiohttp
-from homeassistant.const import ATTR_TEMPERATURE
 from homeassistant.util import dt as dt_util
 
 from ..const import (
-    OFF_MAGIC_TEMP,
     POWER_OFF,
     POWER_ON,
-    TEMP_TOLERANCE,
-    ZONE_TYPE_HEATING,
     ZONE_TYPE_HOT_WATER,
 )
 from .local_climate import (
     async_apply_known_setpoint,
-    climate_is_off,
+    climate_power_temp,
     linked_climate_ids,
 )
 from .logging_utils import get_redacted_logger
 from .optimistic_manager import ZoneOverlayFields
-from .schedule import PlanSpan, cached_plan, current_plan_span
+from .overlay_power import map_magic_temp_to_power
+from .schedule import PlanSpan, cached_current_span, cached_plan
 from .zone_utils import (
     get_zone_type,
+    known_zone_power_temp,
+    local_heating_zone,
+    same_setpoint,
     zone_follows_cloud_schedule,
     zone_id_for_serial,
 )
@@ -52,20 +52,6 @@ _UNREACHABLE_TEXT = ("timeout", "connect", "network", "unreachable", "dns")
 _QUIET_S = 5.0
 _HTTP_SERVER_ERROR = 500
 _FAILURES_BEFORE_OFFLINE = 2
-
-
-def _same_setpoint(
-    power: str,
-    temperature: float | None,
-    other_power: str,
-    other_temperature: float | None,
-) -> bool:
-    """True when both sides are off, or both are the same heat target."""
-    if POWER_OFF in (power, other_power):
-        return power == other_power
-    if temperature is None or other_temperature is None:
-        return False
-    return abs(float(temperature) - float(other_temperature)) < TEMP_TOLERANCE
 
 
 def _http_status(err: BaseException) -> int | None:
@@ -143,9 +129,11 @@ class OfflineFallback:
         temperature: float | None = None,
     ) -> None:
         """Keep a manual setpoint until the cloud call lands or calls have to wait."""
-        if temperature == OFF_MAGIC_TEMP:
+        self._coordinator.linked_resume.drop(zone_id)
+        mapped_temp, mapped_power = map_magic_temp_to_power(temperature)
+        if mapped_power == POWER_OFF:
             power = POWER_OFF
-            temperature = None
+            temperature = mapped_temp
         self._pending[zone_id] = (_MODE_MANUAL, power, temperature)
 
     def suppress_writes(self, entity_ids: list[str]) -> None:
@@ -343,39 +331,15 @@ class OfflineFallback:
                 ids.append(zone_id)
         return ids
 
-    def _known_power_temp(self, zone_id: int) -> tuple[str, float | None] | None:
-        """Power and target already stored for a manual zone. None when unknown."""
-        power = self._coordinator.optimistic.get_zone_power(zone_id)
-        temperature = self._coordinator.optimistic.get_zone_temperature(zone_id)
-        if power is None and self._coordinator.data is not None:
-            state = self._coordinator.data.zone_states.get(str(zone_id))
-            setting = getattr(state, "setting", None) if state else None
-            power = getattr(setting, "power", None) if setting else None
-            temp_obj = getattr(setting, "temperature", None) if setting else None
-            raw = getattr(temp_obj, "celsius", None) if temp_obj else None
-            temperature = float(raw) if isinstance(raw, int | float) else None
-        if not isinstance(power, str):
-            return None
-        if temperature is not None and not isinstance(temperature, int | float):
-            temperature = None
-        return power, float(temperature) if temperature is not None else None
-
     def _is_hot_water(self, zone_id: int) -> bool:
         if self._coordinator._is_tadox_hot_water_zone(zone_id):
             return True
         zone = self._coordinator.zones_meta.get(zone_id)
         return get_zone_type(zone, None) == ZONE_TYPE_HOT_WATER
 
-    def _is_local_heating(self, zone_id: int) -> bool:
-        """Heating zone with a real metadata row. Hot water and missing rows are not."""
-        if self._is_hot_water(zone_id):
-            return False
-        zone = self._coordinator.zones_meta.get(zone_id)
-        return False if zone is None else get_zone_type(zone) == ZONE_TYPE_HEATING
-
     def _climates_to_paint(self, zone_id: int) -> list[str] | None:
         """Linked heating climates, or None when this zone must not be written."""
-        if not self._is_local_heating(zone_id):
+        if not local_heating_zone(self._coordinator, zone_id):
             return None
         if self._coordinator.window_controller.zone_window_is_open(zone_id):
             return None
@@ -395,15 +359,10 @@ class OfflineFallback:
             return
         if self._coordinator.window_controller.zone_window_is_open(zone_id):
             return
-        state = self._coordinator.hass.states.get(entity_id)
-        if state is None or state.state in {"unavailable", "unknown"}:
+        reading = climate_power_temp(self._coordinator.hass.states.get(entity_id))
+        if reading is None:
             return
-        if climate_is_off(state):
-            power, temperature = POWER_OFF, None
-        else:
-            raw = state.attributes.get(ATTR_TEMPERATURE)
-            temperature = float(raw) if isinstance(raw, int | float) else None
-            power = POWER_ON
+        power, temperature = reading
         if self._remember_known_manual(zone_id, power, temperature):
             return
         if self._setpoint_matches(zone_id, power, temperature):
@@ -427,8 +386,8 @@ class OfflineFallback:
         """Store the cloud manual setpoint the first time we see it. No flush."""
         if self._mode.get(zone_id) != _MODE_MANUAL or zone_id in self._manual:
             return False
-        known = self._known_power_temp(zone_id)
-        if known is None or not _same_setpoint(power, temperature, known[0], known[1]):
+        known = known_zone_power_temp(self._coordinator, zone_id)
+        if known is None or not same_setpoint(power, temperature, known[0], known[1]):
             return False
         self._manual[zone_id] = (power, temperature)
         return True
@@ -446,20 +405,21 @@ class OfflineFallback:
             return True
         if mode == _MODE_MANUAL and zone_id in self._manual:
             stored_power, stored_temp = self._manual[zone_id]
-            return _same_setpoint(power, temperature, stored_power, stored_temp)
+            return same_setpoint(power, temperature, stored_power, stored_temp)
         if mode != _MODE_SCHEDULE:
             return False
         span = self._cached_span(zone_id)
         if span is None:
             return False
-        return _same_setpoint(power, temperature, span.power, span.temperature)
+        return same_setpoint(power, temperature, span.power, span.temperature)
 
     def _cached_span(self, zone_id: int) -> PlanSpan | None:
         """Block that covers now, or None when the cache has no block there."""
-        days, timetable = cached_plan(
-            self._coordinator.data_manager.schedule_blocks_cache, zone_id
+        return cached_current_span(
+            self._coordinator.data_manager.schedule_blocks_cache,
+            zone_id,
+            dt_util.now(),
         )
-        return current_plan_span(days, dt_util.now(), timetable) if days else None
 
     async def async_paint_cached_block(self, zone_id: int) -> bool:
         """Set linked climates to the cached block that covers now.

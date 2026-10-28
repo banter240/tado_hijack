@@ -10,10 +10,14 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.util import dt as dt_util
 
 from ..const import (
+    POWER_OFF,
+    TEMP_TOLERANCE,
     ZONE_SAMPLE_MAX_AGE_S,
     ZONE_TYPE_AIR_CONDITIONING,
     ZONE_TYPE_HEATING,
+    ZONE_TYPE_HOT_WATER,
 )
+from .parsers import zone_setting_power_temp
 
 if TYPE_CHECKING:
     from ..coordinator import TadoDataUpdateCoordinator
@@ -38,6 +42,45 @@ def get_zone_type(
 ) -> str | None:
     """Safely extract zone type with consistent fallback."""
     return default if zone is None else getattr(zone, "type", default)
+
+
+def same_setpoint(
+    power: str,
+    temperature: float | None,
+    other_power: str,
+    other_temperature: float | None,
+) -> bool:
+    """True when both sides are off, or both are the same heat target."""
+    if POWER_OFF in (power, other_power):
+        return power == other_power
+    if temperature is None or other_temperature is None:
+        return False
+    return abs(float(temperature) - float(other_temperature)) < TEMP_TOLERANCE
+
+
+def local_heating_zone(coordinator: TadoDataUpdateCoordinator, zone_id: int) -> bool:
+    """Heating zone with a metadata row. Hot water has no local actuator."""
+    if coordinator._is_tadox_hot_water_zone(zone_id):
+        return False
+    zone = coordinator.zones_meta.get(zone_id)
+    if zone is None or get_zone_type(zone, None) == ZONE_TYPE_HOT_WATER:
+        return False
+    return get_zone_type(zone) == ZONE_TYPE_HEATING
+
+
+def known_zone_power_temp(
+    coordinator: TadoDataUpdateCoordinator, zone_id: int
+) -> tuple[str, float | None] | None:
+    """Power and target already stored for a manual zone. Optimistic power wins."""
+    power = coordinator.optimistic.get_zone_power(zone_id)
+    temperature = coordinator.optimistic.get_zone_temperature(zone_id)
+    if power is None and coordinator.data is not None:
+        return zone_setting_power_temp(coordinator.data.zone_states.get(str(zone_id)))
+    if not isinstance(power, str):
+        return None
+    if temperature is not None and not isinstance(temperature, int | float):
+        temperature = None
+    return power, float(temperature) if temperature is not None else None
 
 
 def cloud_climate_can_follow_schedule(

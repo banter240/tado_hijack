@@ -390,6 +390,9 @@
       "window_close_delay": {
         "name": "Fenster-Schließverzögerung"
       },
+      "linked_resume_delay": {
+        "name": "Verknüpfte Resume-Verzögerung"
+      },
       "target_temperature": {
         "name": "Soll-Temperatur"
       },

@@ -17,9 +17,6 @@ from ..const import (
     CONF_CALL_JITTER_ENABLED,
     GEN_X,
     HTTP_UNPROCESSABLE_ENTITY,
-    OFF_MAGIC_TEMP,
-    POWER_OFF,
-    POWER_ON,
 )
 from .command_merger import manual_poll_includes
 from .logging_utils import get_redacted_logger
@@ -30,35 +27,6 @@ if TYPE_CHECKING:
     from ..coordinator import TadoDataUpdateCoordinator
 
 _LOGGER = get_redacted_logger(__name__)
-
-
-def map_magic_temp_to_power(temp: float | None) -> tuple[float | None, str]:
-    """Map magic temperature value to final temperature and power state.
-
-    Magic number convention: temp=OFF_MAGIC_TEMP means OFF mode (last-call-wins merge logic).
-
-    Args:
-        temp: Temperature from merged overlay (may be magic number OFF_MAGIC_TEMP)
-
-    Returns:
-        (final_temperature, power_state) tuple:
-        - (None, "OFF") if temp is magic number OFF_MAGIC_TEMP
-        - (temp, "ON") for normal temperatures
-
-    """
-    return (None, POWER_OFF) if temp == OFF_MAGIC_TEMP else (temp, POWER_ON)
-
-
-def resolve_overlay_power(
-    setting: dict[str, Any] | None,
-) -> tuple[float | None, str]:
-    """Temperature and power for one merged overlay."""
-    setting = setting or {}
-    temp = (setting.get("temperature") or {}).get("celsius")
-    # A later off keeps an older temperature in the merged setting.
-    if setting.get("power") == POWER_OFF:
-        return None, POWER_OFF
-    return map_magic_temp_to_power(temp)
 
 
 class TadoExecutorBase(ABC):

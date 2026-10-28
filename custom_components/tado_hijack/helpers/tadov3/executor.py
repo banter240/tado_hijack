@@ -5,8 +5,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from ...const import CIRCUIT_UNASSIGNED, POWER_OFF
-from ..executor_base import TadoExecutorBase, resolve_overlay_power
+from ..executor_base import TadoExecutorBase
 from ..logging_utils import get_redacted_logger
+from ..overlay_power import resolve_overlay_power
 
 if TYPE_CHECKING:
     from ...coordinator import TadoDataUpdateCoordinator

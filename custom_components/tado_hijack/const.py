@@ -91,6 +91,10 @@ MAX_WINDOW_RESUME_BATCH_S: Final = 3600
 DEFAULT_WINDOW_DELAY_S: Final = 0
 DEFAULT_ZONE_WINDOW_RESUME_SCHEDULE: Final = True
 MAX_WINDOW_DELAY_S: Final = 3600
+# The bridge uploads the local setpoint about two minutes later.
+CONF_LINKED_RESUME_DELAY_S: Final = "linked_resume_delay_s"
+DEFAULT_LINKED_RESUME_DELAY_S: Final = 120
+MAX_LINKED_RESUME_DELAY_S: Final = 3600
 MAX_WINDOW_CONTACTS: Final = 8
 WINDOW_CONTACTS: Final = "window_contacts"
 CONF_OFFSET_CAL_INTERVAL: Final = "offset_cal_interval"
