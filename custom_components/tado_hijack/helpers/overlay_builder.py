@@ -46,7 +46,41 @@ def get_capped_temperature(
     return min(temperature, limit)
 
 
-def build_overlay_data(
+def termination_from_default_overlay(payload: Any) -> dict[str, Any] | None:
+    """Copy defaultOverlay.terminationCondition.type into typeSkillBasedApp.
+
+    The room setting uses that type when a thermostat changes the setpoint.
+    TADO_MODE is until the next block. MANUAL is until resume. TIMER keeps
+    its durationInSeconds. None when the payload has no known type.
+    """
+    if not isinstance(payload, dict):
+        return None
+    condition = payload.get("terminationCondition")
+    if not isinstance(condition, dict):
+        return None
+    kind = condition.get("type")
+    if kind not in {
+        TERMINATION_MANUAL,
+        TERMINATION_TADO_MODE,
+        TERMINATION_TIMER,
+        TERMINATION_NEXT_TIME_BLOCK,
+    }:
+        return None
+    termination: dict[str, Any] = {"typeSkillBasedApp": kind}
+    if kind == TERMINATION_TIMER:
+        seconds = condition.get("durationInSeconds")
+        if not isinstance(seconds, int) or isinstance(seconds, bool) or seconds <= 0:
+            seconds = DEFAULT_OVERLAY_DURATION_S
+        termination["durationInSeconds"] = seconds
+    return termination
+
+
+def until_next_block_termination() -> dict[str, Any]:
+    """Used when the room default could not be read."""
+    return {"typeSkillBasedApp": TERMINATION_TADO_MODE}
+
+
+def build_overlay_data(  # noqa: PLR0913
     zone_id: int,
     zones_meta: dict[int, Zone],
     power: str = POWER_ON,
@@ -57,6 +91,8 @@ def build_overlay_data(
     ac_mode: str | None = None,
     supports_temp: bool = True,
     additional_setting_fields: dict[str, Any] | None = None,
+    *,
+    termination: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the overlay data dictionary for Tado API.
 
@@ -81,18 +117,20 @@ def build_overlay_data(
         # Fallback should never be None when using default ZONE_TYPE_HEATING
         assert overlay_type is not None, f"Zone {zone_id} has no type"
 
-    if overlay_mode == OVERLAY_NEXT_BLOCK:
-        termination: dict[str, Any] = {"typeSkillBasedApp": TERMINATION_NEXT_TIME_BLOCK}
+    if termination is not None:
+        chosen = dict(termination)
+    elif overlay_mode == OVERLAY_NEXT_BLOCK:
+        chosen = {"typeSkillBasedApp": TERMINATION_NEXT_TIME_BLOCK}
     elif overlay_mode == OVERLAY_PRESENCE:
-        termination = {"type": TERMINATION_TADO_MODE}
+        chosen = {"type": TERMINATION_TADO_MODE}
     elif overlay_mode == OVERLAY_TIMER or duration:
         seconds = duration * 60 if duration else DEFAULT_OVERLAY_DURATION_S
-        termination = {
+        chosen = {
             "typeSkillBasedApp": TERMINATION_TIMER,
             "durationInSeconds": seconds,
         }
     else:
-        termination = {"typeSkillBasedApp": TERMINATION_MANUAL}
+        chosen = {"typeSkillBasedApp": TERMINATION_MANUAL}
 
     setting: dict[str, Any] = {"type": overlay_type, "power": power}
     if ac_mode:
@@ -119,7 +157,7 @@ def build_overlay_data(
     if additional_setting_fields:
         setting |= additional_setting_fields
 
-    payload = {"setting": setting, "termination": termination}
+    payload = {"setting": setting, "termination": chosen}
 
     # Validate payload before returning (saves API quota on invalid requests)
     is_valid, error = validate_overlay_payload(payload, overlay_type, supports_temp)

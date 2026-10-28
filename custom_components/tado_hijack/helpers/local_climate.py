@@ -23,7 +23,7 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant, State
 
-from ..const import POWER_OFF, PROTECTION_MODE_TEMP
+from ..const import POWER_OFF, POWER_ON, PROTECTION_MODE_TEMP
 from .logging_utils import get_redacted_logger
 from .zone_utils import trv_serials
 
@@ -37,6 +37,17 @@ def climate_min_setpoint(state: State | None) -> float:
     if isinstance(raw, int | float):
         return float(raw)
     return float(PROTECTION_MODE_TEMP)
+
+
+def climate_power_temp(state: State | None) -> tuple[str, float | None] | None:
+    """Off, or heat at the target. Unavailable and unknown are None."""
+    if state is None or state.state in _SKIP:
+        return None
+    if climate_is_off(state):
+        return POWER_OFF, None
+    raw = state.attributes.get(ATTR_TEMPERATURE)
+    temperature = float(raw) if isinstance(raw, int | float) else None
+    return POWER_ON, temperature
 
 
 def climate_is_off(state: State | None) -> bool:

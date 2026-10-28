@@ -245,15 +245,12 @@ def release_foreign_devices(
 def _add_serial(found: set[str], raw: object) -> None:
     if not isinstance(raw, str):
         return
-    serial = normalize_serial(raw)
-    if serial:
+    if serial := normalize_serial(raw):
         found.add(serial)
 
 
 def _field(item: object, name: str) -> object:
-    if isinstance(item, dict):
-        return item.get(name)
-    return getattr(item, name, None)
+    return item.get(name) if isinstance(item, dict) else getattr(item, name, None)
 
 
 def _live_zone_ids(zones_meta: Mapping[Any, Any]) -> set[int] | None:
@@ -264,9 +261,7 @@ def _live_zone_ids(zones_meta: Mapping[Any, Any]) -> set[int] | None:
             cloud.add(key)
         elif isinstance(key, str) and key.isdigit():
             cloud.add(int(key))
-    if not cloud:
-        return None
-    return cloud | _OWN_ZONE_IDS
+    return cloud | _OWN_ZONE_IDS if cloud else None
 
 
 def _live_serials(

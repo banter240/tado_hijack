@@ -108,6 +108,16 @@ class TadoHijackClient(Tado):
             method=HttpMethod.PUT,
         )
 
+    async def get_zone_default_overlay(self, zone_id: int) -> dict[str, Any]:
+        """Room default termination. One read per zone, not part of the poll."""
+        response = await self._request(
+            f"homes/{self._home_id}/zones/{zone_id}/defaultOverlay"
+        )
+        payload = orjson.loads(response)
+        if not isinstance(payload, dict):
+            raise ValueError(f"Zone {zone_id} default overlay was not an object")
+        return cast(dict[str, Any], payload)
+
     async def get_away_configuration(self, zone_id: int) -> dict[str, Any]:
         """Get the away configuration for a zone."""
         response = await self._request(

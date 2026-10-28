@@ -117,6 +117,7 @@ from ..entity import TadoEntity
 from .device_link import device_identifier, zone_device_identifier
 from .device_linker import get_local_device, invalidate_cache
 from .discovery import get_bridges, yield_devices
+from .local_climate import climate_is_off
 from .logging_utils import get_redacted_logger
 from .zone_utils import (
     cloud_climate_can_follow_schedule,
@@ -132,6 +133,68 @@ if TYPE_CHECKING:
 _LOGGER = get_redacted_logger(__name__)
 _SERVICE_TARGET_KEYS = frozenset(marker.schema for marker in cv.TARGET_SERVICE_FIELDS)
 _SKIP = {STATE_UNAVAILABLE, STATE_UNKNOWN}
+_FORWARD_MODES = {
+    HVACMode.HEAT,
+    HVACMode.COOL,
+    HVACMode.OFF,
+    HVACMode.DRY,
+    HVACMode.FAN_ONLY,
+    HVACMode.HEAT_COOL,
+}
+
+
+def deduped_hvac_modes(raw: Any) -> list[HVACMode]:
+    """Unique modes from a source list, in the order they first appear."""
+    modes: list[HVACMode] = []
+    if not isinstance(raw, list):
+        return modes
+    for item in raw:
+        with contextlib.suppress(ValueError):
+            mode = HVACMode(item)
+            if mode not in modes:
+                modes.append(mode)
+    return modes
+
+
+def proxy_hvac_modes(raw: Any, *, add_auto: bool) -> list[HVACMode]:
+    """Source modes, plus off when the accessory has none, plus auto."""
+    if not isinstance(raw, list) or not raw:
+        modes = [HVACMode.OFF, HVACMode.HEAT]
+    else:
+        modes = deduped_hvac_modes(raw)
+        if not modes:
+            modes = [HVACMode.OFF]
+        elif HVACMode.OFF not in modes:
+            modes.insert(0, HVACMode.OFF)
+    if add_auto and HVACMode.AUTO not in modes:
+        modes.append(HVACMode.AUTO)
+    return modes
+
+
+def proxy_temperature_mode(
+    requested: Any,
+    source_state: str | None,
+    source_modes: list[HVACMode],
+) -> HVACMode | None:
+    """Mode to send with a temperature. None means omit it.
+
+    Auto is the schedule mode on the copy. HomeKit has no value for it.
+    Heat and cool stay as they are. A heating accessory sitting in HomeKit
+    auto (heat_cool, and no cool mode) is switched to heat so the target
+    is written.
+    """
+    if requested in _FORWARD_MODES:
+        mode = HVACMode(requested)
+        return None if source_modes and mode not in source_modes else mode
+    if source_state in {HVACMode.HEAT, HVACMode.COOL}:
+        return None
+    heating_only = HVACMode.HEAT in source_modes and HVACMode.COOL not in source_modes
+    if heating_only and (
+        requested == HVACMode.AUTO
+        or source_state in {HVACMode.HEAT_COOL, HVACMode.AUTO}
+    ):
+        return HVACMode.HEAT
+    return None
 
 
 @dataclass(frozen=True)
@@ -489,12 +552,19 @@ class TadoLocalClimateProxy(TadoLocalProxyBase, ClimateEntity):
         attrs.pop(ATTR_HVAC_MODES, None)
         return attrs
 
+    def _source_modes(self) -> list[HVACMode]:
+        state = self._source()
+        raw = state.attributes.get(ATTR_HVAC_MODES) if state else None
+        return deduped_hvac_modes(raw)
+
     @property
     def hvac_mode(self) -> HVACMode:
         if self._on_cloud_schedule():
             return HVACMode.AUTO
         state = self._source()
-        if state is None:
+        if state is None or state.state in _SKIP:
+            return HVACMode.OFF
+        if HVACMode.OFF not in self._source_modes() and climate_is_off(state):
             return HVACMode.OFF
         try:
             return HVACMode(state.state)
@@ -505,21 +575,12 @@ class TadoLocalClimateProxy(TadoLocalProxyBase, ClimateEntity):
     def hvac_modes(self) -> list[HVACMode]:
         state = self._source()
         raw = state.attributes.get(ATTR_HVAC_MODES) if state else None
-        if not raw:
-            modes = [HVACMode.OFF, HVACMode.HEAT]
-        else:
-            modes = []
-            for item in raw:
-                with contextlib.suppress(ValueError):
-                    modes.append(HVACMode(item))
-            if not modes:
-                modes = [HVACMode.OFF]
-        if (
-            cloud_climate_can_follow_schedule(self.tado_coordinator, self._host.zone_id)
-            and HVACMode.AUTO not in modes
-        ):
-            modes.append(HVACMode.AUTO)
-        return modes
+        return proxy_hvac_modes(
+            raw,
+            add_auto=cloud_climate_can_follow_schedule(
+                self.tado_coordinator, self._host.zone_id
+            ),
+        )
 
     @property
     def hvac_action(self) -> HVACAction | None:
@@ -633,6 +694,27 @@ class TadoLocalClimateProxy(TadoLocalProxyBase, ClimateEntity):
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         data = {key: value for key, value in kwargs.items() if value is not None}
+        requested = data.pop(ATTR_HVAC_MODE, None)
+        source = self._source()
+        source_modes = self._source_modes()
+        mode = proxy_temperature_mode(
+            requested,
+            None if source is None else source.state,
+            source_modes,
+        )
+        if (
+            mode == HVACMode.HEAT
+            and source is not None
+            and source.state != HVACMode.HEAT
+            and HVACMode.HEAT in source_modes
+        ):
+            await self._async_call(
+                CLIMATE_DOMAIN,
+                SERVICE_SET_HVAC_MODE,
+                {ATTR_HVAC_MODE: HVACMode.HEAT},
+            )
+        if mode is not None:
+            data[ATTR_HVAC_MODE] = mode
         await self._async_call(CLIMATE_DOMAIN, SERVICE_SET_TEMPERATURE, data)
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
@@ -644,6 +726,13 @@ class TadoLocalClimateProxy(TadoLocalProxyBase, ClimateEntity):
                     "This zone cannot follow a cloud schedule."
                 )
             await self.coordinator.async_set_zone_auto(self._host.zone_id)
+            return
+        if hvac_mode == HVACMode.OFF and HVACMode.OFF not in self._source_modes():
+            await self._async_call(
+                CLIMATE_DOMAIN,
+                SERVICE_SET_TEMPERATURE,
+                {ATTR_TEMPERATURE: self.min_temp},
+            )
             return
         await self._async_call(
             CLIMATE_DOMAIN, SERVICE_SET_HVAC_MODE, {ATTR_HVAC_MODE: hvac_mode}
@@ -680,6 +769,9 @@ class TadoLocalClimateProxy(TadoLocalProxyBase, ClimateEntity):
         await self._async_call(CLIMATE_DOMAIN, SERVICE_TURN_ON, kwargs)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
+        if HVACMode.OFF not in self._source_modes():
+            await self.async_set_hvac_mode(HVACMode.OFF)
+            return
         await self._async_call(CLIMATE_DOMAIN, SERVICE_TURN_OFF, kwargs)
 
 

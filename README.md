@@ -596,6 +596,7 @@ Global controls for the home. Classic links them to the Internet Bridge. Tado X 
 | `select.tado_{home}_offset_cal_interval`   | Select | When to compare the linked sensor with the TRV: a clock slot, `on_reset`, or `threshold` (keep watching). A write still needs the deviation in the row below. Off by default. Zones can override (`inherit` uses this value). Cooldown and window pause are the two config rows above. |
 | `number.tado_{home}_offset_cal_spread_threshold` | Number | Default minimum delta (°C) before an offset is written. Zones can override it; `0` on the zone number clears the override. |
 | `button.tado_{home}_calibrate_offsets`     | Button | Run that calibration now (same formula, same linked thermostats). Works even if the interval is `off`. 1 write per measuring device that needs a change, and a GET only when no offset is known. |
+| `number.tado_{home}_linked_resume_delay`   | Number | Seconds before a linked HomeKit or Matter heating zone resumes on the cloud. Default `120`, max `3600`. `0` resumes at once. The same setpoint coming back still resumes once more. |
 | `button.tado_{home}_resume_all_schedules`  | Button | Restore Smart Schedule across all zones (1 bulk call).            |
 | `button.tado_{home}_turn_off_all_zones`    | Button | Turn off all zones instantly (1 bulk call).                       |
 | `button.tado_{home}_boost_all_zones`       | Button | One bulk call. Classic overlay at 25°C. Tado X is `quickActions/boost` with no temperature in the body. |

@@ -83,6 +83,18 @@ def resolve_zone_mode(overlay_active: bool, power: str, is_boost: bool) -> str:
     return ZONE_MODE_BOOST if is_boost else ZONE_MODE_MANUAL
 
 
+def zone_setting_power_temp(state: Any) -> tuple[str, float | None] | None:
+    """Power and target on a zone state. Tado X exposes the target as celsius too."""
+    setting = getattr(state, "setting", None) if state is not None else None
+    power = getattr(setting, "power", None) if setting is not None else None
+    if not isinstance(power, str) or not power:
+        return None
+    temp_obj = getattr(setting, "temperature", None)
+    raw = getattr(temp_obj, "celsius", None) if temp_obj is not None else None
+    temperature = float(raw) if isinstance(raw, int | float) else None
+    return power, temperature
+
+
 def parse_schedule_temperature(state: Any) -> float | None:
     """Extract the target temperature from the active schedule in zone state.
 

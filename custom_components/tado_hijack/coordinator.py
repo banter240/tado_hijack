@@ -87,6 +87,7 @@ from .const import (
     OVERLAY_MANUAL,
     OVERLAY_NEXT_BLOCK,
     OVERLAY_PRESENCE,
+    OVERLAY_ROOM,
     OVERLAY_TIMER,
     POWER_OFF,
     POWER_ON,
@@ -118,12 +119,17 @@ from .helpers.hot_water_duration import (
     programmer_next_block,
     programmer_return_mode,
 )
+from .helpers.linked_resume import LinkedResume
 from .helpers.local_proxy import LocalProxyManager
 from .helpers.logging_utils import get_redacted_logger, log_secrets, redact
 from .helpers.offline_fallback import OfflineFallback
 from .helpers.offset_cal_config import OffsetCalSchedulerMixin
 from .helpers.optimistic_manager import OptimisticManager, ZoneOverlayFields
-from .helpers.overlay_builder import build_overlay_data
+from .helpers.overlay_builder import (
+    build_overlay_data,
+    termination_from_default_overlay,
+    until_next_block_termination,
+)
 from .helpers.poll_scheduler import PollScheduler
 from .helpers.property_manager import PropertyManager
 from .helpers.quota_math import (
@@ -380,6 +386,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         self.availability_tracker = AvailabilityTracker(self)
         self.local_proxy = LocalProxyManager(self)
         self.recovery_queue = LocalRecoveryQueue(self, self.availability_tracker)
+        self.linked_resume = LinkedResume(self)
         self.offline_fallback = OfflineFallback(self)
         self.recovery_listener = LocalRecoveryListener(
             hass, self, self.availability_tracker, self.recovery_queue
@@ -400,6 +407,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         self.devices_meta: dict[str, Device] = {}
         self.bridges: list[Device] = []
         self._climate_to_zone: dict[str, int] = {}
+        self._default_termination: dict[int, dict[str, Any]] = {}
         self._polling_calls_today = 0
         self._last_quota_reset: datetime | None = None
         self._last_remaining: int | None = None
@@ -1038,6 +1046,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         self._cancel_interval_cal_hold()
         self.hot_water_duration.shutdown()
         self.window_controller.shutdown()
+        self.linked_resume.shutdown()
         self.offline_fallback.shutdown()
         self.recovery_listener.shutdown()
         self.availability_tracker.shutdown()
@@ -1213,7 +1222,10 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         )
 
     def _execute_resume_command(
-        self, zone_id: int, operation_mode: str | None = None
+        self,
+        zone_id: int,
+        operation_mode: str | None = None,
+        grace_period: float | None = None,
     ) -> None:
         """Apply optimistic resume state and queue the RESUME_SCHEDULE command."""
         old_state = patch_zone_resume(self.data.zone_states.get(str(zone_id)))
@@ -1221,6 +1233,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             zone_id,
             overlay=False,
             fields=ZoneOverlayFields(operation_mode=operation_mode),
+            grace_period=grace_period,
         )
         self.async_update_listeners()
         self.offline_fallback.remember_schedule(zone_id)
@@ -1244,7 +1257,10 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         if await self.offline_fallback.async_take_auto(zone_id):
             self._execute_resume_command(zone_id)
             return
+        held = self.linked_resume.hold(zone_id)
         await self.offline_fallback.async_paint_cached_block(zone_id)
+        if held:
+            return
         self._execute_resume_command(zone_id)
 
         # Trigger refresh only for AC and Hot Water zones (TRVs are excluded)
@@ -2867,6 +2883,37 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             | self._build_ac_light_fields(mode_caps)
         )
 
+    async def async_default_termination(self, zone_id: int) -> dict[str, Any]:
+        """Room default, read once per zone. Until next block when unread."""
+        cached = self._default_termination.get(zone_id)
+        if cached is not None:
+            return dict(cached)
+        try:
+            payload = await self.client.get_zone_default_overlay(zone_id)
+        except Exception:
+            _LOGGER.debug(
+                "Default overlay for zone %s was not read", zone_id, exc_info=True
+            )
+            return until_next_block_termination()
+        parsed = termination_from_default_overlay(payload)
+        if parsed is None:
+            return until_next_block_termination()
+        self._default_termination[zone_id] = parsed
+        return dict(parsed)
+
+    async def _async_room_overlay(
+        self,
+        zone_id: int,
+        overlay_mode: str | None,
+        duration: int | None,
+    ) -> tuple[str | None, int | None, dict[str, Any] | None]:
+        """Resolve a room-default request. Other modes pass through."""
+        if overlay_mode != OVERLAY_ROOM:
+            return overlay_mode, duration, None
+        if self.generation != GEN_CLASSIC:
+            return OVERLAY_MANUAL, duration, None
+        return None, None, await self.async_default_termination(zone_id)
+
     async def async_set_zone_overlay(
         self,
         zone_id: int,
@@ -2889,6 +2936,9 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             if ac_fields:
                 additional_setting_fields = ac_fields
 
+        overlay_mode, duration, termination = await self._async_room_overlay(
+            zone_id, overlay_mode, duration
+        )
         data = build_overlay_data(
             zone_id=zone_id,
             zones_meta=self.zones_meta,
@@ -2900,6 +2950,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             ac_mode=ac_mode,
             supports_temp=self.supports_temperature(zone_id),
             additional_setting_fields=additional_setting_fields,
+            termination=termination,
         )
 
         old_state = patch_zone_overlay(self.data.zone_states.get(str(zone_id)), data)
@@ -2988,6 +3039,9 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
 
         for zone_id in zone_ids:
             zone_temp = self._resolve_zone_temperature(zone_id, temperature, power)
+            zone_mode, zone_duration, termination = await self._async_room_overlay(
+                zone_id, overlay_mode, duration
+            )
 
             zone_additional = additional_setting_fields
             if zone_additional is None:
@@ -3002,12 +3056,13 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
                 zones_meta=self.zones_meta,
                 power=power,
                 temperature=zone_temp,
-                duration=duration,
-                overlay_mode=overlay_mode,
+                duration=zone_duration,
+                overlay_mode=zone_mode,
                 overlay_type=overlay_type,
                 ac_mode=ac_mode,
                 supports_temp=self.supports_temperature(zone_id),
                 additional_setting_fields=zone_additional,
+                termination=termination,
             )
 
             old_state = patch_zone_overlay(

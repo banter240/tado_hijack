@@ -540,6 +540,7 @@ class TadoDataManager:
         self._last_zones_poll = now
         self._zones_init = True
         self._merge_zone_states(states)
+        self.coordinator.linked_resume.note_zone_poll(states)
         return states
 
     async def _fetch_metadata(self, now: float) -> None:
