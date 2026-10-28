@@ -58,11 +58,13 @@ class TadoEventHandler:
                 entity_ids = [entity_ids]
 
             hvac_mode = service_data.get("hvac_mode")
-            is_auto_mode = hvac_mode == "auto"
+            # A temperature is a setpoint. Auto on that call is the card
+            # copying the current mode, not a request to resume the plan.
+            resumes = service == SERVICE_SET_HVAC_MODE and hvac_mode == "auto"
 
             for eid in entity_ids:
                 if (zone_id := self.coordinator._climate_to_zone.get(eid)) is not None:
-                    if is_auto_mode:
+                    if resumes:
                         _LOGGER.debug(
                             "Intercepted AUTO mode on HomeKit climate %s. Resuming schedule for zone %d.",
                             eid,

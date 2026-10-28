@@ -139,9 +139,7 @@ def heating_unique_id_from_ac(entry_id: str, unique_id: str) -> str | None:
     if not unique_id.startswith(prefix):
         return None
     zone_id = unique_id.removeprefix(prefix)
-    if not zone_id.isdigit():
-        return None
-    return f"{entry_id}_climate_heating_{zone_id}"
+    return f"{entry_id}_climate_heating_{zone_id}" if zone_id.isdigit() else None
 
 
 def _v11(hass: HomeAssistant, entry: TadoConfigEntry) -> None:

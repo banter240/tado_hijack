@@ -17,7 +17,7 @@ from .const import (
     DUMMY_ZONE_ID_AC,
     DUMMY_ZONE_ID_HOT_WATER,
     GEN_X,
-    OVERLAY_MANUAL,
+    OVERLAY_ROOM,
     POWER_OFF,
     POWER_ON,
     PROTECTION_MODE_TEMP,
@@ -310,7 +310,7 @@ class TadoClimateEntity(
             zone_id=self._zone_id,
             hvac_mode=hvac_mode,
             temperature=use_temp,
-            overlay_mode=OVERLAY_MANUAL,
+            overlay_mode=OVERLAY_ROOM,
             ac_mode=ac_mode,
         )
 
@@ -333,7 +333,7 @@ class TadoClimateEntity(
             zone_ids=[self._zone_id],
             power=POWER_ON,
             temperature=rounded_temp,
-            overlay_mode=OVERLAY_MANUAL,
+            overlay_mode=OVERLAY_ROOM,
             ac_mode=ac_mode,
         )
 
@@ -452,9 +452,7 @@ class TadoAirConditioning(TadoClimateEntity):
     def _physical_mode(self) -> HVACMode:
         """Return the active mode when the reported mode is auto."""
         mode = self.hvac_mode
-        if mode == HVACMode.AUTO:
-            return self._get_active_hvac_mode()
-        return mode
+        return self._get_active_hvac_mode() if mode == HVACMode.AUTO else mode
 
     def _get_active_hvac_action(self) -> HVACAction:
         """Return the action based on current mode."""
@@ -547,7 +545,7 @@ class TadoAirConditioning(TadoClimateEntity):
             zone_id=self._zone_id,
             power=POWER_ON,
             temperature=None,
-            overlay_mode=OVERLAY_MANUAL,
+            overlay_mode=OVERLAY_ROOM,
             ac_mode="FAN",
             additional_setting_fields=additional_fields,
         )

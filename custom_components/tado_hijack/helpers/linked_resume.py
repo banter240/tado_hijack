@@ -63,9 +63,7 @@ def _as_echo(power: str, temperature: float | None) -> tuple[str, float | None]:
 def _echo_of(
     reading: tuple[str, float | None] | None,
 ) -> tuple[str, float | None] | None:
-    if reading is None:
-        return None
-    return _as_echo(reading[0], reading[1])
+    return None if reading is None else _as_echo(reading[0], reading[1])
 
 
 def _matches(
@@ -107,9 +105,7 @@ def _poll_action(
     if pending:
         return "wait"
     if not sent:
-        if overlay and matches_expected and new_manual:
-            return "resume"
-        return "wait"
+        return "resume" if overlay and matches_expected and new_manual else "wait"
     if corrected or not overlay or not matches_expected:
         return "wait"
     return "correct"
@@ -342,8 +338,7 @@ class LinkedResume:
             return
         pending = self._coordinator.api_manager.pending_keys
         blocked = [zone_id for zone_id in due if f"zone_{zone_id}" in pending]
-        ready = [zone_id for zone_id in due if zone_id not in blocked]
-        if ready:
+        if ready := [zone_id for zone_id in due if zone_id not in blocked]:
             try:
                 await self._coordinator.data_manager._fetch_zones(time.monotonic())
             except Exception:

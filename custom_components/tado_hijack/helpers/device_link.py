@@ -52,9 +52,7 @@ def zone_id_from_device_key(value: str, entry_id: str) -> int | None:
     if not value.startswith(prefix):
         return None
     zone_id = value.removeprefix(prefix)
-    if not zone_id.isdigit():
-        return None
-    return int(zone_id)
+    return int(zone_id) if zone_id.isdigit() else None
 
 
 def zone_id_from_unique_id(unique_id: str) -> int | None:
@@ -64,17 +62,19 @@ def zone_id_from_unique_id(unique_id: str) -> int | None:
         if part == "zone" and parts[index + 1].isdigit():
             return int(parts[index + 1])
     tail = parts[-1]
-    if tail.isdigit():
-        return int(tail)
-    return None
+    return int(tail) if tail.isdigit() else None
 
 
 def serial_from_unique_id(unique_id: str) -> str | None:
     """Serial token encoded in a Hijack unique id."""
-    for part in unique_id.split("_"):
-        if _SERIAL_TOKEN.fullmatch(part):
-            return normalize_serial(part)
-    return None
+    return next(
+        (
+            normalize_serial(part)
+            for part in unique_id.split("_")
+            if _SERIAL_TOKEN.fullmatch(part)
+        ),
+        None,
+    )
 
 
 def parse_identifier(item: object) -> tuple[str, str] | None:

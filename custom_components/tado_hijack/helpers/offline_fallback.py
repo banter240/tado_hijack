@@ -19,6 +19,7 @@ import aiohttp
 from homeassistant.util import dt as dt_util
 
 from ..const import (
+    OVERLAY_ROOM,
     POWER_OFF,
     POWER_ON,
     ZONE_TYPE_HOT_WATER,
@@ -509,4 +510,5 @@ class OfflineFallback:
             zone_id,
             power=power,
             temperature=temperature,
+            overlay_mode=OVERLAY_ROOM,
         )
