@@ -1,3 +1,114 @@
+## [5.13.0-dev.2](https://github.com/banter240/tado_hijack/compare/v5.13.0-dev.1...v5.13.0-dev.2) (2026-10-28)
+
+### ✨ New Features
+
+* feat: drop this home's rooms the cloud no longer lists
+
+  After a fetch that returns rooms, this config entry loses the entities
+  and devices whose room or serial is gone. Another Hijack home is a
+  different config entry and stays. An empty room list removes nothing.
+  The Tado X hot water zone stays.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ✨ ADDED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - a gone room is removed from this home only
+  - a gone serial is removed when this home's device list is present
+  - another Hijack home stays, it is another config entry
+  - an empty room list removes nothing
+  - the Tado X hot water zone stays
+* feat: limit the window contact picker to opening sensors
+
+  The add-contact select listed every binary sensor. A home with
+  hundreds of them could not scroll to the right contact. The list
+  is door, window, and opening. A garage door is not a room contact.
+  A lock reports unlocked as on, and this handler treats on as open.
+  A contact that is already stored stays selectable.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ✨ ADDED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - the window contact select offers door, window, and opening
+  - temperature and humidity source selects use the same class filter
+* feat: resume a linked climate after its setpoint upload
+
+  Heat then auto painted the local climate and resumed the cloud at
+  once. The bridge uploads that setpoint later, so the zone left the
+  schedule. The resume waits, then runs once more if the same setpoint
+  comes back. The wait is a home number.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ✨ ADDED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - a linked heating zone resumes after the bridge can upload
+  - home number for that wait, default 120 seconds, 0 resumes at once
+  - the same setpoint coming back resumes the cloud once more
+  - a zone with no linked climate, and hot water, resume at once
+
+### 🐛 Bug Fixes
+
+* fix: keep a HomeKit setpoint and follow the room overlay
+
+  A temperature on the HomeKit copy resumed the plan when the card
+  sent auto, and HomeKit has no mode for that value. Climate commands
+  always used a manual overlay, which lasts until resume, instead of
+  the room default. A valve that only reports heat had no off mode
+  on the copy.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🐛 FIXED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - a temperature set on the linked thermostat is kept
+  - a climate command follows the room termination
+  - the copy can turn a heat-only valve off
+* fix: report heating on a Tado X room that is on its plan
+
+  Full cloud mode built every Tado X room as an air conditioning
+  climate. Auto is not heat, cool, dry, or fan, so the action stayed
+  idle while heating power was above zero. Those rooms are heating
+  climates. An existing air conditioning unique id is renamed.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🐛 FIXED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - a Tado X room in full cloud mode is a heating climate
+  - heating power above zero on the plan reports heating
+  - the old air conditioning unique id is renamed
+* fix: send power OFF for a Tado X room with no temperature
+
+  HVAC off is stored as power OFF and no temperature. The Tado X
+  executor only read the temperature, so a missing one became power
+  ON. Hops rejects that with HTTP 400, and the room stays heating.
+  Both generation executors read that overlay through one helper.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🐛 FIXED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - explicit power OFF is sent as OFF, without a temperature
+  - the magic off temperature still turns the room off
+  - a heating setpoint is unchanged
+* fix: stop offset calibration while the inside reading is unchanged
+
+  Threshold mode wrote a new offset about once a minute. The inside
+  temperature already includes the offset, so a second pass against
+  the same reading adds the same gap again. That climbed to the clamp.
+  A later pass waits until that reading moves, or the offset is no
+  longer the one just written. The hold sits next to the offset math.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🐛 FIXED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - one threshold write while the TRV inside temperature stays put
+  - a new inside reading is calibrated again
+  - a manual calibration is not held back
+
 ## [5.13.0-dev.1](https://github.com/banter240/tado_hijack/compare/v5.12.0...v5.13.0-dev.1) (2026-10-24)
 
 ### ✨ New Features
