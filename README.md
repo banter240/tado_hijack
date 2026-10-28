@@ -496,7 +496,7 @@ Each zone device exposes selectors that connect external contact sensors to zone
 
 | Entity                           | Purpose                                                        | Accepted values |
 | :------------------------------- | :------------------------------------------------------------- | :-------------- |
-| `select.zone_window_sensor`      | Add a contact. One contact shows that sensor, and `none` unlinks it. Several contacts show `multiple` | Any `binary_sensor`, `none`, or `multiple` |
+| `select.zone_window_sensor`      | Add a contact. One contact shows that sensor, and `none` unlinks it. Several contacts show `multiple` | A `binary_sensor` with device class `door`, `window`, or `opening`, plus `none` or `multiple` |
 | `select.zone_window_sensor_remove` | Remove one linked contact                                    | A linked `binary_sensor`, or `none` |
 | `sensor.window_contacts`         | Diagnostic list of the linked contacts                         | Entity ids, or `none` |
 | `select.zone_window_mode`        | How open/close transitions are translated into zone actions   | `direct`, `timeout` |

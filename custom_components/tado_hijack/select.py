@@ -5,12 +5,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Final, cast
 
 from homeassistant.components.select import SelectEntity
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
     CONF_ZONE_HUMIDITY_ENTITIES,
     CONF_ZONE_TEMP_ENTITIES,
+    WINDOW_CONTACT_DEVICE_CLASSES,
     WINDOW_MODE_OPTIONS,
     WINDOW_SENSOR_MULTIPLE,
     WINDOW_SENSOR_NONE,
@@ -32,6 +34,24 @@ _SOURCE_NONE: Final = "device"
 _LEGACY_SOURCE_SENTINELS: Final = frozenset(
     {"automatic", "auto", "device", "gerät", "gerat"}
 )
+
+
+def entity_ids_with_device_class(
+    hass: HomeAssistant,
+    domain: str,
+    device_classes: str | frozenset[str],
+) -> list[str]:
+    allowed = (
+        frozenset({device_classes})
+        if isinstance(device_classes, str)
+        else device_classes
+    )
+    return sorted(
+        entity_id
+        for entity_id in hass.states.async_entity_ids(domain)
+        if (state := hass.states.get(entity_id))
+        and state.attributes.get("device_class") in allowed
+    )
 
 
 def migrate_legacy_source_sentinels(hass: Any, entry: TadoConfigEntry) -> None:
@@ -212,12 +232,9 @@ class TadoZoneSourceSelectBase(TadoZoneEntity, SelectEntity):
     @property
     def options(self) -> list[str]:
         """Return all selectable source entities."""
-        sensors = [
-            eid
-            for eid in self.hass.states.async_entity_ids("sensor")
-            if (s := self.hass.states.get(eid))
-            and s.attributes.get("device_class") == self._device_class_filter
-        ]
+        sensors = entity_ids_with_device_class(
+            self.hass, "sensor", self._device_class_filter
+        )
         climate_entities = list(self.hass.states.async_entity_ids("climate"))
         return [_SOURCE_NONE, *sorted(sensors + climate_entities)]
 
@@ -361,7 +378,9 @@ class TadoZoneWindowSensorSelect(_ZoneWindowContactSelect):
         choices = [WINDOW_SENSOR_NONE]
         if len(linked) > 1:
             choices.append(WINDOW_SENSOR_MULTIPLE)
-        sensors = sorted(self.hass.states.async_entity_ids("binary_sensor"))
+        sensors = entity_ids_with_device_class(
+            self.hass, "binary_sensor", WINDOW_CONTACT_DEVICE_CLASSES
+        )
         for entity_id in sensors:
             if entity_id not in linked or entity_id == current:
                 choices.append(entity_id)
