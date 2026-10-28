@@ -16,6 +16,30 @@ if TYPE_CHECKING:
     from .coordinator import TadoDataUpdateCoordinator
 
 
+def cloud_climate_entities(
+    coordinator: TadoDataUpdateCoordinator,
+) -> list[TadoHeating | TadoAirConditioning]:
+    """Return cloud climate entities."""
+    if coordinator.generation == GEN_X:
+        if not coordinator.full_cloud_mode:
+            return []
+        return [
+            TadoHeating(coordinator, zone.id, zone.name)
+            for zone in yield_zones(coordinator)
+        ]
+
+    entities: list[TadoHeating | TadoAirConditioning] = [
+        TadoAirConditioning(coordinator, zone.id, zone.name)
+        for zone in yield_zones(coordinator, {ZONE_TYPE_AIR_CONDITIONING})
+    ]
+    if coordinator.full_cloud_mode:
+        entities.extend(
+            TadoHeating(coordinator, zone.id, zone.name)
+            for zone in yield_zones(coordinator, {ZONE_TYPE_HEATING})
+        )
+    return entities
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -23,25 +47,5 @@ async def async_setup_entry(
 ) -> None:
     """Set up Tado climate entities."""
     coordinator: TadoDataUpdateCoordinator = entry.runtime_data
-    entities: list[TadoHeating | TadoAirConditioning] = []
-
-    if coordinator.generation == GEN_X:
-        if coordinator.full_cloud_mode:
-            entities.extend(
-                TadoAirConditioning(coordinator, zone.id, zone.name)
-                for zone in yield_zones(coordinator)
-            )
-    else:
-        # v3 Classic
-        entities.extend(
-            TadoAirConditioning(coordinator, zone.id, zone.name)
-            for zone in yield_zones(coordinator, {ZONE_TYPE_AIR_CONDITIONING})
-        )
-        if coordinator.full_cloud_mode:
-            entities.extend(
-                TadoHeating(coordinator, zone.id, zone.name)
-                for zone in yield_zones(coordinator, {ZONE_TYPE_HEATING})
-            )
-
-    async_add_entities(entities)
+    async_add_entities(cloud_climate_entities(coordinator))
     coordinator.local_proxy.register("climate", async_add_entities)

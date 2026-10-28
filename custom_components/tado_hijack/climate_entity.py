@@ -96,12 +96,6 @@ class TadoClimateEntity(
             self._attr_min_temp = TEMP_MIN_PROXY
             self._attr_max_temp = TEMP_MAX_PROXY
             self._attr_target_temperature_step = TEMP_STEP_HEATING
-            if isinstance(self, TadoAirConditioning):
-                self._attr_hvac_modes = [
-                    HVACMode.OFF,
-                    HVACMode.HEAT,
-                    HVACMode.AUTO,
-                ]
             self.async_write_ha_state()
             return
 
@@ -374,17 +368,8 @@ class TadoAirConditioning(TadoClimateEntity):
         self, coordinator: TadoDataUpdateCoordinator, zone_id: int, zone_name: str
     ) -> None:
         """Initialize air conditioning climate entity."""
-        if coordinator.generation == GEN_X:
-            default_temp, min_temp = self._get_defaults_tadox()
-            self._attr_supported_features = (
-                ClimateEntityFeature.TARGET_TEMPERATURE
-                | ClimateEntityFeature.TURN_ON
-                | ClimateEntityFeature.TURN_OFF
-            )
-            self._attr_hvac_modes = [HVACMode.OFF, HVACMode.HEAT, HVACMode.AUTO]
-        else:
-            default_temp, min_temp = self._get_defaults_v3()
-            self._attr_hvac_modes = [HVACMode.OFF, HVACMode.COOL, HVACMode.AUTO]
+        default_temp, min_temp = TEMP_DEFAULT_AC, TEMP_MIN_AC
+        self._attr_hvac_modes = [HVACMode.OFF, HVACMode.COOL, HVACMode.AUTO]
 
         super().__init__(
             coordinator,
@@ -400,18 +385,8 @@ class TadoAirConditioning(TadoClimateEntity):
         self._store_last_state("vertical_swing", "OFF")
         self._store_last_state("horizontal_swing", "OFF")
 
-    def _get_defaults_tadox(self) -> tuple[float, float]:
-        """Get defaults for Tado X (Heating-compatible)."""
-        return TEMP_DEFAULT_HEATING, TEMP_MIN_PROXY
-
-    def _get_defaults_v3(self) -> tuple[float, float]:
-        """Get defaults for v3 Classic (AC specific)."""
-        return TEMP_DEFAULT_AC, TEMP_MIN_AC
-
     def _get_active_hvac_mode(self) -> HVACMode:
         """Return hvac mode when power is ON based on current state."""
-        if self.tado_coordinator.generation == GEN_X:
-            return HVACMode.HEAT
         if (
             opt_mode := self.tado_coordinator.optimistic.get_zone_ac_mode(self._zone_id)
         ) is not None:
@@ -467,13 +442,23 @@ class TadoAirConditioning(TadoClimateEntity):
         if current_temp is None or target_temp is None:
             return False
 
+        if mode == HVACMode.AUTO:
+            mode = self._physical_mode()
+
         if mode == HVACMode.HEAT:
             return current_temp < target_temp
         return current_temp > target_temp if mode == HVACMode.COOL else True
 
+    def _physical_mode(self) -> HVACMode:
+        """Return the active mode when the reported mode is auto."""
+        mode = self.hvac_mode
+        if mode == HVACMode.AUTO:
+            return self._get_active_hvac_mode()
+        return mode
+
     def _get_active_hvac_action(self) -> HVACAction:
         """Return the action based on current mode."""
-        mode = self.hvac_mode
+        mode = self._physical_mode()
         if mode == HVACMode.HEAT:
             return HVACAction.HEATING
         if mode == HVACMode.COOL:
@@ -495,8 +480,6 @@ class TadoAirConditioning(TadoClimateEntity):
     @property
     def fan_modes(self) -> list[str] | None:
         """Return supported fan modes (cached)."""
-        if self.tado_coordinator.generation == GEN_X:
-            return None
         capabilities = self.tado_coordinator.data.capabilities.get(self._zone_id)
         if not capabilities:
             self.hass.async_create_task(self._async_update_capabilities())
@@ -601,8 +584,6 @@ class TadoAirConditioning(TadoClimateEntity):
     @property
     def swing_modes(self) -> list[str] | None:
         """Return supported swing modes (cached)."""
-        if self.tado_coordinator.generation == GEN_X:
-            return None
         capabilities = self.tado_coordinator.data.capabilities.get(self._zone_id)
         if not capabilities:
             self.hass.async_create_task(self._async_update_capabilities())

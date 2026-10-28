@@ -133,6 +133,17 @@ async def _v10(hass: HomeAssistant, entry: TadoConfigEntry) -> None:
     )
 
 
+def heating_unique_id_from_ac(entry_id: str, unique_id: str) -> str | None:
+    """Return the heating unique id for a ``_climate_ac_`` id."""
+    prefix = f"{entry_id}_climate_ac_"
+    if not unique_id.startswith(prefix):
+        return None
+    zone_id = unique_id.removeprefix(prefix)
+    if not zone_id.isdigit():
+        return None
+    return f"{entry_id}_climate_heating_{zone_id}"
+
+
 def _v11(hass: HomeAssistant, entry: TadoConfigEntry) -> None:
     """v11: Reverse-link HomeKit and Matter unless a different pair was saved.
 
@@ -154,6 +165,27 @@ def _v11(hass: HomeAssistant, entry: TadoConfigEntry) -> None:
     )
 
 
+def _v12(hass: HomeAssistant, entry: TadoConfigEntry) -> None:
+    """v12: Rename Tado X climate unique ids from ac to heating."""
+    from homeassistant.helpers import entity_registry as er
+
+    from ..const import CONF_GENERATION, DOMAIN, GEN_X
+
+    if entry.data.get(CONF_GENERATION) != GEN_X:
+        return
+
+    ent_reg = er.async_get(hass)
+    for entity in er.async_entries_for_config_entry(ent_reg, entry.entry_id):
+        if entity.domain != "climate":
+            continue
+        new_unique_id = heating_unique_id_from_ac(entry.entry_id, entity.unique_id)
+        if new_unique_id is None:
+            continue
+        if ent_reg.async_get_entity_id("climate", DOMAIN, new_unique_id):
+            continue
+        ent_reg.async_update_entity(entity.entity_id, new_unique_id=new_unique_id)
+
+
 # Ordered list of (target_version, migration_fn) pairs.
 # Each step runs when entry.version < target_version.
 MIGRATION_STEPS: list[tuple[int, Any]] = [
@@ -166,4 +198,5 @@ MIGRATION_STEPS: list[tuple[int, Any]] = [
     (9, _v9),
     (10, _v10),
     (11, _v11),
+    (12, _v12),
 ]
