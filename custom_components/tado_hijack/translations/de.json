@@ -149,6 +149,12 @@
       "outdoor_weather_entity": {
         "name": "Außenwetter-Quelle"
       },
+      "outdoor_temp_entity": {
+        "name": "Außentemperatur-Sensor"
+      },
+      "outdoor_humidity_entity": {
+        "name": "Außenluftfeuchte-Sensor"
+      },
       "ventilation_ah_threshold": {
         "name": "Lüftungsschwelle (absolute Feuchte)"
       },
@@ -697,6 +703,8 @@
               "feature_zone_circuit": "Heizkreise",
               "feature_mold_detection": "Schimmelrisiko-Sensoren",
               "outdoor_weather_entity": "Lüftungsempfehlung-Sensor (Benötigt Wetter-Entität)",
+              "outdoor_temp_entity": "Lüftungsempfehlung-Sensor (Nutzt Außensensoren)",
+              "outdoor_humidity_entity": "Lüftungsempfehlung-Sensor (Nutzt Außensensoren)",
               "ventilation_ah_threshold": "Lüftungs-Schwellenwert (g/m³)"
             },
             "data_description": {
@@ -707,6 +715,8 @@
               "feature_zone_circuit": "Nur Classic-Wohnungen. Ein Heizraum kann einen Boiler-Treiber anfordern. Eine Tado-X-Wohnung wird noch nicht gelesen. Standard aus, damit eine Wohnung ohne Therme oder mit einem Heizkreis nichts verbraucht. Wenn an: ein Aufruf listet die Treiber. Raum-Abfragen laufen nur bei zwei oder mehr Treibern, einmal pro Setup, nicht im Poll.",
               "feature_mold_detection": "Erstellt Schimmelrisiko-Sensoren pro Zone. Enthält eine Risikostufe (keins/niedrig/mittel/hoch) und einen binären Sensor für akutes Schimmelrisiko. WICHTIG für Tado X: Erfordert eine verknüpfte Temperaturquelle am Zonen-Gerät.",
               "outdoor_weather_entity": "Wähle eine Wetter-Entität (z. B. weather.home) aus, die Außentemperatur und Luftfeuchtigkeit bereitstellt. Dies wird benötigt, um die absolute Luftfeuchtigkeit innen zu berechnen und 'Lüften empfohlen'-Sensoren zu aktivieren. Der Sensor meldet 'Ja', wenn Lüften die Feuchtigkeit im Raum effektiv senkt.",
+              "outdoor_temp_entity": "Optional: ein Außentemperatur-Sensor (device_class=temperature), der zusammen mit dem Feuchtesensor genutzt wird. Genauer als eine Wettervorhersage. Hat Vorrang vor der Wetter-Entität, wenn beide gesetzt sind.",
+              "outdoor_humidity_entity": "Optional: ein Außenluftfeuchte-Sensor (device_class=humidity), der zusammen mit dem Temperatursensor genutzt wird. Genauer als eine Wettervorhersage. Hat Vorrang vor der Wetter-Entität, wenn beide gesetzt sind.",
               "ventilation_ah_threshold": "Mindest-Differenz der absoluten Luftfeuchtigkeit zwischen innen und außen, ab der 'Lüften empfohlen' auf 'Ja' springt. Ein Wert von 1,0 g/m³ (Gramm Wasser pro Kubikmeter Luft) bedeutet, dass die Außenluft deutlich trockener sein muss als die Innenluft, bevor eine Empfehlung erfolgt. Verhindert flatternde Sensoren bei minimalen Unterschieden. Standard: 1,0."
             }
           },
@@ -845,6 +855,8 @@
               "feature_zone_circuit": "Heizkreise",
               "feature_mold_detection": "Schimmelrisiko-Sensoren",
               "outdoor_weather_entity": "Lüftungsempfehlung-Sensor (Benötigt Wetter-Entität)",
+              "outdoor_temp_entity": "Lüftungsempfehlung-Sensor (Nutzt Außensensoren)",
+              "outdoor_humidity_entity": "Lüftungsempfehlung-Sensor (Nutzt Außensensoren)",
               "ventilation_ah_threshold": "Lüftungs-Schwellenwert (g/m³)"
             },
             "data_description": {
@@ -855,6 +867,8 @@
               "feature_zone_circuit": "Nur Classic-Wohnungen. Ein Heizraum kann einen Boiler-Treiber anfordern. Eine Tado-X-Wohnung wird noch nicht gelesen. Standard aus, damit eine Wohnung ohne Therme oder mit einem Heizkreis nichts verbraucht. Wenn an: ein Aufruf listet die Treiber. Raum-Abfragen laufen nur bei zwei oder mehr Treibern, einmal pro Setup, nicht im Poll.",
               "feature_mold_detection": "Erstellt Schimmelrisiko-Sensoren pro Zone. Enthält eine Risikostufe (keins/niedrig/mittel/hoch) und einen binären Sensor für akutes Schimmelrisiko. WICHTIG für Tado X: Erfordert eine verknüpfte Temperaturquelle am Zonen-Gerät.",
               "outdoor_weather_entity": "Wähle eine Wetter-Entität (z. B. weather.home) aus, die Außentemperatur und Luftfeuchtigkeit bereitstellt. Dies wird benötigt, um die absolute Luftfeuchtigkeit innen zu berechnen und 'Lüften empfohlen'-Sensoren zu aktivieren. Der Sensor meldet 'Ja', wenn Lüften die Feuchtigkeit im Raum effektiv senkt.",
+              "outdoor_temp_entity": "Optional: ein Außentemperatur-Sensor (device_class=temperature), der zusammen mit dem Feuchtesensor genutzt wird. Genauer als eine Wettervorhersage. Hat Vorrang vor der Wetter-Entität, wenn beide gesetzt sind.",
+              "outdoor_humidity_entity": "Optional: ein Außenluftfeuchte-Sensor (device_class=humidity), der zusammen mit dem Temperatursensor genutzt wird. Genauer als eine Wettervorhersage. Hat Vorrang vor der Wetter-Entität, wenn beide gesetzt sind.",
               "ventilation_ah_threshold": "Mindest-Differenz der absoluten Luftfeuchtigkeit zwischen innen und außen, ab der 'Lüften empfohlen' auf 'Ja' springt. Ein Wert von 1,0 g/m³ (Gramm Wasser pro Kubikmeter Luft) bedeutet, dass die Außenluft deutlich trockener sein muss als die Innenluft, bevor eine Empfehlung erfolgt. Verhindert flatternde Sensoren bei minimalen Unterschieden. Standard: 1,0."
             }
           },

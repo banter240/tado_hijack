@@ -149,6 +149,12 @@
       "outdoor_weather_entity": {
         "name": "Outdoor Weather Source"
       },
+      "outdoor_temp_entity": {
+        "name": "Outdoor Temperature Sensor"
+      },
+      "outdoor_humidity_entity": {
+        "name": "Outdoor Humidity Sensor"
+      },
       "ventilation_ah_threshold": {
         "name": "Ventilation Threshold"
       },
@@ -697,6 +703,8 @@
               "feature_zone_circuit": "Heating circuits",
               "feature_mold_detection": "Mold Risk Sensors",
               "outdoor_weather_entity": "Ventilation Recommendation Sensor (Requires Weather Entity)",
+              "outdoor_temp_entity": "Ventilation Recommendation Sensor (Uses Outdoor Sensors)",
+              "outdoor_humidity_entity": "Ventilation Recommendation Sensor (Uses Outdoor Sensors)",
               "ventilation_ah_threshold": "Ventilation Threshold (g/m³)"
             },
             "data_description": {
@@ -707,6 +715,8 @@
               "feature_zone_circuit": "Classic homes. Each heating room can call a boiler driver. A Tado X home is not read yet. Default off, so a home with no boiler or a single circuit spends nothing. When on, one call lists the drivers. Room reads run only when two or more drivers exist, once per setup, not on the poll.",
               "feature_mold_detection": "Create mold risk sensors per zone. Includes a risk level (none/low/medium/high) and a binary sensor for acute mold risk. MANDATORY for Tado X: Requires a linked temperature source on the zone device.",
               "outdoor_weather_entity": "Select a weather entity (e.g., weather.home) that provides outdoor temperature and humidity. This is required to calculate indoor absolute humidity and to activate 'Ventilation Recommended' sensors. The sensor reports 'Yes' when opening windows effectively reduces indoor moisture.",
+              "outdoor_temp_entity": "Optional: an outdoor temperature sensor (device_class=temperature) used together with the humidity sensor. More accurate than a weather forecast. Takes priority over the weather entity when both are set.",
+              "outdoor_humidity_entity": "Optional: an outdoor humidity sensor (device_class=humidity) used together with the temperature sensor. More accurate than a weather forecast. Takes priority over the weather entity when both are set.",
               "ventilation_ah_threshold": "Minimum absolute humidity difference between indoor and outdoor required before 'Ventilation Recommended' turns to 'Yes'. A value of 1.0 g/m³ (grams of water per cubic meter of air) ensures that outdoor air is significantly drier than indoor air before recommending ventilation. Prevents sensor chatter. Default: 1.0."
             }
           },
@@ -845,6 +855,8 @@
               "feature_zone_circuit": "Heating circuits",
               "feature_mold_detection": "Mold Risk Sensors",
               "outdoor_weather_entity": "Ventilation Recommendation Sensor (Requires Weather Entity)",
+              "outdoor_temp_entity": "Ventilation Recommendation Sensor (Uses Outdoor Sensors)",
+              "outdoor_humidity_entity": "Ventilation Recommendation Sensor (Uses Outdoor Sensors)",
               "ventilation_ah_threshold": "Ventilation Threshold (g/m³)"
             },
             "data_description": {
@@ -855,6 +867,8 @@
               "feature_zone_circuit": "Classic homes. Each heating room can call a boiler driver. A Tado X home is not read yet. Default off, so a home with no boiler or a single circuit spends nothing. When on, one call lists the drivers. Room reads run only when two or more drivers exist, once per setup, not on the poll.",
               "feature_mold_detection": "Create mold risk sensors per zone. Includes a risk level (none/low/medium/high) and a binary sensor for acute mold risk. MANDATORY for Tado X: Requires a linked temperature source on the zone device.",
               "outdoor_weather_entity": "Select a weather entity (e.g., weather.home) that provides outdoor temperature and humidity. This is required to calculate indoor absolute humidity and to activate 'Ventilation Recommended' sensors. The sensor reports 'Yes' when opening windows effectively reduces indoor moisture.",
+              "outdoor_temp_entity": "Optional: an outdoor temperature sensor (device_class=temperature) used together with the humidity sensor. More accurate than a weather forecast. Takes priority over the weather entity when both are set.",
+              "outdoor_humidity_entity": "Optional: an outdoor humidity sensor (device_class=humidity) used together with the temperature sensor. More accurate than a weather forecast. Takes priority over the weather entity when both are set.",
               "ventilation_ah_threshold": "Minimum absolute humidity difference between indoor and outdoor required before 'Ventilation Recommended' turns to 'Yes'. A value of 1.0 g/m³ (grams of water per cubic meter of air) ensures that outdoor air is significantly drier than indoor air before recommending ventilation. Prevents sensor chatter. Default: 1.0."
             }
           },

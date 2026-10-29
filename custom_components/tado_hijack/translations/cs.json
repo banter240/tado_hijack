@@ -149,6 +149,12 @@
       "outdoor_weather_entity": {
         "name": "Zdroj venkovního počasí"
       },
+      "outdoor_temp_entity": {
+        "name": "Snímač venkovní teploty"
+      },
+      "outdoor_humidity_entity": {
+        "name": "Snímač venkovní vlhkosti"
+      },
       "ventilation_ah_threshold": {
         "name": "Práh absolutní vlhkosti pro větrání"
       },
@@ -697,6 +703,8 @@
               "feature_zone_circuit": "Topné okruhy",
               "feature_mold_detection": "Senzory rizika plísně",
               "outdoor_weather_entity": "Senzor doporučení větrání (Vyžaduje entitu počasí)",
+              "outdoor_temp_entity": "Senzor doporučení větrání (Používá venkovní senzory)",
+              "outdoor_humidity_entity": "Senzor doporučení větrání (Používá venkovní senzory)",
               "ventilation_ah_threshold": "Práh větrání (g/m³)"
             },
             "data_description": {
@@ -707,6 +715,8 @@
               "feature_zone_circuit": "Jen Classic. Topná místnost může žádat jeden kotlový okruh. Domácnost Tado X se zatím nečte. Ve výchozím stavu vypnuto, takže domácnost bez kotle nebo s jedním okruhem nic nespotřebuje. Po zapnutí jeden požadavek načte seznam. Čtení místností proběhne jen při dvou a více okruzích, jednou při startu, ne v pravidelném pollu.",
               "feature_mold_detection": "Vytvoří senzory rizika plísně pro každou zónu. Obsahuje úroveň rizika (žádné/nízké/střední/vysoké) a binární senzor pro akutní riziko plísně. POVINNÉ pro Tado X: Vyžaduje propojený zdroj teploty na zařízení zóny.",
               "outdoor_weather_entity": "Vyberte entitu počasí (např. weather.home), která poskytuje venkovní teplotu a vlhkost. To je nezbytné pro výpočet vnitřní absolutní vlhkosti a pro aktivaci senzorů 'Doporučeno větrat'. Senzor hlásí 'Ano', když otevření oken efektivně sníží vnitřní vlhkost.",
+              "outdoor_temp_entity": "Volitelné: senzor venkovní teploty (device_class=temperature) používaný spolu se senzorem vlhkosti. Přesnější než předpověď počasí. Má přednost před entitou počasí, pokud jsou nastaveny obě.",
+              "outdoor_humidity_entity": "Volitelné: senzor venkovní vlhkosti (device_class=humidity) používaný spolu se senzorem teploty. Přesnější než předpověď počasí. Má přednost před entitou počasí, pokud jsou nastaveny obě.",
               "ventilation_ah_threshold": "Minimální rozdíl absolutní vlhkosti mezi vnitřkem a venkem potřebný k tomu, aby se 'Doporučeno větrat' změnilo na 'Ano'. Hodnota 1.0 g/m³ (gramů vody na metr krychlový vzduchu) zajišťuje, že venkovní vzduch je výrazně sušší než vnitřní před doporučením vyvětrat. Zabraňuje přeskakování senzoru. Výchozí: 1.0."
             }
           },
@@ -845,6 +855,8 @@
               "feature_zone_circuit": "Topné okruhy",
               "feature_mold_detection": "Senzory rizika plísně",
               "outdoor_weather_entity": "Senzor doporučení větrání (Vyžaduje entitu počasí)",
+              "outdoor_temp_entity": "Senzor doporučení větrání (Používá venkovní senzory)",
+              "outdoor_humidity_entity": "Senzor doporučení větrání (Používá venkovní senzory)",
               "ventilation_ah_threshold": "Práh větrání (g/m³)"
             },
             "data_description": {
@@ -855,6 +867,8 @@
               "feature_zone_circuit": "Jen Classic. Topná místnost může žádat jeden kotlový okruh. Domácnost Tado X se zatím nečte. Ve výchozím stavu vypnuto, takže domácnost bez kotle nebo s jedním okruhem nic nespotřebuje. Po zapnutí jeden požadavek načte seznam. Čtení místností proběhne jen při dvou a více okruzích, jednou při startu, ne v pravidelném pollu.",
               "feature_mold_detection": "Vytvoří senzory rizika plísně pro každou zónu. Obsahuje úroveň rizika (žádné/nízké/střední/vysoké) a binární senzor pro akutní riziko plísně. POVINNÉ pro Tado X: Vyžaduje propojený zdroj teploty na zařízení zóny.",
               "outdoor_weather_entity": "Vyberte entitu počasí (např. weather.home), která poskytuje venkovní teplotu a vlhkost. To je nezbytné pro výpočet vnitřní absolutní vlhkosti a pro aktivaci senzorů 'Doporučeno větrat'. Senzor hlásí 'Ano', když otevření oken efektivně sníží vnitřní vlhkost.",
+              "outdoor_temp_entity": "Volitelné: senzor venkovní teploty (device_class=temperature) používaný spolu se senzorem vlhkosti. Přesnější než předpověď počasí. Má přednost před entitou počasí, pokud jsou nastaveny obě.",
+              "outdoor_humidity_entity": "Volitelné: senzor venkovní vlhkosti (device_class=humidity) používaný spolu se senzorem teploty. Přesnější než předpověď počasí. Má přednost před entitou počasí, pokud jsou nastaveny obě.",
               "ventilation_ah_threshold": "Minimální rozdíl absolutní vlhkosti mezi vnitřkem a venkem potřebný k tomu, aby se 'Doporučeno větrat' změnilo na 'Ano'. Hodnota 1.0 g/m³ (gramů vody na metr krychlový vzduchu) zajišťuje, že venkovní vzduch je výrazně sušší než vnitřní před doporučením vyvětrat. Zabraňuje přeskakování senzoru. Výchozí: 1.0."
             }
           },
