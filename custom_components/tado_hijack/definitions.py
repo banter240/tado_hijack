@@ -32,6 +32,8 @@ from .const import (
     CONF_OFFSET_CAL_SEND_COOLDOWN_S,
     CONF_OFFSET_CAL_WINDOW_SETTLE_S,
     CONF_OFFSET_POLL_INTERVAL,
+    CONF_OUTDOOR_HUMIDITY_ENTITY,
+    CONF_OUTDOOR_TEMP_ENTITY,
     CONF_OUTDOOR_WEATHER_ENTITY,
     CONF_PRESENCE_POLL_INTERVAL,
     CONF_PROXY_LOCAL_ENTITIES,
@@ -290,19 +292,66 @@ def _physics_abs_humidity(c: Any, zid: int) -> float | None:
     return round(compute_absolute_humidity(temp, rh), 1)
 
 
+def _has_outdoor_source(c: Any) -> bool:
+    """Return True if any outdoor data source is configured."""
+    data = c.config_entry.data
+    return bool(
+        data.get(CONF_OUTDOOR_WEATHER_ENTITY)
+        or (
+            data.get(CONF_OUTDOOR_TEMP_ENTITY)
+            and data.get(CONF_OUTDOOR_HUMIDITY_ENTITY)
+        )
+    )
+
+
+def _get_outdoor_conditions(c: Any) -> tuple[float, float] | None:
+    """Read outdoor temperature (°C) and relative humidity (%) from config.
+
+    Sources, in priority order:
+    1. A dedicated outdoor sensor pair (temperature + humidity).
+    2. A weather entity (attributes "temperature" and "humidity").
+
+    Returns None when no source is configured or data is incomplete.
+    """
+    data = c.config_entry.data
+
+    temp_entity = data.get(CONF_OUTDOOR_TEMP_ENTITY)
+    rh_entity = data.get(CONF_OUTDOOR_HUMIDITY_ENTITY)
+    if temp_entity and rh_entity:
+        temp_state = c.hass.states.get(temp_entity)
+        rh_state = c.hass.states.get(rh_entity)
+        if (
+            temp_state is not None
+            and rh_state is not None
+            and temp_state.state not in ("unknown", "unavailable")
+            and rh_state.state not in ("unknown", "unavailable")
+        ):
+            try:
+                return float(temp_state.state), float(rh_state.state)
+            except TypeError, ValueError:
+                return None
+
+    weather_entity = data.get(CONF_OUTDOOR_WEATHER_ENTITY)
+    if weather_entity:
+        weather = c.hass.states.get(weather_entity)
+        if weather is None:
+            return None
+        outdoor_temp = weather.attributes.get("temperature")
+        outdoor_rh = weather.attributes.get("humidity")
+        if outdoor_temp is None or outdoor_rh is None:
+            return None
+        return float(outdoor_temp), float(outdoor_rh)
+
+    return None
+
+
 def _physics_outdoor_abs_humidity(c: Any) -> float | None:
-    """Compute outdoor absolute humidity (g/m³) from weather entity."""
-    entity_id = c.config_entry.data.get(CONF_OUTDOOR_WEATHER_ENTITY)
-    if not entity_id:
+    """Compute outdoor absolute humidity (g/m³) from the outdoor source."""
+    conditions = _get_outdoor_conditions(c)
+    if conditions is None:
         return None
-    weather = c.hass.states.get(entity_id)
-    if weather is None:
-        return None
-    outdoor_temp = weather.attributes.get("temperature")
-    outdoor_rh = weather.attributes.get("humidity")
-    if outdoor_temp is None or outdoor_rh is None:
-        return None
-    return round(compute_absolute_humidity(float(outdoor_temp), float(outdoor_rh)), 1)
+    outdoor_temp, outdoor_rh = conditions
+    return round(compute_absolute_humidity(outdoor_temp, outdoor_rh), 1)
 
 
 def _physics_mold_risk(c: Any, zid: int) -> str | None:
@@ -317,19 +366,14 @@ def _physics_mold_risk(c: Any, zid: int) -> str | None:
 def _ventilation_recommended(c: Any, zid: int) -> bool | None:
     """Return True if ventilating meaningfully reduces indoor moisture load.
 
-    Reads outdoor T + RH from the configured weather entity.
+    Reads outdoor T + RH from the configured outdoor source (sensor pair
+    preferred, weather entity as fallback).
     Generation-agnostic: uses _get_room_temp_celsius / _get_room_rh for indoor data.
     """
-    entity_id = c.config_entry.data.get(CONF_OUTDOOR_WEATHER_ENTITY)
-    if not entity_id:
+    conditions = _get_outdoor_conditions(c)
+    if conditions is None:
         return None
-    weather = c.hass.states.get(entity_id)
-    if weather is None:
-        return None
-    outdoor_temp = weather.attributes.get("temperature")
-    outdoor_rh = weather.attributes.get("humidity")
-    if outdoor_temp is None or outdoor_rh is None:
-        return None
+    outdoor_temp, outdoor_rh = conditions
     threshold = float(
         c.config_entry.data.get(
             CONF_VENTILATION_AH_THRESHOLD, DEFAULT_VENTILATION_AH_THRESHOLD
@@ -340,7 +384,7 @@ def _ventilation_recommended(c: Any, zid: int) -> bool | None:
     if indoor_temp is None or indoor_rh is None or indoor_rh <= 0:
         return None
     indoor_ah = compute_absolute_humidity(indoor_temp, indoor_rh)
-    outdoor_ah = compute_absolute_humidity(float(outdoor_temp), float(outdoor_rh))
+    outdoor_ah = compute_absolute_humidity(outdoor_temp, outdoor_rh)
     return compute_ventilation_beneficial(indoor_ah, outdoor_ah, threshold)
 
 
@@ -1595,17 +1639,13 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         key="indoor_absolute_humidity",
         supported_generations={GEN_CLASSIC, GEN_X},
         value_fn=lambda c, zid: (
-            _physics_abs_humidity(c, zid)
-            if c.config_entry.data.get(CONF_OUTDOOR_WEATHER_ENTITY)
-            else None
+            _physics_abs_humidity(c, zid) if _has_outdoor_source(c) else None
         ),
         unit="g/m³",
         state_class=SensorStateClass.MEASUREMENT,
         supported_zone_types={ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING},
         unique_id_suffix="indoor_ah",
-        is_supported_fn=lambda c, zid: bool(
-            c.config_entry.data.get(CONF_OUTDOOR_WEATHER_ENTITY)
-        ),
+        is_supported_fn=lambda c, zid: _has_outdoor_source(c),
     ),
     create_zone_binary_sensor(
         key="ventilation_recommended",
@@ -1614,9 +1654,7 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         device_class=None,
         supported_zone_types={ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING},
         unique_id_suffix="vent_rec",
-        is_supported_fn=lambda c, zid: bool(
-            c.config_entry.data.get(CONF_OUTDOOR_WEATHER_ENTITY)
-        ),
+        is_supported_fn=lambda c, zid: _has_outdoor_source(c),
     ),
     create_diagnostic_zone_sensor(
         key="next_schedule_change",
@@ -1754,6 +1792,20 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
             c.config_entry.data.get(CONF_OUTDOOR_WEATHER_ENTITY, "None")
         ),
         icon="mdi:weather-partly-cloudy",
+    ),
+    create_diagnostic_sensor(
+        key="outdoor_temp_entity",
+        value_fn=lambda c: str(
+            c.config_entry.data.get(CONF_OUTDOOR_TEMP_ENTITY, "None")
+        ),
+        icon="mdi:thermometer",
+    ),
+    create_diagnostic_sensor(
+        key="outdoor_humidity_entity",
+        value_fn=lambda c: str(
+            c.config_entry.data.get(CONF_OUTDOOR_HUMIDITY_ENTITY, "None")
+        ),
+        icon="mdi:water-percent",
     ),
     create_diagnostic_sensor(
         key="ventilation_ah_threshold",

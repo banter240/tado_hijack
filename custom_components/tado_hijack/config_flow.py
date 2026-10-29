@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
 from homeassistant import config_entries, data_entry_flow
+from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.const import CONF_SCAN_INTERVAL
 from homeassistant.core import callback
@@ -52,6 +53,8 @@ from .const import (
     CONF_OFFSET_CAL_SEND_COOLDOWN_S,
     CONF_OFFSET_CAL_WINDOW_SETTLE_S,
     CONF_OFFSET_POLL_INTERVAL,
+    CONF_OUTDOOR_HUMIDITY_ENTITY,
+    CONF_OUTDOOR_TEMP_ENTITY,
     CONF_OUTDOOR_WEATHER_ENTITY,
     CONF_PRESENCE_POLL_INTERVAL,
     CONF_PROXY_LOCAL_ENTITIES,
@@ -234,6 +237,8 @@ class TadoHijackCommonFlow:
                 CONF_FEATURE_ZONE_CIRCUIT,
                 CONF_FEATURE_MOLD_DETECTION,
                 CONF_OUTDOOR_WEATHER_ENTITY,
+                CONF_OUTDOOR_TEMP_ENTITY,
+                CONF_OUTDOOR_HUMIDITY_ENTITY,
                 CONF_VENTILATION_AH_THRESHOLD,
             ],
             "advanced": [
@@ -254,7 +259,11 @@ class TadoHijackCommonFlow:
                     if key in section_data:
                         val = section_data[key]
                         # Handle empty string to None conversion for optional fields
-                        if key == CONF_OUTDOOR_WEATHER_ENTITY:
+                        if key in (
+                            CONF_OUTDOOR_WEATHER_ENTITY,
+                            CONF_OUTDOOR_TEMP_ENTITY,
+                            CONF_OUTDOOR_HUMIDITY_ENTITY,
+                        ):
                             val = val or None
                         processed_input[key] = val
 
@@ -576,6 +585,32 @@ class TadoHijackCommonFlow:
                                     )
                                 },
                             ): EntitySelector(EntitySelectorConfig(domain="weather")),
+                            vol.Optional(
+                                CONF_OUTDOOR_TEMP_ENTITY,
+                                description={
+                                    "suggested_value": self._get_current_data(
+                                        CONF_OUTDOOR_TEMP_ENTITY, None
+                                    )
+                                },
+                            ): EntitySelector(
+                                EntitySelectorConfig(
+                                    domain="sensor",
+                                    device_class=SensorDeviceClass.TEMPERATURE,
+                                )
+                            ),
+                            vol.Optional(
+                                CONF_OUTDOOR_HUMIDITY_ENTITY,
+                                description={
+                                    "suggested_value": self._get_current_data(
+                                        CONF_OUTDOOR_HUMIDITY_ENTITY, None
+                                    )
+                                },
+                            ): EntitySelector(
+                                EntitySelectorConfig(
+                                    domain="sensor",
+                                    device_class=SensorDeviceClass.HUMIDITY,
+                                )
+                            ),
                             vol.Optional(
                                 CONF_VENTILATION_AH_THRESHOLD,
                                 default=self._get_current_data(
