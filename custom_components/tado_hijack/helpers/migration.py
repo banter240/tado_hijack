@@ -184,6 +184,62 @@ def _v12(hass: HomeAssistant, entry: TadoConfigEntry) -> None:
         ent_reg.async_update_entity(entity.entity_id, new_unique_id=new_unique_id)
 
 
+def _modern_unique_id_from_legacy(entry_id: str, unique_id: str) -> str | None:
+    """Return the modern unique id for a legacy unprefixed id.
+
+    Legacy formats were ``zone_{id}_{suffix}`` and ``{serial}_{suffix}``
+    without the config entry prefix, so two Tado homes collided.
+    """
+    for prefix, scope in (("zone_", "zone"), ("bridge_", "device")):
+        if not unique_id.startswith(prefix):
+            continue
+        rest = unique_id.removeprefix(prefix)
+        ctx, _, suffix = rest.partition("_")
+        if not ctx or not suffix:
+            return None
+        if scope == "zone" and ctx.isdigit():
+            return f"{entry_id}_{suffix}_{ctx}"
+        return f"{entry_id}_{suffix}_{ctx}" if scope == "device" else None
+    serial, _, suffix = unique_id.partition("_")
+    if (
+        not serial
+        or not suffix
+        or suffix
+        in {
+            "temperature_offset",
+            "away_temperature",
+            "target_temp",
+            "open_window_timeout",
+        }
+    ):
+        return f"{entry_id}_{suffix}_{serial}" if suffix else None
+    return None
+
+
+def _v13(hass: HomeAssistant, entry: TadoConfigEntry) -> None:
+    """v13: Prefix legacy number unique ids with the config entry id.
+
+    The five number definitions (temperature_offset x2, away_temperature,
+    target_temp, open_window_timeout) used unprefixed unique ids, so a
+    second Tado home collided and its entities were dropped. Renaming
+    keeps entity ids and history for single-home installs.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    from ..const import DOMAIN
+
+    ent_reg = er.async_get(hass)
+    for entity in er.async_entries_for_config_entry(ent_reg, entry.entry_id):
+        if entity.domain != "number" or entity.unique_id.startswith(entry.entry_id):
+            continue
+        new_unique_id = _modern_unique_id_from_legacy(entry.entry_id, entity.unique_id)
+        if new_unique_id is None:
+            continue
+        if ent_reg.async_get_entity_id("number", DOMAIN, new_unique_id):
+            continue
+        ent_reg.async_update_entity(entity.entity_id, new_unique_id=new_unique_id)
+
+
 # Ordered list of (target_version, migration_fn) pairs.
 # Each step runs when entry.version < target_version.
 MIGRATION_STEPS: list[tuple[int, Any]] = [
@@ -197,4 +253,5 @@ MIGRATION_STEPS: list[tuple[int, Any]] = [
     (10, _v10),
     (11, _v11),
     (12, _v12),
+    (13, _v13),
 ]
