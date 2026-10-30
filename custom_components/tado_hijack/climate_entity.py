@@ -70,6 +70,17 @@ class TadoClimateEntity(
     _attr_optimistic_key = "power"
     _attr_optimistic_scope = "zone"
 
+    # Compatibility shim for Home Assistant < 2026.11
+    # On older versions, define legacy properties that forward to native_*.
+    # TODO(shim): remove when min_homeassistant_version >= 2026.11.
+    if not hasattr(ClimateEntity, "native_temperature_unit"):
+        native_temperature_unit = property(
+            lambda self: self._attr_native_temperature_unit
+        )
+        temperature_unit = property(lambda self: self.native_temperature_unit)
+        current_temperature = property(lambda self: self.native_current_temperature)
+        target_temperature = property(lambda self: self.native_target_temperature)
+
     def __init__(
         self,
         coordinator: TadoDataUpdateCoordinator,

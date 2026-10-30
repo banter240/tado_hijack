@@ -609,6 +609,20 @@ class TadoLocalClimateProxy(TadoLocalProxyBase, ClimateEntity):
     def native_target_temperature_low(self) -> float | None:
         return _float_attr(self._source(), ATTR_TARGET_TEMP_LOW)
 
+    # Compatibility shim for Home Assistant < 2026.11
+    # On older versions, define legacy properties that forward to native_*.
+    # TODO(shim): remove when min_homeassistant_version >= 2026.11.
+    if not hasattr(ClimateEntity, "native_temperature_unit"):
+        temperature_unit = property(lambda self: self.native_temperature_unit)
+        current_temperature = property(lambda self: self.native_current_temperature)
+        target_temperature = property(lambda self: self.native_target_temperature)
+        target_temperature_high = property(
+            lambda self: self.native_target_temperature_high
+        )
+        target_temperature_low = property(
+            lambda self: self.native_target_temperature_low
+        )
+
     @property
     def current_humidity(self) -> float | None:
         return _float_attr(self._source(), ATTR_CURRENT_HUMIDITY)

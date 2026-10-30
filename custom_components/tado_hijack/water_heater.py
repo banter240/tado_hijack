@@ -123,6 +123,15 @@ class TadoHotWater(
 
     _attr_name = None
 
+    # Compatibility shim for Home Assistant < 2026.11
+    # On older versions, define legacy properties that forward to native_*.
+    # Forwarding through self.native_* preserves TadoHotWaterX overrides.
+    # TODO(shim): remove when min_homeassistant_version >= 2026.11.
+    if not hasattr(WaterHeaterEntity, "native_temperature_unit"):
+        temperature_unit = property(lambda self: self._attr_native_temperature_unit)
+        current_temperature = property(lambda self: self.native_current_temperature)
+        target_temperature = property(lambda self: self.native_target_temperature)
+
     def __init__(
         self, coordinator: TadoDataUpdateCoordinator, zone_id: int, zone_name: str
     ) -> None:
