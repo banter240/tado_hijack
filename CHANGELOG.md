@@ -1,3 +1,16 @@
+## [5.13.0-dev.4](https://github.com/banter240/tado_hijack/compare/v5.13.0-dev.3...v5.13.0-dev.4) (2026-10-30)
+
+### 📚 Documentation
+
+* docs: reflect hot water room overlay, outdoor sensors and multi-home ids
+
+  - Hot water heat/off/target temperature follow the room defaultOverlay
+    termination unless an explicit duration/mode is given.
+  - Outdoor temperature/humidity sensor pair as alternative to the weather
+    entity; a configured pair takes precedence.
+  - Note that all entities are scoped to their home's config entry so
+    numbers never collide across homes.
+
 ## [5.13.0-dev.3](https://github.com/banter240/tado_hijack/compare/v5.13.0-dev.2...v5.13.0-dev.3) (2026-10-30)
 
 ### ✨ New Features
