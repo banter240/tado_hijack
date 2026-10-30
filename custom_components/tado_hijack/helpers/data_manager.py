@@ -373,10 +373,15 @@ class TadoDataManager:
         else:
             s_cost = 2
             cap_cost = len(self._capability_zone_ids())
+        entry_id = (
+            self.coordinator.config_entry.entry_id
+            if self.coordinator.config_entry
+            else ""
+        )
         o_cost = sum(
             CAPABILITY_INSIDE_TEMP in (d.characteristics.capabilities or [])
             and not self._is_entity_disabled(
-                "number", f"{d.serial_no}_temperature_offset"
+                "number", f"{entry_id}_temperature_offset_{d.serial_no}"
             )
             for d in self.devices_meta.values()
         )
@@ -886,12 +891,17 @@ class TadoDataManager:
         if not self.provider or self.coordinator.generation == GEN_X:
             return
 
+        entry_id = (
+            self.coordinator.config_entry.entry_id
+            if self.coordinator.config_entry
+            else ""
+        )
         active = [
             d
             for d in self.devices_meta.values()
             if CAPABILITY_INSIDE_TEMP in (d.characteristics.capabilities or [])
             and not self._is_entity_disabled(
-                "number", f"{d.serial_no}_temperature_offset"
+                "number", f"{entry_id}_temperature_offset_{d.serial_no}"
             )
         ]
         if not active:
@@ -936,11 +946,18 @@ class TadoDataManager:
         from ..const import ZONE_TYPE_HEATING
         from .zone_utils import get_zone_type
 
+        entry_id = (
+            self.coordinator.config_entry.entry_id
+            if self.coordinator.config_entry
+            else ""
+        )
         active = [
             z
             for z in self.zones_meta.values()
             if get_zone_type(z, "") == ZONE_TYPE_HEATING
-            and not self._is_entity_disabled("number", f"zone_{z.id}_away_temperature")
+            and not self._is_entity_disabled(
+                "number", f"{entry_id}_away_temperature_{z.id}"
+            )
         ]
         if not active:
             return

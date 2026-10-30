@@ -181,7 +181,7 @@ def _offset_number_state(
     from ..const import DOMAIN
 
     reg = er.async_get(coordinator.hass)
-    unique_ids = [f"{serial}_temperature_offset"]
+    unique_ids = []
     if coordinator.config_entry is not None:
         entry_id = coordinator.config_entry.entry_id
         unique_ids.append(f"{entry_id}_temperature_offset_{serial}")

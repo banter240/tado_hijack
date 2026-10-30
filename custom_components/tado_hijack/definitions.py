@@ -1997,7 +1997,6 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         optimistic_key="offset",
         entity_category=EntityCategory.CONFIG,
         unique_id_suffix="temperature_offset",
-        use_legacy_unique_id_format=True,
         required_device_capabilities=[CAPABILITY_INSIDE_TEMP],
         supported_generations={GEN_CLASSIC},
     ),
@@ -2014,7 +2013,6 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         optimistic_key="offset",
         entity_category=EntityCategory.CONFIG,
         unique_id_suffix="temperature_offset",
-        use_legacy_unique_id_format=True,
         required_device_capabilities=[CAPABILITY_INSIDE_TEMP],
         supported_generations={GEN_X},
     ),
@@ -2036,7 +2034,6 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         supported_zone_types={ZONE_TYPE_HEATING},
         entity_category=EntityCategory.CONFIG,
         unique_id_suffix="away_temperature",
-        use_legacy_unique_id_format=True,
         is_supported_fn=lambda c, zid: c.generation == GEN_CLASSIC,
     ),
     create_zone_number(
@@ -2090,7 +2087,6 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         optimistic_key="temperature",
         supported_zone_types={ZONE_TYPE_AIR_CONDITIONING, ZONE_TYPE_HOT_WATER},
         unique_id_suffix="target_temp",
-        use_legacy_unique_id_format=True,
     ),
     create_zone_number(
         key="open_window_timeout",
@@ -2111,7 +2107,6 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         supported_zone_types={ZONE_TYPE_HEATING},
         entity_category=EntityCategory.CONFIG,
         unique_id_suffix="open_window_timeout",
-        use_legacy_unique_id_format=True,
         is_supported_fn=lambda c, zid: (
             (owd := getattr(c.zones_meta.get(zid), "open_window_detection", None))
             and owd.supported

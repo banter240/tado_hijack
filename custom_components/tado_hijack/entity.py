@@ -348,16 +348,7 @@ class TadoEntity(CoordinatorEntity):
         suffix = self._get_unique_id_suffix()
         scope = self._definition.get("scope")
 
-        # Handle Legacy Formats (No Config Entry ID prefix)
-        if self._definition.get("use_legacy_unique_id_format"):
-            if scope == "zone":
-                return f"zone_{self._zone_id}_{suffix}"
-            if scope == "device":
-                return f"{self._serial_no}_{suffix}"
-            if scope == "bridge":
-                return f"bridge_{self._serial_no}_{suffix}"
-
-        # Default Modern Format: {ENTRY_ID}_{SUFFIX}[_{CONTEXT_ID}]
+        # Modern Format: {ENTRY_ID}_{SUFFIX}[_{CONTEXT_ID}]
         uid = f"{self.coordinator.config_entry.entry_id}_{suffix}"
         if scope == "zone":
             uid += f"_{self._zone_id}"
