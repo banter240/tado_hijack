@@ -113,7 +113,7 @@ class TadoHotWater(
         WaterHeaterEntityFeature.OPERATION_MODE
         | WaterHeaterEntityFeature.TARGET_TEMPERATURE
     )
-    _attr_native_temperature_unit = UnitOfTemperature.CELSIUS
+    _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_operation_list = OPERATION_MODES
     _attr_min_temp = TEMP_MIN_HOT_WATER
     _attr_max_temp = TEMP_MAX_HOT_WATER
@@ -182,12 +182,12 @@ class TadoHotWater(
         return OPERATION_MODE_AUTO
 
     @property
-    def native_current_temperature(self) -> float | None:
+    def current_temperature(self) -> float | None:
         """Return the current water temperature if available."""
         return None
 
     @property
-    def native_target_temperature(self) -> float | None:
+    def target_temperature(self) -> float | None:
         """Return the target water temperature."""
         # Non-OpenTherm systems don't support temperature control
         if not self.tado_coordinator.supports_temperature(self._zone_id):
@@ -232,11 +232,11 @@ class TadoHotWater(
     async def async_set_operation_mode(self, operation_mode: str) -> None:
         """Set new operation mode."""
         if operation_mode == OPERATION_MODE_OFF:
-            if current := self.native_target_temperature:
+            if current := self.target_temperature:
                 self._store_last_state("target_temperature", current)
             await self.tado_coordinator.async_set_hot_water_off(self._zone_id)
         elif operation_mode == OPERATION_MODE_AUTO:
-            if current := self.native_target_temperature:
+            if current := self.target_temperature:
                 self._store_last_state("target_temperature", current)
             await self.tado_coordinator.async_set_hot_water_auto(self._zone_id)
         elif operation_mode == OPERATION_MODE_HEAT:
@@ -286,7 +286,7 @@ class TadoHotWaterX(TadoHotWater):
     _attr_supported_features = WaterHeaterEntityFeature.OPERATION_MODE
 
     @property
-    def native_target_temperature(self) -> float | None:
+    def target_temperature(self) -> float | None:
         return None
 
     @property

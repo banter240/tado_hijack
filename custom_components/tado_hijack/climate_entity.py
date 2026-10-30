@@ -66,7 +66,7 @@ class TadoClimateEntity(
 ):
     """Base class for Tado climate entities (Hot Water / AC)."""
 
-    _attr_native_temperature_unit = UnitOfTemperature.CELSIUS
+    _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_optimistic_key = "power"
     _attr_optimistic_scope = "zone"
 
@@ -199,7 +199,7 @@ class TadoClimateEntity(
         raise NotImplementedError
 
     @property
-    def native_current_temperature(self) -> float | None:
+    def current_temperature(self) -> float | None:
         """Return current temperature."""
         state = self._current_state
         if state and state.sensor_data_points:
@@ -222,7 +222,7 @@ class TadoClimateEntity(
         return None
 
     @property
-    def native_target_temperature(self) -> float | None:
+    def target_temperature(self) -> float | None:
         """Return target temperature."""
         if self.hvac_mode in (HVACMode.OFF, HVACMode.FAN_ONLY):
             return None
@@ -281,7 +281,7 @@ class TadoClimateEntity(
         """Set operation mode."""
         # Handle turning OFF (Store last target temp for restoration)
         if hvac_mode == HVACMode.OFF:
-            if current := self.native_target_temperature:
+            if current := self.target_temperature:
                 if current > self._min_temp_limit:
                     self._store_last_state("target_temperature", current)
 
@@ -299,7 +299,7 @@ class TadoClimateEntity(
             if hvac_mode in (HVACMode.HEAT, HVACMode.COOL, HVACMode.DRY):
                 use_temp = (
                     self._get_last_state("target_temperature")
-                    or self.native_target_temperature
+                    or self.target_temperature
                     or self._default_temp
                 )
             # For AIR_CONDITIONING zones, always set explicit mode
@@ -412,8 +412,8 @@ class TadoAirConditioning(TadoClimateEntity):
         if state is None or power == POWER_OFF:
             return False
 
-        current_temp = self.native_current_temperature
-        target_temp = self.native_target_temperature
+        current_temp = self.current_temperature
+        target_temp = self.target_temperature
         mode = self.hvac_mode
 
         opt = self.tado_coordinator.optimistic
@@ -703,8 +703,8 @@ class TadoHeating(TadoClimateEntity):
         if state is None or power == POWER_OFF:
             return False
 
-        current_temp = self.native_current_temperature
-        target_temp = self.native_target_temperature
+        current_temp = self.current_temperature
+        target_temp = self.target_temperature
 
         # Optimistic state
         opt = self.tado_coordinator.optimistic
