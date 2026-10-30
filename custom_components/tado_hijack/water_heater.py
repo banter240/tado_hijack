@@ -14,6 +14,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import (
     DUMMY_ZONE_ID_TADOX_HOT_WATER,
     GEN_X,
+    OVERLAY_ROOM,
     TADOX_VIRTUAL_HOT_WATER_ZONE_ID,
     TEMP_MAX_HOT_WATER,
     TEMP_MIN_HOT_WATER,
@@ -274,6 +275,7 @@ class TadoHotWater(
             power="ON",
             temperature=rounded_temp,
             overlay_type="HOT_WATER",
+            overlay_mode=OVERLAY_ROOM,
         )
 
 

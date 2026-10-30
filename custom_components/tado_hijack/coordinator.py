@@ -1344,6 +1344,23 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         if refresh_after or (self._refresh_after_resume and not ignore_global_config):
             self._schedule_queued_refresh()
 
+    async def _async_hot_water_overlay(
+        self, zone_id: int, duration: int | None, overlay_mode: str | None
+    ) -> tuple[str | None, int | None, dict[str, Any] | None]:
+        """Explicit duration/mode wins; otherwise follow the Tado room default."""
+        if not duration and overlay_mode is None:
+            overlay_mode = OVERLAY_ROOM
+        return await self._async_room_overlay(zone_id, overlay_mode, duration)
+
+    @staticmethod
+    def _hot_water_expiry_s(
+        duration: int | None, termination: dict[str, Any] | None
+    ) -> int | None:
+        """Seconds until a timed hot-water overlay expires, if it is timed."""
+        return (termination or {}).get("durationInSeconds") or (
+            duration * 60 if duration else None
+        )
+
     async def async_set_hot_water_off(
         self,
         zone_id: int,
@@ -1371,14 +1388,28 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             await self._async_set_hot_water_tadox_off()
             return
 
+        overlay_mode, duration, termination = await self._async_hot_water_overlay(
+            zone_id, duration, overlay_mode
+        )
         data = build_overlay_data(
             zone_id,
             self.zones_meta,
             power="OFF",
             overlay_type="HOT_WATER",
+            duration=duration,
+            overlay_mode=overlay_mode,
+            termination=termination,
             supports_temp=self.supports_temperature(zone_id),
         )
-        self._execute_overlay_command(zone_id, data, power="OFF")
+        seconds = self._hot_water_expiry_s(duration, termination)
+        self._execute_overlay_command(
+            zone_id,
+            data,
+            power="OFF",
+            owd_timeout_s=float(seconds) if seconds else None,
+        )
+        if seconds:
+            self._schedule_expiry_poll(int(seconds))
 
         if refresh_after:
             self._schedule_queued_refresh()
@@ -1613,6 +1644,9 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         ):
             temp = state.setting.temperature.celsius
 
+        overlay_mode, duration, termination = await self._async_hot_water_overlay(
+            zone_id, duration, overlay_mode
+        )
         # Builder will only include temperature if supports_temp=True (OpenTherm)
         data = build_overlay_data(
             zone_id,
@@ -1620,11 +1654,21 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             power="ON",
             temperature=temp,
             overlay_type="HOT_WATER",
+            duration=duration,
+            overlay_mode=overlay_mode,
+            termination=termination,
             supports_temp=self.supports_temperature(zone_id),
         )
+        seconds = self._hot_water_expiry_s(duration, termination)
         self._execute_overlay_command(
-            zone_id, data, operation_mode="heat", temperature=temp
+            zone_id,
+            data,
+            operation_mode="heat",
+            temperature=temp,
+            owd_timeout_s=float(seconds) if seconds else None,
         )
+        if seconds:
+            self._schedule_expiry_poll(int(seconds))
 
     async def async_set_presence_debounced(self, presence: str) -> None:
         """Set presence mode (HOME/AWAY lock or AUTO/geofencing).
@@ -2910,8 +2954,6 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         """Resolve a room-default request. Other modes pass through."""
         if overlay_mode != OVERLAY_ROOM:
             return overlay_mode, duration, None
-        if self.generation != GEN_CLASSIC:
-            return OVERLAY_MANUAL, duration, None
         return None, None, await self.async_default_termination(zone_id)
 
     async def async_set_zone_overlay(

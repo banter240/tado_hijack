@@ -86,7 +86,7 @@ Magnus constants: `a = 17.67`, `b = 243.5`. Dew point is `Td = b·γ / (a − γ
 
 Mold uses room temperature minus dew point. Relative humidity at or below 0 is `none`. Above 7°C is `none`, above 5°C is `low`, above 3°C is `medium`, otherwise `high`. The binary sensor is on for `medium` and `high`. Dew point and mold default to on.
 
-Absolute humidity and ventilation exist only when an outdoor weather entity is set. Ventilation is on when indoor absolute humidity exceeds outdoor by the threshold (default 1.0 g/m³). The weather entity is a Home Assistant `weather` entity. This integration does not create a Tado weather entity.
+Absolute humidity and ventilation exist only when an outdoor source is set: either a Home Assistant `weather` entity (temperature + humidity) or a configured pair of outdoor temperature and humidity sensors; a configured sensor pair takes precedence. Ventilation is on when indoor absolute humidity exceeds outdoor by the threshold (default 1.0 g/m³). This integration does not create a Tado weather entity.
 
 Room temperature (`_get_room_temp_celsius`): the temperature-source select when it is not `device`, else the full-cloud climate or the HomeKit/Matter climate in `_climate_to_zone` (`current_temperature`), else the zone inside temperature. Room humidity (`_get_room_rh`): the humidity-source select when it is not `device`. A climate selected there is read as `current_humidity`. On `device`, humidity is this integration's humidity sensor, then the zone humidity. The serial match does not read the Matter climate's humidity. Offset calibration is separate and runs only with an explicit temperature-source entity.
 
@@ -154,7 +154,7 @@ When the last config entry unloads, every service including `set_schedule` is re
 
 ## Hot water
 
-Classic hot water is a real zone. The water heater supports `auto`, `heat`, and `off`. Target temperature exists only when capabilities include `temperatures`. The entity's heat and off paths, and the target-temperature number, do not pass duration or overlay. `set_water_heater_mode` does: heat and off go through `async_set_zone_overlay` with duration, overlay, and `refresh_after`. `auto` resumes.
+Classic hot water is a real zone. The water heater supports `auto`, `heat`, and `off`. Target temperature exists only when capabilities include `temperatures`. The entity's heat, off, and target-temperature paths follow the room's default overlay termination (one cached `defaultOverlay` GET per zone) when no explicit duration or overlay mode is given; an explicit duration or mode still wins. A timed termination feeds the recovery queue and schedules an expiry poll. `set_water_heater_mode` does: heat and off go through `async_set_zone_overlay` with duration, overlay, and `refresh_after`. `auto` resumes.
 
 Tado X hot water is virtual zone `9001`, created when `GET programmer/domesticHotWater/state` is controllable (state present and not `NONE`). Modes on the entity: no overlay is `auto`, `BOOST_ON` is `heat`, any other overlay is `off`. There is no temperature. `supports_temperature` is false for 9001. `binary_sensor.hot_water_schedule` is on while `state` is `SCHEDULE_ON`, off otherwise. The weekly ON/OFF plan is `set_schedule` on that water heater and the zone calendar. It is not part of the periodic poll.
 
