@@ -1,3 +1,66 @@
+## [5.13.0-dev.3](https://github.com/banter240/tado_hijack/compare/v5.13.0-dev.2...v5.13.0-dev.3) (2026-10-30)
+
+### ✨ New Features
+
+* feat(humidity): allow outdoor sensors instead of a weather entity
+
+  The ventilation and absolute-humidity maths read outdoor temperature and
+  relative humidity from a weather entity only. Users with their own outdoor
+  temperature and humidity sensors get more accurate values than a forecast.
+
+  Add two optional config fields (outdoor_sensor_temp, outdoor_sensor_humidity)
+  that take priority over the weather entity. _get_outdoor_conditions() resolves
+  the sensor pair first and falls back to the weather entity; _has_outdoor_source()
+  gates the indoor absolute humidity and ventilation sensors on either source.
+  Diagnostic sensors and en/de/cs labels cover the new fields.
+* feat(multi-home): fix number entity collisions for multiple Tado homes
+
+  Number entities (away_temperature, target_temp, open_window_timeout,
+  temperature_offset x2) used unprefixed unique ids (e.g. zone_1_away_temperature)
+  so a second Tado home with overlapping zone numbers caused collisions and
+  its entities were dropped at startup.
+
+  - Remove use_legacy_unique_id_format from the five affected definitions.
+  - Update all internal unique-id lookups in data_manager.py and offset_calibrate.py
+  to the modern format {entry_id}_{suffix}_{context}.
+  - Add migration v13 that renames legacy ids to the modern format, preserving
+  entity ids and history for single-home installs while fixing multi-home setups.
+  - Bump config entry version to 13.
+
+### 🐛 Bug Fixes
+
+* fix(climate): migrate to native_ temperature properties
+
+  Home Assistant 2026.11 deprecates current_temperature,
+  target_temperature(_high/_low), temperature_unit and their _attr_
+  shorthands on climate and water heater entities; the old names are
+  removed in 2027.11 and emit twelve deprecation warnings on import.
+
+  Rename the affected properties to their native_ equivalents in
+  TadoClimateEntity, TadoHotWater, TadoHotWaterX and
+  TadoLocalClimateProxy, including all internal reads (fallback and
+  hvac-action paths). min_temp, max_temp and target_temperature_step
+  stay unchanged, they remain native-unit per the migration guide. On
+  Home Assistant releases before 2026.11 the ClimateEntity base class has
+  no native_ names yet, so this requires HA >= 2026.11 to run.
+* fix(hot water): follow room defaultOverlay termination instead of MANUAL
+
+  Hot water heat/off/temperature commands fell back to a MANUAL overlay,
+  ignoring the zone's defaultOverlay termination setting (e.g. next-time-
+  block), so manual hot water control never reverted to schedule.
+
+  Based on a coordinator patch by swann05, extended:
+  - Route hot water off/heat through _async_hot_water_overlay, which
+    resolves OVERLAY_ROOM via the zone defaultOverlay unless an explicit
+    duration/mode was requested (explicit values still win).
+  - Thread timed terminations through owd_timeout_s recovery and schedule
+    an expiry poll so state refreshes when a timed overlay lapses.
+  - Remove the GEN_X bypass in _async_room_overlay: the defaultOverlay
+    endpoint exists for both Classic (OpenAPI spec) and Tado X (PyTado),
+    so room-default resolution now works on both generations.
+  - Propagate OVERLAY_ROOM from water_heater.async_set_temperature.
+  - Extract _hot_water_expiry_s helper for the duplicated seconds calc.
+
 ## [5.13.0-dev.2](https://github.com/banter240/tado_hijack/compare/v5.13.0-dev.1...v5.13.0-dev.2) (2026-10-28)
 
 ### ✨ New Features
