@@ -62,7 +62,7 @@ The heating climate is created in HomeKit (V3) or Matter (Tado X). The entities 
 - **Auto API Quota:** Dynamically adjusts polling intervals based on your remaining daily API calls and detects your account's specific reset time.
 - **Command Batching:** Classic zones in one window share one call. Tado X is one call per room, or one quick action when the whole heating batch matches.
 - **Multi-Generation Support:** Full support for V2 (GW bridges), V3 Classic (HomeKit), and Tado X (Matter) within a unified architecture.
-- **Several homes:** One account can hold more than one home, on V2, V3 Classic, and Tado X. Setup logs in, you pick one, and the next home is another add with its own login.
+- **Several homes:** One account can hold more than one home, on V2, V3 Classic, and Tado X. Setup logs in, you pick one, and the next home is another add with its own login. All entities are scoped to their home's config entry (unique IDs carry the entry ID), so zone/device numbers never collide across homes.
 - **Reverse linking:** HomeKit or Matter entities are on the Hijack device. Keep the Tado HomeKit or Matter integration, or the clone is gone. [Created in HomeKit or Matter](#created-in-homekit-or-matter).
 - **Indoor Climate Sensors:** Calculates dew point, absolute humidity, and mold risk per zone.
 - **Offset from an external temperature:** A linked sensor is compared with the TRV and the offset is written. Off until you choose an interval. [How it runs](#offset-from-an-external-temperature).
@@ -438,7 +438,7 @@ Tado Hijack is now an **official HACS integration**! No custom repository needed
 | **Dew Point Sensor**               | `On`      | Dew point per zone from room temperature and humidity (Magnus). The source chain is in the section below. |
 | **Mold Risk Sensors**              | `On`      | Create a mold risk level sensor (`none`/`low`/`medium`/`high`) and a binary moisture sensor per zone. Uses dew point spread — correctly distinguishes cold-but-dry from cold-and-humid rooms. |
 | **Extended Data Fetch**            | `On`      | Fetch extended zone data (e.g. additional capabilities) during polling. Disable to reduce API payload size. |
-| **Outdoor Weather Entity**         | `None`    | Select a weather entity providing outdoor temperature + humidity. When set, creates an indoor absolute humidity sensor (g/m³) and a ventilation recommendation binary sensor per zone. |
+| **Outdoor Weather Entity**         | `None`    | Select a weather entity providing outdoor temperature + humidity. Alternatively, configure separate **Outdoor Temperature/Humidity Sensors** (per `device_class`); a configured sensor pair takes precedence over the weather entity. When either source is set, creates an indoor absolute humidity sensor (g/m³) and a ventilation recommendation binary sensor per zone. |
 | **Ventilation Threshold**          | `1.0 g/m³`| Minimum indoor-outdoor AH difference required before _Ventilation Recommended_ turns ON. Prevents automation chatter from negligible differences. |
 | **Temperature Source** _(per zone)_| `device`  | See the section below. Offset calibration runs only with a source other than `device`. |
 | **Humidity Source** _(per zone)_   | `device`  | See the section below. |
@@ -700,7 +700,7 @@ Cloud-only features that HomeKit does not support.
 | `button.refresh_all_zone_plans`     | Button        | Fetch every capable zone's weekly plan (1-2 GET per zone, coalesced with per-room fetches in the same window). Includes Tado X hot water when the programmer is controllable. Cheaper than a full poll. |
 | `calendar.zone_plan`                | Calendar      | Read-only week view of ON windows (`Tado <room> Weekly Plan`). Heating shows the temperature. Tado X hot water shows ON. **Cache only** - opening the calendar never hits Tado. Fetch with `refresh_zone_plan`, `refresh_all_zone_plans`, or `full_manual_poll` / `manual_poll` type `all` or `schedule`. General polling can fetch every plan once after the quota reset (default off). `set_schedule` updates the cache only after Tado accepts the write; a failed write leaves the previous plan. Not part of periodic poll. Attributes `timetable`, `day`, `blocks`, `plan` match `set_schedule`. |
 | `number.open_window_timeout`        | Number        | **Config:** Open window timeout (0=OFF, 5-1439min=ON). Requires Tado subscription for detection. |
-| `number.target_temperature`         | Number        | **HW & AC:** Set target temperature for hot water (manual mode) or AC zones.                                            |
+| `number.target_temperature`         | Number        | **HW & AC:** Set target temperature for hot water (follows the room default overlay termination) or AC zones.             |
 | `number.away_temperature`           | Number        | **v3 Only:** Set away mode temperature.                                                         |
 | `select.zone_temp_source`           | Select        | Temperature for dew point, mold, and offset calibration. Chain: [sources](#zone-temperature--humidity-sources-all-generations). |
 | `button.calibrate_offset`           | Button        | **Config:** Calibrate this room's TRV offset against the linked `zone_temp_source` now. 1 write per measuring device in the room that needs a change, and a GET only when no offset is known. |
