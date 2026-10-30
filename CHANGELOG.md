@@ -1,3 +1,26 @@
+## [5.13.0-dev.5](https://github.com/banter240/tado_hijack/compare/v5.13.0-dev.4...v5.13.0-dev.5) (2026-10-30)
+
+### 🐛 Bug Fixes
+
+* fix(climate): add legacy property shim for HA < 2026.11
+
+  The native_ temperature properties only exist on Home Assistant
+  2026.11 and newer, so the migration locked out every install on an
+  older release. Add a compatibility shim after hmmbob's pattern used in
+  kia_uvo, SonoffLAN and hass-xiaomi-miot: when the base class has no
+  native_temperature_unit, define legacy properties that forward to the
+  native_* implementations. On 2026.11+ the block is skipped, so no
+  deprecated members are defined and no deprecation warnings are logged.
+
+  - TadoClimateEntity and TadoHotWater forward current/target temperature
+    and unit; forwarding through self.native_* keeps TadoHotWaterX
+    overrides intact.
+  - TadoLocalClimateProxy forwards all five temperature/unit properties
+    including target_temperature_high/low.
+
+  The shim is inert dead code on 2026.11+ and is marked for removal when
+  min_homeassistant_version is raised to 2026.11.
+
 ## [5.13.0-dev.4](https://github.com/banter240/tado_hijack/compare/v5.13.0-dev.3...v5.13.0-dev.4) (2026-10-30)
 
 ### 📚 Documentation
