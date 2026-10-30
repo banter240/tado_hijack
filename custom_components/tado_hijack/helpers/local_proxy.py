@@ -117,6 +117,7 @@ from ..entity import TadoEntity
 from .device_link import device_identifier, zone_device_identifier
 from .device_linker import get_local_device, invalidate_cache
 from .discovery import get_bridges, yield_devices
+from .legacy_shim import NativeLegacyRangeMixin, NativeLegacyShimMixin
 from .local_climate import climate_is_off
 from .logging_utils import get_redacted_logger
 from .zone_utils import (
@@ -530,7 +531,12 @@ class TadoLocalProxyBase(TadoEntity):
         )
 
 
-class TadoLocalClimateProxy(TadoLocalProxyBase, ClimateEntity):
+class TadoLocalClimateProxy(
+    NativeLegacyShimMixin,
+    NativeLegacyRangeMixin,
+    TadoLocalProxyBase,
+    ClimateEntity,
+):
     """Copy of a local climate entity.
 
     HomeKit and Matter have no auto mode. Auto is added when the cloud
@@ -594,19 +600,19 @@ class TadoLocalClimateProxy(TadoLocalProxyBase, ClimateEntity):
             return None
 
     @property
-    def current_temperature(self) -> float | None:
+    def native_current_temperature(self) -> float | None:
         return _float_attr(self._source(), ATTR_CURRENT_TEMPERATURE)
 
     @property
-    def target_temperature(self) -> float | None:
+    def native_target_temperature(self) -> float | None:
         return _float_attr(self._source(), ATTR_TEMPERATURE)
 
     @property
-    def target_temperature_high(self) -> float | None:
+    def native_target_temperature_high(self) -> float | None:
         return _float_attr(self._source(), ATTR_TARGET_TEMP_HIGH)
 
     @property
-    def target_temperature_low(self) -> float | None:
+    def native_target_temperature_low(self) -> float | None:
         return _float_attr(self._source(), ATTR_TARGET_TEMP_LOW)
 
     @property
@@ -642,7 +648,7 @@ class TadoLocalClimateProxy(TadoLocalProxyBase, ClimateEntity):
         return _float_attr(self._source(), ATTR_TARGET_TEMP_STEP)
 
     @property
-    def temperature_unit(self) -> str:
+    def native_temperature_unit(self) -> str:
         state = self._source()
         unit = (
             state.attributes.get(ATTR_UNIT_OF_MEASUREMENT)
