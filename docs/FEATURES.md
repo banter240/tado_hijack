@@ -50,6 +50,8 @@ Usable budget is `(limit − background over 24 h − threshold)`, scaled by the
 
 A reset is remaining going up to at least 80% of the limit. The first sample is not a reset. Two consecutive resets in the same UTC hour confirm the pattern (five are stored). Until then the expected time is 11:30 UTC, shown in Europe/Berlin: 12:30 CET, 13:30 CEST. The safety reserve is spread across the three hours centered on that hour.
 
+`_polling_calls_today` and the last remaining value persist across Home Assistant restarts, so the interval calculation starts correctly and a reset that happened while HA was down is caught against the stored baseline.
+
 ### What a poll fetches
 
 Room state when the interval is due. On Tado X that includes the hot-water programmer, unless a previous response said it is missing or not controllable; that result is cached and later polls skip the GET.

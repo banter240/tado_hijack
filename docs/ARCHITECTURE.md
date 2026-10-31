@@ -120,7 +120,7 @@ graph TD
 
 ### `TadoStorage`
 
-`helpers/storage.py` — persistent key/value storage for the integration (reset history, calibration state).
+`helpers/storage.py` — persistent key/value storage for the integration (reset history, calibration state, quota counters, hot-water duration plans).
 
 ### `WindowController`
 

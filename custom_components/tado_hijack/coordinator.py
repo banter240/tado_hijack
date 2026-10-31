@@ -443,6 +443,21 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
                 self._last_quota_reset = last_reset
             self._schedule_reset_poll()
 
+        # Restore persistent quota counters (P1: Quota-Härtung)
+        counters = await self.storage.async_get("quota_counters")
+        if isinstance(counters, dict):
+            calls_today = counters.get("polling_calls_today")
+            if isinstance(calls_today, int) and calls_today >= 0:
+                self._polling_calls_today = calls_today
+            remaining = counters.get("last_remaining")
+            if isinstance(remaining, int):
+                self._last_remaining = remaining
+            _LOGGER.debug(
+                "Restored quota counters: %d calls today, last remaining %s",
+                self._polling_calls_today,
+                self._last_remaining,
+            )
+
         timetable_data = await self.storage.async_get("timetable_cache")
         if timetable_data:
             restored = {int(k): v for k, v in timetable_data.items()}
@@ -640,6 +655,8 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
                     self.rate_limit.last_poll_cost = float(poll_calls)
                     self._polling_calls_today += poll_calls
 
+            # _detect_quota_reset persists both quota counters on every
+            # fetch (covers increments above and the remaining baseline).
             if self._detect_quota_reset():
                 self._maybe_calibrate_offsets_on_reset()
 
@@ -923,7 +940,20 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             )
 
         self._last_remaining = self.rate_limit.remaining
+        self._save_quota_counters()
         return reset
+
+    def _save_quota_counters(self) -> None:
+        """Persist polling_calls_today and last_remaining to storage."""
+        self.hass.async_create_task(
+            self.storage.async_update(
+                "quota_counters",
+                {
+                    "polling_calls_today": self._polling_calls_today,
+                    "last_remaining": self._last_remaining,
+                },
+            )
+        )
 
     async def _on_reset_poll(self) -> None:
         """Zone poll when auto quota is on, then weekly plans when that switch is on."""
