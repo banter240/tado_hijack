@@ -144,7 +144,7 @@ A transport failure (timeout, connection error, HTTP 500) is a different outage:
 
 ## Schedules and calendars
 
-Classic timetables are `one_day` (id 0), `three_day` (id 1), and `seven_day` (id 2). The zone select and the home select (which stays on the home device, not the bridge) write `activeTimetable`. Tado X has no timetable switch. Those entities are removed at startup on a Tado X entry. The week is the seven weekdays.
+Classic timetables are `one_day` (id 0), `three_day` (id 1), and `seven_day` (id 2). The zone select and the home select write `activeTimetable`. The home select sits on the Internet Bridge with the other home controls. It shows mixed when the cached zones disagree, and unknown until a timetable is cached. Choosing mixed does not write. Tado X has no timetable switch. Those entities are removed at startup on a Tado X entry. The week is the seven weekdays.
 
 `set_schedule` queues one command per day slot. Classic is one PUT of that day's blocks, plus one PUT of `activeTimetable` when `activate` is set. Tado X rooms are one POST of `rooms/{id}/schedule` per weekday. Tado X hot water is one PUT of `programmer/domesticHotWater/schedule` per weekday, with `power` ON or OFF and no temperature. `one_day`, `three_day`, and `activate` do not apply to Tado X. `all_days` writes every slot of the chosen timetable. `geolocation_override` is copied onto classic blocks only.
 

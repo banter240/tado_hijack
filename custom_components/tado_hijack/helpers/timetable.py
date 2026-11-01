@@ -13,6 +13,7 @@ from ..const import (
     GEN_X,
     TADOX_VIRTUAL_HOT_WATER_ZONE_ID,
     TIMETABLE_ID_TO_TYPE,
+    TIMETABLE_SELECT_MIXED,
     TIMETABLE_TYPE_TO_ID,
     TIMETABLE_ZONE_TYPES,
 )
@@ -81,10 +82,17 @@ def zone_select_value(cache: dict[int, TimetableEntry], zone_id: int) -> str | N
     return select_option(cache.get(zone_id))
 
 
-def home_select_value(cache: dict[int, TimetableEntry]) -> str | None:
-    """Home select value when every cached zone agrees; None if mixed/empty."""
-    types = {entry.get("type") for entry in cache.values() if entry.get("type")}
-    return None if len(types) != 1 else select_option({"type": next(iter(types))})
+def home_select_value(coordinator: TadoDataUpdateCoordinator) -> str | None:
+    """Shared mode, mixed when cached zones disagree, None when none are cached."""
+    cache = coordinator.data_manager.timetable_cache
+    types = {
+        timetable_type
+        for zone_id in compatible_zone_ids(coordinator)
+        if (entry := cache.get(zone_id)) and (timetable_type := entry.get("type"))
+    }
+    if len(types) > 1:
+        return TIMETABLE_SELECT_MIXED
+    return select_option({"type": next(iter(types))}) if len(types) == 1 else None
 
 
 def compatible_zone_ids(coordinator: TadoDataUpdateCoordinator) -> list[int]:

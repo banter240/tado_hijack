@@ -479,7 +479,8 @@
         "state": {
           "one_day": "Mon-Sun (same every day)",
           "three_day": "Mon-Fri / Sat / Sun",
-          "seven_day": "Per day of the week"
+          "seven_day": "Per day of the week",
+          "mixed": "Mixed"
         }
       },
       "zone_circuit": {

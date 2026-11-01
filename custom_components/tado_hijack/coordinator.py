@@ -100,6 +100,7 @@ from .const import (
     TEMP_DEFAULT_HEATING,
     TEMP_DEFAULT_HOT_WATER,
     THROTTLE_RECOVERY_INTERVAL_S,
+    TIMETABLE_SELECT_MIXED,
     TIMETABLE_SEVEN_DAY,
     ZONE_TYPE_AIR_CONDITIONING,
     ZONE_TYPE_HEATING,
@@ -2744,7 +2745,9 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         )
 
     async def async_set_timetable_all_zones(self, timetable_type: str) -> None:
-        """Set the timetable type for all compatible zones."""
+        """Set one timetable type on every compatible zone. mixed is not sent."""
+        if timetable_type.strip().lower() == TIMETABLE_SELECT_MIXED:
+            return
         await self._async_for_timetable_zones(
             lambda zone_id: self.async_set_timetable(zone_id, timetable_type),
             f"Setting timetable type '{timetable_type}'",

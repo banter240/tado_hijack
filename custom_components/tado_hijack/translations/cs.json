@@ -479,7 +479,8 @@
         "state": {
           "one_day": "Po-Ne (stejně každý den)",
           "three_day": "Po-Pá / So / Ne",
-          "seven_day": "Podle dne v týdnu"
+          "seven_day": "Podle dne v týdnu",
+          "mixed": "Smíšený"
         }
       },
       "zone_circuit": {

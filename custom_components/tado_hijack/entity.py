@@ -403,7 +403,7 @@ class TadoHomeEntity(TadoEntity):
             self._attach_local_device(self._bridge_serial)
 
     def _keep_off_bridge(self) -> None:
-        """Leave this entity on the home device. A bridge has no schedule."""
+        """Leave this entity on the home device."""
         self.device_entry = None
         self._bridge_serial = None
 

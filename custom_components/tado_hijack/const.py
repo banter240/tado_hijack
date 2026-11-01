@@ -256,6 +256,12 @@ TIMETABLE_ID_TO_TYPE: Final[dict[int, str]] = {
 TIMETABLE_SELECT_OPTIONS: Final[list[str]] = [
     key.lower() for key in TIMETABLE_TYPE_TO_ID
 ]
+# Not an API timetable. The home select shows it when cached zones disagree.
+TIMETABLE_SELECT_MIXED: Final = "mixed"
+TIMETABLE_HOME_SELECT_OPTIONS: Final[list[str]] = [
+    *TIMETABLE_SELECT_OPTIONS,
+    TIMETABLE_SELECT_MIXED,
+]
 TIMETABLE_ZONE_TYPES: Final[set[str]] = {ZONE_TYPE_HEATING, ZONE_TYPE_HOT_WATER}
 
 # Reserved IDs for things that aren't normal Tado rooms/zones.
