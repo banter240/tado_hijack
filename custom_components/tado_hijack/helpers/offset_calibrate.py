@@ -5,7 +5,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from ..const import CAPABILITY_INSIDE_TEMP
+from .logging_utils import get_redacted_logger
 from .zone_utils import cloud_reading_is_live
+
+_LOGGER = get_redacted_logger(__name__)
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant, State
@@ -235,3 +238,121 @@ def measuring_devices(
         if serial := getattr(device, "serial_no", None):
             found.append((str(serial), int(zone_id)))
     return found
+
+
+async def queue_offset_cal_writes(
+    coordinator: TadoDataUpdateCoordinator,
+    reason: str,
+    linked: dict[str, Any],
+    zone_id: int | None = None,
+) -> int:
+    """Queue one offset PUT per measuring device that needs a change."""
+    wrote = 0
+    zone_states = getattr(coordinator.data, "zone_states", None) or {}
+    for serial, zid in measuring_devices(coordinator):
+        if await _queue_one_offset(
+            coordinator, reason, linked, zone_id, serial, zid, zone_states
+        ):
+            wrote += 1
+    return wrote
+
+
+def _linked_entity_id(
+    coordinator: TadoDataUpdateCoordinator,
+    requested_zone: int | None,
+    zone_id: int,
+    linked: dict[str, Any],
+) -> str | None:
+    """Linked thermostat, or None when this device is outside the request."""
+    if requested_zone is not None and zone_id != requested_zone:
+        return None
+    dummy = coordinator.dummy_handler
+    if dummy and dummy.is_dummy_zone(zone_id):
+        return None
+    entity_id = linked.get(str(zone_id))
+    return str(entity_id) if entity_id else None
+
+
+async def _current_offset(
+    coordinator: TadoDataUpdateCoordinator, serial: str, zone_id: int
+) -> float | None:
+    """Device offset, fetched once when the cache has none."""
+    current = current_device_offset(coordinator, serial)
+    if current is not None:
+        return current
+    try:
+        await coordinator.data_manager._fetch_offset_for(serial)
+    except Exception:
+        _LOGGER.debug(
+            "Offset cal zone %s device %s: offset fetch failed",
+            zone_id,
+            serial,
+        )
+    return current_device_offset(coordinator, serial)
+
+
+def _log_missing_offset(
+    reason: str,
+    zone_id: int,
+    serial: str,
+    thermostat: float | None,
+    tado_inside: float | None,
+    current: float | None,
+) -> None:
+    """Manual skips warn. Scheduled skips stay at debug."""
+    values = (zone_id, serial, thermostat, tado_inside, current)
+    if reason == "manual":
+        _LOGGER.warning(
+            "Offset cal skipped: zone %s device %s (thermostat=%s tado=%s offset=%s)",
+            *values,
+        )
+        return
+    _LOGGER.debug(
+        "Skip offset cal zone %s device %s (thermostat=%s tado=%s offset=%s)",
+        *values,
+    )
+
+
+async def _queue_one_offset(
+    coordinator: TadoDataUpdateCoordinator,
+    reason: str,
+    linked: dict[str, Any],
+    requested_zone: int | None,
+    serial: str,
+    zone_id: int,
+    zone_states: Any,
+) -> bool:
+    """Queue one device write. False when the device needs no change."""
+    entity_id = _linked_entity_id(coordinator, requested_zone, zone_id, linked)
+    if entity_id is None:
+        return False
+    thermostat = read_entity_temperature(coordinator.hass, entity_id)
+    tado_inside = inside_from_zone_state(
+        zone_states.get(str(zone_id)) or zone_states.get(zone_id)
+    )
+    current = await _current_offset(coordinator, serial, zone_id)
+    if thermostat is None or tado_inside is None or current is None:
+        _log_missing_offset(reason, zone_id, serial, thermostat, tado_inside, current)
+        return False
+    if reason != "manual" and offset_reading_is_anchored(
+        coordinator._offset_cal_inside_anchor.get(serial),
+        current=current,
+        tado_inside=tado_inside,
+    ):
+        return False
+    desired = compute_device_offset(thermostat, tado_inside, current)
+    threshold = coordinator.get_zone_offset_cal_threshold(zone_id)
+    if abs(desired - current) < max(threshold, OFFSET_STEP):
+        return False
+    _LOGGER.info(
+        "Offset cal (%s) %s: thermostat=%.2f tado=%.2f offset %.1f -> %.1f",
+        reason,
+        serial,
+        thermostat,
+        tado_inside,
+        current,
+        desired,
+    )
+    await coordinator.async_set_temperature_offset(serial, desired)
+    coordinator._offset_cal_inside_anchor[serial] = (tado_inside, desired)
+    return True

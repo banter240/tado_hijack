@@ -585,119 +585,15 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
 
     async def _fetch_tado_data(self) -> TadoData:
         """Fetch update via DataManager."""
-        if not self.is_polling_enabled and not self._force_next_update:
-            _LOGGER.debug("Polling globally disabled via switch.")
-            if self.data:
-                return cast(TadoData, self.data)
-            _LOGGER.info(
-                "No data exists, allowing initial fetch despite disabled switch"
-            )
-
-        if self.is_reduced_polling_logic_enabled:
-            conf = self._get_reduced_window_config()
-            if conf and conf["interval"] == 0:
-                now = dt_util.now()
-                if self._is_in_reduced_window(now, conf):
-                    _LOGGER.debug("In 0-polling window, skipping API call.")
-                    if self.data:
-                        self.async_update_interval_local()
-                        return cast(TadoData, self.data)
-
-        if (
-            self._disable_polling_when_throttled
-            and self.rate_limit.is_throttled
-            and not self._force_next_update
-        ):
-            _LOGGER.warning(
-                "Throttled (remaining: %d, threshold: %d). Polling suspended.",
-                self.rate_limit.remaining,
-                self.rate_limit.throttle_threshold,
-            )
-            if self.data:
-                if self.rate_limit.out_of_quota:
-                    self.offline_fallback.note_quota_exhausted()
-                return cast(TadoData, self.data)
-
-            # If no data exists yet, allow first fetch
-            _LOGGER.info("No data exists, allowing initial fetch despite throttling")
-
+        if (cached := self._cached_data_if_poll_skipped()) is not None:
+            return cached
         try:
-            quota_start = self.rate_limit.remaining
-            _LOGGER.debug("Starting data fetch (quota: %d)", quota_start)
-
-            data = await self.data_manager.fetch_full_update()
-
-            self.zones_meta = self.data_manager.zones_meta
-            self.devices_meta = self.data_manager.devices_meta
-
-            entry = self.config_entry
-            if entry is not None:
-                from .helpers.device_linker import drop_absent_registry
-
-                drop_absent_registry(
-                    self.hass,
-                    entry_id=entry.entry_id,
-                    zones_meta=self.zones_meta,
-                    devices_meta=self.devices_meta,
-                )
-
-            from .helpers.discovery import get_bridges
-
-            self.bridges = get_bridges(self.devices_meta, self.generation)
-
-            if not self.full_cloud_mode:
-                self._update_climate_map()
-
-            self.auth_manager.check_and_update_token()
-            self.optimistic.cleanup()
-
-            self.rate_limit.sync_from_headers()
-
-            actual_cost = quota_start - self.rate_limit.remaining
-            cap_calls = self.data_manager.take_capabilities_refresh_count()
-            es_calls = self.data_manager.take_early_start_refresh_count()
-            if actual_cost > 0:
-                poll_calls = max(0, actual_cost - cap_calls - es_calls)
-                if poll_calls > 0:
-                    self.rate_limit.last_poll_cost = float(poll_calls)
-                    self._polling_calls_today += poll_calls
-
-            # _detect_quota_reset persists both quota counters on every
-            # fetch (covers increments above and the remaining baseline).
-            if self._detect_quota_reset():
-                self._maybe_calibrate_offsets_on_reset()
-
-            data.rate_limit = RateLimit(
-                limit=self.rate_limit.limit, remaining=self.rate_limit.remaining
-            )
-            data.api_status = self.rate_limit.api_status
-
-            self.offline_fallback.note_reachable()
-            self._adjust_interval_for_auto_quota()
-
-            # Reset force flag only after a successful fetch
-            self._force_next_update = False
-
-            # Zones have to exist before window/recovery can target them.
-            if not self._window_controller_started:
-                self._window_controller_started = True
-                self.hass.async_create_task(self.window_controller.async_start())
-
-            if not self._recovery_started:
-                self._recovery_started = True
-                self.hass.async_create_task(self._async_start_recovery_stack())
-            else:
-                self.availability_tracker.refresh()
-
-            if self._zones_on_threshold():
-                self._on_threshold_sensor(None)
-
-            return cast(TadoData, data)
+            return await self._run_full_fetch()
         except TadoRateLimitError as err:
             self._force_next_update = False
             self.rate_limit.mark_rate_limited()
             # HA honours retry_after only on UpdateFailed, not on cached data.
-            self.update_interval = timedelta(seconds=err.retry_after)
+            self._set_update_interval(timedelta(seconds=err.retry_after))
             self.poll_scheduler.schedule_reset_poll(
                 err.retry_after, self._on_reset_poll
             )
@@ -714,11 +610,9 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         except (TimeoutError, TadoError, aiohttp.ClientError) as err:
             self._force_next_update = False
             self.offline_fallback.note_call_failed(err)
-
             if self.data:
                 _LOGGER.warning("Tado API transient error, using cached data: %s", err)
                 return cast(TadoData, self.data)
-
             raise UpdateFailed(redact(f"Tado API error: {err}")) from None
         except Exception as err:
             self._force_next_update = False
@@ -726,6 +620,123 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             if self.data:
                 return cast(TadoData, self.data)
             raise UpdateFailed(redact(f"Unexpected error: {err}")) from None
+
+    def _cached_data_if_poll_skipped(self) -> TadoData | None:
+        """Return cached data when this cycle must not call Tado.
+
+        None means the fetch continues. A disabled switch, a zero window, or
+        a throttle with an empty cache still allows the first fetch.
+        """
+        if not self.is_polling_enabled and not self._force_next_update:
+            _LOGGER.debug("Polling globally disabled via switch.")
+            if self.data:
+                return cast(TadoData, self.data)
+            _LOGGER.info(
+                "No data exists, allowing initial fetch despite disabled switch"
+            )
+
+        if self.is_reduced_polling_logic_enabled:
+            conf = self._get_reduced_window_config()
+            if (
+                conf
+                and conf["interval"] == 0
+                and self._is_in_reduced_window(dt_util.now(), conf)
+            ):
+                _LOGGER.debug("In 0-polling window, skipping API call.")
+                if self.data:
+                    self.async_update_interval_local()
+                    return cast(TadoData, self.data)
+
+        if (
+            self._disable_polling_when_throttled
+            and self.rate_limit.is_throttled
+            and not self._force_next_update
+        ):
+            _LOGGER.warning(
+                "Throttled (remaining: %d, threshold: %d). Polling suspended.",
+                self.rate_limit.remaining,
+                self.rate_limit.throttle_threshold,
+            )
+            if self.data:
+                if self.rate_limit.out_of_quota:
+                    self.offline_fallback.note_quota_exhausted()
+                return cast(TadoData, self.data)
+            _LOGGER.info("No data exists, allowing initial fetch despite throttling")
+        return None
+
+    async def _run_full_fetch(self) -> TadoData:
+        """Fetch, record quota cost, and start one-shot background work."""
+        quota_start = self.rate_limit.remaining
+        _LOGGER.debug("Starting data fetch (quota: %d)", quota_start)
+        data = await self.data_manager.fetch_full_update()
+        self._apply_fetched_metadata()
+        self._record_poll_cost(quota_start)
+        # _detect_quota_reset persists both quota counters on every
+        # fetch (covers increments above and the remaining baseline).
+        if self._detect_quota_reset():
+            self._maybe_calibrate_offsets_on_reset()
+        data.rate_limit = RateLimit(
+            limit=self.rate_limit.limit, remaining=self.rate_limit.remaining
+        )
+        data.api_status = self.rate_limit.api_status
+        self.offline_fallback.note_reachable()
+        self._adjust_interval_for_auto_quota()
+        # Reset force flag only after a successful fetch
+        self._force_next_update = False
+        self._start_post_fetch_tasks()
+        return cast(TadoData, data)
+
+    def _apply_fetched_metadata(self) -> None:
+        """Copy zones, devices, and bridges from the fetch that just finished."""
+        self.zones_meta = self.data_manager.zones_meta
+        self.devices_meta = self.data_manager.devices_meta
+        entry = self.config_entry
+        if entry is not None:
+            from .helpers.device_linker import drop_absent_registry
+
+            drop_absent_registry(
+                self.hass,
+                entry_id=entry.entry_id,
+                zones_meta=self.zones_meta,
+                devices_meta=self.devices_meta,
+            )
+        from .helpers.discovery import get_bridges
+
+        self.bridges = get_bridges(self.devices_meta, self.generation)
+        if not self.full_cloud_mode:
+            self._update_climate_map()
+        self.auth_manager.check_and_update_token()
+        self.optimistic.cleanup()
+        self.rate_limit.sync_from_headers()
+
+    def _record_poll_cost(self, quota_start: int) -> None:
+        """Count this fetch's zone polls, excluding capability and early-start."""
+        actual_cost = quota_start - self.rate_limit.remaining
+        cap_calls = self.data_manager.take_capabilities_refresh_count()
+        es_calls = self.data_manager.take_early_start_refresh_count()
+        if actual_cost <= 0:
+            return
+        poll_calls = max(0, actual_cost - cap_calls - es_calls)
+        if poll_calls <= 0:
+            return
+        self.rate_limit.last_poll_cost = float(poll_calls)
+        self._polling_calls_today += poll_calls
+
+    def _start_post_fetch_tasks(self) -> None:
+        """Start window and recovery once, then refresh availability.
+
+        Zones have to exist before window and recovery can target them.
+        """
+        if not self._window_controller_started:
+            self._window_controller_started = True
+            self.hass.async_create_task(self.window_controller.async_start())
+        if not self._recovery_started:
+            self._recovery_started = True
+            self.hass.async_create_task(self._async_start_recovery_stack())
+        else:
+            self.availability_tracker.refresh()
+        if self._zones_on_threshold():
+            self._on_threshold_sensor(None)
 
     def _handle_throttled_interval(self, seconds_until_reset: int) -> int:
         """Handle polling interval when throttled."""
@@ -888,29 +899,38 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             return expected.hour, expected.minute
         return None, None
 
+    def _set_update_interval(self, interval: timedelta | None) -> None:
+        """Store the next poll interval.
+
+        None stops periodic polling. Pre-commit mypy cannot see
+        DataUpdateCoordinator.update_interval, so the only assignment lives
+        here and keeps the attribute typed as timedelta or None.
+        """
+        self.update_interval = interval
+
+    def _base_poll_interval(self) -> timedelta | None:
+        """Configured scan interval, or None when that interval is disabled."""
+        if self._base_scan_interval > 0:
+            return timedelta(seconds=self._base_scan_interval)
+        return None
+
     def _adjust_interval_for_auto_quota(self) -> None:
         """Adjust update interval based on auto API quota percentage."""
         calculated_interval = self._calculate_auto_quota_interval()
-
         if calculated_interval is None:
-            self.update_interval = (
-                timedelta(seconds=self._base_scan_interval)
-                if self._base_scan_interval > 0
-                else None
-            )
-        else:
-            final_interval = float(calculated_interval)
-            # Apply jitter only when using proxy (Standard requirement)
-            if self.config_entry.data.get(CONF_API_PROXY_URL):
-                jitter_percent = float(
-                    self.config_entry.data.get(
-                        CONF_JITTER_PERCENT, DEFAULT_JITTER_PERCENT
-                    )
-                )
-                final_interval = apply_jitter(final_interval, jitter_percent)
-                _LOGGER.debug("Applied jitter to interval: %s", final_interval)
+            self._set_update_interval(self._base_poll_interval())
+            return
 
-            self.update_interval = timedelta(seconds=final_interval)
+        final_interval = float(calculated_interval)
+        # Apply jitter only when using proxy (Standard requirement)
+        if self.config_entry.data.get(CONF_API_PROXY_URL):
+            jitter_percent = float(
+                self.config_entry.data.get(CONF_JITTER_PERCENT, DEFAULT_JITTER_PERCENT)
+            )
+            final_interval = apply_jitter(final_interval, jitter_percent)
+            _LOGGER.debug("Applied jitter to interval: %s", final_interval)
+
+        self._set_update_interval(timedelta(seconds=final_interval))
 
     def _schedule_reset_poll(self) -> None:
         """Schedule automatic poll at daily quota reset time."""
@@ -1902,15 +1922,11 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         """Recalculate and set the update interval immediately."""
         new_interval_s = self._calculate_auto_quota_interval()
         if not self.is_polling_enabled:
-            self.update_interval = None
+            self._set_update_interval(None)
         elif new_interval_s is None:
-            self.update_interval = (
-                timedelta(seconds=self._base_scan_interval)
-                if self._base_scan_interval > 0
-                else None
-            )
+            self._set_update_interval(self._base_poll_interval())
         else:
-            self.update_interval = timedelta(seconds=new_interval_s)
+            self._set_update_interval(timedelta(seconds=new_interval_s))
 
     async def async_set_child_lock(self, serial_no: str, enabled: bool) -> None:
         """Set child lock for a device."""
@@ -2003,86 +2019,9 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         zone_id: int | None = None,
     ) -> int:
         """Queue one offset PUT per measuring device that needs a change."""
-        from .helpers.offset_calibrate import (
-            OFFSET_STEP,
-            compute_device_offset,
-            current_device_offset,
-            inside_from_zone_state,
-            measuring_devices,
-            offset_reading_is_anchored,
-            read_entity_temperature,
-        )
+        from .helpers.offset_calibrate import queue_offset_cal_writes
 
-        wrote = 0
-        zone_states = getattr(self.data, "zone_states", None) or {}
-        for serial, zid in measuring_devices(self):
-            if zone_id is not None and zid != zone_id:
-                continue
-            if self.dummy_handler and self.dummy_handler.is_dummy_zone(zid):
-                continue
-            entity_id = linked.get(str(zid))
-            if not entity_id:
-                continue
-            thermostat = read_entity_temperature(self.hass, str(entity_id))
-            tado_inside = inside_from_zone_state(
-                zone_states.get(str(zid)) or zone_states.get(zid)
-            )
-            current = current_device_offset(self, serial)
-            if current is None:
-                try:
-                    await self.data_manager._fetch_offset_for(serial)
-                except Exception:
-                    _LOGGER.debug(
-                        "Offset cal zone %s device %s: offset fetch failed",
-                        zid,
-                        serial,
-                    )
-                current = current_device_offset(self, serial)
-            if thermostat is None or tado_inside is None or current is None:
-                if reason == "manual":
-                    _LOGGER.warning(
-                        "Offset cal skipped: zone %s device %s "
-                        "(thermostat=%s tado=%s offset=%s)",
-                        zid,
-                        serial,
-                        thermostat,
-                        tado_inside,
-                        current,
-                    )
-                else:
-                    _LOGGER.debug(
-                        "Skip offset cal zone %s device %s "
-                        "(thermostat=%s tado=%s offset=%s)",
-                        zid,
-                        serial,
-                        thermostat,
-                        tado_inside,
-                        current,
-                    )
-                continue
-            if reason != "manual" and offset_reading_is_anchored(
-                self._offset_cal_inside_anchor.get(serial),
-                current=current,
-                tado_inside=tado_inside,
-            ):
-                continue
-            desired = compute_device_offset(thermostat, tado_inside, current)
-            threshold = self.get_zone_offset_cal_threshold(zid)
-            if abs(desired - current) < max(threshold, OFFSET_STEP):
-                continue
-            _LOGGER.info(
-                "Offset cal (%s) %s: thermostat=%.2f tado=%.2f offset %.1f -> %.1f",
-                reason,
-                serial,
-                thermostat,
-                tado_inside,
-                current,
-                desired,
-            )
-            await self.async_set_temperature_offset(serial, desired)
-            self._offset_cal_inside_anchor[serial] = (tado_inside, desired)
-            wrote += 1
-        return wrote
+        return await queue_offset_cal_writes(self, reason, linked, zone_id)
 
     async def async_set_away_temperature(self, zone_id: int, temp: float) -> None:
         """Set away temperature for a zone."""
