@@ -68,6 +68,7 @@ from .const import (
     CONF_REFRESH_AFTER_RESUME,
     CONF_REFRESH_PLANS_AFTER_RESET,
     CONF_REFRESH_TOKEN,
+    CONF_SIMULATED_DAILY_LIMIT,
     CONF_SLOW_POLL_INTERVAL,
     CONF_SUPPRESS_REDUNDANT_BUTTONS,
     CONF_SUPPRESS_REDUNDANT_CALLS,
@@ -99,6 +100,7 @@ from .const import (
     DEFAULT_REFRESH_AFTER_RESUME,
     DEFAULT_REFRESH_PLANS_AFTER_RESET,
     DEFAULT_SCAN_INTERVAL,
+    DEFAULT_SIMULATED_DAILY_LIMIT,
     DEFAULT_SLOW_POLL_INTERVAL,
     DEFAULT_SUPPRESS_REDUNDANT_BUTTONS,
     DEFAULT_SUPPRESS_REDUNDANT_CALLS,
@@ -374,6 +376,20 @@ class TadoHijackCommonFlow:
                                 default=self._get_current_data(
                                     CONF_THROTTLE_THRESHOLD,
                                     DEFAULT_THROTTLE_THRESHOLD,
+                                ),
+                            ): NumberSelector(
+                                NumberSelectorConfig(
+                                    min=0,
+                                    max=MAX_API_QUOTA,
+                                    step=1,
+                                    mode=NumberSelectorMode.BOX,
+                                )
+                            ),
+                            vol.Optional(
+                                CONF_SIMULATED_DAILY_LIMIT,
+                                default=self._get_current_data(
+                                    CONF_SIMULATED_DAILY_LIMIT,
+                                    DEFAULT_SIMULATED_DAILY_LIMIT,
                                 ),
                             ): NumberSelector(
                                 NumberSelectorConfig(

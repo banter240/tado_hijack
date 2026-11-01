@@ -642,6 +642,7 @@
             "data": {
               "auto_api_quota_percent": "Automaticky využitá kvóta API (%)",
               "throttle_threshold": "Práh omezení (Bezpečnostní rezerva)",
+              "simulated_daily_limit": "Simulovaný denní limit (experimentální)",
               "quota_safety_reserve": "Bezpečnostní rezerva kvóty API",
               "min_auto_quota_interval_s": "Minimální interval automatické kvóty",
               "disable_polling_when_throttled": "Zakázat dotazování při omezení",
@@ -651,6 +652,7 @@
             "data_description": {
               "auto_api_quota_percent": "Využít X % volné denní kvóty pro zjišťování stavu (0 = vypnuto). Volná kvóta = limit − rezerva na pozadí (synchronizace) − externí aktivita (automatizace, ruční použití). Hybridní strategie používá vyšší hodnotu z denního rozpočtu po odečtení již využitých požadavků a ze zbývající kvóty vynásobené X %. Systém proto pokračuje v dotazování i po překročení denního rozpočtu.",
               "throttle_threshold": "Rezervuje N požadavků pro vše kromě pravidelného dotazování integrace na pozadí (automatizace, skripty a ruční použití aplikace). Po dosažení této hranice se pravidelné dotazování zastaví, aby zůstala kvóta pro ostatní požadavky. Doporučeno: 20.",
+              "simulated_daily_limit": "Jen pro testování: tváří se, že limit účtu je tato hodnota, zatímco skutečné hlavičky zůstávají nedotčené. Spotřebované požadavky se berou ze skutečných hlaviček, takže skutečný reset vynuluje i simulovaný rozpočet. Hodnoty nad skutečným limitem se omezí na něj. 0 = vypnuto.",
               "quota_safety_reserve": "Počet požadavků API vyhrazených pro období samoučícího resetu. Systém se automaticky učí čas resetu a přizpůsobuje čerpání této rezervy výkyvům cloudové služby. Hodnota 0 funkci vypne (nedoporučuje se). Výchozí hodnota: 2.",
               "min_auto_quota_interval_s": "Minimální interval dotazování v sekundách (5-43200, tedy nejvýše 12 hodin). Běžné API: nejméně 5 s. Proxy: vynuceno nejméně 120 s. Kratší interval znamená rychlejší aktualizace a víc dotazů API. Výchozí: 20 s.",
               "disable_polling_when_throttled": "Zcela zastavit pravidelné dotazování, když zbývající kvóta narazí na bezpečnostní rezervu.",
@@ -794,6 +796,7 @@
             "data": {
               "auto_api_quota_percent": "Automaticky využitá kvóta API (%)",
               "throttle_threshold": "Práh omezení (Bezpečnostní rezerva)",
+              "simulated_daily_limit": "Simulovaný denní limit (experimentální)",
               "quota_safety_reserve": "Bezpečnostní rezerva kvóty API",
               "min_auto_quota_interval_s": "Minimální interval automatické kvóty",
               "disable_polling_when_throttled": "Zakázat dotazování při omezení",
@@ -803,6 +806,7 @@
             "data_description": {
               "auto_api_quota_percent": "Využít X % volné denní kvóty pro zjišťování stavu (0 = vypnuto). Volná kvóta = limit − rezerva na pozadí (synchronizace) − externí aktivita (automatizace, ruční použití). Hybridní strategie používá vyšší hodnotu z denního rozpočtu po odečtení již využitých požadavků a ze zbývající kvóty vynásobené X %. Systém proto pokračuje v dotazování i po překročení denního rozpočtu.",
               "throttle_threshold": "Rezervuje N požadavků pro vše kromě pravidelného dotazování integrace na pozadí (automatizace, skripty a ruční použití aplikace). Po dosažení této hranice se pravidelné dotazování zastaví, aby zůstala kvóta pro ostatní požadavky. Doporučeno: 20.",
+              "simulated_daily_limit": "Jen pro testování: tváří se, že limit účtu je tato hodnota, zatímco skutečné hlavičky zůstávají nedotčené. Spotřebované požadavky se berou ze skutečných hlaviček, takže skutečný reset vynuluje i simulovaný rozpočet. Hodnoty nad skutečným limitem se omezí na něj. 0 = vypnuto.",
               "quota_safety_reserve": "Počet požadavků API vyhrazených pro období samoučícího resetu. Systém se automaticky učí čas resetu a přizpůsobuje čerpání této rezervy výkyvům cloudové služby. Hodnota 0 funkci vypne (nedoporučuje se). Výchozí hodnota: 2.",
               "min_auto_quota_interval_s": "Minimální interval dotazování v sekundách (5-43200, tedy nejvýše 12 hodin). Běžné API: nejméně 5 s. Proxy: vynuceno nejméně 120 s. Kratší interval znamená rychlejší aktualizace a víc dotazů API. Výchozí: 20 s.",
               "disable_polling_when_throttled": "Zcela zastavit pravidelné dotazování, když zbývající kvóta narazí na bezpečnostní rezervu.",

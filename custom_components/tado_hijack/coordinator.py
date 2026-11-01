@@ -53,6 +53,7 @@ from .const import (
     CONF_REDUCED_POLLING_START,
     CONF_REFRESH_AFTER_RESUME,
     CONF_REFRESH_PLANS_AFTER_RESET,
+    CONF_SIMULATED_DAILY_LIMIT,
     CONF_SLOW_POLL_INTERVAL,
     CONF_SUPPRESS_REDUNDANT_BUTTONS,
     CONF_SUPPRESS_REDUNDANT_CALLS,
@@ -74,6 +75,7 @@ from .const import (
     DEFAULT_REDUCED_POLLING_START,
     DEFAULT_REFRESH_AFTER_RESUME,
     DEFAULT_REFRESH_PLANS_AFTER_RESET,
+    DEFAULT_SIMULATED_DAILY_LIMIT,
     DEFAULT_SLOW_POLL_INTERVAL,
     DEFAULT_SUPPRESS_REDUNDANT_BUTTONS,
     DEFAULT_SUPPRESS_REDUNDANT_CALLS,
@@ -323,6 +325,11 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         self.rate_limit = RateLimitManager(
             throttle_threshold,
             self.provider.get_rate_limit_source() if self.provider else get_handler(),
+            simulated_limit=int(
+                entry.data.get(
+                    CONF_SIMULATED_DAILY_LIMIT, DEFAULT_SIMULATED_DAILY_LIMIT
+                )
+            ),
         )
         # v2 and Hops both spend the same account quota; watch whichever answered last.
         self.rate_limit.add_source(get_handler())

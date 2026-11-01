@@ -425,6 +425,7 @@ Tado Hijack is now an **official HACS integration**! No custom repository needed
 | **Debounce Time**                  | `5s`      | **Batching Window:** Fuses actions into single calls.                                                                                                                                                                                                      |
 | **Refresh After Resume**           | `On`      | After a queued resume, an extra poll runs for air conditioning and classic hot water. A heating resume does not add that poll. Tado X hot water polls after the programmer call either way. |
 | **Throttle Threshold**             | `20`      | Remaining under this number slows periodic polling to 15 minutes. Status becomes `throttled`. Remaining at 0 is `rate_limited`. Polling waits for the reset only when Disable Polling When Throttled is on. `0` never throttles. |
+| **Simulated Daily Limit (Experimental)** | `0` (Off) | **Testing only:** pretend the account limit is this value. Consumed calls come from the real headers, so a real quota reset also refills the simulated budget. Values above the real limit are clamped down to it. |
 | **Quota Safety Reserve**           | `2`       | **Reset Window Bridge:** API calls reserved from quota percentage for the ±1h window around the expected reset time. Distributed evenly during the window to bridge uncertainty when reset time varies (e.g., 11:05 vs 11:30 UTC). Set to 0 to disable (not recommended). |
 | **Disable Polling When Throttled** | `Off`     | Stop periodic polling entirely when throttled.                                                                                                                                                                                                             |
 | **API Proxy URL**                  | `None`    | **Advanced:** URL of local `tado-api-proxy` workaround.                                                                                                                                                                                                    |
@@ -577,6 +578,16 @@ The tracker reads the current entity state at mapping time and watches the entit
 
 <br>
 
+The **Data** column shows where an entity gets its values from:
+
+| Value | Meaning |
+| :---- | :------ |
+| `local` | Computed or stored inside Home Assistant. No Tado API call behind it. |
+| `cloud` | Values and/or writes go through the Tado cloud API and consume quota. |
+| `hybrid` | Both: works locally through the attached HomeKit or Matter integration while that link exists, and through the cloud otherwise. |
+
+<br>
+
 ### Home Device
 
 <br>
@@ -585,27 +596,27 @@ Global controls for the home. Classic links them to the Internet Bridge. Tado X 
 
 <br>
 
-| Entity                                     |  Type  | Description                                                       |
-| :----------------------------------------- | :----: | :---------------------------------------------------------------- |
-| `select.tado_{home}_presence_mode`         | Select | Who controls presence: `home` / `away` = manual lock, `auto` = geofencing. Does not flip when geofencing changes the effective state. |
-| `binary_sensor.tado_{home}_presence_state` | Binary Sensor | Effective presence. `on` = home, `off` = away. |
-| `number.tado_{home}_max_flow_temperature`  | Number | Tado X OpenTherm. Created from the metadata poll when Flow Temperature Optimization is enabled. |
-| `switch.tado_{home}_flow_auto_adaptation`  | Switch | Tado X OpenTherm only. Flow temperature auto adaptation. |
-| `switch.tado_{home}_polling_active`        | Switch | **Master Switch:** Instantly stop/start all periodic API polls.   |
-| `switch.tado_{home}_reduced_polling_logic` | Switch | **Logic Switch:** Toggle the timed "Economy" profile.             |
-| `select.tado_{home}_offset_cal_interval`   | Select | When to compare the linked sensor with the TRV: a clock slot, `on_reset`, or `threshold` (keep watching). A write still needs the deviation in the row below. Off by default. Zones can override (`inherit` uses this value). Cooldown and window pause are the two config rows above. |
-| `number.tado_{home}_offset_cal_spread_threshold` | Number | Default minimum delta (°C) before an offset is written. Zones can override it; `0` on the zone number clears the override. |
-| `button.tado_{home}_calibrate_offsets`     | Button | Run that calibration now (same formula, same linked thermostats). Works even if the interval is `off`. 1 write per measuring device that needs a change, and a GET only when no offset is known. |
-| `number.tado_{home}_linked_resume_delay`   | Number | Seconds before a linked HomeKit or Matter heating zone resumes on the cloud. Default `120`, max `3600`. `0` resumes at once. The same setpoint coming back still resumes once more. |
-| `button.tado_{home}_resume_all_schedules`  | Button | Restore Smart Schedule across all zones (1 bulk call).            |
-| `button.tado_{home}_turn_off_all_zones`    | Button | Turn off all zones instantly (1 bulk call).                       |
-| `button.tado_{home}_boost_all_zones`       | Button | One bulk call. Classic overlay at 25°C. Tado X is `quickActions/boost` with no temperature in the body. |
-| `button.tado_{home}_full_manual_poll`      | Button | **Expensive:** Forced sync of metadata, states, offsets, away temps, active timetable types (classic), and weekly plans (1 GET per compatible zone for each of those; no bulk timetable/plan endpoint). |
-| `sensor.tado_{home}_api_limit`             | Sensor | Limit from the last `RateLimit-Policy` header. `0` until a header arrives. |
-| `sensor.tado_{home}_api_remaining`         | Sensor | **API Gold:** Your remaining daily call budget.                   |
-| `sensor.tado_{home}_api_status`            | Sensor | Real-time health (`connected`, `throttled`, `rate_limited`).      |
-| `sensor.tado_{home}_home_mode`             | Sensor | Aggregate zone mode across all heating/AC zones: `schedule`, `manual`, `boost`, `off`, or `mixed` (zones differ). When `mixed`, attributes name the rooms: `on_schedule` is the room list still following the schedule, `off_schedule` maps each other room to `manual`, `off`, or `boost`. |
-| `binary_sensor.tado_{home}_heating_demand` | Binary Sensor | **ON** if any heating zone reports heating power above 0%. Derived from polled zone data (v3 + Tado X) - not a physical thermostat relay. Handy for boiler automations. |
+| Entity | Type | Data | Description |
+| :----------------------------------------- | :----: | :--: | :---------------------------------------------------------------- |
+| `select.tado_{home}_presence_mode` | Select | cloud | Who controls presence: `home` / `away` = manual lock, `auto` = geofencing. Does not flip when geofencing changes the effective state. |
+| `binary_sensor.tado_{home}_presence_state` | Binary Sensor | cloud | Effective presence. `on` = home, `off` = away. |
+| `number.tado_{home}_max_flow_temperature` | Number | cloud | Tado X OpenTherm. Created from the metadata poll when Flow Temperature Optimization is enabled. |
+| `switch.tado_{home}_flow_auto_adaptation` | Switch | cloud | Tado X OpenTherm only. Flow temperature auto adaptation. |
+| `switch.tado_{home}_polling_active` | Switch | local | **Master Switch:** Instantly stop/start all periodic API polls. |
+| `switch.tado_{home}_reduced_polling_logic` | Switch | local | **Logic Switch:** Toggle the timed "Economy" profile. |
+| `select.tado_{home}_offset_cal_interval` | Select | local | When to compare the linked sensor with the TRV: a clock slot, `on_reset`, or `threshold` (keep watching). A write still needs the deviation in the row below. Off by default. Zones can override (`inherit` uses this value). Cooldown and window pause are the two config rows above. |
+| `number.tado_{home}_offset_cal_spread_threshold` | Number | local | Default minimum delta (°C) before an offset is written. Zones can override it; `0` on the zone number clears the override. |
+| `button.tado_{home}_calibrate_offsets` | Button | cloud | Run that calibration now (same formula, same linked thermostats). Works even if the interval is `off`. 1 write per measuring device that needs a change, and a GET only when no offset is known. |
+| `number.tado_{home}_linked_resume_delay` | Number | local | Seconds before a linked HomeKit or Matter heating zone resumes on the cloud. Default `120`, max `3600`. `0` resumes at once. The same setpoint coming back still resumes once more. |
+| `button.tado_{home}_resume_all_schedules` | Button | cloud | Restore Smart Schedule across all zones (1 bulk call). |
+| `button.tado_{home}_turn_off_all_zones` | Button | cloud | Turn off all zones instantly (1 bulk call). |
+| `button.tado_{home}_boost_all_zones` | Button | cloud | One bulk call. Classic overlay at 25°C. Tado X is `quickActions/boost` with no temperature in the body. |
+| `button.tado_{home}_full_manual_poll` | Button | cloud | **Expensive:** Forced sync of metadata, states, offsets, away temps, active timetable types (classic), and weekly plans (1 GET per compatible zone for each of those; no bulk timetable/plan endpoint). |
+| `sensor.tado_{home}_api_limit` | Sensor | cloud | Limit from the last `RateLimit-Policy` header. `0` until a header arrives. |
+| `sensor.tado_{home}_api_remaining` | Sensor | cloud | **API Gold:** Your remaining daily call budget. |
+| `sensor.tado_{home}_api_status` | Sensor | cloud | Real-time health (`connected`, `throttled`, `rate_limited`). |
+| `sensor.tado_{home}_home_mode` | Sensor | cloud | Aggregate zone mode across all heating/AC zones: `schedule`, `manual`, `boost`, `off`, or `mixed` (zones differ). When `mixed`, attributes name the rooms: `on_schedule` is the room list still following the schedule, `off_schedule` maps each other room to `manual`, `off`, or `boost`. |
+| `binary_sensor.tado_{home}_heating_demand` | Binary Sensor | cloud | **ON** if any heating zone reports heating power above 0%. Derived from polled zone data (v3 + Tado X) - not a physical thermostat relay. Handy for boiler automations. |
 
 <br>
 
@@ -677,52 +688,52 @@ Writes share one debounce queue (default 5s). Last write per key wins. Call coun
 
 <br>
 
-Cloud-only features that HomeKit does not support.
+Zone-level controls. Many of these are cloud-only features that HomeKit does not support, which is why they live here instead of on the physical TRV device — but the zone device also carries local computations (dew point, mold, planning sensors) that never touch the API. The **Data** column marks each one.
 
 <br>
 
-| Entity                              | Type          | Description                                                                                     |
-| :---------------------------------- | :------------ | :---------------------------------------------------------------------------------------------- |
-| `switch.schedule`                   | Switch        | **ON** = Smart Schedule, **OFF** = Manual. Simple way to resume schedule. **Supports heating and AC zones** (all generations). |
-| `climate.ac_{room}`                 | Climate       | **v3 AC Only:** Full HVAC mode control (`cool`, `heat`, `dry`, `fan`, `auto`) with native slider. |
-| `water_heater.hot_water`            | WaterHeater   | v3: target temperature. Tado X: programmer only. Modes are under [Cloud Features](#cloud-features-non-homekit). |
-| `binary_sensor.hot_water_schedule`  | Binary Sensor | **Tado X:** on while the hot-water schedule is in an on block, off otherwise. |
-| `binary_sensor.power`     | Binary Sensor | **HW Only:** Boiler heating status.                                                             |
-| `binary_sensor.overlay`   | Binary Sensor | **HW Only:** Manual override active status.                                                     |
-| `binary_sensor.connectivity` | Binary Sensor | **HW Only:** Zone connectivity based on device connections.                                  |
-| `switch.early_start`                | Switch        | **v3 Only:** Toggle pre-heating before schedule block.                                          |
-| `select.zone_circuit`               | Select        | **v3 heating:** Boiler driver this room calls. `none` does not call for heat. Hidden unless Heating circuits is on and the home has two or more drivers. One list call, then one read per heating zone, once per setup. Writes debounce, then the last choice is sent. |
-| `select.timetable_type`             | Select        | Active timetable: same every day, Mon-Fri/Sat/Sun, or per weekday. Writes debounce then merge (1 PUT per zone; API has no bulk). **v3 only** (heating and hot water). Tado X has no schedule mode; the week is always seven weekdays. |
-| `select.timetable_type_all_zones`   | Select        | Same options for all compatible zones at once. Unknown if zones differ or nothing is cached. **v3 only.** |
-| `button.refresh_timetable`          | Button        | Queue a debounced GET of the active timetable for one zone (same zone mashed = 1 call). **v3 only.** |
-| `button.refresh_all_timetables`     | Button        | Queue a debounced GET for all compatible zones (coalesced with per-zone refreshes in the same window; still 1 GET per zone). **v3 only.** |
-| `button.refresh_zone_plan`          | Button        | Fetch this zone's weekly plan from Tado (classic: 1 GET when the timetable type is cached, otherwise 2; Tado X room or hot water: 1 GET). Debounced; mashed button = 1 call. Does **not** run when you open the calendar. |
-| `button.refresh_all_zone_plans`     | Button        | Fetch every capable zone's weekly plan (1-2 GET per zone, coalesced with per-room fetches in the same window). Includes Tado X hot water when the programmer is controllable. Cheaper than a full poll. |
-| `calendar.zone_plan`                | Calendar      | Read-only week view of ON windows (`Tado <room> Weekly Plan`). Heating shows the temperature. Tado X hot water shows ON. **Cache only** - opening the calendar never hits Tado. Fetch with `refresh_zone_plan`, `refresh_all_zone_plans`, or `full_manual_poll` / `manual_poll` type `all` or `schedule`. General polling can fetch every plan once after the quota reset (default off). `set_schedule` updates the cache only after Tado accepts the write; a failed write leaves the previous plan. Not part of periodic poll. Attributes `timetable`, `day`, `blocks`, `plan` match `set_schedule`. |
-| `number.open_window_timeout`        | Number        | **Config:** Open window timeout (0=OFF, 5-1439min=ON). Requires Tado subscription for detection. |
-| `number.target_temperature`         | Number        | **HW & AC:** Set target temperature for hot water (follows the room default overlay termination) or AC zones.             |
-| `number.away_temperature`           | Number        | **v3 Only:** Set away mode temperature.                                                         |
-| `select.zone_temp_source`           | Select        | Temperature for dew point, mold, and offset calibration. Chain: [sources](#zone-temperature--humidity-sources-all-generations). |
-| `button.calibrate_offset`           | Button        | **Config:** Calibrate this room's TRV offset against the linked `zone_temp_source` now. 1 write per measuring device in the room that needs a change, and a GET only when no offset is known. |
-| `button.refresh_capability`         | Button        | **Config:** Refetch this zone's capabilities (1 GET; no bulk endpoint). |
-| `select.zone_humidity_source`       | Select        | Humidity for those sensors. Same section. |
-| `select.fan_speed`                  | Select        | **v3 AC Only:** Full fan speed control.                                                         |
-| `select.vertical_swing`             | Select        | **v3 AC Only:** Vertical swing control (ON/OFF or position modes).                              |
-| `select.horizontal_swing`           | Select        | **v3 AC Only:** Horizontal swing control (ON/OFF or position modes).                            |
-| `sensor.zone_mode`                  | Sensor        | **Mode:** Current operating mode: `schedule`, `manual`, `boost`, `off`. Classic: boost detected via 25°C setpoint. Tado X: native boost field. Heating and AC zones only. |
-| `sensor.heating_power`              | Sensor        | Zone heating power % from the room poll.                                                       |
-| `sensor.humidity`                   | Sensor        | Cloud zone humidity.                                                                            |
-| `sensor.dew_point`                  | Sensor        | **Climate:** Dew point (°C), Magnus, from the temperature and humidity chains above. Enabled via _Dew Point Sensor_. |
-| `sensor.mold_risk_level`            | Sensor        | **Climate:** Mold risk level: `none` / `low` / `medium` / `high`. Uses dew point spread — cold-but-dry rooms correctly show `none`. Enabled via _Mold Risk Sensors_ feature flag. |
-| `binary_sensor.mold_risk`           | Binary Sensor | **Climate:** `ON` when mold risk is `medium` or `high`. Ideal for automations and alerts.      |
-| `sensor.indoor_absolute_humidity`   | Sensor        | **Climate:** Indoor absolute humidity (g/m³). Shown when _Outdoor Weather Entity_ is configured. |
-| `binary_sensor.ventilation_recommended` | Binary Sensor | **Climate:** `ON` when indoor AH exceeds outdoor AH by ≥ threshold — opening windows reduces moisture. Shown when _Outdoor Weather Entity_ is configured. |
-| `sensor.next_schedule_change`       | Sensor        | **Planning:** When the cached week next changes power or temperature. Same cache as the calendar. |
-| `sensor.next_schedule_temp`         | Sensor        | **Planning:** Temperature at that change. Unknown when the next change is off or has no temperature. |
-| `sensor.next_schedule_mode`         | Sensor        | **Planning:** `HEATING` or `OFF` at that change.                                                |
-| `sensor.next_time_block_start`      | Sensor        | **Planning:** Start of the next block, including a block with the same setting.                 |
-| `button.resume_schedule`            | Button        | Force resume schedule (stateless). **Supports heating and AC zones** (all generations).                      |
-| `attribute.auto_target_temperature` | Metadata      | **Transparency:** Current schedule setpoint visible in attributes during `auto` mode (Heating, AC & HW). |
+| Entity | Type | Data | Description |
+| :---------------------------------- | :------------ | :--: | :---------------------------------------------------------------------------------------------- |
+| `switch.schedule` | Switch | cloud | **ON** = Smart Schedule, **OFF** = Manual. Simple way to resume schedule. **Supports heating and AC zones** (all generations). |
+| `climate.ac_{room}` | Climate | cloud | **v3 AC Only:** Full HVAC mode control (`cool`, `heat`, `dry`, `fan`, `auto`) with native slider. |
+| `water_heater.hot_water` | WaterHeater | cloud | v3: target temperature. Tado X: programmer only. Modes are under [Cloud Features](#cloud-features-non-homekit). |
+| `binary_sensor.hot_water_schedule` | Binary Sensor | cloud | **Tado X:** on while the hot-water schedule is in an on block, off otherwise. |
+| `binary_sensor.power` | Binary Sensor | cloud | **HW Only:** Boiler heating status. |
+| `binary_sensor.overlay` | Binary Sensor | cloud | **HW Only:** Manual override active status. |
+| `binary_sensor.connectivity` | Binary Sensor | cloud | **HW Only:** Zone connectivity based on device connections. |
+| `switch.early_start` | Switch | cloud | **v3 Only:** Toggle pre-heating before schedule block. |
+| `select.zone_circuit` | Select | cloud | **v3 heating:** Boiler driver this room calls. `none` does not call for heat. Hidden unless Heating circuits is on and the home has two or more drivers. One list call, then one read per heating zone, once per setup. Writes debounce, then the last choice is sent. |
+| `select.timetable_type` | Select | cloud | Active timetable: same every day, Mon-Fri/Sat/Sun, or per weekday. Writes debounce then merge (1 PUT per zone; API has no bulk). **v3 only** (heating and hot water). Tado X has no schedule mode; the week is always seven weekdays. |
+| `select.timetable_type_all_zones` | Select | cloud | Same options for all compatible zones at once. Unknown if zones differ or nothing is cached. **v3 only.** |
+| `button.refresh_timetable` | Button | cloud | Queue a debounced GET of the active timetable for one zone (same zone mashed = 1 call). **v3 only.** |
+| `button.refresh_all_timetables` | Button | cloud | Queue a debounced GET for all compatible zones (coalesced with per-zone refreshes in the same window; still 1 GET per zone). **v3 only.** |
+| `button.refresh_zone_plan` | Button | cloud | Fetch this zone's weekly plan from Tado (classic: 1 GET when the timetable type is cached, otherwise 2; Tado X room or hot water: 1 GET). Debounced; mashed button = 1 call. Does **not** run when you open the calendar. |
+| `button.refresh_all_zone_plans` | Button | cloud | Fetch every capable zone's weekly plan (1-2 GET per zone, coalesced with per-room fetches in the same window). Includes Tado X hot water when the programmer is controllable. Cheaper than a full poll. |
+| `calendar.zone_plan` | Calendar | local | Read-only week view of ON windows (`Tado <room> Weekly Plan`). Heating shows the temperature. Tado X hot water shows ON. **Cache only** - opening the calendar never hits Tado. Fetch with `refresh_zone_plan`, `refresh_all_zone_plans`, or `full_manual_poll` / `manual_poll` type `all` or `schedule`. General polling can fetch every plan once after the quota reset (default off). `set_schedule` updates the cache only after Tado accepts the write; a failed write leaves the previous plan. Not part of periodic poll. Attributes `timetable`, `day`, `blocks`, `plan` match `set_schedule`. |
+| `number.open_window_timeout` | Number | cloud | **Config:** Open window timeout (0=OFF, 5-1439min=ON). Requires Tado subscription for detection. |
+| `number.target_temperature` | Number | cloud | **HW & AC:** Set target temperature for hot water (follows the room default overlay termination) or AC zones. |
+| `number.away_temperature` | Number | cloud | **v3 Only:** Set away mode temperature. |
+| `select.zone_temp_source` | Select | local | Temperature for dew point, mold, and offset calibration. Chain: [sources](#zone-temperature--humidity-sources-all-generations). |
+| `button.calibrate_offset` | Button | cloud | **Config:** Calibrate this room's TRV offset against the linked `zone_temp_source` now. 1 write per measuring device in the room that needs a change, and a GET only when no offset is known. |
+| `button.refresh_capability` | Button | cloud | **Config:** Refetch this zone's capabilities (1 GET; no bulk endpoint). |
+| `select.zone_humidity_source` | Select | local | Humidity for those sensors. Same section. |
+| `select.fan_speed` | Select | cloud | **v3 AC Only:** Full fan speed control. |
+| `select.vertical_swing` | Select | cloud | **v3 AC Only:** Vertical swing control (ON/OFF or position modes). |
+| `select.horizontal_swing` | Select | cloud | **v3 AC Only:** Horizontal swing control (ON/OFF or position modes). |
+| `sensor.zone_mode` | Sensor | cloud | **Mode:** Current operating mode: `schedule`, `manual`, `boost`, `off`. Classic: boost detected via 25°C setpoint. Tado X: native boost field. Heating and AC zones only. |
+| `sensor.heating_power` | Sensor | cloud | Zone heating power % from the room poll. |
+| `sensor.humidity` | Sensor | cloud | Cloud zone humidity. |
+| `sensor.dew_point` | Sensor | local | **Climate:** Dew point (°C), Magnus, from the temperature and humidity chains above. Enabled via _Dew Point Sensor_. |
+| `sensor.mold_risk_level` | Sensor | local | **Climate:** Mold risk level: `none` / `low` / `medium` / `high`. Uses dew point spread — cold-but-dry rooms correctly show `none`. Enabled via _Mold Risk Sensors_ feature flag. |
+| `binary_sensor.mold_risk` | Binary Sensor | local | **Climate:** `ON` when mold risk is `medium` or `high`. Ideal for automations and alerts. |
+| `sensor.indoor_absolute_humidity` | Sensor | local | **Climate:** Indoor absolute humidity (g/m³). Shown when _Outdoor Weather Entity_ is configured. |
+| `binary_sensor.ventilation_recommended` | Binary Sensor | local | **Climate:** `ON` when indoor AH exceeds outdoor AH by ≥ threshold — opening windows reduces moisture. Shown when _Outdoor Weather Entity_ is configured. |
+| `sensor.next_schedule_change` | Sensor | local | **Planning:** When the cached week next changes power or temperature. Same cache as the calendar. |
+| `sensor.next_schedule_temp` | Sensor | local | **Planning:** Temperature at that change. Unknown when the next change is off or has no temperature. |
+| `sensor.next_schedule_mode` | Sensor | local | **Planning:** `HEATING` or `OFF` at that change. |
+| `sensor.next_time_block_start` | Sensor | local | **Planning:** Start of the next block, including a block with the same setting. |
+| `button.resume_schedule` | Button | cloud | Force resume schedule (stateless). **Supports heating and AC zones** (all generations). |
+| `attribute.auto_target_temperature` | Metadata | local | **Transparency:** Current schedule setpoint visible in attributes during `auto` mode (Heating, AC & HW). |
 
 <br>
 
@@ -740,15 +751,15 @@ Hardware-specific entities. They stay on the Hijack device. With attach on, they
 
 <br>
 
-| Entity                      | Type          | Description                                         |
-| :-------------------------- | :------------ | :-------------------------------------------------- |
-| `binary_sensor.battery_state`     | Binary Sensor | Battery health (Normal/Low).                        |
-| `binary_sensor.connection_state`  | Binary Sensor | Device connectivity to Tado cloud.                  |
-| `binary_sensor.bridge_connection` | Binary Sensor | **Bridge:** Cloud connectivity for the Internet Bridge or a Wireless Receiver X. |
-| `switch.child_lock`         | Switch        | Toggle Child Lock on the device.                    |
-| `switch.dazzle_mode`        | Switch        | **v3 Only:** Control display brightness/behavior.   |
-| `number.temperature_offset` | Number        | Interactive temperature calibration (-10 to +10°C). |
-| `button.identify`           | Button        | **Full Cloud Only:** Identify device (ring/check). |
+| Entity | Type | Data | Description |
+| :-------------------------- | :------------ | :--: | :-------------------------------------------------- |
+| `binary_sensor.battery_state` | Binary Sensor | hybrid | Battery health (Normal/Low). |
+| `binary_sensor.connection_state` | Binary Sensor | hybrid | Device connectivity to Tado cloud. |
+| `binary_sensor.bridge_connection` | Binary Sensor | cloud | **Bridge:** Cloud connectivity for the Internet Bridge or a Wireless Receiver X. |
+| `switch.child_lock` | Switch | hybrid | Toggle Child Lock on the device. |
+| `switch.dazzle_mode` | Switch | cloud | **v3 Only:** Control display brightness/behavior. |
+| `number.temperature_offset` | Number | hybrid | Interactive temperature calibration (-10 to +10°C). |
+| `button.identify` | Button | cloud | **Full Cloud Only:** Identify device (ring/check). |
 
 <br>
 

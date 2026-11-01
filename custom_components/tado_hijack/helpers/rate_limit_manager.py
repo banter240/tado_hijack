@@ -20,7 +20,10 @@ class RateLimitManager:
     """Manages API quota tracking and throttling logic."""
 
     def __init__(
-        self, throttle_threshold: int, data_source: RateLimitSource | None = None
+        self,
+        throttle_threshold: int,
+        data_source: RateLimitSource | None = None,
+        simulated_limit: int = 0,
     ) -> None:
         """Initialize the manager."""
         self._throttle_threshold = throttle_threshold
@@ -29,7 +32,37 @@ class RateLimitManager:
         if data_source is not None:
             self._sources.append(data_source)
 
+        # Testing aid: pretend the daily limit is lower than the header says.
+        # A value above the real header limit is clamped down to it.
+        self._simulated_limit: int = max(0, simulated_limit)
+
         self._last_poll_cost: float = 2.0
+
+    def _header_snapshot(self) -> tuple[int, int]:
+        """Return (limit, remaining) from the newest header source."""
+        data = self._latest_header_data()
+        if data is None:
+            return 0, self._internal_remaining
+        return (
+            int(data.get("limit") or 0),
+            int(data.get("remaining", self._internal_remaining)),
+        )
+
+    def _simulated_values(
+        self, header_limit: int, header_remaining: int
+    ) -> tuple[int, int] | None:
+        """Map the real header quota onto the simulated budget.
+
+        Returns (limit, remaining) or None when the simulation is off or no
+        header limit is known. Derived from the real consumed calls
+        (limit - remaining), so a real quota reset also refills the
+        simulated budget.
+        """
+        if self._simulated_limit <= 0 or header_limit <= 0:
+            return None
+        sim_limit = min(self._simulated_limit, header_limit)
+        consumed = max(0, header_limit - header_remaining)
+        return sim_limit, max(0, sim_limit - consumed)
 
     def add_source(self, source: RateLimitSource) -> None:
         """Watch another header source (v2 handler and Hops both count)."""
@@ -96,10 +129,11 @@ class RateLimitManager:
 
     @property
     def limit(self) -> int:
-        """Return total limit from the newest header source."""
-        if data := self._latest_header_data():
-            return int(data.get("limit") or 0)
-        return 0
+        """Return total limit (simulated when the experimental mock is on)."""
+        header_limit, header_remaining = self._header_snapshot()
+        if sim := self._simulated_values(header_limit, header_remaining):
+            return sim[0]
+        return header_limit
 
     def decrement(self, count: int = 1) -> None:
         """Decrement internal counter (e.g. during throttling)."""
@@ -111,7 +145,9 @@ class RateLimitManager:
         data = self._latest_header_data()
         if data is None:
             return
-        header_remaining = int(data.get("remaining", self._internal_remaining))
+        header_limit, header_remaining = self._header_snapshot()
+        if sim := self._simulated_values(header_limit, header_remaining):
+            header_remaining = sim[1]
         if header_remaining != self._internal_remaining:
             _LOGGER.debug(
                 "Quota remaining %d -> %d (header source updated_at=%.3f)",

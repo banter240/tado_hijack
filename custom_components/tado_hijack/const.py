@@ -44,6 +44,7 @@ CONF_SUPPRESS_REDUNDANT_CALLS: Final = "suppress_redundant_calls"
 CONF_SUPPRESS_REDUNDANT_BUTTONS: Final = "suppress_redundant_buttons"
 CONF_RECOVERY_CLOUD_REPLAY: Final = "recovery_cloud_replay"
 CONF_INITIAL_POLL_DONE: Final = "initial_poll_done"
+CONF_SIMULATED_DAILY_LIMIT: Final = "simulated_daily_limit"
 
 # Feature Flags
 CONF_FEATURE_DEW_POINT: Final = "feature_dew_point"
@@ -176,6 +177,7 @@ DEFAULT_REDUCED_POLLING_INTERVAL: Final = 3600  # 1 hour
 DEFAULT_JITTER_PERCENT: Final = 10.0  # 10% variation (+/- 10%)
 DEFAULT_MIN_AUTO_QUOTA_INTERVAL_S: Final = 20  # Default minimum interval for auto quota
 DEFAULT_QUOTA_SAFETY_RESERVE: Final = 2  # API calls reserved for reset window (12-13h)
+DEFAULT_SIMULATED_DAILY_LIMIT: Final = 0  # Experimental quota mock, 0 = off
 DEFAULT_SUPPRESS_REDUNDANT_CALLS: Final = False  # Opt-in redundancy suppression
 DEFAULT_RECOVERY_CLOUD_REPLAY: Final = (
     True  # Replay cloud-only features via cloud on recovery

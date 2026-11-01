@@ -52,6 +52,8 @@ A reset is remaining going up to at least 80% of the limit. The first sample is 
 
 `_polling_calls_today` and the last remaining value persist across Home Assistant restarts, so the interval calculation starts correctly and a reset that happened while HA was down is caught against the stored baseline.
 
+An experimental "Simulated Daily Limit" option pretends the limit is lower than the headers say, for testing throttle behavior on an account with quota to spare. Consumed calls still come from the real headers, so a real reset refills the simulated budget too; a value above the real limit is clamped down to it. Defaults to 0 (off).
+
 ### What a poll fetches
 
 Room state when the interval is due. On Tado X that includes the hot-water programmer, unless a previous response said it is missing or not controllable; that result is cached and later polls skip the GET.

@@ -642,6 +642,7 @@
             "data": {
               "auto_api_quota_percent": "Auto API Quota (%)",
               "throttle_threshold": "Throttle Threshold (Safety Buffer)",
+              "simulated_daily_limit": "Simulated Daily Limit (Experimental)",
               "quota_safety_reserve": "Quota Safety Reserve",
               "min_auto_quota_interval_s": "Minimum Auto Quota Interval",
               "disable_polling_when_throttled": "Disable polling when throttled",
@@ -651,6 +652,7 @@
             "data_description": {
               "auto_api_quota_percent": "Use X% of FREE daily quota for status polling (0 = disabled). FREE = Limit - Background Reserve (Syncs) - External Activity (Automations, App use beyond buffer). Hybrid strategy: Uses MAX(Daily Budget - Used, Remaining * X%) → System ALWAYS continues polling even when over daily budget.",
               "throttle_threshold": "Reserve N calls for EVERYTHING outside of Hijack's periodic background polling (Automations, Scripts, Manual App use). Polling stops at this floor to ensure your automations never stall. Recommended: 20.",
+              "simulated_daily_limit": "Testing only: pretend the account limit is this value while the real headers stay untouched. Consumed calls are taken from the real headers, so a real quota reset also resets the simulated budget. Values above the real limit are clamped down to it. 0 = off.",
               "quota_safety_reserve": "API calls reserved for the self-learning reset window. The system automatically learns the reset time and adaptively distributes this reserve to bridge cloud-side variations. 0 = disabled (not recommended). Default: 2.",
               "min_auto_quota_interval_s": "Minimum polling interval in seconds (5-43200 = 12h max). Standard API: 5s minimum. Proxy: 120s minimum enforced. Lower = faster updates but higher API usage. Default 20s.",
               "disable_polling_when_throttled": "Stop periodic polling entirely when remaining quota hits the safety buffer.",
@@ -794,6 +796,7 @@
             "data": {
               "auto_api_quota_percent": "Auto API Quota (%)",
               "throttle_threshold": "Throttle Threshold (Safety Buffer)",
+              "simulated_daily_limit": "Simulated Daily Limit (Experimental)",
               "quota_safety_reserve": "Quota Safety Reserve",
               "min_auto_quota_interval_s": "Minimum Auto Quota Interval",
               "disable_polling_when_throttled": "Disable polling when throttled",
@@ -803,6 +806,7 @@
             "data_description": {
               "auto_api_quota_percent": "Use X% of FREE daily quota for status polling (0 = disabled). FREE = Limit - Background Reserve (Syncs) - External Activity (Automations, App use beyond buffer). Hybrid strategy: Uses MAX(Daily Budget - Used, Remaining * X%) → System ALWAYS continues polling even when over daily budget.",
               "throttle_threshold": "Reserve N calls for EVERYTHING outside of Hijack's periodic background polling (Automations, Scripts, Manual App use). Polling stops at this floor to ensure your automations never stall. Recommended: 20.",
+              "simulated_daily_limit": "Testing only: pretend the account limit is this value while the real headers stay untouched. Consumed calls are taken from the real headers, so a real quota reset also resets the simulated budget. Values above the real limit are clamped down to it. 0 = off.",
               "quota_safety_reserve": "API calls reserved for the self-learning reset window. The system automatically learns the reset time and adaptively distributes this reserve to bridge cloud-side variations. 0 = disabled (not recommended). Default: 2.",
               "min_auto_quota_interval_s": "Minimum polling interval in seconds (5-43200 = 12h max). Standard API: 5s minimum. Proxy: 120s minimum enforced. Lower = faster updates but higher API usage. Default 20s.",
               "disable_polling_when_throttled": "Stop periodic polling entirely when remaining quota hits the safety buffer.",

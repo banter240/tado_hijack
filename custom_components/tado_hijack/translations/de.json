@@ -642,6 +642,7 @@
             "data": {
               "auto_api_quota_percent": "Auto-API-Kontingent (%)",
               "throttle_threshold": "Drosselungs-Schwelle (Sicherheits-Puffer)",
+              "simulated_daily_limit": "Simuliertes Tageslimit (Experimentell)",
               "quota_safety_reserve": "Kontingent-Sicherheitsreserve",
               "min_auto_quota_interval_s": "Kürzestes Intervall des automatischen Kontingents",
               "disable_polling_when_throttled": "Abfrage stoppen, wenn gedrosselt",
@@ -651,6 +652,7 @@
             "data_description": {
               "auto_api_quota_percent": "Nutze X % des freien Tageskontingents für Statusabfragen (0 = aus). Frei = Limit minus Reserve für den Hintergrund (Synchronisation) minus Aktivität von außen (Automatisierungen, App über dem Puffer). Es gilt der größere Wert aus (Tagesbudget minus bereits verbraucht) und (verbleibend mal X %). Die Abfrage läuft weiter, auch wenn das Tagesbudget überschritten ist.",
               "throttle_threshold": "Reserviert N Aufrufe für alles außerhalb der Hintergrundabfrage (Automatisierungen, Skripte, App). Die Abfrage stoppt an dieser Schwelle, damit diese Aufrufe noch durchkommen. Empfohlen: 20. 0 = aus.",
+              "simulated_daily_limit": "Nur zum Testen: tut so, als wäre das Tageslimit dieser Wert, während die echten Header unverändert bleiben. Verbrauchte Aufrufe kommen aus den echten Headern, ein echter Reset setzt also auch das simulierte Budget zurück. Werte über dem echten Limit werden auf dieses geklemmt. 0 = aus.",
               "quota_safety_reserve": "API-Aufrufe für das selbstlernende Rücksetzfenster. Der Zeitpunkt der Rücksetzung wird gelernt und die Reserve in diesem Fenster verteilt, um Schwankungen der Cloud abzufangen. 0 = aus (nicht empfohlen). Standard: 2.",
               "min_auto_quota_interval_s": "Kürzestes Abfrageintervall in Sekunden (5 bis 43200, also höchstens 12 Stunden). Normale API: mindestens 5 s. Proxy: mindestens 120 s. Kürzer heißt schnellere Updates und mehr API-Aufrufe. Standard: 20 s.",
               "disable_polling_when_throttled": "Stoppt die regelmäßige Abfrage ganz, wenn das verbleibende Kontingent den Puffer erreicht.",
@@ -794,6 +796,7 @@
             "data": {
               "auto_api_quota_percent": "Auto-API-Kontingent (%)",
               "throttle_threshold": "Drosselungs-Schwelle (Sicherheits-Puffer)",
+              "simulated_daily_limit": "Simuliertes Tageslimit (Experimentell)",
               "quota_safety_reserve": "Kontingent-Sicherheitsreserve",
               "min_auto_quota_interval_s": "Kürzestes Intervall des automatischen Kontingents",
               "disable_polling_when_throttled": "Abfrage stoppen, wenn gedrosselt",
@@ -803,6 +806,7 @@
             "data_description": {
               "auto_api_quota_percent": "Nutze X % des freien Tageskontingents für Statusabfragen (0 = aus). Frei = Limit minus Reserve für den Hintergrund (Synchronisation) minus Aktivität von außen (Automatisierungen, App über dem Puffer). Es gilt der größere Wert aus (Tagesbudget minus bereits verbraucht) und (verbleibend mal X %). Die Abfrage läuft weiter, auch wenn das Tagesbudget überschritten ist.",
               "throttle_threshold": "Reserviert N Aufrufe für alles außerhalb der Hintergrundabfrage (Automatisierungen, Skripte, App). Die Abfrage stoppt an dieser Schwelle, damit diese Aufrufe noch durchkommen. Empfohlen: 20. 0 = aus.",
+              "simulated_daily_limit": "Nur zum Testen: tut so, als wäre das Tageslimit dieser Wert, während die echten Header unverändert bleiben. Verbrauchte Aufrufe kommen aus den echten Headern, ein echter Reset setzt also auch das simulierte Budget zurück. Werte über dem echten Limit werden auf dieses geklemmt. 0 = aus.",
               "quota_safety_reserve": "API-Aufrufe für das selbstlernende Rücksetzfenster. Der Zeitpunkt der Rücksetzung wird gelernt und die Reserve in diesem Fenster verteilt, um Schwankungen der Cloud abzufangen. 0 = aus (nicht empfohlen). Standard: 2.",
               "min_auto_quota_interval_s": "Kürzestes Abfrageintervall in Sekunden (5 bis 43200, also höchstens 12 Stunden). Normale API: mindestens 5 s. Proxy: mindestens 120 s. Kürzer heißt schnellere Updates und mehr API-Aufrufe. Standard: 20 s.",
               "disable_polling_when_throttled": "Stoppt die regelmäßige Abfrage ganz, wenn das verbleibende Kontingent den Puffer erreicht.",
