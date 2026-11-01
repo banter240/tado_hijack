@@ -5,8 +5,8 @@ Tado's API reset time varies between users (7:30, 12:04, etc.) and this
 tracker adapts to the user's specific reset schedule.
 
 History is stored in UTC to remain stable across DST transitions. The
-learned window hour/minute are UTC values. Display conversions to Berlin
-local time happen only in __str__ and sensor value_fn.
+learned window hour/minute are UTC values. __str__ prints them in the
+Home Assistant time zone.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ from ..const import (
 class ResetWindow:
     """Learned reset window configuration.
 
-    hour/minute are in UTC. __str__ converts to Berlin local time for display.
+    hour/minute are in UTC. __str__ prints them in the Home Assistant time zone.
     """
 
     hour: int
@@ -39,15 +39,14 @@ class ResetWindow:
     confidence: str
 
     def __str__(self) -> str:
-        """Return formatted reset window string in Berlin local time."""
+        """Return the reset window in the Home Assistant time zone."""
         try:
-            berlin_tz = dt_util.get_time_zone("Europe/Berlin")
             now_utc = dt_util.now().astimezone(UTC)
             ref = now_utc.replace(
                 hour=self.hour, minute=self.minute, second=0, microsecond=0
             )
-            ref_berlin = ref.astimezone(berlin_tz)
-            return f"{ref_berlin.hour:02d}:{ref_berlin.minute:02d} ({self.confidence})"
+            local = dt_util.as_local(ref)
+            return f"{local.hour:02d}:{local.minute:02d} ({self.confidence})"
         except Exception:
             return f"{self.hour:02d}:{self.minute:02d} UTC ({self.confidence})"
 

@@ -757,7 +757,9 @@ are rolled back.
   (`helpers/rate_limit_manager.py`) which computes:
   - Daily budget consumption from the header, not from a hardcoded cap
   - Reset detection. Until two resets share an hour, the expected time is
-    11:30 UTC (12:30 CET / 13:30 CEST)
+    11:30 UTC. The window sensor shows that instant in the Home Assistant
+    time zone. A learned sample keeps the UTC hour and sets the minute
+    to :30.
   - Throttle decisions when remaining calls fall below the threshold
 
 ### 3.2 Budget Math

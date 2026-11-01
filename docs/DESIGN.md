@@ -143,9 +143,9 @@ The getter floors the cost at 1.0. Future budget planning uses `data_manager._me
 
 ### Reset Window Learning (`ResetWindowTracker`)
 
-- Reset timestamps are normalized to **UTC** so DST transitions never shift the learned hour; display converts to Berlin local time.
+- Reset timestamps are normalized to **UTC** so DST transitions never shift the learned hour. The window sensor prints that UTC instant in the Home Assistant time zone.
 - A learned window is confirmed only after `API_RESET_PATTERN_THRESHOLD = 2` **consecutive** resets at the same hour (history keeps the last `API_RESET_HISTORY_SIZE = 5` events).
-- Until a pattern is confirmed, the expected time is `API_RESET_DEFAULT_UTC_HOUR = 11` and `API_RESET_MIDPOINT_MINUTE = 30` (11:30 UTC, which is 12:30 CET and 13:30 CEST).
+- Until a pattern is confirmed, the expected time is `API_RESET_DEFAULT_UTC_HOUR = 11` and `API_RESET_MIDPOINT_MINUTE = 30` (11:30 UTC). A learned sample keeps that UTC hour and sets the minute to 30.
 - Confidence is reported as `learned` or `default`.
 
 ### Economy Window (Reduced Polling)
