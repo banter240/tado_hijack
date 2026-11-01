@@ -7,6 +7,9 @@ from typing import TYPE_CHECKING, Any
 
 from ..const import (
     POWER_OFF,
+    RETRY_AFTER_DEFAULT_S,
+    RETRY_AFTER_MAX_S,
+    RETRY_AFTER_MIN_S,
     ZONE_MODE_BOOST,
     ZONE_MODE_MANUAL,
     ZONE_MODE_OFF,
@@ -39,6 +42,22 @@ def parse_ratelimit_headers(headers: dict[str, Any]) -> RateLimit | None:
         return RateLimit(limit=limit or 0, remaining=remaining or 0)
 
     return None
+
+
+def sanitize_retry_after(value: float | None) -> int:
+    """Clamp a Retry-After value to [RETRY_AFTER_MIN_S, RETRY_AFTER_MAX_S]."""
+    if value is None or value <= 0:
+        return RETRY_AFTER_DEFAULT_S
+    return int(min(max(value, RETRY_AFTER_MIN_S), RETRY_AFTER_MAX_S))
+
+
+def parse_retry_after(headers: dict[str, Any]) -> int:
+    """Extract the Retry-After header; Tado sends delta-seconds, not HTTP dates."""
+    raw = str(headers.get("Retry-After", "")).strip()
+    try:
+        return sanitize_retry_after(float(raw))
+    except ValueError:
+        return RETRY_AFTER_DEFAULT_S
 
 
 def get_ac_capabilities(capabilities: Capabilities) -> dict[str, set[str]]:

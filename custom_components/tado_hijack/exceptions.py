@@ -14,6 +14,11 @@ class TadoAuthenticationError(TadoBridgeError):
 class TadoRateLimitError(TadoBridgeError):
     """Error indicating API rate limit hit."""
 
+    def __init__(self, *args: object, retry_after: int = 0) -> None:
+        """Store retry_after seconds for coordinator backoff."""
+        super().__init__(*args)
+        self.retry_after = retry_after
+
 
 class TadoCommunicationError(TadoBridgeError):
     """Error communicating with Tado API."""

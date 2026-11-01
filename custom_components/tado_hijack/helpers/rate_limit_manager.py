@@ -140,6 +140,11 @@ class RateLimitManager:
         self._internal_remaining = max(0, self._internal_remaining - count)
         _LOGGER.debug("Internal remaining decremented to %d", self._internal_remaining)
 
+    def mark_rate_limited(self) -> None:
+        """Force remaining to zero after a 429."""
+        self._internal_remaining = 0
+        _LOGGER.debug("Marked as rate limited; internal remaining forced to 0")
+
     def sync_from_headers(self) -> None:
         """Sync internal counter from the most recently updated header source."""
         data = self._latest_header_data()

@@ -28,9 +28,10 @@ from tadoasync.tadoasync import (
 )
 from yarl import URL
 
-from ..const import PROXY_DOWN_MARKER, TADO_USER_AGENT
+from ..const import HTTP_TOO_MANY_REQUESTS, PROXY_DOWN_MARKER, TADO_USER_AGENT
+from ..exceptions import TadoRateLimitError
 from .logging_utils import get_redacted_logger, log_secrets, redact
-from .parsers import parse_ratelimit_headers
+from .parsers import parse_ratelimit_headers, parse_retry_after
 
 _LOGGER = get_redacted_logger(__name__)
 
@@ -242,6 +243,16 @@ class TadoRequestHandler:
             raise TadoForbiddenError(message)
         if response.status == http.HTTPStatus.BAD_REQUEST:
             raise TadoBadRequestError(message)
+        if response.status == HTTP_TOO_MANY_REQUESTS:
+            retry_after = parse_retry_after(cast(dict[str, Any], response.headers))
+            _LOGGER.warning(
+                "Tado API rate limited (429) on %s. Backing off for %ds.",
+                place,
+                retry_after,
+            )
+            raise TadoRateLimitError(
+                f"HTTP 429 {place}", retry_after=retry_after
+            ) from None
         raise TadoError(message)
 
     async def _handle_error_response(

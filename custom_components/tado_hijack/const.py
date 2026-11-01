@@ -329,6 +329,9 @@ API_RESET_MIN_PLANNING_HOURS: Final = 20  # Minimum hours to plan ahead (conserv
 API_RESET_PATTERN_THRESHOLD: Final = 2  # Consecutive resets needed to learn pattern
 API_RESET_HISTORY_SIZE: Final = 5  # Number of resets to keep in history
 THROTTLE_RECOVERY_INTERVAL_S: Final = 900  # 15 minutes (Recovery check when throttled)
+RETRY_AFTER_MIN_S: Final = 30
+RETRY_AFTER_MAX_S: Final = 86400  # 24h
+RETRY_AFTER_DEFAULT_S: Final = THROTTLE_RECOVERY_INTERVAL_S
 
 # Service Names
 SERVICE_MANUAL_POLL = "manual_poll"

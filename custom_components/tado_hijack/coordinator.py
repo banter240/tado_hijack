@@ -106,7 +106,7 @@ from .const import (
     ZONE_TYPE_HOT_WATER,
 )
 from .dummy.dummy_handler import TadoDummyHandler  # [DUMMY_HOOK]
-from .exceptions import TadoOfflineError
+from .exceptions import TadoOfflineError, TadoRateLimitError
 from .helpers.ac_overlay import pick_cap_value, resolve_ac_attr
 from .helpers.api_manager import TadoApiManager
 from .helpers.auth_manager import AuthManager
@@ -693,6 +693,24 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
                 self._on_threshold_sensor(None)
 
             return cast(TadoData, data)
+        except TadoRateLimitError as err:
+            self._force_next_update = False
+            self.rate_limit.mark_rate_limited()
+            # HA honours retry_after only on UpdateFailed, not on cached data.
+            self.update_interval = timedelta(seconds=err.retry_after)
+            self.poll_scheduler.schedule_reset_poll(
+                err.retry_after, self._on_reset_poll
+            )
+            _LOGGER.warning(
+                "Tado API rate limited (429). Backing off for %ds.",
+                err.retry_after,
+            )
+            if self.data:
+                return cast(TadoData, self.data)
+            raise UpdateFailed(
+                redact(f"Tado API rate limited: {err}"),
+                retry_after=err.retry_after,
+            ) from None
         except (TimeoutError, TadoError, aiohttp.ClientError) as err:
             self._force_next_update = False
             self.offline_fallback.note_call_failed(err)
