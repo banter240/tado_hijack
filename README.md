@@ -249,7 +249,8 @@ Tado's API limits are restrictive. That's why Tado Hijack uses a **Zero-Waste Po
 | :------------------ | :----: | :------------ | :--------------------------------------- | :------------------------------------------------------------------------------------- |
 | **Zone Poll**       | **1**  | Adaptive      | HVAC, Valve %, Humidity.                 | v3: `GET /homes/{id}/zoneStates`<br>X: `GET hops…/rooms` (+ DHW if installed)          |
 | **Presence Poll**   | **1**  | 12h (Default) | Home/Away presence state.                | **Both gens:** `GET my.tado.com/api/v2/homes/{id}/state` (not Hops)                    |
-| **Hardware Sync**   | **1–2+N** | 24h (Default) | Syncs battery, firmware, device list, and zone capabilities. | v3: `GET /zones` + `GET /devices` + **1 GET `/capabilities` per zone** (no bulk)<br>X: `GET hops…/roomsAndDevices` (**1**, no caps API) |
+| **Hardware Sync**   | **2** / **1** | 24h (Default) | Syncs battery, firmware and the device list. | v3: `GET /zones` + `GET /devices`<br>X: `GET hops…/roomsAndDevices` (**1**, no caps API) |
+| **Capabilities**    | **0–N** | Configurable, default 24h | Classic zone capabilities (temp range, modes). Stored locally. Checked on the hardware sync. | v3: **1 GET `/capabilities` per zone** when the copy is older than `capabilities_refresh_interval` (default 86400s, same as the hardware sync). `0` refetches only a zone with no copy. 604800s (7 days) fits a 100-call day. No bulk endpoint. A button or `manual_poll` still refetches. X: no caps API |
 | **Refresh Zones**   | **1–2**  | On Demand     | Updates zone/device metadata.            | v3: zones + devices<br>X: `roomsAndDevices`                                            |
 | **Refresh Offsets** | **1–N**  | On Demand  | Fetches device offsets. 1 call with `entity_id`, N without. | v3: `GET /devices/{s}/temperatureOffset`<br>X: usually in metadata snapshot        |
 | **Refresh Away**    | **1–M**  | On Demand  | Fetches zone away temps. 1 call with `entity_id`, M without. | v3 only (`awayConfiguration`). Tado X: not available via API                     |
@@ -257,7 +258,7 @@ Tado's API limits are restrictive. That's why Tado Hijack uses a **Zero-Waste Po
 | **Presence**        | **1**  | On Demand     | Force presence lock (home/away=PUT, auto=DELETE). | **Both gens:** `PUT/DELETE …/presenceLock` on my.tado.com (v2)                  |
 
 _Notes:_
-- **Restart** (after the first run): `GET /me` + zoneStates + presence + zones + devices. Zone capabilities (temp min/max, AC modes) are stored locally. There is **no bulk capabilities endpoint** (1 GET per zone). They refresh on the hardware-sync interval (default 24h), via `button.refresh_capabilities` / per-room `refresh_capability`, or `manual_poll` type `capabilities` / `all`. Auto Quota reserves that daily burst as `capabilities_total` (not as zone-poll cost). Classic early start stays on the switch. A GET runs only when that state is unknown, and on a full refresh.
+- **Restart** (after the first run): `GET /me` + zoneStates + presence + zones + devices. Zone capabilities (temp min/max, AC modes) are stored locally. There is **no bulk capabilities endpoint** (1 GET per zone). A stored copy refreshes on `capabilities_refresh_interval` (default 24h, checked during the hardware sync). `0` fetches a zone only when it has no copy. `button.refresh_capabilities`, the per-room `refresh_capability`, and `manual_poll` type `capabilities` / `all` still refetch. Auto Quota reserves that interval as `capabilities_total` (not as zone-poll cost). Classic early start stays on the switch. A GET runs only when that state is unknown, and on a full refresh.
 - **Presence is always the classic v2 API** for both v3 Classic and Tado X (`/state`, `/presenceLock`). Hops `roomsAndDevices` does **not** include home/away.
 - **Refresh token:** when Tado rotates it, Hijack writes the new token to the config entry immediately. A later poll writes again only if the stored value differs.
 - Room/device control for Tado X uses the Hops API (`hops.tado.com`). See [Generation Support](#generation-support-v3-classic--tado-x).
@@ -560,7 +561,7 @@ The tracker reads the current entity state at mapping time and watches the entit
 > - **V3 (IB01/GW01)** and **Tado X (IB02)** — the TRV climate is already HomeKit or Matter. Full cloud mode adds a Hijack heating climate whose temperature changes are cloud calls
 >
 > **⚠️ API QUOTA IMPACT:**
-> - The budget is `q=` on the last response. This integration does not assume 100, 1,000, or 20,000
+> - The budget is `q=` on the last response. This integration does not assume 100, 1,000, or 20,000. A counted 100-call day is in [docs/QUOTA_100.md](docs/QUOTA_100.md)
 > - Help center, 27 January 2026: 100 requests/day, and 20,000 with Auto-Assist or AI Assist
 > - Tado on r/tado, 26 May 2026: they maintain 1,000 requests/day and plan to reduce that further. Auto-Assist and AI Assist stay at 20,000
 > - On V3 and Tado X, leave the climate created in HomeKit or Matter. Reverse linking shows it on the Hijack device. Spend the header budget on schedules, presence, hot water, and hardware settings
@@ -643,7 +644,7 @@ Advanced monitoring sensors in the diagnostics of that same home device:
 - `sensor.min_interval_enforced` - Actual enforced minimum (proxy-aware)
 - `sensor.reduced_polling_interval` - Economy window interval
 - `sensor.debounce_time` - Batching window duration
-- `sensor.presence_poll_interval`, `sensor.slow_poll_interval`, `sensor.offset_poll_interval`
+- `sensor.presence_poll_interval`, `sensor.slow_poll_interval`, `sensor.capabilities_refresh_interval`, `sensor.plan_refresh_max_age`, `sensor.offset_poll_interval`
 
 **Configuration Status:**
 - `sensor.auto_quota_percent`, `sensor.throttle_threshold`, `sensor.jitter_percent`
@@ -661,6 +662,7 @@ Advanced monitoring sensors in the diagnostics of that same home device:
 - `sensor.proxy_url`, `sensor.proxy_token` - Proxy configuration status
 - `sensor.log_level` - Current logging level
 - `sensor.quota_safety_reserve` - Configured safety reserve calls
+- `sensor.simulated_daily_limit` - Configured simulated daily limit (`0` is off). The API limit sensor shows the clamped effective limit.
 - `binary_sensor.full_cloud_mode` - Full Cloud Mode enabled status
 - `binary_sensor.link_local_devices` - Attach to HomeKit / Matter
 - `binary_sensor.proxy_local_entities` - Reverse link onto Hijack
@@ -1062,6 +1064,10 @@ They need a temperature and a humidity. The chain is in [Zone Temperature & Humi
 <br>
 
 Looking for more technical details or want to contribute?
+
+<br>
+
+**[QUOTA_100.md](https://github.com/banter240/tado_hijack/blob/main/docs/QUOTA_100.md)** — A 100-call day: what each poll costs, and the settings that keep a classic home inside that header.
 
 <br>
 

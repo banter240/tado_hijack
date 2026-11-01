@@ -34,11 +34,29 @@ OFFSET_CAL_OPTIONS: tuple[str, ...] = (
 )
 
 
+# threshold writes only when a linked sensor moves far enough. One PUT is the
+# daily budget guess for that device. The throttle floor covers a noisy day.
+_THRESHOLD_DAILY_PUTS = 1
+
+
+def _puts_for_cal_option(option: str) -> int:
+    """PUTs one device is reserved for this resolved calibration mode."""
+    if option in {OFFSET_CAL_OFF, OFFSET_CAL_INHERIT}:
+        return 0
+    if option == OFFSET_CAL_ON_RESET:
+        return 1
+    if option == OFFSET_CAL_THRESHOLD:
+        return _THRESHOLD_DAILY_PUTS
+    hours = hours_from_midnight(option)
+    return len(hours) if hours else 0
+
+
 def daily_offset_cal_puts(coordinator: TadoDataUpdateCoordinator) -> int:
     """How many offset PUTs auto-cal will spend per quota day (0 if off).
 
-    Counts per-zone interval fires + bridge fires, avoiding double-counting
-    when a zone inherits the bridge interval.
+    Each linked measuring device uses its own zone mode. inherit is already
+    resolved to the bridge option, so a threshold zone does not raise the
+    reserve for an on_reset zone.
     """
     from ..const import (
         CONF_OFFSET_CAL_INTERVAL,
@@ -53,49 +71,19 @@ def daily_offset_cal_puts(coordinator: TadoDataUpdateCoordinator) -> int:
     if not isinstance(linked, dict) or not linked:
         return 0
 
-    # Count devices with linked sensors
-    devices = sum(
-        bool(linked.get(str(zone_id)))
-        for _serial, zone_id in measuring_devices(coordinator)
+    resolver = getattr(coordinator, "effective_zone_offset_cal_interval", None)
+    fallback = str(
+        coordinator.config_entry.data.get(
+            CONF_OFFSET_CAL_INTERVAL, DEFAULT_OFFSET_CAL_INTERVAL
+        )
     )
-    if devices == 0:
-        return 0
-
-    # Get effective interval for each zone and count unique fire-hours
-    all_hours: set[int] = set()
-    on_reset_zones = False
-
-    for zid_str in linked:
-        try:
-            zone_id = int(zid_str)
-        except TypeError, ValueError:
+    total = 0
+    for _serial, zone_id in measuring_devices(coordinator):
+        if not linked.get(str(zone_id)):
             continue
-        if not linked.get(zid_str):
-            continue
-
-        # Resolved interval. inherit counts as the bridge option.
-        resolver = getattr(coordinator, "effective_zone_offset_cal_interval", None)
-        if resolver is not None:
-            option = resolver(zone_id)
-        else:
-            option = str(
-                coordinator.config_entry.data.get(
-                    CONF_OFFSET_CAL_INTERVAL, DEFAULT_OFFSET_CAL_INTERVAL
-                )
-            )
-
-        if option == "on_reset":
-            on_reset_zones = True
-        elif option == OFFSET_CAL_THRESHOLD:
-            # Not on the clock. A few writes a day is the quota guess.
-            all_hours.update(range(0, 24, 6))
-        else:
-            hours = hours_from_midnight(option)
-            if hours:
-                all_hours.update(hours)
-
-    fires = len(all_hours) if all_hours else (1 if on_reset_zones else 0)
-    return devices * fires
+        option = resolver(zone_id) if resolver is not None else fallback
+        total += _puts_for_cal_option(str(option))
+    return total
 
 
 def hours_from_midnight(option: str) -> list[int] | None:

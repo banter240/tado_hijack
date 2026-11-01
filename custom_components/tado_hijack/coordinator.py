@@ -161,6 +161,7 @@ from .helpers.schedule import (
     parse_blocks,
     parse_classic_plan,
     parse_x_plan,
+    plan_refresh_zone_ids,
     refresh_schedule_queue_key,
     resolve_day_types,
     resolve_timetable_type,
@@ -1011,30 +1012,26 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         self._schedule_reset_poll()
 
     def _claim_plan_refresh(self) -> list[int] | None:
-        """Zone ids for this reset's plan fetch, or None when it already ran."""
+        """Zones whose stored plan is missing or older than a week."""
         if not self._refresh_plans_after_reset:
             return None
         now = dt_util.utcnow()
         last = self._last_plan_refresh_at
         if last is not None and now - last < _PLAN_REFRESH_MIN_GAP:
             return None
-        zone_ids = [
-            zone_id
-            for zone_id in schedule_capable_zone_ids(self)
-            if not (self.dummy_handler and self.dummy_handler.is_dummy_zone(zone_id))
-        ]
+        zone_ids = plan_refresh_zone_ids(self)
         if not zone_ids:
             return None
         self._last_plan_refresh_at = now
         return zone_ids
 
     async def _async_refresh_plans_after_reset(self) -> None:
-        """Fetch every weekly plan once after the quota reset. No zone poll."""
+        """Fetch weekly plans that are missing or older than a week. No zone poll."""
         zone_ids = self._claim_plan_refresh()
         if not zone_ids:
             return
         _LOGGER.info(
-            "Quota reset: refreshing weekly plans for %d zone(s) (generation=%s)",
+            "Quota reset: refreshing %d weekly plan(s) (generation=%s)",
             len(zone_ids),
             self.generation,
         )

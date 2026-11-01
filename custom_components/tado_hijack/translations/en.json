@@ -64,6 +64,12 @@
       "slow_poll_interval": {
         "name": "Slow Poll Interval"
       },
+      "capabilities_refresh_interval": {
+        "name": "Capabilities Refresh Interval"
+      },
+      "plan_refresh_max_age": {
+        "name": "Plan Refresh Max Age"
+      },
       "offset_poll_interval": {
         "name": "Offset Poll Interval"
       },
@@ -144,6 +150,9 @@
       },
       "quota_safety_reserve": {
         "name": "API Quota Safety Reserve"
+      },
+      "simulated_daily_limit": {
+        "name": "Simulated Daily Limit"
       },
       "outdoor_weather_entity": {
         "name": "Outdoor Weather Source"
@@ -613,13 +622,17 @@
               "scan_interval": "Status Polling Interval (Seconds)",
               "presence_poll_interval": "Presence Polling Interval (Seconds)",
               "slow_poll_interval": "Hardware Sync Interval (Seconds)",
-              "refresh_plans_after_reset": "Refresh weekly plans after quota reset"
+              "capabilities_refresh_interval": "Capabilities Refresh Interval (Seconds)",
+              "refresh_plans_after_reset": "Refresh weekly plans after quota reset",
+              "plan_refresh_max_age_s": "Plan Refresh Max Age (Seconds)"
             },
             "data_description": {
               "scan_interval": "Interval for room data (temp, humidity, heating power). IMPORTANT: Dynamically overridden by 'Auto API Quota' when enabled; serves as fallback when calculated budget is exhausted.",
               "presence_poll_interval": "How often to check Home/Away status. Set to a higher value (e.g. 43200s/12h) to save quota.",
-              "slow_poll_interval": "How often to sync battery levels, firmware, capabilities and device list. 86400s (24h) is recommended.",
-              "refresh_plans_after_reset": "Once after each quota reset, fetch every zone plan into the calendar cache. One call per zone. Default off."
+              "slow_poll_interval": "How often to sync battery levels, firmware and the device list. 86400s (24h) is recommended.",
+              "capabilities_refresh_interval": "How often a full capabilities refetch runs. It is checked on the hardware sync. 0 refetches only a zone that has no copy. 86400s matches the hardware sync. 604800s (7 days) is the setting for a 100-call day.",
+              "refresh_plans_after_reset": "After a quota reset, fetch zone plans that are due. Default off. The max age below chooses which plans.",
+              "plan_refresh_max_age_s": "Used only while the plan switch is on. 0 fetches every zone on each reset. A higher value keeps a fresh cache. 604800s (7 days) is the setting for a 100-call day."
             }
           },
           "reduced_polling": {
@@ -767,13 +780,17 @@
               "scan_interval": "Status Polling Interval (Seconds)",
               "presence_poll_interval": "Presence Polling Interval (Seconds)",
               "slow_poll_interval": "Hardware Sync Interval (Seconds)",
-              "refresh_plans_after_reset": "Refresh weekly plans after quota reset"
+              "capabilities_refresh_interval": "Capabilities Refresh Interval (Seconds)",
+              "refresh_plans_after_reset": "Refresh weekly plans after quota reset",
+              "plan_refresh_max_age_s": "Plan Refresh Max Age (Seconds)"
             },
             "data_description": {
               "scan_interval": "Interval for room data (temp, humidity, heating power). IMPORTANT: Dynamically overridden by 'Auto API Quota' when enabled; serves as fallback when calculated budget is exhausted.",
               "presence_poll_interval": "How often to check Home/Away status. Set to a higher value (e.g. 43200s/12h) to save quota.",
-              "slow_poll_interval": "How often to sync battery levels, firmware, capabilities and device list. 86400s (24h) is recommended.",
-              "refresh_plans_after_reset": "Once after each quota reset, fetch every zone plan into the calendar cache. One call per zone. Default off."
+              "slow_poll_interval": "How often to sync battery levels, firmware and the device list. 86400s (24h) is recommended.",
+              "capabilities_refresh_interval": "How often a full capabilities refetch runs. It is checked on the hardware sync. 0 refetches only a zone that has no copy. 86400s matches the hardware sync. 604800s (7 days) is the setting for a 100-call day.",
+              "refresh_plans_after_reset": "After a quota reset, fetch zone plans that are due. Default off. The max age below chooses which plans.",
+              "plan_refresh_max_age_s": "Used only while the plan switch is on. 0 fetches every zone on each reset. A higher value keeps a fresh cache. 604800s (7 days) is the setting for a 100-call day."
             }
           },
           "reduced_polling": {

@@ -6,8 +6,12 @@ from collections.abc import Iterator
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
+from homeassistant.util import dt as dt_util
+
 from ..const import (
+    CONF_PLAN_REFRESH_MAX_AGE_S,
     CONF_REFRESH_PLANS_AFTER_RESET,
+    DEFAULT_PLAN_REFRESH_MAX_AGE_S,
     DEFAULT_REFRESH_PLANS_AFTER_RESET,
     GEN_X,
     POWER_OFF,
@@ -399,17 +403,55 @@ def schedule_capable_zone_ids(coordinator: TadoDataUpdateCoordinator) -> list[in
     return zone_ids
 
 
-def plan_refresh_get_count(coordinator: TadoDataUpdateCoordinator) -> int:
-    """GETs for one weekly-plan pass. 0 when the reset refresh is off."""
-    if not coordinator.config_entry.data.get(
+def plan_refresh_max_age_s(coordinator: TadoDataUpdateCoordinator) -> float:
+    """Max stored-plan age. 0 means every quota reset refetches."""
+    entry = coordinator.config_entry
+    if entry is None:
+        return float(DEFAULT_PLAN_REFRESH_MAX_AGE_S)
+    return max(
+        0.0,
+        float(
+            entry.data.get(CONF_PLAN_REFRESH_MAX_AGE_S, DEFAULT_PLAN_REFRESH_MAX_AGE_S)
+        ),
+    )
+
+
+def _plan_is_fresh(
+    coordinator: TadoDataUpdateCoordinator, zone_id: int, now: datetime
+) -> bool:
+    """True when this zone's stored plan is younger than the configured age."""
+    max_age = plan_refresh_max_age_s(coordinator)
+    if max_age <= 0:
+        return False
+    entry = coordinator.data_manager.schedule_blocks_cache.get(zone_id)
+    if not isinstance(entry, dict):
+        return False
+    parsed = dt_util.parse_datetime(str(entry.get("updated_at") or ""))
+    if not isinstance(parsed, datetime):
+        return False
+    return (now - parsed).total_seconds() < max_age
+
+
+def plan_refresh_zone_ids(coordinator: TadoDataUpdateCoordinator) -> list[int]:
+    """Zones whose plan is due. Empty when the switch is off."""
+    if coordinator.config_entry is None or not coordinator.config_entry.data.get(
         CONF_REFRESH_PLANS_AFTER_RESET, DEFAULT_REFRESH_PLANS_AFTER_RESET
     ):
-        return 0
+        return []
+    now = dt_util.utcnow()
     dummy = coordinator.dummy_handler
+    return [
+        zone_id
+        for zone_id in schedule_capable_zone_ids(coordinator)
+        if not (dummy and dummy.is_dummy_zone(zone_id))
+        and not _plan_is_fresh(coordinator, zone_id, now)
+    ]
+
+
+def plan_refresh_get_count(coordinator: TadoDataUpdateCoordinator) -> int:
+    """GETs for plans that are due now. 0 when the switch is off or every plan is fresh."""
     total = 0
-    for zone_id in schedule_capable_zone_ids(coordinator):
-        if dummy and dummy.is_dummy_zone(zone_id):
-            continue
+    for zone_id in plan_refresh_zone_ids(coordinator):
         if coordinator.generation == GEN_X:
             total += 1
             continue

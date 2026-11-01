@@ -16,6 +16,7 @@ from .const import (
     CONF_API_PROXY_URL,
     CONF_AUTO_API_QUOTA_PERCENT,
     CONF_CALL_JITTER_ENABLED,
+    CONF_CAPABILITIES_REFRESH_INTERVAL,
     CONF_DEBOUNCE_TIME,
     CONF_DISABLE_POLLING_WHEN_THROTTLED,
     CONF_FEATURE_DEW_POINT,
@@ -35,6 +36,7 @@ from .const import (
     CONF_OUTDOOR_HUMIDITY_ENTITY,
     CONF_OUTDOOR_TEMP_ENTITY,
     CONF_OUTDOOR_WEATHER_ENTITY,
+    CONF_PLAN_REFRESH_MAX_AGE_S,
     CONF_PRESENCE_POLL_INTERVAL,
     CONF_PROXY_LOCAL_ENTITIES,
     CONF_PROXY_TOKEN,
@@ -47,6 +49,7 @@ from .const import (
     CONF_REFRESH_AFTER_RESUME,
     CONF_REFRESH_PLANS_AFTER_RESET,
     CONF_SCAN_INTERVAL,
+    CONF_SIMULATED_DAILY_LIMIT,
     CONF_SLOW_POLL_INTERVAL,
     CONF_SUPPRESS_REDUNDANT_BUTTONS,
     CONF_SUPPRESS_REDUNDANT_CALLS,
@@ -59,6 +62,7 @@ from .const import (
     CONF_ZONE_WINDOW_CLOSE_DELAY_S,
     CONF_ZONE_WINDOW_OPEN_DELAY_S,
     DEFAULT_AUTO_API_QUOTA_PERCENT,
+    DEFAULT_CAPABILITIES_REFRESH_INTERVAL,
     DEFAULT_DEBOUNCE_TIME,
     DEFAULT_FEATURE_DEW_POINT,
     DEFAULT_FEATURE_FLOW_TEMP,
@@ -72,6 +76,7 @@ from .const import (
     DEFAULT_OFFSET_CAL_SEND_COOLDOWN_S,
     DEFAULT_OFFSET_CAL_WINDOW_SETTLE_S,
     DEFAULT_OFFSET_POLL_INTERVAL,
+    DEFAULT_PLAN_REFRESH_MAX_AGE_S,
     DEFAULT_PRESENCE_POLL_INTERVAL,
     DEFAULT_PROXY_LOCAL_ENTITIES,
     DEFAULT_QUOTA_SAFETY_RESERVE,
@@ -82,6 +87,7 @@ from .const import (
     DEFAULT_REFRESH_AFTER_RESUME,
     DEFAULT_REFRESH_PLANS_AFTER_RESET,
     DEFAULT_SCAN_INTERVAL,
+    DEFAULT_SIMULATED_DAILY_LIMIT,
     DEFAULT_SLOW_POLL_INTERVAL,
     DEFAULT_SUPPRESS_REDUNDANT_BUTTONS,
     DEFAULT_SUPPRESS_REDUNDANT_CALLS,
@@ -1467,6 +1473,30 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         state_class=SensorStateClass.MEASUREMENT,
     ),
     create_diagnostic_sensor(
+        key="capabilities_refresh_interval",
+        value_fn=lambda c: int(
+            c.config_entry.data[CONF_CAPABILITIES_REFRESH_INTERVAL]
+            if CONF_CAPABILITIES_REFRESH_INTERVAL in c.config_entry.data
+            else c.config_entry.data.get(
+                CONF_SLOW_POLL_INTERVAL, DEFAULT_CAPABILITIES_REFRESH_INTERVAL
+            )
+        ),
+        icon="mdi:cog-sync",
+        unit="s",
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    create_diagnostic_sensor(
+        key="plan_refresh_max_age",
+        value_fn=lambda c: int(
+            c.config_entry.data.get(
+                CONF_PLAN_REFRESH_MAX_AGE_S, DEFAULT_PLAN_REFRESH_MAX_AGE_S
+            )
+        ),
+        icon="mdi:calendar-clock",
+        unit="s",
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    create_diagnostic_sensor(
         key="offset_poll_interval",
         value_fn=lambda c: int(
             c.config_entry.data.get(
@@ -1743,6 +1773,16 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
             )
         ),
         icon="mdi:shield-check",
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    create_diagnostic_sensor(
+        key="simulated_daily_limit",
+        value_fn=lambda c: int(
+            c.config_entry.data.get(
+                CONF_SIMULATED_DAILY_LIMIT, DEFAULT_SIMULATED_DAILY_LIMIT
+            )
+        ),
+        icon="mdi:counter",
         state_class=SensorStateClass.MEASUREMENT,
     ),
     create_home_binary_sensor(

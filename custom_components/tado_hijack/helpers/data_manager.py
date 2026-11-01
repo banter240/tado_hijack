@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 from ..const import (
     CAPABILITY_INSIDE_TEMP,
     CIRCUIT_UNASSIGNED,
+    CONF_CAPABILITIES_REFRESH_INTERVAL,
     CONF_FEATURE_ZONE_CIRCUIT,
     DEFAULT_FEATURE_ZONE_CIRCUIT,
     DEFAULT_PRESENCE_POLL_INTERVAL,
@@ -306,14 +307,36 @@ class TadoDataManager:
         if invalidated or (slow_running and self._capabilities_due()):
             plan.append(PollTask(1, self._refresh_capabilities))
 
-    def _capabilities_due(self) -> bool:
-        """True when capabilities should follow the hardware-sync interval."""
-        interval = float(self._slow_poll_seconds)
+    def _capabilities_missing_zone_ids(self) -> list[int]:
+        """Classic zones that have no stored capabilities yet."""
+        cached = self.capabilities_cache
+        return [
+            zone_id for zone_id in self._capability_zone_ids() if zone_id not in cached
+        ]
+
+    def _capabilities_interval_s(self) -> float:
+        """Seconds between full capabilities refetches. 0 fills gaps only."""
+        entry = self.coordinator.config_entry
+        data = entry.data if entry is not None else {}
+        if CONF_CAPABILITIES_REFRESH_INTERVAL in data:
+            return max(0.0, float(data[CONF_CAPABILITIES_REFRESH_INTERVAL]))
+        return float(self._slow_poll_seconds)
+
+    def _capabilities_refresh_due(self) -> bool:
+        """True when the configured capabilities interval has elapsed."""
+        interval = self._capabilities_interval_s()
         if interval <= 0:
+            return False
+        fetched = self._capabilities_fetched_at
+        return True if fetched <= 0 else (time.time() - fetched) >= interval
+
+    def _capabilities_due(self) -> bool:
+        """True when the hardware sync should fetch capabilities."""
+        if self._slow_poll_seconds <= 0:
             return self._capabilities_fetched_at <= 0
-        if self._capabilities_fetched_at <= 0:
+        if self._capabilities_missing_zone_ids():
             return True
-        return (time.time() - self._capabilities_fetched_at) >= interval
+        return self._capabilities_refresh_due()
 
     def _capability_zone_ids(self) -> list[int]:
         """Classic zones that have a capabilities endpoint (skip dummies)."""
@@ -389,13 +412,14 @@ class TadoDataManager:
         from .offset_calibrate import daily_offset_cal_puts
 
         slow_s = float(self._slow_poll_seconds)
+        cap_s = self._capabilities_interval_s()
         breakdown = {
             "presence_poll_total": int(p_cost * (sec_day / self._presence_poll_seconds))
             if self._presence_poll_seconds > 0
             else 0,
             "slow_poll_total": int(s_cost * (sec_day / slow_s)) if slow_s > 0 else 0,
-            "capabilities_total": int(cap_cost * (sec_day / slow_s))
-            if slow_s > 0
+            "capabilities_total": int(cap_cost * sec_day / cap_s)
+            if slow_s > 0 and cap_s > 0
             else 0,
             "offset_poll_total": int(o_cost * (sec_day / self._offset_poll_seconds))
             if self._offset_poll_seconds > 0
@@ -775,8 +799,17 @@ class TadoDataManager:
             self.capabilities_cache[zone_id] = None  # Cache failure, no retry
 
     async def _refresh_capabilities(self) -> None:
-        """GET capabilities for every classic zone (no bulk endpoint)."""
-        zone_ids = self._capability_zone_ids()
+        """GET missing capabilities, or every zone once the configured interval elapsed."""
+        full = (
+            self._capabilities_invalidated_at > self._last_capabilities_poll
+            or self._capabilities_refresh_due()
+        )
+        if full:
+            zone_ids = self._capability_zone_ids()
+            for zone_id in zone_ids:
+                self.capabilities_cache.pop(zone_id, None)
+        else:
+            zone_ids = self._capabilities_missing_zone_ids()
         if not zone_ids:
             return
         _LOGGER.info(
@@ -784,10 +817,10 @@ class TadoDataManager:
         )
         self._last_capabilities_refresh_count = 0
         for zone_id in zone_ids:
-            self.capabilities_cache.pop(zone_id, None)
             await self._fetch_capabilities(zone_id, persist=False)
             self._last_capabilities_refresh_count += 1
-        self._capabilities_fetched_at = time.time()
+        if full or self._capabilities_fetched_at <= 0:
+            self._capabilities_fetched_at = time.time()
         self.coordinator._save_capabilities_cache()
 
     def take_capabilities_refresh_count(self) -> int:

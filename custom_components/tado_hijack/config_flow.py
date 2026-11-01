@@ -35,6 +35,7 @@ from .const import (
     CONF_API_PROXY_URL,
     CONF_AUTO_API_QUOTA_PERCENT,
     CONF_CALL_JITTER_ENABLED,
+    CONF_CAPABILITIES_REFRESH_INTERVAL,
     CONF_DEBOUNCE_TIME,
     CONF_DISABLE_POLLING_WHEN_THROTTLED,
     CONF_FEATURE_DEW_POINT,
@@ -56,6 +57,7 @@ from .const import (
     CONF_OUTDOOR_HUMIDITY_ENTITY,
     CONF_OUTDOOR_TEMP_ENTITY,
     CONF_OUTDOOR_WEATHER_ENTITY,
+    CONF_PLAN_REFRESH_MAX_AGE_S,
     CONF_PRESENCE_POLL_INTERVAL,
     CONF_PROXY_LOCAL_ENTITIES,
     CONF_PROXY_TOKEN,
@@ -77,6 +79,7 @@ from .const import (
     CONF_WINDOW_RESUME_BATCH,
     CONF_WINDOW_RESUME_BATCH_S,
     DEFAULT_AUTO_API_QUOTA_PERCENT,
+    DEFAULT_CAPABILITIES_REFRESH_INTERVAL,
     DEFAULT_DEBOUNCE_TIME,
     DEFAULT_FEATURE_DEW_POINT,
     DEFAULT_FEATURE_FLOW_TEMP,
@@ -90,6 +93,7 @@ from .const import (
     DEFAULT_OFFSET_CAL_SEND_COOLDOWN_S,
     DEFAULT_OFFSET_CAL_WINDOW_SETTLE_S,
     DEFAULT_OFFSET_POLL_INTERVAL,
+    DEFAULT_PLAN_REFRESH_MAX_AGE_S,
     DEFAULT_PRESENCE_POLL_INTERVAL,
     DEFAULT_PROXY_LOCAL_ENTITIES,
     DEFAULT_QUOTA_SAFETY_RESERVE,
@@ -201,7 +205,9 @@ class TadoHijackCommonFlow:
                 CONF_SCAN_INTERVAL,
                 CONF_PRESENCE_POLL_INTERVAL,
                 CONF_SLOW_POLL_INTERVAL,
+                CONF_CAPABILITIES_REFRESH_INTERVAL,
                 CONF_REFRESH_PLANS_AFTER_RESET,
+                CONF_PLAN_REFRESH_MAX_AGE_S,
             ],
             "reduced_polling": [
                 CONF_REDUCED_POLLING_ACTIVE,
@@ -309,6 +315,19 @@ class TadoHijackCommonFlow:
                                 vol.Coerce(int),
                                 vol.Range(min=MIN_SLOW_POLL_INTERVAL),
                             ),
+                            vol.Required(
+                                CONF_CAPABILITIES_REFRESH_INTERVAL,
+                                default=self._get_current_data(
+                                    CONF_CAPABILITIES_REFRESH_INTERVAL,
+                                    self._get_current_data(
+                                        CONF_SLOW_POLL_INTERVAL,
+                                        DEFAULT_CAPABILITIES_REFRESH_INTERVAL,
+                                    ),
+                                ),
+                            ): vol.All(
+                                vol.Coerce(int),
+                                vol.Range(min=0),
+                            ),
                             vol.Optional(
                                 CONF_REFRESH_PLANS_AFTER_RESET,
                                 default=self._get_current_data(
@@ -316,6 +335,16 @@ class TadoHijackCommonFlow:
                                     DEFAULT_REFRESH_PLANS_AFTER_RESET,
                                 ),
                             ): BooleanSelector(),
+                            vol.Required(
+                                CONF_PLAN_REFRESH_MAX_AGE_S,
+                                default=self._get_current_data(
+                                    CONF_PLAN_REFRESH_MAX_AGE_S,
+                                    DEFAULT_PLAN_REFRESH_MAX_AGE_S,
+                                ),
+                            ): vol.All(
+                                vol.Coerce(int),
+                                vol.Range(min=0),
+                            ),
                         }
                     ),
                     {"collapsed": True},

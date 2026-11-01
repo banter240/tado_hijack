@@ -20,6 +20,8 @@ CONF_HOME_ID: Final = "home_id"
 CONF_SCAN_INTERVAL: Final = "scan_interval"
 CONF_PRESENCE_POLL_INTERVAL: Final = "presence_poll_interval"
 CONF_SLOW_POLL_INTERVAL: Final = "slow_poll_interval"
+CONF_CAPABILITIES_REFRESH_INTERVAL: Final = "capabilities_refresh_interval"
+CONF_PLAN_REFRESH_MAX_AGE_S: Final = "plan_refresh_max_age_s"
 CONF_OFFSET_POLL_INTERVAL: Final = "offset_poll_interval"
 CONF_THROTTLE_THRESHOLD: Final = "throttle_threshold"
 CONF_DISABLE_POLLING_WHEN_THROTTLED: Final = "disable_polling_when_throttled"
@@ -164,6 +166,10 @@ MIN_BOILER_DRIVERS_FOR_SELECT: Final = 2
 DEFAULT_SCAN_INTERVAL: Final = 1800  # 30 minutes (Zone States)
 DEFAULT_PRESENCE_POLL_INTERVAL: Final = 43200  # 12 hours
 DEFAULT_SLOW_POLL_INTERVAL: Final = 86400  # 24 hours (Hardware Metadata)
+# Absent key follows the hardware sync. 0 refetches only a zone with no copy.
+DEFAULT_CAPABILITIES_REFRESH_INTERVAL: Final = DEFAULT_SLOW_POLL_INTERVAL
+# 0 fetches every zone on each quota reset while that switch is on.
+DEFAULT_PLAN_REFRESH_MAX_AGE_S: Final = 0
 DEFAULT_OFFSET_POLL_INTERVAL: Final = 0  # Disabled by default
 DEFAULT_OFFSET_CAL_INTERVAL: Final = "off"
 DEFAULT_AUTO_API_QUOTA_PERCENT: Final = 80  # Use 80% of daily quota by default

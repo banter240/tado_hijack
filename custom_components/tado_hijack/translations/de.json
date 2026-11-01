@@ -64,6 +64,12 @@
       "slow_poll_interval": {
         "name": "Hardware-Sync Intervall"
       },
+      "capabilities_refresh_interval": {
+        "name": "Fähigkeiten-Aktualisierung"
+      },
+      "plan_refresh_max_age": {
+        "name": "Plan-Höchstalter"
+      },
       "offset_poll_interval": {
         "name": "Offset-Abfrageintervall"
       },
@@ -144,6 +150,9 @@
       },
       "quota_safety_reserve": {
         "name": "Sicherheitsreserve des API-Kontingents"
+      },
+      "simulated_daily_limit": {
+        "name": "Simuliertes Tageslimit"
       },
       "outdoor_weather_entity": {
         "name": "Außenwetter-Quelle"
@@ -613,13 +622,17 @@
               "scan_interval": "Abfrageintervall Status (Sekunden)",
               "presence_poll_interval": "Abfrageintervall Anwesenheit (Sekunden)",
               "slow_poll_interval": "Hardware-Sync Intervall (Sekunden)",
-              "refresh_plans_after_reset": "Wochenpläne nach dem Kontingent-Reset holen"
+              "capabilities_refresh_interval": "Fähigkeiten-Aktualisierung (Sekunden)",
+              "refresh_plans_after_reset": "Wochenpläne nach dem Kontingent-Reset holen",
+              "plan_refresh_max_age_s": "Plan-Höchstalter (Sekunden)"
             },
             "data_description": {
               "scan_interval": "Intervall für Raumdaten (Temperatur, Feuchtigkeit, Heizleistung). WICHTIG: Bei aktivem automatischen API-Kontingent wird dieser Wert überschrieben. Er gilt nur als Ersatz, wenn das berechnete Kontingent aufgebraucht ist.",
               "presence_poll_interval": "Wie oft Zuhause oder Abwesend geprüft wird. Ein hoher Wert (z. B. 43200 s / 12 h) spart API-Aufrufe, wenn die Anwesenheit aus Home Assistant kommt.",
-              "slow_poll_interval": "Wie oft Batterie, Firmware, Fähigkeiten und die Geräteliste geprüft werden. 86400 s (24 h) ist empfohlen.",
-              "refresh_plans_after_reset": "Einmal nach jedem Kontingent-Reset alle Zonenpläne in den Kalender-Cache holen. Ein Aufruf pro Zone. Standard: aus."
+              "slow_poll_interval": "Wie oft Batterie, Firmware und die Geräteliste geprüft werden. 86400 s (24 h) ist empfohlen.",
+              "capabilities_refresh_interval": "Wie oft alle Zonenfähigkeiten neu geholt werden. Geprüft beim Hardware-Sync. 0 holt nur eine Zone ohne Kopie. 86400 s entspricht dem Hardware-Sync. 604800 s (7 Tage) ist die Einstellung für einen 100er-Tag.",
+              "refresh_plans_after_reset": "Nach einem Kontingent-Reset fällige Zonenpläne holen. Standard: aus. Das Höchstalter darunter wählt die Pläne.",
+              "plan_refresh_max_age_s": "Gilt nur bei eingeschaltetem Plan-Schalter. 0 holt jede Zone bei jedem Reset. Ein höherer Wert behält einen frischen Cache. 604800 s (7 Tage) ist die Einstellung für einen 100er-Tag."
             }
           },
           "reduced_polling": {
@@ -767,13 +780,17 @@
               "scan_interval": "Abfrageintervall Status (Sekunden)",
               "presence_poll_interval": "Abfrageintervall Anwesenheit (Sekunden)",
               "slow_poll_interval": "Hardware-Sync Intervall (Sekunden)",
-              "refresh_plans_after_reset": "Wochenpläne nach dem Kontingent-Reset holen"
+              "capabilities_refresh_interval": "Fähigkeiten-Aktualisierung (Sekunden)",
+              "refresh_plans_after_reset": "Wochenpläne nach dem Kontingent-Reset holen",
+              "plan_refresh_max_age_s": "Plan-Höchstalter (Sekunden)"
             },
             "data_description": {
               "scan_interval": "Intervall für Raumdaten (Temperatur, Feuchtigkeit, Heizleistung). WICHTIG: Bei aktivem automatischen API-Kontingent wird dieser Wert überschrieben. Er gilt nur als Ersatz, wenn das berechnete Kontingent aufgebraucht ist.",
               "presence_poll_interval": "Wie oft Zuhause oder Abwesend geprüft wird. Ein hoher Wert (z. B. 43200 s / 12 h) spart API-Aufrufe, wenn die Anwesenheit aus Home Assistant kommt.",
-              "slow_poll_interval": "Wie oft Batterie, Firmware, Fähigkeiten und die Geräteliste geprüft werden. 86400 s (24 h) ist empfohlen.",
-              "refresh_plans_after_reset": "Einmal nach jedem Kontingent-Reset alle Zonenpläne in den Kalender-Cache holen. Ein Aufruf pro Zone. Standard: aus."
+              "slow_poll_interval": "Wie oft Batterie, Firmware und die Geräteliste geprüft werden. 86400 s (24 h) ist empfohlen.",
+              "capabilities_refresh_interval": "Wie oft alle Zonenfähigkeiten neu geholt werden. Geprüft beim Hardware-Sync. 0 holt nur eine Zone ohne Kopie. 86400 s entspricht dem Hardware-Sync. 604800 s (7 Tage) ist die Einstellung für einen 100er-Tag.",
+              "refresh_plans_after_reset": "Nach einem Kontingent-Reset fällige Zonenpläne holen. Standard: aus. Das Höchstalter darunter wählt die Pläne.",
+              "plan_refresh_max_age_s": "Gilt nur bei eingeschaltetem Plan-Schalter. 0 holt jede Zone bei jedem Reset. Ein höherer Wert behält einen frischen Cache. 604800 s (7 Tage) ist die Einstellung für einen 100er-Tag."
             }
           },
           "reduced_polling": {

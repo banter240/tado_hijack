@@ -64,6 +64,12 @@
       "slow_poll_interval": {
         "name": "Pomalý interval dotazování"
       },
+      "capabilities_refresh_interval": {
+        "name": "Interval obnovy schopností"
+      },
+      "plan_refresh_max_age": {
+        "name": "Maximální stáří plánu"
+      },
       "offset_poll_interval": {
         "name": "Interval dotazování odchylek"
       },
@@ -144,6 +150,9 @@
       },
       "quota_safety_reserve": {
         "name": "Bezpečnostní rezerva kvóty API"
+      },
+      "simulated_daily_limit": {
+        "name": "Simulovaný denní limit"
       },
       "outdoor_weather_entity": {
         "name": "Zdroj venkovního počasí"
@@ -613,13 +622,17 @@
               "scan_interval": "Interval aktualizace zón (sekundy)",
               "presence_poll_interval": "Interval aktualizace přítomnosti (sekundy)",
               "slow_poll_interval": "Interval synchronizace hardwaru (sekundy)",
-              "refresh_plans_after_reset": "Týdenní plány načíst po resetu kvóty"
+              "capabilities_refresh_interval": "Interval obnovy schopností (sekundy)",
+              "refresh_plans_after_reset": "Týdenní plány načíst po resetu kvóty",
+              "plan_refresh_max_age_s": "Maximální stáří plánu (sekundy)"
             },
             "data_description": {
               "scan_interval": "Interval pro data místnosti (teplota, vlhkost, výkon topení). DŮLEŽITÉ: Při zapnuté automatické kvótě API se tato hodnota přepisuje. Platí jen jako záloha, když je vypočtený rozpočet vyčerpán.",
               "presence_poll_interval": "Jak často kontrolovat stav Doma/Mimo domov. Nastavte na vyšší hodnotu (např. 43200s/12h) pro ušetření kvóty.",
-              "slow_poll_interval": "Jak často synchronizovat úroveň baterie, firmware, schopnosti a seznam zařízení. Doporučeno je 86400s (24h).",
-              "refresh_plans_after_reset": "Jednou po každém resetu kvóty načte plány všech zón do mezipaměti kalendáře. Jeden dotaz na zónu. Výchozí vypnuto."
+              "slow_poll_interval": "Jak často synchronizovat úroveň baterie, firmware a seznam zařízení. Doporučeno je 86400s (24h).",
+              "capabilities_refresh_interval": "Jak často se znovu načtou schopnosti všech zón. Kontroluje se při synchronizaci hardwaru. 0 načte jen zónu bez kopie. 86400s odpovídá synchronizaci hardwaru. 604800s (7 dní) je nastavení pro den se 100 požadavky.",
+              "refresh_plans_after_reset": "Po resetu kvóty načte plány zón, které jsou na řadě. Výchozí vypnuto. Maximální stáří níže vybírá plány.",
+              "plan_refresh_max_age_s": "Platí jen při zapnutém přepínači plánů. 0 načte každou zónu při každém resetu. Vyšší hodnota ponechá čerstvou mezipaměť. 604800s (7 dní) je nastavení pro den se 100 požadavky."
             }
           },
           "reduced_polling": {
@@ -767,13 +780,17 @@
               "scan_interval": "Interval aktualizace zón (sekundy)",
               "presence_poll_interval": "Interval aktualizace přítomnosti (sekundy)",
               "slow_poll_interval": "Interval synchronizace hardwaru (sekundy)",
-              "refresh_plans_after_reset": "Týdenní plány načíst po resetu kvóty"
+              "capabilities_refresh_interval": "Interval obnovy schopností (sekundy)",
+              "refresh_plans_after_reset": "Týdenní plány načíst po resetu kvóty",
+              "plan_refresh_max_age_s": "Maximální stáří plánu (sekundy)"
             },
             "data_description": {
               "scan_interval": "Interval pro data místnosti (teplota, vlhkost, výkon topení). DŮLEŽITÉ: Při zapnuté automatické kvótě API se tato hodnota přepisuje. Platí jen jako záloha, když je vypočtený rozpočet vyčerpán.",
               "presence_poll_interval": "Jak často kontrolovat stav Doma/Mimo domov. Nastavte na vyšší hodnotu (např. 43200s/12h) pro ušetření kvóty.",
-              "slow_poll_interval": "Jak často synchronizovat úroveň baterie, firmware, schopnosti a seznam zařízení. Doporučeno je 86400s (24h).",
-              "refresh_plans_after_reset": "Jednou po každém resetu kvóty načte plány všech zón do mezipaměti kalendáře. Jeden dotaz na zónu. Výchozí vypnuto."
+              "slow_poll_interval": "Jak často synchronizovat úroveň baterie, firmware a seznam zařízení. Doporučeno je 86400s (24h).",
+              "capabilities_refresh_interval": "Jak často se znovu načtou schopnosti všech zón. Kontroluje se při synchronizaci hardwaru. 0 načte jen zónu bez kopie. 86400s odpovídá synchronizaci hardwaru. 604800s (7 dní) je nastavení pro den se 100 požadavky.",
+              "refresh_plans_after_reset": "Po resetu kvóty načte plány zón, které jsou na řadě. Výchozí vypnuto. Maximální stáří níže vybírá plány.",
+              "plan_refresh_max_age_s": "Platí jen při zapnutém přepínači plánů. 0 načte každou zónu při každém resetu. Vyšší hodnota ponechá čerstvou mezipaměť. 604800s (7 dní) je nastavení pro den se 100 požadavky."
             }
           },
           "reduced_polling": {
