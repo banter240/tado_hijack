@@ -23,7 +23,6 @@
         "name": "Spolehlivost vzoru resetu",
         "state": {
           "learned": "Naučeno",
-          "single_observation": "Jediné pozorování",
           "default": "Výchozí"
         }
       },

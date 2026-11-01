@@ -23,7 +23,6 @@
         "name": "Reset Pattern Confidence",
         "state": {
           "learned": "Learned",
-          "single_observation": "Single Observation",
           "default": "Default"
         }
       },

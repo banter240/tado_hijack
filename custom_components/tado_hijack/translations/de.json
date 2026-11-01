@@ -23,7 +23,6 @@
         "name": "Verlässlichkeit des Rücksetzmusters",
         "state": {
           "learned": "Gelernt",
-          "single_observation": "Einzelbeobachtung",
           "default": "Standard"
         }
       },

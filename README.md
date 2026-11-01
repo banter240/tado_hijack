@@ -632,7 +632,7 @@ Advanced monitoring sensors in the diagnostics of that same home device:
 - `sensor.quota_reset_last` - Last observed reset timestamp
 - `sensor.quota_reset_next` - Predicted next reset (learned pattern)
 - `sensor.quota_reset_expected_window` - Learned reset window in local time (e.g., "13:30 (learned)")
-- `sensor.quota_reset_pattern_confidence` - Pattern confidence (low/medium/high/confirmed)
+- `sensor.quota_reset_pattern_confidence` - Pattern confidence (`default` until two consecutive resets share a UTC hour, then `learned`)
 - `sensor.quota_reset_history_count` - Number of observed resets
 
 **Polling Intervals:**
