@@ -412,7 +412,7 @@ Tado Hijack is now an **official HACS integration**! No custom repository needed
 | **Hardware Sync**                  | `86400s`  | Interval for battery, firmware and device metadata. Set to 0 for initial load only.                                                                                                                                                                        |
 | **Refresh weekly plans after quota reset** | `Off` | Once after each quota reset, fetch every zone plan into the calendar cache. One call per zone. Classic uses two calls until the timetable id is known. |
 | **Offset Update**                  | `0` (Off) | Interval for temperature offsets. Costs 1 API call per valve. Calibration polls only when no offset is known. |
-| **Flow Temperature Optimization**  | `Off`     | Tado X option. The periodic poll does not call the flow-temperature GET, so the number and switch are not created from that poll. |
+| **Flow Temperature Optimization**  | `Off`     | Tado X option. Costs 1 API call per metadata poll; the 404 is cached, so a home without an OpenTherm device spends one call once. |
 | **Heating circuits**               | `Off`     | Classic homes. A Tado X home is not read yet. Off spends nothing. On: one list call. Room reads and the select appear only when that list has two or more drivers. |
 | **Replay Cloud-Only On Recovery**  | `On`      | See [Offline TRV recovery](#offline-trv-recovery-homekit-and-matter). |
 | **Attach to HomeKit / Matter**     | `Off`     | Puts child lock, offset, battery, and connection on the HomeKit or Matter TRV. The clone stays off while this is on. |
@@ -589,7 +589,7 @@ Global controls for the home. Classic links them to the Internet Bridge. Tado X 
 | :----------------------------------------- | :----: | :---------------------------------------------------------------- |
 | `select.tado_{home}_presence_mode`         | Select | Who controls presence: `home` / `away` = manual lock, `auto` = geofencing. Does not flip when geofencing changes the effective state. |
 | `binary_sensor.tado_{home}_presence_state` | Binary Sensor | Effective presence. `on` = home, `off` = away. |
-| `number.tado_{home}_max_flow_temperature`  | Number | Tado X OpenTherm. Not created from the periodic poll. The flow-temperature GET is not on that path. |
+| `number.tado_{home}_max_flow_temperature`  | Number | Tado X OpenTherm. Created from the metadata poll when Flow Temperature Optimization is enabled. |
 | `switch.tado_{home}_flow_auto_adaptation`  | Switch | Tado X OpenTherm only. Flow temperature auto adaptation. |
 | `switch.tado_{home}_polling_active`        | Switch | **Master Switch:** Instantly stop/start all periodic API polls.   |
 | `switch.tado_{home}_reduced_polling_logic` | Switch | **Logic Switch:** Toggle the timed "Economy" profile.             |

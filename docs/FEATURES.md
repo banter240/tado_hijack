@@ -180,7 +180,7 @@ Home mode aggregates heating and air-conditioning rooms into `schedule`, `off`, 
 
 ## Flow temperature
 
-Opt-in, default off, Tado X only. `GET settings/flowTemperatureOptimization` and a 404 cache live on `TadoXMapper.async_fetch_unified_data`. No poll calls that method. Zone and metadata fetches do not request the payload, so `flow_temp` stays empty and the max-flow number and the auto-adaptation switch are not created.
+Opt-in, default off, Tado X only. `GET settings/flowTemperatureOptimization` and a 404 cache live on `TadoXMapper.async_fetch_metadata()`. The zone and metadata polls call that method, so the max-flow number and the auto-adaptation switch are created on the first refresh. The 404 is cached, so a home without an OpenTherm device spends one call once.
 
 If a write is invoked anyway, both fields share the queue key `flow_temp` and one PATCH. A failed PATCH rolls back to the first server value of each field.
 

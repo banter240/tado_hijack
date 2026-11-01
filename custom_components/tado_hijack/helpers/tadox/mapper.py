@@ -147,7 +147,14 @@ class TadoXMapper:
         all_devices = other_devices + [dev for room in rooms for dev in room.devices]
         devices_meta: dict[str, Any] = {dev.serial_no: dev for dev in all_devices}
 
+        if (flow_temp := await self._fetch_flow_temp_safe()) is not None:
+            self._flow_temp_cached = flow_temp
+
         return zones_meta, devices_meta
+
+    def get_flow_temp_cached(self) -> TadoXFlowTempSettings | None:
+        """Return the last fetched flow temperature settings (None = off/404)."""
+        return self._flow_temp_cached
 
     def is_feature_supported(self, feature: str) -> bool:
         """Check if a specific Hijack feature is supported by Tado X hardware."""

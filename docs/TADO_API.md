@@ -522,7 +522,7 @@ only the named weekdays. `one_day`, `three_day`, and `activate` are classic.
 
 GET: settings/flowTemperatureOptimization
 
-Returns `None` when the 404 stand-in is empty. The zone and metadata polls do not call this GET (Part 5 §5.6).
+Returns `None` when the 404 stand-in is empty. Called from `TadoXMapper.async_fetch_metadata()` when the option is on (Part 5 §5.6).
 
 #### async_patch_flow_temperature_optimization(payload: dict) -> None
 
@@ -840,12 +840,13 @@ warnings. This is acceptable risk given the tight coupling.
 Without ngsw-bypass=true, Hops returns cached service-worker responses.
 This header is non-negotiable.
 
-### 5.6 Flow temperature is not on the poll
+### 5.6 Flow temperature fetch
 
 `GET settings/flowTemperatureOptimization` and its 404 cache live on
-`TadoXMapper.async_fetch_unified_data`. The zone and metadata polls do not
-call that method, so the max-flow number and the auto-adaptation switch
-are not created from live data. The option defaults to off.
+`TadoXMapper.async_fetch_metadata()` (the slow metadata poll). The first
+refresh creates the max-flow number and the auto-adaptation switch. The
+option defaults to off. When no OpenTherm device is installed, the 404 is
+cached and the poll spends one call once.
 
 ## 6. Summary File Map
 
@@ -926,3 +927,6 @@ are not created from live data. The option defaults to off.
   gap were corrected against the tree.
 - 15 October 2026: Hops 404 stand-in, null `sensorDataPoints` on
   `TadoXZoneState`, and `NONE` hot-water state left non-controllable.
+- 1 November 2026: the flow-temperature GET moved from dead
+  `async_fetch_unified_data` to `async_fetch_metadata` (entities are now
+  created); §4.5 and §5.6 updated accordingly.

@@ -470,6 +470,7 @@ class TadoDataManager:
         from .models_unified import UnifiedTadoData
 
         # Preserve full HomeState object to keep presence_locked field intact
+        provider_flow_temp = getattr(self.provider, "get_flow_temp_cached", None)
         return UnifiedTadoData(
             home_state=home_state,
             api_status="online",
@@ -481,6 +482,7 @@ class TadoDataManager:
             ),
             devices=self.devices_meta,
             capabilities=self.capabilities_cache,
+            flow_temp=provider_flow_temp() if callable(provider_flow_temp) else None,
             limit=0,
             remaining=0,
             generation=GEN_X,
