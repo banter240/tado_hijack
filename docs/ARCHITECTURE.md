@@ -185,7 +185,7 @@ Two complementary utilities bridging Tado's cloud and Home Assistant's local reg
 
 ### `TadoRequestHandler`
 
-`helpers/tado_request_handler.py` — hijacks tadoasync's internal request logic for every classic/Energy-IQ call: browser-mimicry headers, transparent proxy routing, rate-limit header capture (feeding both `RateLimitManager` sources), timeout and 204 handling. No retry/backoff loop — quota is conserved through batching and adaptive polling instead.
+`helpers/tado_request_handler.py` — hijacks tadoasync's internal request logic for every classic/Energy-IQ call: browser-mimicry headers, transparent proxy routing, rate-limit header capture (feeding both `RateLimitManager` sources), timeout and 204 handling. Failed calls are not retried; an HTTP 429 is raised as a rate-limit error carrying the sanitized `Retry-After`, and the coordinator backs the poll off for that delay. Quota is conserved through batching and adaptive polling instead of retries.
 
 ---
 

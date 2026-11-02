@@ -62,7 +62,7 @@ Presence, metadata, and (classic, interval > 0) offsets run on their own clocks.
 
 `manual_poll` types: `all`, `zone`, `metadata`, `offsets`, `away`, `capabilities`, `presence`, `timetable`, `schedule`. An `entity_id` limits offsets, away, timetable, schedule, and capabilities to that zone. `all`, `zone`, `metadata`, and `presence` still refresh the wider track. No config entry means every Hijack home.
 
-There is no retry/backoff loop.
+A failed poll is not retried. On HTTP 429 the `Retry-After` header is honored — clamped to 30 seconds through 24 hours, with the 15 minute recovery interval when it is missing or invalid — the budget is treated as empty, and the next poll waits out that delay instead of hammering the endpoint.
 
 ---
 

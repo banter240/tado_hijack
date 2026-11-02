@@ -30,7 +30,7 @@ A custom `TadoRequestHandler` (instantiated in `patches.py`, implemented in `hel
 - Captures rate-limit headers on every response and feeds the shared quota telemetry used by the `RateLimitManager`.
 - Timeout handling (10s default), 204-no-content handling, and delegation to tadoasync's expired-token re-auth logic on HTTP errors (non-proxy mode).
 
-There is **no** exponential-backoff/retry loop in the handler — quota is conserved through batching (`CommandMerger`) and adaptive polling instead of retrying.
+The handler does not retry failed calls. On HTTP 429 it extracts the sanitized `Retry-After` value (clamped to 30 s–24 h; defaults to 15 min) and backs off the next poll accordingly. Quota is conserved through batching (`CommandMerger`) and adaptive polling instead of retries.
 
 ---
 
