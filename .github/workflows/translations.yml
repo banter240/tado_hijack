@@ -1,0 +1,24 @@
+# Reusable GitHub Actions workflow for validating that action and
+# selector translations match services.yaml.
+
+name: "Translations"
+
+on:
+  # This makes the workflow reusable.
+  workflow_call:
+
+jobs:
+  translation-validation:
+    name: "Validate Translations"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout the repository"
+        uses: actions/checkout@v7
+
+      - name: "Set up Python"
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: "Validate translation schema"
+        run: python scripts/validate_translations.py

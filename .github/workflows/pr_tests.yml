@@ -22,13 +22,4 @@ jobs:
   # Job 3: Ensure action and selector translations match services.yaml.
   translation-validation:
     name: "Validate Translations"
-    runs-on: ubuntu-latest
-    steps:
-      - name: "Checkout the repository"
-        uses: actions/checkout@v7
-      - name: "Set up Python"
-        uses: actions/setup-python@v7
-        with:
-          python-version: "3.14"
-      - name: "Validate translation schema"
-        run: python scripts/validate_translations.py
+    uses: ./.github/workflows/translations.yml
