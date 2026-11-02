@@ -11,6 +11,11 @@ export default {
       channel: "dev",
       prerelease: "dev",
     },
+    {
+      name: "ai/release",
+      channel: "alpha",
+      prerelease: "alpha",
+    },
   ],
   plugins: [
     [
