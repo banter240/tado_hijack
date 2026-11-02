@@ -1,0 +1,54 @@
+# Automatically assign `gen:*` labels based on the issue form's
+# "Tado Generation" dropdown selection.
+name: Auto-assign generation label
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  issues: write
+
+jobs:
+  apply-generation-label:
+    name: Apply gen:* label
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract generation from issue body
+        id: extract-gen
+        env:
+          BODY: ${{ github.event.issue.body }}
+        run: |
+          # Pull the answer under "### Tado Generation" / "### Relevant Tado Generation"
+          SECTION=$(printf '%s' "$BODY" | awk '
+            /^### (Relevant )?Tado Generation/ {capture=1; next}
+            capture && /^### / {exit}
+            capture {print}
+          ' | tr '[:upper:]' '[:lower:]' | tr -d '\r')
+
+          GEN=""
+          case "$SECTION" in
+            *"v2 - gw bridge"*)                         GEN="gen:tado-v2" ;;
+            *"v3 classic - internet bridge ib01"*)     GEN="gen:tado-v3" ;;
+            *"tado x - internet bridge ib02"*)        GEN="gen:tado-x" ;;
+            *"all generations"*)                        GEN="gen:all" ;;
+            *"not sure"*|*"not generation-specific"*) GEN="" ;;
+          esac
+
+          echo "generation=$GEN" >> "$GITHUB_OUTPUT"
+          echo "Section matched: '$SECTION' -> $GEN"
+
+      - name: Apply generation label
+        if: steps.extract-gen.outputs.generation != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const label = process.env.GEN_LABEL;
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: [label],
+            });
+        env:
+          GEN_LABEL: ${{ steps.extract-gen.outputs.generation }}
