@@ -9,6 +9,7 @@
 [![Downloads](https://img.shields.io/github/downloads/banter240/tado_hijack/total?style=for-the-badge&color=green&logo=github)](https://github.com/banter240/tado_hijack/releases)
 [![HACS Default](https://img.shields.io/badge/HACS-Default-41BDF5?style=for-the-badge&logo=home-assistant)](https://github.com/hacs/integration)
 [![License](https://img.shields.io/github/license/banter240/tado_hijack?style=for-the-badge&color=blue)](LICENSE)
+[![Dev Process](https://img.shields.io/badge/Dev_Process-AI_Assisted-8957e5?style=for-the-badge)](#ai-disclosure)
 
 [![Discord](https://img.shields.io/discord/1460909918482858060?logo=discord&logoColor=white&style=for-the-badge&color=5865F2)](https://discord.gg/kxUsjHyxfT)
 [![Discussions](https://img.shields.io/github/discussions/banter240/tado_hijack?style=for-the-badge&logo=github&color=7289DA)](https://github.com/banter240/tado_hijack/discussions)
@@ -1121,6 +1122,37 @@ Looking for more technical details or want to contribute?
 - Architecture of the Tado X (Hops API) bridge
 - Duck typing for multi-generation data model support
 - Integration strategy for Matter alongside Cloud features
+
+<br>
+
+---
+
+<br>
+
+<a id="ai-disclosure"></a>
+
+## 🤖 Development Process & AI Disclosure
+
+<br>
+
+Tado Hijack is built with an **AI-assisted development process** — and being transparent about that is only fair.
+
+- **AI agents write most of the code.** Features, bug fixes and refactors are primarily implemented by AI coding agents, working from written plans, review feedback and diagnostics from a production system.
+- **A human owns every release.** Nothing is merged or published without review. Every change is validated on real Tado hardware before it ships, and pre-releases are field-tested before they are promoted.
+- **Identical quality gates for everyone.** AI-authored changes pass the same CI pipeline as anything else: Ruff lint and format, mypy, yamllint, hassfest, HACS validation and translation checks.
+
+If AI involvement is a dealbreaker for you, that is a fair position — the code is licensed to you as-is either way.
+
+### Release Channels
+
+| Channel | Branch | Version format | Purpose |
+|---------|--------|----------------|---------|
+| Stable | `main` | `x.y.z` | Field-tested releases |
+| RC | `rc` | `x.y.z-rc.n` | Release candidates |
+| Dev | `dev` | `x.y.z-dev.n` | Community prerelease channel |
+| Alpha | `ai/release` | `x.y.z-alpha.n` | Maintainer's live-testing of AI-developed changes |
+
+All `ai/**` working branches run the full CI suite on every push; `ai/release` additionally publishes alpha prereleases through the same semantic-release pipeline as the other channels. To install prereleases in HACS, enable **Show beta versions** and re-download the integration.
 
 <br>
 
