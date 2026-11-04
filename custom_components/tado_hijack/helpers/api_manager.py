@@ -440,6 +440,9 @@ class TadoApiManager:
                 break
             except Exception:
                 _LOGGER.exception("Unexpected error in worker loop")
+                for cmd in batch:
+                    self._pending_keys.discard(self._get_command_key(cmd))
+                batch.clear()
                 await asyncio.sleep(float(self._debounce_time))
 
     async def _process_batch(self, commands: list[TadoCommand]) -> None:
