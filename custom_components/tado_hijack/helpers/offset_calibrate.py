@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from ..const import CAPABILITY_INSIDE_TEMP
+from ..const import (
+    CAPABILITY_INSIDE_TEMP,
+    ZONE_TYPE_AIR_CONDITIONING,
+    ZONE_TYPE_HEATING,
+)
 from .logging_utils import get_redacted_logger
 from .zone_utils import cloud_reading_is_live
 
@@ -221,7 +225,9 @@ def measuring_devices(
 
     found: list[tuple[str, int]] = []
     for device, zone_id in yield_devices(
-        coordinator, capability=CAPABILITY_INSIDE_TEMP
+        coordinator,
+        include_zone_types={ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING},
+        capability=CAPABILITY_INSIDE_TEMP,
     ):
         if serial := getattr(device, "serial_no", None):
             found.append((str(serial), int(zone_id)))
