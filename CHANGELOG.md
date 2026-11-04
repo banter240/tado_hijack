@@ -1,3 +1,240 @@
+## [5.13.0](https://github.com/banter240/tado_hijack/compare/v5.12.0...v5.13.0) (2026-11-04)
+
+### ✨ New Features
+
+* feat: drop rooms the cloud no longer lists
+
+  A stale zone sample stayed behind, and rooms that left the cloud stayed
+  as devices.
+
+  - Boiler drivers are read with the metadata poll.
+  - On the next setup, rooms this home no longer lists are removed.
+* feat(gh-actions): auto-assign gen:* labels from issue form generation dropdown
+
+  Adds a GitHub Actions workflow that reads the selected value from the
+  "Tado Generation" dropdown in bug_report.yml and feature_request.yml and
+  applies the corresponding label (gen:tado-v2, gen:tado-v3, gen:tado-x, gen:all).
+  Empty selections (not sure/not generation-specific) result in no label being added.
+
+  Refs: auto-label-issue
+* feat(humidity): allow outdoor sensors instead of a weather entity
+
+  The ventilation and absolute-humidity maths read outdoor temperature and
+  relative humidity from a weather entity only. Users with their own outdoor
+  temperature and humidity sensors get more accurate values than a forecast.
+
+  Add two optional config fields (outdoor_sensor_temp, outdoor_sensor_humidity)
+  that take priority over the weather entity. _get_outdoor_conditions() resolves
+  the sensor pair first and falls back to the weather entity; _has_outdoor_source()
+  gates the indoor absolute humidity and ventilation sensors on either source.
+  Diagnostic sensors and en/de/cs labels cover the new fields.
+* feat: keep a linked climate on the cached plan
+
+  A heating resume paints the cached block on a reachable HomeKit or
+  Matter climate, then queues the cloud resume. While Tado cannot be
+  called, that climate keeps following the cached week. Auto is one of
+  the modes the local climate accepts.
+
+  - Off turns the climate off. Heat sets the block temperature. An empty
+    plan, a gap, an open window, full cloud mode, and an unreachable
+    climate do not write.
+  - Two transport failures, one failed command, remaining 0, or HTTP 429
+    hold cloud calls. A hand change or a manual setpoint leaves the plan.
+  - set_schedule updates the cached week before Tado accepts it. A zone
+    on the plan moves to the block that covers now. A refused day is
+    restored.
+* feat: limit the window contact picker to opening sensors
+
+  The add-contact select listed every binary sensor. A home with
+  hundreds of them could not scroll to the right contact. The list
+  is door, window, and opening. A garage door is not a room contact.
+  A lock reports unlocked as on, and this handler treats on as open.
+  A contact that is already stored stays selectable.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ✨ ADDED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - the window contact select offers door, window, and opening
+  - temperature and humidity source selects use the same class filter
+* feat(multi-home): fix number entity collisions for multiple Tado homes
+
+  Number entities (away_temperature, target_temp, open_window_timeout,
+  temperature_offset x2) used unprefixed unique ids (e.g. zone_1_away_temperature)
+  so a second Tado home with overlapping zone numbers caused collisions and
+  its entities were dropped at startup.
+
+  - Remove use_legacy_unique_id_format from the five affected definitions.
+  - Update all internal unique-id lookups in data_manager.py and offset_calibrate.py
+  to the modern format {entry_id}_{suffix}_{context}.
+  - Add migration v13 that renames legacy ids to the modern format, preserving
+  entity ids and history for single-home installs while fixing multi-home setups.
+  - Bump config entry version to 13.
+* feat(quota): add a simulated daily limit for quota testing
+
+  The experimental limit clamps the header budget. Consumed calls still
+  come from the real headers.
+
+  - The readme marks each entity as cloud, local, or hybrid.
+* feat(quota): back off when Tado returns HTTP 429
+
+  A 429 used to fail the poll and ignore Retry-After on the response.
+
+  - Parse Retry-After and clamp it to 30 seconds through 24 hours. A
+    missing or invalid header uses the 15 minute recovery interval.
+  - The coordinator marks the budget empty, sets the poll interval to
+    that delay, and uses the daily reset slot for the same wait.
+  - Cached data gets that interval too, because Home Assistant applies
+    retry_after only when the update fails.
+* feat(quota): persist daily polling counters across restarts
+
+  A restart zeroed the day's poll count and forgot the last remaining
+  value, so the adaptive interval and the reset detection started from
+  scratch.
+
+  - Restore _polling_calls_today and _last_remaining from storage when
+    the coordinator starts.
+  - A rise in remaining against that stored baseline still counts as
+    the daily reset, including a reset while Home Assistant was down.
+* feat: resume a linked climate after its setpoint upload
+
+  The cloud resume waits so the previous heating setpoint can be uploaded
+  first. A repeated echo of that setpoint is resumed once more.
+
+  - A Tado X room that is on its plan reports heating.
+  - A HomeKit setpoint is kept, and the room overlay is what the climate
+    follows.
+
+### 🐛 Bug Fixes
+
+* fix(api): release pending keys and drop poisoned batch on worker loop error
+
+  One unexpected exception in _worker_loop() left the batch populated and
+  the pending keys in flight, so the same poisoned batch was reprocessed
+  forever and every subsequent write was silently dropped until a config
+  entry reload. The error path now discards the pending keys of the batch
+  commands and clears the batch before the debounce sleep.
+* fix(climate): use native temperature properties with a legacy shim
+
+  Home Assistant 2026.11 reads native temperature properties. Older
+  releases still read the legacy names.
+
+  - Climate, hot water, and the local proxy implement the native
+    properties.
+  - Before 2026.11 a mixin forwards the legacy names. On 2026.11 and
+    newer the mixin adds nothing.
+* fix(docs): describe the reset pattern confidence states
+
+  The readme listed low, medium, high and confirmed. The sensor only
+  reports default until two consecutive resets share a UTC hour, then
+  learned.
+
+  - The readme names those two states.
+  - The unused single observation label is removed from the en, de and
+    cs translations.
+* fix(hot water): follow the room overlay instead of MANUAL
+
+  Hot water heat, off, and temperature used a MANUAL overlay, so the
+  zone never returned to the schedule on its own.
+
+  - The room defaultOverlay is used unless a duration or mode was set.
+  - The readme covers that, the outdoor sensors, and ids for more than
+    one home.
+* fix(offset-cal): restrict measuring devices to climate zones
+
+  On V3 Classic a thermostat can appear in both hot-water zone 0 and a
+  heating zone. Device discovery deduplicates by serial number while
+  iterating zones in order, so the device was retained with zone 0 and
+  manual calibration for the heating zone found no candidate ("no device
+  needed a write"). measuring_devices() now passes
+  include_zone_types={ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING} to
+  yield_devices(), mirroring the zone types that carry climate entities
+  and zone temp source selects; Tado X ignores the filter and is
+  unaffected.
+* fix(quota): show the simulated limit and keep stored polls
+
+  The mock was only a config value, and stored capabilities and weekly
+  plans were refetched on a fixed clock.
+
+  - sensor.simulated_daily_limit shows the configured value. 0 is off.
+  - Capabilities follow the hardware sync until the new interval is set.
+    Plan age 0 still refetches every zone after a reset. 604800 seconds
+    is the stretch for a 100-call day.
+  - The offset reserve counts one write per linked device and its own mode.
+  - docs/QUOTA_100.md counts a 14-zone classic day.
+* fix(select): show mixed schedule mode on the bridge
+
+  The all-zones schedule select lived on its own home device and reported
+  unknown whenever the rooms did not share one timetable.
+
+  - The select sits on the Internet Bridge with the other home controls.
+    An empty home device is removed on the next setup.
+  - Disagreeing rooms show mixed. Unknown stays until a timetable is
+    cached. Choosing mixed does not write.
+* fix: send power OFF for a Tado X room with no temperature
+
+  HVAC off is stored as power OFF and no temperature. The Tado X
+  executor only read the temperature, so a missing one became power
+  ON. Hops rejects that with HTTP 400, and the room stays heating.
+  Both generation executors read that overlay through one helper.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🐛 FIXED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - explicit power OFF is sent as OFF, without a temperature
+  - the magic off temperature still turns the room off
+  - a heating setpoint is unchanged
+* fix(sensor): show the reset window in local time
+
+  The learned instant stayed in UTC, but the window text was always
+  printed in Europe/Berlin. A London home saw 18:30 for a 17:30 UTC reset.
+
+  - The window string uses the Home Assistant time zone.
+  - The stored hour stays UTC, and the minute stays :30.
+* fix: stop offset calibration while the inside reading is unchanged
+
+  Threshold mode wrote a new offset about once a minute. The inside
+  temperature already includes the offset, so a second pass against
+  the same reading adds the same gap again. That climbed to the clamp.
+  A later pass waits until that reading moves, or the offset is no
+  longer the one just written. The hold sits next to the offset math.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🐛 FIXED
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - one threshold write while the TRV inside temperature stays put
+  - a new inside reading is calibrated again
+  - a manual calibration is not held back
+* fix(tadox): create flow temperature entities from the metadata poll
+
+  The only caller of _fetch_flow_temp_safe() was async_fetch_unified_data(),
+  which nothing drives. The DataManager fetches through async_fetch_zones()
+  and async_fetch_metadata(), so the flow temperature GET never ran,
+  _flow_temp_cached stayed empty, and the max flow temperature number and
+  the auto adaptation switch were never created.
+
+  - Fetch the settings inside async_fetch_metadata() and pass the cache
+    through UnifiedTadoData.flow_temp.
+  - A 404 is remembered, so a home without OpenTherm pays for one call.
+
+### 📚 Documentation
+
+* docs: fix "no retry/backoff" statements to reflect actual 429 handling
+
+  Three documentation files claimed there was no retry/backoff loop. Updated
+  docs/FEATURES.md, docs/ARCHITECTURE.md and docs/COMPATIBILITY.md to describe
+  the real HTTP 429 path: Retry-After is parsed (clamped 30s-24h; 15 min
+  fallback), quota treated as empty, and the next poll waits the delay
+  instead of retrying.
+* docs(readme): add AI development disclosure and release channel overview
+
+  Adds a badge linking to a new "Development Process & AI Disclosure" section
+  stating that most code is written by AI agents under human review, with the
+  same CI quality gates as any other contribution. Includes a table of the
+  release channels (stable/rc/dev/alpha) and where ai/** branches fit in.
+
 ## [5.12.0](https://github.com/banter240/tado_hijack/compare/v5.11.1...v5.12.0) (2026-10-24)
 
 ### ✨ New Features
