@@ -223,6 +223,7 @@ class TadoHijackCommonFlow:
                 CONF_SUPPRESS_REDUNDANT_BUTTONS,
                 CONF_MIN_AUTO_QUOTA_INTERVAL_S,
                 CONF_QUOTA_SAFETY_RESERVE,
+                CONF_SIMULATED_DAILY_LIMIT,
             ],
             "window": [
                 CONF_WINDOW_RESUME_BATCH,
