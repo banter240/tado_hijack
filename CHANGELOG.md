@@ -1,3 +1,29 @@
+## [5.13.1-dev.1](https://github.com/banter240/tado_hijack/compare/v5.13.0...v5.13.1-dev.1) (2026-11-05)
+
+### 🐛 Bug Fixes
+
+* fix(options): persist simulated_daily_limit and quota_safety_reserve
+
+  The api_quota flatten map in _flatten_section_data was missing
+  CONF_SIMULATED_DAILY_LIMIT and CONF_QUOTA_SAFETY_RESERVE, although both
+  fields are defined in the api_quota section schema. Section data is
+  nested, so values for unmapped keys were silently dropped on submit:
+  the dialog reported success but the entry kept the defaults (visible
+  as simulated daily limit snapping back to 0).
+* fix(tadox): reject classic termination types on manualControl
+
+  Since 5.13.0 the climate entities set overlays with OVERLAY_ROOM, which
+  resolves the room default via the v2 defaultOverlay endpoint. On a Hops
+  home that endpoint 404s, and the TADO_MODE fallback termination is not
+  accepted by rooms/{id}/manualControl (MANUAL/TIMER/NEXT_TIME_BLOCK
+  only), so every setpoint write failed with HTTP 400 and the zone fell
+  back to schedule after the optimistic grace period.
+
+  Skip the v2 endpoint for Tado X and default to MANUAL there. Guard the
+  v2->Hops translation with TADOX_TERMINATION_TYPES in overlay_validator
+  (one source of truth) and log a warning when a termination type is
+  rewritten to MANUAL.
+
 ## [5.13.0](https://github.com/banter240/tado_hijack/compare/v5.12.0...v5.13.0) (2026-11-04)
 
 ### ✨ New Features
