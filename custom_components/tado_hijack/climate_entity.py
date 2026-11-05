@@ -252,6 +252,9 @@ class TadoClimateEntity(
                     )
                 return result
 
+        if state is not None and getattr(state, "boost_mode", None) is not None:
+            return float(self._attr_max_temp)
+
         if (last_temp := self._get_last_state("target_temperature")) is not None:
             return float(last_temp)
 

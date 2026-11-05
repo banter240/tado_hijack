@@ -483,6 +483,8 @@ Three POSTs, no JSON body:
 
 There is no `POST quickActions` with an action name such as `BOOST`. The executor uses one of these when the batch is an explicit quick action, or when every active heating room wants the same resume, off, or boost (boost means power on at 25°C within 0.1°C). Rooms that do not match get their own `manualControl`.
 
+A boosted room does not carry the boost setpoint in `setting.temperature` — the `rooms` poll leaves that empty while `boostMode` is set, so the room heats towards its maximum implicitly. The climate entity reports the entity maximum as the target temperature for the duration of the boost (see `native_target_temperature` in climate_entity.py).
+
 ### 4.4 Room schedule
 
 #### async_get_room_schedule(room_id: int)
