@@ -11,6 +11,7 @@ from ..executor_base import TadoExecutorBase
 from ..logging_utils import get_redacted_logger
 from ..optimistic_manager import ZoneOverlayFields
 from ..overlay_power import resolve_overlay_power
+from ..overlay_validator import validate_tadox_termination_type
 
 if TYPE_CHECKING:
     from ...coordinator import TadoDataUpdateCoordinator
@@ -330,6 +331,12 @@ class TadoXExecutor(TadoExecutorBase):
                     or termination.get("type")
                     or "MANUAL"
                 )
+                if not validate_tadox_termination_type(termination_type)[0]:
+                    _LOGGER.warning(
+                        "Tado X: termination type %s rejected by manualControl, falling back to MANUAL",
+                        termination_type,
+                    )
+                    termination_type = "MANUAL"
                 duration_seconds = termination.get("durationInSeconds")
 
                 await self._safe_execute(

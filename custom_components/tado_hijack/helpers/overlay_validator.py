@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Any
 
+TADOX_TERMINATION_TYPES = frozenset({"MANUAL", "TIMER", "NEXT_TIME_BLOCK"})
+
 
 def _is_off_magic_temp(setting: dict[str, Any]) -> bool:
     """Check if setting uses OFF_MAGIC_TEMP (executor converts to power=OFF)."""
@@ -90,6 +92,18 @@ def validate_overlay_payload(
                 "temperature not allowed for HOT_WATER without OpenTherm (API limitation)",
             )
 
+    return True, None
+
+
+def validate_tadox_termination_type(
+    termination_type: str,
+) -> tuple[bool, str | None]:
+    """manualControl accepts MANUAL, TIMER and NEXT_TIME_BLOCK only."""
+    if termination_type not in TADOX_TERMINATION_TYPES:
+        return (
+            False,
+            f"termination.type {termination_type!r} is not accepted by manualControl",
+        )
     return True, None
 
 

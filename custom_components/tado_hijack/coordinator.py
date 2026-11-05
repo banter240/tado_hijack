@@ -99,6 +99,7 @@ from .const import (
     TEMP_DEFAULT_AC,
     TEMP_DEFAULT_HEATING,
     TEMP_DEFAULT_HOT_WATER,
+    TERMINATION_MANUAL,
     THROTTLE_RECOVERY_INTERVAL_S,
     TIMETABLE_SELECT_MIXED,
     TIMETABLE_SEVEN_DAY,
@@ -2923,6 +2924,10 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
 
     async def async_default_termination(self, zone_id: int) -> dict[str, Any]:
         """Room default, read once per zone. Until next block when unread."""
+        if self.generation == GEN_X:
+            # defaultOverlay only exists on the v2 API; the TADO_MODE fallback
+            # from a failed read would be rejected by manualControl.
+            return {"typeSkillBasedApp": TERMINATION_MANUAL}
         cached = self._default_termination.get(zone_id)
         if cached is not None:
             return dict(cached)
