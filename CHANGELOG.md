@@ -1,3 +1,15 @@
+## [5.13.1-dev.2](https://github.com/banter240/tado_hijack/compare/v5.13.1-dev.1...v5.13.1-dev.2) (2026-11-05)
+
+### 🐛 Bug Fixes
+
+* fix(tadox): show the maximum temperature while boost is active
+
+  A house-wide quickActions/boost leaves no setting temperature in the
+  rooms poll, so native_target_temperature fell back to the default and
+  reported 21 C for every boosted room. When the state carries boostMode,
+  report the entity maximum instead, which is what the Hops boost heats
+  towards.
+
 ## [5.13.1-dev.1](https://github.com/banter240/tado_hijack/compare/v5.13.0...v5.13.1-dev.1) (2026-11-05)
 
 ### 🐛 Bug Fixes
