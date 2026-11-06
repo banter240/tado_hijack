@@ -1,3 +1,15 @@
+## [5.13.1-dev.3](https://github.com/banter240/tado_hijack/compare/v5.13.1-dev.2...v5.13.1-dev.3) (2026-11-06)
+
+### 🐛 Bug Fixes
+
+* fix(schedule): log the restored zone plan cache
+
+  The startup restore of schedule_blocks_cache was silent, unlike the
+  timetable, quota counter, and capability restores around it. Anyone
+  debugging empty plan calendars after a restart had no evidence the
+  restore ran at all. Log the restored zone count at DEBUG, same style as
+  the neighbouring restores.
+
 ## [5.13.1-dev.2](https://github.com/banter240/tado_hijack/compare/v5.13.1-dev.1...v5.13.1-dev.2) (2026-11-05)
 
 ### 🐛 Bug Fixes
