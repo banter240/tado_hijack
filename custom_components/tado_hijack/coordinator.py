@@ -480,8 +480,11 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
 
         plan_data = await self.storage.async_get("schedule_blocks_cache")
         if plan_data:
-            self.data_manager.schedule_blocks_cache.update(
-                {int(k): v for k, v in plan_data.items()}
+            restored_plans = {int(k): v for k, v in plan_data.items()}
+            self.data_manager.schedule_blocks_cache.update(restored_plans)
+            _LOGGER.debug(
+                "Restored zone plan cache for %d zone(s)",
+                len(restored_plans),
             )
         caps_data = await self.storage.async_get("capabilities_cache")
         if isinstance(caps_data, dict) and caps_data:
