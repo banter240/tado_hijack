@@ -711,6 +711,7 @@
           "features": {
             "name": "Features",
             "data": {
+              "full_cloud_mode": "Full Cloud Mode",
               "link_local_devices": "Attach to HomeKit / Matter",
               "proxy_local_entities": "Reverse link onto Hijack",
               "feature_dew_point": "Dew Point Sensor",
@@ -723,6 +724,7 @@
               "ventilation_ah_threshold": "Ventilation Threshold (g/m³)"
             },
             "data_description": {
+              "full_cloud_mode": "Climate entities via cloud polling instead of HomeKit/Matter. Required for V2 bridges (GW) as they have no HomeKit support. Changing this reloads the integration, so cloud climates and local proxies swap without restarting Home Assistant. Polling cost stays the same; control writes become API calls.",
               "link_local_devices": "Puts child lock, offset, battery, and connection on the HomeKit or Matter TRV when the serial matches. Reverse linking stays off while this is on. Default off.",
               "proxy_local_entities": "Copies every entity created in HomeKit (V3, HomeKit Device) or Matter (Tado X) for this serial onto the Hijack device, including later ones. HomeKit Device or Matter stays installed. Stays off while attach is on. Default on.",
               "feature_dew_point": "Create a dew point temperature sensor per zone. Calculated from room temperature and humidity. MANDATORY for Tado X: Requires a linked temperature source on the zone device as the cloud API provides no temperature for Tado X.",
@@ -869,6 +871,7 @@
           "features": {
             "name": "Features",
             "data": {
+              "full_cloud_mode": "Full Cloud Mode",
               "link_local_devices": "Attach to HomeKit / Matter",
               "proxy_local_entities": "Reverse link onto Hijack",
               "feature_dew_point": "Dew Point Sensor",
@@ -881,6 +884,7 @@
               "ventilation_ah_threshold": "Ventilation Threshold (g/m³)"
             },
             "data_description": {
+              "full_cloud_mode": "Climate entities via cloud polling instead of HomeKit/Matter. Required for V2 bridges (GW) as they have no HomeKit support. Changing this reloads the integration, so cloud climates and local proxies swap without restarting Home Assistant. Polling cost stays the same; control writes become API calls.",
               "link_local_devices": "Puts child lock, offset, battery, and connection on the HomeKit or Matter TRV when the serial matches. Reverse linking stays off while this is on. Default off.",
               "proxy_local_entities": "Copies every entity created in HomeKit (V3, HomeKit Device) or Matter (Tado X) for this serial onto the Hijack device, including later ones. HomeKit Device or Matter stays installed. Stays off while attach is on. Default on.",
               "feature_dew_point": "Create a dew point temperature sensor per zone. Calculated from room temperature and humidity. MANDATORY for Tado X: Requires a linked temperature source on the zone device as the cloud API provides no temperature for Tado X.",

@@ -711,6 +711,7 @@
           "features": {
             "name": "Funkce",
             "data": {
+              "full_cloud_mode": "Plný cloudový režim",
               "link_local_devices": "Připojit k HomeKit / Matter",
               "proxy_local_entities": "Zpětné propojení na Hijack",
               "feature_dew_point": "Senzor rosného bodu",
@@ -723,6 +724,7 @@
               "ventilation_ah_threshold": "Práh větrání (g/m³)"
             },
             "data_description": {
+              "full_cloud_mode": "Klimatické entity přes cloudové dotazování místo přes HomeKit/Matter. Povinné pro V2 bridge (GW), protože nepodporují HomeKit. Změna znovu načte integraci, cloudové klimaty a místní proxy se tak vymění bez restartu Home Assistenta. Náklady na dotazování se nemění; řídicí příkazy se stanou voláními API.",
               "link_local_devices": "Umístí dětský zámek, offset, baterii a připojení na HomeKit nebo Matter TRV, pokud sériové číslo sedí. Dokud je toto zapnuté, zpětné propojení zůstane vypnuté. Výchozí vypnuto.",
               "proxy_local_entities": "Zkopíruje každou entitu, kterou HomeKit (V3, HomeKit Device) nebo Matter (Tado X) pro toto sériové číslo vytvořil, na zařízení Hijack, včetně pozdějších. HomeKit Device nebo Matter zůstává nainstalované. Dokud je připojení zapnuté, zůstane toto vypnuté. Výchozí zapnuto.",
               "feature_dew_point": "Vytvoří senzor teploty rosného bodu pro každou zónu. Vypočítává se z teploty a vlhkosti v místnosti. POVINNÉ pro Tado X: Vyžaduje propojený zdroj teploty na zařízení zóny, protože cloudové API neposkytuje žádnou teplotu pro Tado X.",
@@ -869,6 +871,7 @@
           "features": {
             "name": "Funkce",
             "data": {
+              "full_cloud_mode": "Plný cloudový režim",
               "link_local_devices": "Připojit k HomeKit / Matter",
               "proxy_local_entities": "Zpětné propojení na Hijack",
               "feature_dew_point": "Senzor rosného bodu",
@@ -881,6 +884,7 @@
               "ventilation_ah_threshold": "Práh větrání (g/m³)"
             },
             "data_description": {
+              "full_cloud_mode": "Klimatické entity přes cloudové dotazování místo přes HomeKit/Matter. Povinné pro V2 bridge (GW), protože nepodporují HomeKit. Změna znovu načte integraci, cloudové klimaty a místní proxy se tak vymění bez restartu Home Assistenta. Náklady na dotazování se nemění; řídicí příkazy se stanou voláními API.",
               "link_local_devices": "Umístí dětský zámek, offset, baterii a připojení na HomeKit nebo Matter TRV, pokud sériové číslo sedí. Dokud je toto zapnuté, zpětné propojení zůstane vypnuté. Výchozí vypnuto.",
               "proxy_local_entities": "Zkopíruje každou entitu, kterou HomeKit (V3, HomeKit Device) nebo Matter (Tado X) pro toto sériové číslo vytvořil, na zařízení Hijack, včetně pozdějších. HomeKit Device nebo Matter zůstává nainstalované. Dokud je připojení zapnuté, zůstane toto vypnuté. Výchozí zapnuto.",
               "feature_dew_point": "Vytvoří senzor teploty rosného bodu pro každou zónu. Vypočítává se z teploty a vlhkosti v místnosti. POVINNÉ pro Tado X: Vyžaduje propojený zdroj teploty na zařízení zóny, protože cloudové API neposkytuje žádnou teplotu pro Tado X.",

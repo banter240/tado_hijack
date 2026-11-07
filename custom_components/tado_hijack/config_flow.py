@@ -239,6 +239,7 @@ class TadoHijackCommonFlow:
                 CONF_REFRESH_AFTER_RESUME,
             ],
             "features": [
+                CONF_FULL_CLOUD_MODE,
                 CONF_LINK_LOCAL_DEVICES,
                 CONF_PROXY_LOCAL_ENTITIES,
                 CONF_FEATURE_DEW_POINT,
@@ -581,6 +582,12 @@ class TadoHijackCommonFlow:
                 vol.Required("features"): data_entry_flow.section(
                     vol.Schema(
                         {
+                            vol.Optional(
+                                CONF_FULL_CLOUD_MODE,
+                                default=self._get_current_data(
+                                    CONF_FULL_CLOUD_MODE, False
+                                ),
+                            ): BooleanSelector(),
                             vol.Optional(
                                 CONF_LINK_LOCAL_DEVICES,
                                 default=self._get_current_data(
