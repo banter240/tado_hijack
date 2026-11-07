@@ -1,3 +1,17 @@
+## [5.14.0-dev.1](https://github.com/banter240/tado_hijack/compare/v5.13.1-dev.3...v5.14.0-dev.1) (2026-11-07)
+
+### ✨ New Features
+
+* feat(options): toggle full cloud mode in options flow
+
+  Full Cloud Mode previously existed only in the initial setup flow, so
+  switching required removing and re-adding the entry and redoing every
+  per-zone setting. The toggle now sits in the options features section.
+
+  The options finish already reloads the entry, and the local proxy
+  re-discovers HomeKit/Matter sources from the persistent entity registry
+  on setup, so cloud climates and proxies swap without an HA restart.
+
 ## [5.13.1-dev.3](https://github.com/banter240/tado_hijack/compare/v5.13.1-dev.2...v5.13.1-dev.3) (2026-11-06)
 
 ### 🐛 Bug Fixes
