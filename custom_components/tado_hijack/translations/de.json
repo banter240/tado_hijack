@@ -997,7 +997,7 @@
         },
         "refresh_after": {
           "name": "Status nach Abschluss aktualisieren",
-          "description": "Aktualisiert sofort bei dauerhaften Änderungen und Zeitplanfortsetzung oder nach Ablauf eines zeitgesteuerten Modus."
+          "description": "Aktualisiert den Status nach dauerhaften Änderungen, nach der Fortsetzung des Zeitplans und nach dem Setzen eines Timers bei Tado Classic."
         }
       }
     },
@@ -1035,7 +1035,7 @@
         },
         "refresh_after": {
           "name": "Status nach Abschluss aktualisieren",
-          "description": "Aktualisiert sofort bei dauerhaften Änderungen und Zeitplanfortsetzung oder nach Ablauf eines zeitgesteuerten Modus."
+          "description": "Aktualisiert den Status nach dauerhaften Änderungen, nach der Fortsetzung des Zeitplans und nach dem Setzen eines Timers bei Tado Classic."
         }
       }
     },

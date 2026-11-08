@@ -2790,11 +2790,11 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         if duration and duration > 0:
             self._schedule_expiry_poll(duration * 60)
 
-        is_timed_overlay = bool(
-            duration or overlay_mode in (OVERLAY_NEXT_BLOCK, "presence")
-        )
-
-        if refresh_after and not is_timed_overlay:
+        if (
+            refresh_after
+            and overlay_mode not in (OVERLAY_NEXT_BLOCK, "presence")
+            and (not duration or self.generation == GEN_CLASSIC)
+        ):
             self._schedule_queued_refresh()
 
     def supports_temperature(self, zone_id: int) -> bool:

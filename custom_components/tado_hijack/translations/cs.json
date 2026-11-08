@@ -997,7 +997,7 @@
         },
         "refresh_after": {
           "name": "Aktualizovat po změně",
-          "description": "Po provedení akce ihned načte aktuální stav z Tado API."
+          "description": "Načte aktuální stav po trvalé změně, obnovení plánu nebo nastavení časovače u Tado Classic."
         }
       }
     },
@@ -1035,7 +1035,7 @@
         },
         "refresh_after": {
           "name": "Aktualizovat po změně",
-          "description": "Po provedení akce ihned načte aktuální stav z Tado API."
+          "description": "Načte aktuální stav po trvalé změně, obnovení plánu nebo nastavení časovače u Tado Classic."
         }
       }
     },
