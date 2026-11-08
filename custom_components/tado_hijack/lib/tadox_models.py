@@ -185,9 +185,13 @@ class TadoXZoneState(BaseModel):
     @property
     def open_window_detected(self) -> bool:
         """Return whether an open window is detected."""
-        if self.open_window:
-            return getattr(self.open_window, "activated", False)
-        return False
+        ow = self.open_window
+        if not ow:
+            return False
+        # The API returns a plain dict here (the field is typed Any), so getattr() never saw "activated".
+        if isinstance(ow, dict):
+            return bool(ow.get("activated", True))
+        return bool(getattr(ow, "activated", True))
 
     @property
     def overlay_active(self) -> bool:

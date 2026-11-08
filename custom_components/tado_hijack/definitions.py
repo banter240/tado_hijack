@@ -1650,6 +1650,17 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         ),
     ),
     create_zone_binary_sensor(
+        key="open_window",
+        supported_generations={GEN_X},
+        value_fn=lambda c, zid: bool(
+            (state := c.data.zone_states.get(str(zid)))
+            and getattr(state, "open_window_detected", False)
+        ),
+        device_class=BinarySensorDeviceClass.WINDOW,
+        supported_zone_types={ZONE_TYPE_HEATING},
+        unique_id_suffix="open_window",
+    ),
+    create_zone_binary_sensor(
         key="mold_risk",
         supported_generations={GEN_CLASSIC, GEN_X},
         value_fn=lambda c, zid: (

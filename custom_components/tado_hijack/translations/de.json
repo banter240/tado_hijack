@@ -286,6 +286,9 @@
       },
       "log_version_prefix": {
         "name": "Version im Protokoll"
+      },
+      "open_window": {
+        "name": "Fenster offen"
       }
     },
     "switch": {

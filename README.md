@@ -725,6 +725,7 @@ Zone-level controls. Many of these are cloud-only features that HomeKit does not
 | `select.horizontal_swing` | Select | cloud | **v3 AC Only:** Horizontal swing control (ON/OFF or position modes). |
 | `sensor.zone_mode` | Sensor | cloud | **Mode:** Current operating mode: `schedule`, `manual`, `boost`, `off`. Classic: boost detected via 25°C setpoint. Tado X: native boost field. Heating and AC zones only. |
 | `sensor.heating_power` | Sensor | cloud | Zone heating power % from the room poll. |
+| `binary_sensor.open_window` | Binary Sensor | cloud | **Tado X Only:** `ON` while Tado's own open-window detection is active in the room (`openWindow.activated` from the room poll). No extra API calls. |
 | `sensor.humidity` | Sensor | cloud | Cloud zone humidity. |
 | `sensor.dew_point` | Sensor | local | **Climate:** Dew point (°C), Magnus, from the temperature and humidity chains above. Enabled via _Dew Point Sensor_. |
 | `sensor.mold_risk_level` | Sensor | local | **Climate:** Mold risk level: `none` / `low` / `medium` / `high`. Uses dew point spread — cold-but-dry rooms correctly show `none`. Enabled via _Mold Risk Sensors_ feature flag. |
