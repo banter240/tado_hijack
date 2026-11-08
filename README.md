@@ -740,6 +740,8 @@ Zone-level controls. Many of these are cloud-only features that HomeKit does not
 
 <br>
 
+**Classic override timing:** The zone mode sensor exposes `override_termination` while Tado reports an active override. `MANUAL` means it stays in effect until you resume the schedule. When Tado supplies a deadline, `override_expires_at` contains its ISO 8601 timestamp. These attributes use the existing zone poll.
+
 > [!NOTE]
 > **Schedule Planning Sensors:**
 > These four sensors read the weekly plan cache, the same blocks as the zone calendar. They refresh when the plan is fetched or written, and on a local timer at the next block start. That timer does not call Tado. An empty cache stays `unknown` until a plan fetch.

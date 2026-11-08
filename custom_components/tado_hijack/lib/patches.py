@@ -107,9 +107,10 @@ def patch_set_meter_readings() -> None:
 def patch_zone_state_deserialization() -> None:
     """Fix ZoneState deserialization issues.
 
-    Addresses two issues:
+    Handles fields that the client would otherwise reject or discard:
     1. Null nextTimeBlock handling - API sometimes returns null instead of object
     2. Hot water activity data rescue - activityDataPoints.hotWaterInUse gets dropped
+    3. Active override timer deadline - termination.expiry gets dropped
 
     This patch should be contributed to tadoasync upstream.
 
@@ -117,7 +118,7 @@ def patch_zone_state_deserialization() -> None:
         Adds a __pre_deserialize__ classmethod to ZoneState that:
         - Ensures nextTimeBlock is always a dict (convert null to {})
         - Rescues hot water activity into heatingPower for later access
-        - Maintains backward compatibility with existing code
+        - Copies the timer deadline to the supported projectedExpiry field
     """
     try:
         import tadoasync.models
@@ -172,6 +173,15 @@ def patch_zone_state_deserialization() -> None:
                         "timestamp": datetime.now().isoformat(),
                         "value": hw_val,
                     }
+
+            # Preserve timer deadlines before tadoasync drops the expiry field.
+            overlay = d.get("overlay")
+            if isinstance(overlay, dict):
+                termination = overlay.get("termination")
+                if isinstance(termination, dict):
+                    expiry = termination.get("expiry")
+                    if isinstance(expiry, str) and expiry:
+                        termination["projectedExpiry"] = expiry
 
             return d
 
