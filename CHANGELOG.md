@@ -1,3 +1,17 @@
+## [5.14.0-dev.3](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.2...v5.14.0-dev.3) (2026-11-09)
+
+### ✨ New Features
+
+* feat(binary_sensor): expose cloud open-window detection on both generations
+
+  Extends the open-window sensor to classic heating zones: Tado X sets
+  openWindow.activated, a classic zone only attaches the openWindow object
+  while a detection runs. Same zone poll, no extra API calls; the quota
+  gate (>= 1000 daily calls) applies to both generations.
+
+  Renamed to cloud_open_window so the entity can never be mistaken for a
+  physical window contact.
+
 ## [5.14.0-dev.2](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.1...v5.14.0-dev.2) (2026-11-09)
 
 ### ✨ New Features
