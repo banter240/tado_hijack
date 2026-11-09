@@ -287,8 +287,8 @@
       "log_version_prefix": {
         "name": "Show Version in Logs"
       },
-      "open_window": {
-        "name": "Open Window"
+      "cloud_open_window": {
+        "name": "Cloud Open Window"
       }
     },
     "switch": {

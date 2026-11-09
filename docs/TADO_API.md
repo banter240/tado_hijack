@@ -666,6 +666,12 @@ so both generations expose the same attributes:
   field is typed Any, so pydantic keeps it a plain dict; the getter handles
   the dict and an object form.
 
+The classic ZoneState carries no openWindowDetected flag (that field only
+exists in the mobile API); a classic zone signals an active detection purely
+by attaching the openWindow object to the zone state, which tadoasync lifts
+into open_window_attr. The cloud_open_window sensor therefore duck-types:
+open_window_detected (X) or open_window_attr is not None (classic).
+
 Why: Without duck-typing, every coordinator line would require
 if self.generation == GEN_X ... else ... — unmaintainable.
 

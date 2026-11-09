@@ -287,8 +287,8 @@
       "log_version_prefix": {
         "name": "Verze v protokolu"
       },
-      "open_window": {
-        "name": "Otevřené okno"
+      "cloud_open_window": {
+        "name": "Otevřené okno (cloud)"
       }
     },
     "switch": {

@@ -287,8 +287,8 @@
       "log_version_prefix": {
         "name": "Version im Protokoll"
       },
-      "open_window": {
-        "name": "Fenster offen"
+      "cloud_open_window": {
+        "name": "Fenster offen (Cloud)"
       }
     },
     "switch": {

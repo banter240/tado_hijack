@@ -1651,15 +1651,20 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         ),
     ),
     create_zone_binary_sensor(
-        key="open_window",
-        supported_generations={GEN_X},
+        key="cloud_open_window",
+        supported_generations={GEN_CLASSIC, GEN_X},
         value_fn=lambda c, zid: bool(
             (state := c.data.zone_states.get(str(zid)))
-            and getattr(state, "open_window_detected", False)
+            and (
+                # X reports a flag; classic only attaches the openWindow
+                # object while a detection is active.
+                getattr(state, "open_window_detected", False)
+                or getattr(state, "open_window_attr", None) is not None
+            )
         ),
         device_class=BinarySensorDeviceClass.WINDOW,
         supported_zone_types={ZONE_TYPE_HEATING},
-        unique_id_suffix="open_window",
+        unique_id_suffix="cloud_open_window",
         is_supported_fn=lambda c, _zid: c.rate_limit.limit >= API_QUOTA_STANDARD,
     ),
     create_zone_binary_sensor(
