@@ -740,6 +740,8 @@ Zone-level controls. Many of these are cloud-only features that HomeKit does not
 
 <br>
 
+**Classic override timing:** The zone mode sensor exposes `override_termination` while Tado reports an active override. `MANUAL` means it stays in effect until you resume the schedule. When Tado supplies a deadline, `override_expires_at` contains its ISO 8601 timestamp. These attributes use the existing zone poll.
+
 > [!NOTE]
 > **Schedule Planning Sensors:**
 > These four sensors read the weekly plan cache, the same blocks as the zone calendar. They refresh when the plan is fetched or written, and on a local timer at the next block start. That timer does not call Tado. An empty cache stays `unknown` until a plan fetch.
@@ -796,7 +798,7 @@ For advanced automation, use these services. All manual control services feature
 > **Post-action polling (`refresh_after`):**
 >
 > - A queued resume polls again only for air conditioning and classic hot water. A heating resume does not add that poll.
-> - A classic `duration` waits until the timer ends. `next_block` and `presence` do not poll early.
+> - Classic room timers poll at expiry. With `refresh_after: true`, they also share a zone poll after the write to read Tado's confirmed deadline. `next_block` and `presence` do not poll early.
 > - Tado X hot water does not use the flag. Resume, boost, and off each poll after the programmer call. A duration hold sends at once, so that poll runs at once, again on the 50-minute boost, and again when the hold ends.
 
 <br>

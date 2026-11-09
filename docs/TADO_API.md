@@ -158,7 +158,9 @@ The module also exports `get_handler()` which returns the global
    is at the end of its schedule — strict dataclass deserialization crashes.
 2. `activityDataPoints.hotWaterInUse` is silently dropped by the strict
    dataclass, but the integration needs it for the hot-water power sensor.
-3. `sensorDataPoints` can arrive as `null`. This patch is classic
+3. `overlay.termination.expiry` (the absolute deadline of a timer override)
+   is not a dataclass field and would be discarded.
+4. `sensorDataPoints` can arrive as `null`. This patch is classic
    `ZoneState` only. A Tado X room uses `TadoXZoneState`, where the same
    field is optional (Part 4 §3.2).
 
@@ -175,6 +177,9 @@ upstream fix), then normalizes the raw dict BEFORE dataclass parsing:
    `{"type": "HOT_WATER_POWER", "percentage": 100.0|0.0 (ON→100),
      "timestamp": <now ISO>, "value": <ON|OFF>}` so it survives deserialization
    and can be read later like ordinary heating power.
+4. Timer deadline rescue: `overlay.termination.expiry`, when present, is
+   copied into `termination.projectedExpiry`, a field the dataclass keeps,
+   so the zone mode sensor can expose the absolute deadline of a countdown.
 
 **Why injected into `heatingPower`?** Because that is the only
    activity-data field the stock dataclass keeps — the rescue piggybacks on an

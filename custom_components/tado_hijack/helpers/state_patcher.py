@@ -104,6 +104,20 @@ def _patch_zone_overlay_v3(current_state: Any, overlay_data: dict[str, Any]) -> 
     current_state.overlay_active = True
 
 
+def active_termination(state: Any) -> Any | None:
+    """Active override termination of a zone state, whatever the model.
+
+    Tado X exposes manualControl's termination directly, Classic nests it
+    under overlay. Returns None when neither carries one.
+    """
+    if state is None:
+        return None
+    term = getattr(state, "manual_control_termination", None)
+    if term is not None:
+        return term
+    return getattr(getattr(state, "overlay", None), "termination", None)
+
+
 def patch_zone_resume(current_state: Any | None) -> Any | None:
     """Patch local zone state to resume schedule and return old state for rollback."""
     if current_state is None or getattr(

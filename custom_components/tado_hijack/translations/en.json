@@ -997,7 +997,7 @@
         },
         "refresh_after": {
           "name": "Refresh after completion",
-          "description": "Refresh immediately for permanent changes and schedule resume, or after a timed mode expires."
+          "description": "Refresh after permanent changes, schedule resume, and Classic timer writes."
         }
       }
     },
@@ -1035,7 +1035,7 @@
         },
         "refresh_after": {
           "name": "Refresh after completion",
-          "description": "Refresh immediately for permanent changes and schedule resume, or after a timed mode expires."
+          "description": "Refresh after permanent changes, schedule resume, and Classic timer writes."
         }
       }
     },

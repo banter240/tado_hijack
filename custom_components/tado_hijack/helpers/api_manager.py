@@ -27,8 +27,6 @@ from .command_merger import (
 )
 from .executor_unified import TadoUnifiedExecutor
 from .logging_utils import get_redacted_logger
-from .schedule import schedule_queue_key_for_command
-from .timetable import queue_key_for_command
 from .utils import apply_jitter
 
 if TYPE_CHECKING:
@@ -77,11 +75,11 @@ class TadoApiManager:
         self.hass = hass
         self.coordinator = coordinator
         self._debounce_time = debounce_time
-        self._api_queue: asyncio.Queue[TadoCommand] = asyncio.Queue()
+        self._api_queue: asyncio.Queue[tuple[str, TadoCommand]] = asyncio.Queue()
         self._action_queue: dict[str, TadoCommand] = {}
         self._pending_timers: dict[str, CALLBACK_TYPE] = {}
         self._worker_task: asyncio.Task[Any] | None = None
-        self._pending_keys: set[str] = set()  # Track in-flight commands
+        self._pending_commands: dict[str, TadoCommand] = {}
         self._collecting = 0
         self._announce_offline = False
 
@@ -104,6 +102,7 @@ class TadoApiManager:
             cancel_fn()
         self._pending_timers.clear()
         self._action_queue.clear()
+        self._pending_commands.clear()
 
     def _describe_command(self, command: TadoCommand) -> str:
         """Return a human-readable description of the command action."""
@@ -157,62 +156,10 @@ class TadoApiManager:
             return f"(zone={command.zone_id}, power={power}, temp={temp}°C)"
         return f"(zone={command.zone_id})"
 
-    def _get_command_key(self, command: TadoCommand) -> str:
-        """Reconstruct the key for a command (reverse of queue_command key logic)."""
-        if command.cmd_type == CommandType.MANUAL_POLL:
-            data = command.data or {}
-            refresh_type = data.get("type", "all")
-            if entity_id := data.get("entity_id"):
-                return f"manual_poll_{refresh_type}_{entity_id}"
-            if refresh_type == "capabilities":
-                zid = (
-                    command.zone_id
-                    if command.zone_id is not None
-                    else data.get("zone_id")
-                )
-                if zid is not None:
-                    return f"manual_poll_capabilities_{zid}"
-            return f"manual_poll_{refresh_type}"
-        if command.cmd_type == CommandType.QUICK_ACTION:
-            return "x_quick_action"
-        if command.cmd_type == CommandType.SET_PRESENCE:
-            return "presence"
-        if command.cmd_type == CommandType.SET_FLOW_TEMP:
-            return "flow_temp"
-        if command.cmd_type == CommandType.IDENTIFY:
-            serial = command.data.get("serial", "") if command.data else ""
-            return f"identify_{serial}"
-        if key := queue_key_for_command(command):
-            return key
-        if key := schedule_queue_key_for_command(command):
-            return key
-        if command.cmd_type in (
-            CommandType.SET_CHILD_LOCK,
-            CommandType.SET_OFFSET,
-        ):
-            # Device properties use serial from data
-            serial = command.data.get("serial", "") if command.data else ""
-            return f"{command.cmd_type.value}_{serial}"
-        if command.cmd_type in (
-            CommandType.SET_AWAY_TEMP,
-            CommandType.SET_DAZZLE,
-            CommandType.SET_EARLY_START,
-            CommandType.SET_ZONE_CIRCUIT,
-            CommandType.SET_OPEN_WINDOW,
-        ):
-            # Zone properties
-            return f"{command.cmd_type.value}_{command.zone_id}"
-        if command.cmd_type in (CommandType.SET_OVERLAY, CommandType.RESUME_SCHEDULE):
-            # Zone overlay/resume commands
-            return f"zone_{command.zone_id}"
-
-        # Fallback for unknown types
-        return f"{command.cmd_type.value}_{command.zone_id or 'unknown'}"
-
     @property
     def pending_keys(self) -> set[str]:
         """Return set of currently pending command keys."""
-        return self._pending_keys.copy()
+        return set(self._pending_commands)
 
     def queued_command(self, key: str) -> TadoCommand | None:
         """Command still waiting on this key, if any."""
@@ -278,7 +225,7 @@ class TadoApiManager:
                 preserve_rollback_state(existing, command)
 
         self._action_queue[key] = command
-        self._pending_keys.add(key)  # Mark key as pending
+        self._pending_commands[key] = command
         self._persist_held()
 
         action_desc = self._describe_command(command)
@@ -327,12 +274,11 @@ class TadoApiManager:
             if key.startswith("zone_") and cmd.zone_id is not None
         }
 
-    def hold_commands(self, commands: list[TadoCommand]) -> None:
+    def hold_commands(self, batch: list[tuple[str, TadoCommand]]) -> None:
         """Put these calls back. A newer write for the same key stays."""
-        for cmd in commands:
-            key = self._get_command_key(cmd)
-            self._action_queue.setdefault(key, cmd)
-            self._pending_keys.add(key)
+        for key, command in batch:
+            if self._pending_commands.get(key) is command:
+                self._action_queue[key] = command
         self._persist_held()
         _LOGGER.error(
             "Tado is offline. Holding %d command(s) until it answers.",
@@ -367,7 +313,7 @@ class TadoApiManager:
                 zone_id=int(zone) if isinstance(zone, int) else None,
                 data=data if isinstance(data, dict) else None,
             )
-            self._pending_keys.add(key)
+            self._pending_commands[key] = self._action_queue[key]
         if self._action_queue:
             _LOGGER.error(
                 "Restored %d held command(s). They go out when Tado answers.",
@@ -398,7 +344,7 @@ class TadoApiManager:
         def _move_to_worker(_now: Any = None, target_key: str = key) -> None:
             self._pending_timers.pop(target_key, None)
             if cmd := self._action_queue.pop(target_key, None):
-                self._api_queue.put_nowait(cmd)
+                self._api_queue.put_nowait((target_key, cmd))
                 self._persist_held()
 
         self._pending_timers[key] = async_call_later(
@@ -421,11 +367,10 @@ class TadoApiManager:
 
     async def _worker_loop(self) -> None:
         """Sequential background processing loop."""
-        batch: list[TadoCommand] = []
+        batch: list[tuple[str, TadoCommand]] = []
         while True:
             try:
-                cmd = await self._api_queue.get()
-                batch.append(cmd)
+                batch.append(await self._api_queue.get())
                 self._api_queue.task_done()
 
                 await asyncio.sleep(BATCH_LINGER_S)
@@ -440,22 +385,26 @@ class TadoApiManager:
                 break
             except Exception:
                 _LOGGER.exception("Unexpected error in worker loop")
-                for cmd in batch:
-                    self._pending_keys.discard(self._get_command_key(cmd))
+                self._finish_batch(batch)
                 batch.clear()
                 await asyncio.sleep(float(self._debounce_time))
 
-    async def _process_batch(self, commands: list[TadoCommand]) -> None:
+    def _finish_batch(self, batch: list[tuple[str, TadoCommand]]) -> None:
+        """Clear finished keys while keeping any newer commands pending."""
+        for key, command in batch:
+            if self._pending_commands.get(key) is command:
+                del self._pending_commands[key]
+
+    async def _process_batch(self, batch: list[tuple[str, TadoCommand]]) -> None:
         """Merge and execute a batch of commands."""
         if self._holding():
-            self.hold_commands(commands)
+            self.hold_commands(batch)
             return
 
         # Initial jitter to break temporal correlation with triggers (1.0s base)
         await self._maybe_apply_call_jitter(base_delay=1.0)
 
-        # Collect keys from batch for cleanup after execution
-        batch_keys = {self._get_command_key(cmd) for cmd in commands}
+        commands = [command for _, command in batch]
 
         # Log batch composition
         _LOGGER.debug(
@@ -468,6 +417,11 @@ class TadoApiManager:
         for cmd in commands:
             merger.add(cmd)
         merged = merger.result
+        has_manual_poll = bool(
+            merged["manual_poll"]
+            or merged.get("capability_zone_ids")
+            or merged.get("targeted_polls")
+        )
 
         # Named fields, generated from merger payload keys so a new command
         # type cannot drop out of the debug line.
@@ -480,13 +434,8 @@ class TadoApiManager:
             # Use pre-patch states from rollback_context: zone_states in coordinator.data
             # are already mutated by state_patcher before queuing, so they reflect the
             # target — not the device state we should compare against.
-            pre_patch_states: dict[str, Any] = {
-                str(cmd.zone_id): cmd.rollback_context
-                for cmd in commands
-                if cmd.cmd_type
-                in (CommandType.SET_OVERLAY, CommandType.RESUME_SCHEDULE)
-                and cmd.zone_id is not None
-                and cmd.rollback_context is not None
+            pre_patch_states = {
+                str(zone_id): state for zone_id, state in merger.rollback_zones.items()
             }
             merged = filter_redundant_merged_data(
                 merged,
@@ -496,12 +445,14 @@ class TadoApiManager:
             )
 
             # Check if payload is empty after filtering - if so, skip sending
-            if not merged_has_executor_work(merged):
+            if not has_manual_poll and not merged_has_executor_work(merged):
                 _LOGGER.info(
                     "Skipping API call: all %d command(s) redundant after filtering (%s)",
                     len(commands),
                     [cmd.cmd_type.value for cmd in commands],
                 )
+                self._finish_batch(batch)
+                self.coordinator.async_update_listeners()
                 return
             _LOGGER.debug(
                 "Merged batch payloads after redundancy filter: %s",
@@ -511,19 +462,13 @@ class TadoApiManager:
         # Delegate execution to the Unified Executor
         await self._executor.execute_batch(merged)
         if self._holding():
-            self.hold_commands(commands)
+            self.hold_commands(batch)
             return
 
-        # Clear pending keys after batch execution
-        for key in batch_keys:
-            self._pending_keys.discard(key)
+        self._finish_batch(batch)
 
         self.coordinator.update_rate_limit_local(silent=False)
-        if (
-            merged["manual_poll"]
-            or merged.get("capability_zone_ids")
-            or merged.get("targeted_polls")
-        ):
+        if has_manual_poll:
             await self._maybe_apply_call_jitter()
             await self.coordinator._execute_manual_poll(
                 merged["manual_poll"],

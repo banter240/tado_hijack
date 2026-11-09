@@ -290,7 +290,7 @@ class CommandMerger:
         if cmd.zone_id is not None:
             self.zones[cmd.zone_id] = None
             if cmd.rollback_context:
-                self.rollback_zones[cmd.zone_id] = cmd.rollback_context
+                self.rollback_zones.setdefault(cmd.zone_id, cmd.rollback_context)
         else:
             for zid in self.zones_meta:
                 self.zones[zid] = None
@@ -304,7 +304,7 @@ class CommandMerger:
         if cmd.zone_id is not None:
             self._apply_overlay(cmd.zone_id, cmd.data)
             if cmd.rollback_context:
-                self.rollback_zones[cmd.zone_id] = cmd.rollback_context
+                self.rollback_zones.setdefault(cmd.zone_id, cmd.rollback_context)
         else:
             # Bulk operation for all heating zones
             from ..const import ZONE_TYPE_HEATING
@@ -322,10 +322,11 @@ class CommandMerger:
             self.zones[zone_id] = data
             return
 
-        # Merge 'setting' part of the overlay
-        current_setting = current.get("setting", {})
-        new_setting = data.get("setting", {})
-        current["setting"] = {**current_setting, **new_setting}
+        self.zones[zone_id] = {
+            **current,
+            **data,
+            "setting": {**current.get("setting", {}), **data.get("setting", {})},
+        }
 
     @property
     def result(self) -> dict[str, Any]:

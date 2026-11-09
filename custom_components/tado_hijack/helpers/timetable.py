@@ -153,15 +153,6 @@ def refresh_queue_key(zone_id: int | None = None) -> str:
     return f"{CommandType.REFRESH_TIMETABLE.value}_{suffix}"
 
 
-def queue_key_for_command(cmd: TadoCommand) -> str | None:
-    """Debounce key for a timetable command, or None if cmd is another type."""
-    if cmd.cmd_type == CommandType.SET_TIMETABLE and cmd.zone_id is not None:
-        return set_queue_key(cmd.zone_id)
-    if cmd.cmd_type == CommandType.REFRESH_TIMETABLE:
-        return refresh_queue_key(cmd.zone_id)
-    return None
-
-
 def refresh_zone_ids_from_command(cmd: TadoCommand) -> list[int]:
     """Zone ids carried by a REFRESH_TIMETABLE command (one zone or a list)."""
     if cmd.data and cmd.data.get("zone_ids"):

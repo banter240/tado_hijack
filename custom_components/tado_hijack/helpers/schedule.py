@@ -539,19 +539,6 @@ def refresh_schedule_queue_key(zone_id: int | None = None) -> str:
     return f"{CommandType.REFRESH_SCHEDULE.value}_{suffix}"
 
 
-def schedule_queue_key_for_command(cmd: TadoCommand) -> str | None:
-    """Debounce key for SET_SCHEDULE or REFRESH_SCHEDULE, or None."""
-    if cmd.cmd_type == CommandType.REFRESH_SCHEDULE:
-        return refresh_schedule_queue_key(cmd.zone_id)
-    if cmd.cmd_type != CommandType.SET_SCHEDULE or not cmd.data:
-        return None
-    return schedule_queue_key(
-        int(cmd.data["zone_id"]),
-        int(cmd.data["timetable_id"]),
-        str(cmd.data["day_type"]),
-    )
-
-
 def refresh_schedule_zone_ids_from_command(cmd: TadoCommand) -> list[int]:
     """Zone ids carried by a REFRESH_SCHEDULE command (one zone or a list)."""
     if cmd.data and cmd.data.get("zone_ids"):

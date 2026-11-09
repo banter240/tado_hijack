@@ -12,9 +12,11 @@ from ..const import (
     POWER_ON,
     TEMP_STRICT_TOLERANCE,
     TEMP_TOLERANCE,
+    TERMINATION_MANUAL,
 )
 from ..models import CommandType, TadoCommand
 from .logging_utils import get_redacted_logger
+from .state_patcher import active_termination
 
 if TYPE_CHECKING:
     from .action_provider_base import TadoActionProvider
@@ -595,6 +597,23 @@ def _is_overlay_redundant(
     """Return True if a SET_OVERLAY command matches current device state."""
     state = zone_states.get(str(zone_id))
     if state is None or not getattr(state, "overlay_active", False):
+        return False
+
+    # A new timer can restart the deadline even if power and setpoint match.
+    # Only suppress an overlay when both end conditions are confirmed indefinite.
+    target_termination = zone_data.get("termination", {})
+    target_kind = target_termination.get("typeSkillBasedApp") or target_termination.get(
+        "type"
+    )
+    current_termination = active_termination(state)
+    current_kind = getattr(
+        current_termination, "type_skill_based_app", None
+    ) or getattr(current_termination, "type", None)
+    if (
+        target_kind != TERMINATION_MANUAL
+        or target_termination.get("durationInSeconds") is not None
+        or current_kind != TERMINATION_MANUAL
+    ):
         return False
 
     setting = zone_data.get("setting", {})
