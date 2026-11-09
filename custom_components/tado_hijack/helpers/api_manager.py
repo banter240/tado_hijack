@@ -185,14 +185,21 @@ class TadoApiManager:
             this command is pending.
 
         Examples:
-            "zone_12" → {"overlay", "overlay_active", "setting"}
+            "zone_12" → {"overlay", "overlay_active", "setting",
+                         "manual_control_termination"}
             "presence" → {"presence"}
             "set_offset_ABC123" → set() (device-level, no zone state protection)
 
         """
-        # Zone overlay/resume commands protect overlay state
+        # Zone overlay/resume commands protect overlay state.
+        # Tado X keeps the timer on manual_control_termination, not overlay.
         if key.startswith("zone_"):
-            return {"overlay", "overlay_active", "setting"}
+            return {
+                "overlay",
+                "overlay_active",
+                "setting",
+                "manual_control_termination",
+            }
 
         # Presence commands protect home state presence/lock fields
         if key == "presence":
