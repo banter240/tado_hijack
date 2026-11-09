@@ -185,9 +185,15 @@ class TadoXZoneState(BaseModel):
     @property
     def open_window_detected(self) -> bool:
         """Return whether an open window is detected."""
-        if self.open_window:
-            return getattr(self.open_window, "activated", False)
-        return False
+        if ow := self.open_window:
+            # open_window is typed Any, so pydantic keeps a plain dict here.
+            return (
+                bool(ow.get("activated", False))
+                if isinstance(ow, dict)
+                else bool(getattr(ow, "activated", False))
+            )
+        else:
+            return False
 
     @property
     def overlay_active(self) -> bool:

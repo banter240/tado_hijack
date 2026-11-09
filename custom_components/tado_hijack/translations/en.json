@@ -286,6 +286,9 @@
       },
       "log_version_prefix": {
         "name": "Show Version in Logs"
+      },
+      "open_window": {
+        "name": "Open Window"
       }
     },
     "switch": {

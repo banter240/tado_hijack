@@ -24,10 +24,13 @@ def _yield_zones_v3(
 
 def _yield_zones_tadox(
     coordinator: TadoDataUpdateCoordinator,
+    include_types: set[str] | None = None,
 ) -> Generator[TadoUnifiedZone]:
-    """Yield all Tado X rooms."""
+    """Yield Tado X rooms matching specified types."""
     for zone in coordinator.zones_meta.values():
-        yield unify_zone(zone)
+        unified = unify_zone(zone)
+        if include_types is None or unified.type in include_types:
+            yield unified
 
 
 def yield_zones(
@@ -56,7 +59,7 @@ def yield_zones(
             include_types.add(ZONE_TYPE_AIR_CONDITIONING)
 
     if coordinator.generation == GEN_X:
-        yield from _yield_zones_tadox(coordinator)
+        yield from _yield_zones_tadox(coordinator, include_types)
     else:
         yield from _yield_zones_v3(coordinator, include_types)
 

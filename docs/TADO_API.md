@@ -662,6 +662,9 @@ so both generations expose the same attributes:
 - HopsTemperature.celsius: wraps .value so code expecting .celsius works.
 - TadoXZoneState.current_temp: extracts temperature from nested model.
 - TadoXZoneState.overlay_active: infers manual override state.
+- TadoXZoneState.open_window_detected: reads openWindow.activated. The raw
+  field is typed Any, so pydantic keeps it a plain dict; the getter handles
+  the dict and an object form.
 
 Why: Without duck-typing, every coordinator line would require
 if self.generation == GEN_X ... else ... — unmaintainable.

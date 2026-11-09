@@ -12,6 +12,7 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.util import dt as dt_util
 
 from .const import (
+    API_QUOTA_STANDARD,
     CAPABILITY_INSIDE_TEMP,
     CONF_API_PROXY_URL,
     CONF_AUTO_API_QUOTA_PERCENT,
@@ -1648,6 +1649,18 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         is_supported_fn=lambda c, zid: c.config_entry.data.get(
             CONF_FEATURE_MOLD_DETECTION, DEFAULT_FEATURE_MOLD_DETECTION
         ),
+    ),
+    create_zone_binary_sensor(
+        key="open_window",
+        supported_generations={GEN_X},
+        value_fn=lambda c, zid: bool(
+            (state := c.data.zone_states.get(str(zid)))
+            and getattr(state, "open_window_detected", False)
+        ),
+        device_class=BinarySensorDeviceClass.WINDOW,
+        supported_zone_types={ZONE_TYPE_HEATING},
+        unique_id_suffix="open_window",
+        is_supported_fn=lambda c, _zid: c.rate_limit.limit >= API_QUOTA_STANDARD,
     ),
     create_zone_binary_sensor(
         key="mold_risk",

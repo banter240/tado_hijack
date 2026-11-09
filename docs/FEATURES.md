@@ -128,6 +128,8 @@ A linked HomeKit or Matter climate is turned off locally, and turned off again i
 
 The native timeout number is minutes, 0–1439, on classic heating zones that report open-window support. Five minutes or more enables it and sends `timeoutInSeconds`. Tado X rooms do not get this number: the room snapshot has no such field. The Hops open-window call exists and ignores a timeout. The external contact selects are still created for Tado X rooms.
 
+A Tado X heating room also creates `binary_sensor.open_window`, on while Tado's own open-window detection reports that room (`openWindow.activated` from the room poll, no extra call). That detection window is short — the room reports `expiryInSeconds`, commonly 900 — so the reading is only meaningful when the zone poll is faster. The sensor is therefore created only when the effective daily limit is at least `API_QUOTA_STANDARD` (1000), checked when entities load; `simulated_daily_limit` counts, so a rehearsal budget also drops it. On a 100-call budget the zone poll runs about every 28–37 minutes ([QUOTA_100.md](QUOTA_100.md)), longer than the window, so an open-and-close between two polls never shows.
+
 ---
 
 ## Offline valves
