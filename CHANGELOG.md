@@ -1,3 +1,39 @@
+## [5.14.0-dev.5](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.4...v5.14.0-dev.5) (2026-11-09)
+
+### ✨ New Features
+
+* feat(sensor): expose zone temperature from the zone poll
+
+  A standalone sensor.temperature next to sensor.humidity, reading the
+  inside temperature data point the zone poll already carries — no extra
+  API calls. It gives dashboards a temperature entity that does not depend
+  on the climate, which matters most in full cloud mode where the climate
+  attribute would otherwise be the only reading for the zone.
+
+  Documented in FEATURES.md and the README entity table.
+
+### 🐛 Bug Fixes
+
+* fix(proxy): remove leftover proxy copies when proxying turns off
+
+  Disabling local entity copying (full cloud mode on, attach on, or the
+  proxy toggle off) shut the manager down but left the previously created
+  registry entries behind as permanently unavailable ghosts. On startup
+  with proxying inactive, registry entries with the proxy unique-id prefix
+  are now removed, matching the timetable cleanup pattern.
+
+### 📚 Documentation
+
+* docs(readme): explain the API cost of full cloud mode
+
+  A user reported the quota impact of full cloud mode was scattered
+  across the page and hard to identify. The section now states it in one
+  place: polling is unchanged, control writes become roughly one cloud
+  call per interaction, softened by debounce/merge, the Tado X
+  house-wide call, and the cached default-overlay GET. Also notes that
+  the attach and reverse-link toggles are ignored while full cloud mode
+  is on.
+
 ## [5.14.0-dev.4](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.3...v5.14.0-dev.4) (2026-11-09)
 
 ### 🐛 Bug Fixes
