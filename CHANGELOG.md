@@ -1,3 +1,55 @@
+## [5.14.0-dev.2](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.1...v5.14.0-dev.2) (2026-11-09)
+
+### ✨ New Features
+
+* feat(binary_sensor): expose Tado X open-window detection per room
+
+  A new binary_sensor.open_window per Tado X heating room turns on while
+  Tado's own open-window detection is active. It reads openWindow from the
+  room poll the integration already makes, so it adds no API calls.
+
+  The sensor is only created when the effective daily API limit is at
+  least 1000 (simulated_daily_limit counts). Tado's detection window is
+  short, commonly 900 seconds, so the reading is only meaningful when the
+  zone poll is faster than the window. On a 100-call budget the poll runs
+  every 28-37 minutes and an open-and-close between two polls never
+  shows, so the sensor is left out entirely there.
+
+  TadoXZoneState.open_window_detected always returned False before: the
+  open_window field is typed Any, so pydantic keeps it a plain dict and
+  getattr() never found the activated key. The property now reads dicts
+  with .get() and keeps the getattr path for objects, treating a payload
+  without the key as not activated.
+
+  yield_zones now applies the zone-type filter to Tado X rooms too.
+  Tado X rooms map to HEATING in unify_zone, so callers filtering for
+  heating keep receiving every room; definitions restricted to other
+  types no longer spawn entities on Tado X.
+
+  Documented in FEATURES.md (windows), TADO_API.md Part 4 duck-typing,
+  and the README entity table.
+* feat(sensor): expose Classic override timing on zone mode sensors
+
+  The Classic zone mode sensor now exposes override_termination while an
+  override is active, and override_expires_at when Tado supplies a
+  deadline. Both come from the existing zone poll. The deserialization
+  patch preserves termination.expiry by copying it into projectedExpiry
+  before tadoasync drops the field.
+
+  The api manager queue now carries each command with its debounce key
+  instead of reconstructing keys afterwards, and finished entries only
+  clear when no newer write replaced them. The redundancy filter no
+  longer suppresses overlay writes whose termination carries a timer, so
+  re-arming a countdown reaches Tado. With refresh_after enabled, Classic
+  timer writes share a zone poll to read back the confirmed deadline.
+
+  state_patcher.active_termination centralizes where an active
+  termination lives (Tado X manual_control_termination, Classic
+  overlay.termination) for the sensor and the redundancy filter.
+
+  Documented in FEATURES.md (batching, suppression, zone mode sensor)
+  and TADO_API.md Part 2 Patch 1.
+
 ## [5.14.0-dev.1](https://github.com/banter240/tado_hijack/compare/v5.13.1-dev.3...v5.14.0-dev.1) (2026-11-07)
 
 ### ✨ New Features
