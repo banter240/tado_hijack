@@ -287,12 +287,27 @@ class LocalProxyManager:
 
     async def async_start(self) -> None:
         """Watch the registry for local entities that appear after setup."""
-        if self._unsub is not None or not self.active:
+        if self._unsub is not None:
+            return
+        if not self.active:
+            self._remove_leftovers()
             return
         self._unsub = self._coordinator.hass.bus.async_listen(
             EVENT_ENTITY_REGISTRY_UPDATED, self._on_registry_update
         )
         self._add_missing()
+
+    def _remove_leftovers(self) -> None:
+        """Drop proxy copies left behind by a disabled proxy mode."""
+        if self._coordinator.config_entry is None:
+            return
+        hass = self._coordinator.hass
+        entry_id = self._coordinator.config_entry.entry_id
+        e_reg = er.async_get(hass)
+        prefix = f"{entry_id}_local_"
+        for entity in er.async_entries_for_config_entry(e_reg, entry_id):
+            if (entity.unique_id or "").startswith(prefix):
+                e_reg.async_remove(entity.entity_id)
 
     def shutdown(self) -> None:
         if self._unsub is not None:
