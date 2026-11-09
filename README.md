@@ -567,8 +567,16 @@ The tracker reads the current entity state at mapping time and watches the entit
 > - Tado on r/tado, 26 May 2026: they maintain 1,000 requests/day and plan to reduce that further. Auto-Assist and AI Assist stay at 20,000
 > - On V3 and Tado X, leave the climate created in HomeKit or Matter. Reverse linking shows it on the Hijack device. Spend the header budget on schedules, presence, hot water, and hardware settings
 >
+> **What full cloud mode costs:**
+> - Polling stays exactly the same — zone states, presence and hardware metadata are fetched either way; the mode only decides where the climate entity reads from
+> - Control writes (target temperature, on/off) leave the free local HomeKit/Matter path and become cloud calls: roughly 1 call per interaction
+> - Softeners: writes are debounced (5 s default) and merged, so slider drags collapse into one call; on Tado X an identical change across all rooms is one house-wide call; the first setpoint per zone after a restart costs one extra GET (default overlay rule, cached afterwards)
+> - Diagnostics count user actions separately from polling — watch the API remaining sensor for a day to see your real interaction cost
+> - While full cloud mode is on, the _Attach to HomeKit / Matter_ and _Reverse link onto Hijack_ toggles are ignored (the local entity paths are off); turning full cloud mode off re-enables them
+>
 > **Configuration:**
 > - Enable during setup: Config Flow → **Full Cloud Mode** toggle
+> - Or switch anytime: Configure → **Features** section (re-add not needed; per-zone links survive)
 
 <br>
 
