@@ -13,6 +13,7 @@ from ..const import (
     POWER_ON,
     TEMP_MAX_AC,
     TEMP_MAX_HEATING,
+    TEMP_MAX_HEATING_X,
     TEMP_MAX_HOT_WATER,
     TERMINATION_MANUAL,
     TERMINATION_NEXT_TIME_BLOCK,
@@ -33,15 +34,24 @@ _LOGGER = get_redacted_logger(__name__)
 def get_capped_temperature(
     zone_id: int, temperature: float, zones_meta: dict[int, Zone]
 ) -> float:
-    """Get safety-capped temperature based on zone type."""
+    """Get safety-capped temperature based on zone type.
+
+    V3 Classic heating stops at 25°C. A Tado X room (Hops snapshot, ``room_id``)
+    accepts 30°C, matching the Matter climate and the ``set_mode`` selector.
+    """
     from .zone_utils import get_zone_type
 
     zone = zones_meta.get(zone_id)
     ztype = get_zone_type(zone)
 
-    limit = TEMP_MAX_HEATING if ztype == ZONE_TYPE_HEATING else TEMP_MAX_AC
     if ztype == ZONE_TYPE_HOT_WATER:
         limit = TEMP_MAX_HOT_WATER
+    elif ztype == ZONE_TYPE_HEATING and getattr(zone, "room_id", None) is not None:
+        limit = TEMP_MAX_HEATING_X
+    elif ztype == ZONE_TYPE_HEATING:
+        limit = TEMP_MAX_HEATING
+    else:
+        limit = TEMP_MAX_AC
 
     return min(temperature, limit)
 
