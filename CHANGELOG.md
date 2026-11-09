@@ -1,3 +1,19 @@
+## [5.14.0-dev.4](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.3...v5.14.0-dev.4) (2026-11-09)
+
+### 🐛 Bug Fixes
+
+* fix(climate): cap Tado X heating setpoints at 30°C
+
+  get_capped_temperature clamped every heating zone to 25°C, the classic
+  TRV hardware limit. Tado X rooms accept 30 — the integration itself
+  offers it on the climate entity, the set_mode selector, and the Matter
+  bridge — only for the overlay builder to rewrite it down to 25. The
+  selector offered and the device accepted, the valve followed the cap.
+
+  Classic heating stays capped at 25°C.
+
+  Documented in FEATURES.md.
+
 ## [5.14.0-dev.3](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.2...v5.14.0-dev.3) (2026-11-09)
 
 ### ✨ New Features
