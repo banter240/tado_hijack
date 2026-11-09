@@ -88,6 +88,9 @@
       "humidity": {
         "name": "Vlhkost"
       },
+      "temperature": {
+        "name": "Teplota"
+      },
       "local_humidity": {
         "name": "Vlhkost"
       },

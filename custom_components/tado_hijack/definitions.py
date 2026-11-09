@@ -1606,6 +1606,17 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         unique_id_suffix="mode",
     ),
     create_zone_sensor(
+        key="temperature",
+        value_fn=lambda c, zid: _get_zone_sensor_data(
+            c, zid, "inside_temperature", "celsius"
+        ),
+        unit=UnitOfTemperature.CELSIUS,
+        state_class=SensorStateClass.MEASUREMENT,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        supported_zone_types={ZONE_TYPE_HEATING, ZONE_TYPE_AIR_CONDITIONING},
+        unique_id_suffix="temp",
+    ),
+    create_zone_sensor(
         key="humidity",
         value_fn=lambda c, zid: _get_zone_sensor_data(c, zid, "humidity"),
         unit="%",

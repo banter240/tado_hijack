@@ -94,6 +94,8 @@ Absolute humidity and ventilation exist only when an outdoor source is set: eith
 
 Room temperature (`_get_room_temp_celsius`): the temperature-source select when it is not `device`, else the full-cloud climate or the HomeKit/Matter climate in `_climate_to_zone` (`current_temperature`), else the zone inside temperature. Room humidity (`_get_room_rh`): the humidity-source select when it is not `device`. A climate selected there is read as `current_humidity`. On `device`, humidity is this integration's humidity sensor, then the zone humidity. The serial match does not read the Matter climate's humidity. Offset calibration is separate and runs only with an explicit temperature-source entity.
 
+The zone poll carries the inside temperature too, and `sensor.temperature` reads it the same way `sensor.humidity` reads the humidity data point — a standalone temperature entity for dashboards, which matters most in full cloud mode where the climate attribute would otherwise be the only reading.
+
 A cloud inside temperature or humidity is used only while its own timestamp is at most four hours old. A sample with no timestamp stays, which includes every Tado X cloud sample. A linked Home Assistant entity is unchanged. The full-cloud climate drops the same stale temperature and humidity. The HomeKit or Matter clone keeps the value from that device.
 
 Heating power is the zone percentage from the room poll. The home binary `heating_demand` is on when any heating zone's power is above 0. That is not a boiler-modulation reading.

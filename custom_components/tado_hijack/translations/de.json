@@ -88,6 +88,9 @@
       "humidity": {
         "name": "Luftfeuchtigkeit"
       },
+      "temperature": {
+        "name": "Temperatur"
+      },
       "local_humidity": {
         "name": "Luftfeuchtigkeit"
       },

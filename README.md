@@ -726,6 +726,7 @@ Zone-level controls. Many of these are cloud-only features that HomeKit does not
 | `sensor.zone_mode` | Sensor | cloud | **Mode:** Current operating mode: `schedule`, `manual`, `boost`, `off`. Classic: boost detected via 25°C setpoint. Tado X: native boost field. Heating and AC zones only. |
 | `sensor.heating_power` | Sensor | cloud | Zone heating power % from the room poll. |
 | `binary_sensor.cloud_open_window` | Binary Sensor | cloud | `ON` while Tado's own open-window detection is active in the zone/room, from the regular zone poll (no extra API calls). Tado X reads `openWindow.activated`; classic zones attach the `openWindow` object only while a detection runs. Only created when the daily API limit is at least 1000 — on a tight budget the zone poll is slower than the short detection window (see docs/QUOTA_100.md). |
+| `sensor.temperature` | Sensor | cloud | Cloud zone temperature (°C) from the zone poll. In full cloud mode this is the only standalone temperature entity for the zone. |
 | `sensor.humidity` | Sensor | cloud | Cloud zone humidity. |
 | `sensor.dew_point` | Sensor | local | **Climate:** Dew point (°C), Magnus, from the temperature and humidity chains above. Enabled via _Dew Point Sensor_. |
 | `sensor.mold_risk_level` | Sensor | local | **Climate:** Mold risk level: `none` / `low` / `medium` / `high`. Uses dew point spread — cold-but-dry rooms correctly show `none`. Enabled via _Mold Risk Sensors_ feature flag. |
