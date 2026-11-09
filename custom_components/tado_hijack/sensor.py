@@ -112,7 +112,7 @@ class TadoGenericZoneSensor(TadoZoneEntity, TadoGenericEntityMixin, SensorEntity
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Expose linked window contacts or Classic override timing."""
+        """Expose linked window contacts or an active overlay timer."""
         attrs: dict[str, Any] = dict(super().extra_state_attributes or {})
         if self._definition["key"] == WINDOW_CONTACTS:
             attrs["contacts"] = self.coordinator.window_controller.zone_window_contacts(
@@ -120,19 +120,35 @@ class TadoGenericZoneSensor(TadoZoneEntity, TadoGenericEntityMixin, SensorEntity
             )
         elif (
             self._definition["key"] == "zone_mode"
-            and self.coordinator.generation == GEN_CLASSIC
             and f"zone_{self._zone_id}" not in self.coordinator.api_manager.pending_keys
         ):
             zone = self.coordinator.data.zone_states.get(str(self._zone_id))
             termination = active_termination(zone)
             if getattr(zone, "overlay_active", False) and termination is not None:
-                kind = termination.type
-                if termination.type_skill_based_app == TERMINATION_NEXT_TIME_BLOCK:
-                    kind = TERMINATION_NEXT_TIME_BLOCK
-                attrs["override_termination"] = kind
-                expiry = termination.projected_expiry or getattr(
-                    getattr(zone, "overlay", None), "projected_expiry", None
-                )
-                if kind != TERMINATION_MANUAL and expiry:
-                    attrs["override_expires_at"] = expiry
+                self._overlay_timing_attributes(attrs, zone, termination)
         return attrs
+
+    def _overlay_timing_attributes(
+        self, attrs: dict[str, Any], zone: Any, termination: Any
+    ) -> None:
+        """Publish the active overlay deadline. Classic and Tado X differ in shape."""
+        if self.coordinator.generation == GEN_CLASSIC:
+            kind = termination.type
+            if termination.type_skill_based_app == TERMINATION_NEXT_TIME_BLOCK:
+                kind = TERMINATION_NEXT_TIME_BLOCK
+            attrs["override_termination"] = kind
+            expiry = termination.projected_expiry or getattr(
+                getattr(zone, "overlay", None), "projected_expiry", None
+            )
+            if kind != TERMINATION_MANUAL and expiry:
+                attrs["override_expires_at"] = expiry
+            return
+        if self.coordinator.generation != GEN_X:
+            return
+        kind = termination.type
+        attrs["override_termination"] = kind
+        if kind != TERMINATION_MANUAL and termination.projected_expiry:
+            attrs["override_expires_at"] = termination.projected_expiry
+        remaining = termination.remaining_time_in_seconds
+        if isinstance(remaining, int) and remaining > 0:
+            attrs["remaining_time_in_seconds"] = remaining
