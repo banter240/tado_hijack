@@ -13,6 +13,7 @@ from ..const import (
     POWER_ON,
     TEMP_MAX_AC,
     TEMP_MAX_HEATING,
+    TEMP_MAX_HEATING_X,
     TEMP_MAX_HOT_WATER,
     TERMINATION_MANUAL,
     TERMINATION_NEXT_TIME_BLOCK,
@@ -42,6 +43,13 @@ def get_capped_temperature(
     limit = TEMP_MAX_HEATING if ztype == ZONE_TYPE_HEATING else TEMP_MAX_AC
     if ztype == ZONE_TYPE_HOT_WATER:
         limit = TEMP_MAX_HOT_WATER
+    elif ztype == ZONE_TYPE_HEATING:
+        # 25 is the classic TRV hardware limit, not a Tado X one.
+        limit = (
+            TEMP_MAX_HEATING_X
+            if getattr(zone, "room_id", None) is not None
+            else TEMP_MAX_HEATING
+        )
 
     return min(temperature, limit)
 

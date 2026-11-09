@@ -302,7 +302,8 @@ OFF_MAGIC_TEMP: Final = (
 )  # Magic temperature value to signal OFF mode in merged overlays
 
 # Temperature Limits
-TEMP_MAX_HEATING: Final = 25.0
+TEMP_MAX_HEATING: Final = 25.0  # classic TRV limit
+TEMP_MAX_HEATING_X: Final = 30.0
 TEMP_MIN_HOT_WATER: Final = 30.0
 TEMP_MAX_HOT_WATER: Final = 65.0
 TEMP_MAX_HOT_WATER_OVERRIDE: Final = 70.0  # Absolute limit for HW sliders
