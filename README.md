@@ -750,7 +750,7 @@ Zone-level controls. Many of these are cloud-only features that HomeKit does not
 
 <br>
 
-**Classic override timing:** The zone mode sensor exposes `override_termination` while Tado reports an active override. `MANUAL` means it stays in effect until you resume the schedule. When Tado supplies a deadline, `override_expires_at` contains its ISO 8601 timestamp. These attributes use the existing zone poll.
+**Override timing:** The zone mode sensor exposes `override_termination` while Tado reports an active override. `MANUAL` means it stays in effect until you resume the schedule. When Tado supplies a deadline, `override_expires_at` contains its ISO 8601 timestamp. Tado X additionally exposes `remaining_time_in_seconds` on the same poll. These attributes use the existing zone poll.
 
 > [!NOTE]
 > **Schedule Planning Sensors:**

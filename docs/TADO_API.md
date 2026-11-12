@@ -452,6 +452,8 @@ GET: rooms
 
 The room list is validated as `TadoXZoneState`. `sensorDataPoints` may be null. Temperature and humidity are then unknown.
 
+Each room carries `manualControlTermination` while a manual overlay is active (validated into `TadoXZoneState.manual_control_termination`; `overlay_active` is derived from it). The termination has `type` plus optional `remainingTimeInSeconds` and `projectedExpiry` (ISO 8601). Recorded payloads (PyTado fixtures, `manual_mode`/`manual_off`): `type` arrives as `NEXT_TIME_BLOCK` alongside `remainingTimeInSeconds` and `projectedExpiry` together; there is no `typeSkillBasedApp` on this field. Issue #196 field-confirms a TIMER overlay keeps the field populated while the room reads `manual` (5.14.0-dev.4). Uncaptured: a duration arriving without `projectedExpiry`, the case the reporter expected. See `dev/workspace/filebox/tadox/manual-control-termination-field-notes.md`.
+
 #### async_get_room(room_id: int) -> dict
 
 GET: rooms/{room_id}

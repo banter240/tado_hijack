@@ -162,7 +162,7 @@ While a command is pending, the fields it affects are locked — stale poll data
 
 | Command key | Protected fields |
 |---|---|
-| `zone_*` (overlay/resume/cancel) | `overlay`, `overlay_active`, `setting` |
+| `zone_*` (overlay/resume/cancel) | `overlay`, `overlay_active`, `setting`, `manual_control_termination` |
 | `presence` | `presence`, `presence_locked` |
 | `flow_temp` | `max_flow_temperature`, `flow_auto_adaptation` |
 | device keys (e.g. offsets) | none (device-level only) |

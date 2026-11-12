@@ -11,10 +11,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
-    GEN_CLASSIC,
     GEN_X,
-    TERMINATION_MANUAL,
-    TERMINATION_NEXT_TIME_BLOCK,
     WINDOW_CONTACTS,
     ZONE_TYPE_HOT_WATER,
 )
@@ -26,7 +23,7 @@ from .entity import (
 )
 from .helpers.entity_setup import async_setup_generic_platform
 from .helpers.logging_utils import get_redacted_logger
-from .helpers.state_patcher import active_termination
+from .helpers.state_patcher import override_timing_attributes
 from .models import TadoEntityDefinition
 
 if TYPE_CHECKING:
@@ -112,7 +109,7 @@ class TadoGenericZoneSensor(TadoZoneEntity, TadoGenericEntityMixin, SensorEntity
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Expose linked window contacts or Classic override timing."""
+        """Expose linked window contacts or the active overlay timer."""
         attrs: dict[str, Any] = dict(super().extra_state_attributes or {})
         if self._definition["key"] == WINDOW_CONTACTS:
             attrs["contacts"] = self.coordinator.window_controller.zone_window_contacts(
@@ -120,19 +117,8 @@ class TadoGenericZoneSensor(TadoZoneEntity, TadoGenericEntityMixin, SensorEntity
             )
         elif (
             self._definition["key"] == "zone_mode"
-            and self.coordinator.generation == GEN_CLASSIC
             and f"zone_{self._zone_id}" not in self.coordinator.api_manager.pending_keys
         ):
             zone = self.coordinator.data.zone_states.get(str(self._zone_id))
-            termination = active_termination(zone)
-            if getattr(zone, "overlay_active", False) and termination is not None:
-                kind = termination.type
-                if termination.type_skill_based_app == TERMINATION_NEXT_TIME_BLOCK:
-                    kind = TERMINATION_NEXT_TIME_BLOCK
-                attrs["override_termination"] = kind
-                expiry = termination.projected_expiry or getattr(
-                    getattr(zone, "overlay", None), "projected_expiry", None
-                )
-                if kind != TERMINATION_MANUAL and expiry:
-                    attrs["override_expires_at"] = expiry
+            attrs |= override_timing_attributes(zone)
         return attrs
