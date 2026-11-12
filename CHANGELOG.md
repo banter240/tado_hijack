@@ -1,3 +1,55 @@
+## [5.14.0-dev.6](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.5...v5.14.0-dev.6) (2026-11-12)
+
+### 🐛 Bug Fixes
+
+* fix(sensor): expose overlay timing attributes on Tado X zone_mode
+
+  The zone mode sensor published override_termination and
+  override_expires_at only for Classic because the Tado X
+  ManualControlTermination lacks type_skill_based_app and the sensor
+  read it unconditionally.
+
+  The timing shape now lives in state_patcher.override_timing_attributes,
+  next to active_termination, and dispatches by model shape instead of a
+  generation gate: NEXT_TIME_BLOCK mapping and the overlay.projected_expiry
+  fallback only exist on Classic, remaining_time_in_seconds only on Tado X.
+  Recorded payloads deliver the X subfields together (PyTado fixtures),
+  but the helper stays defensive for either arriving alone.
+
+  While a zone write is pending, the poll merge now also protects
+  manual_control_termination, so it cannot wipe the optimistic Tado X
+  timer before the server confirms.
+
+### 📚 Documentation
+
+* docs(api): publish recorded Tado X request collection, slim TADO_API against specs
+
+  There is no official Tado X API documentation, so the collection records
+  verified Hops request bodies plus the classic v2 and EnergyIQ endpoints a
+  LINE_X home also accepts. Published as docs/tadox_api_collection.json,
+  based on gedhi/tadox-postman-collection (GPL-3.0), extended with recorded
+  payload fixtures, verified write endpoints (manualControl resume, room
+  schedule, quick actions, fused device patch, flow temperature
+  optimization), and the 2026-10-15 empty-homes GET probe. gedhi issue 3
+  independently confirms the manualControl temperature.value termination
+  shape; issue 1 evidence is folded in (classic device offset/humidity
+  endpoints annotated non-working on X, installations returns content on
+  X but an empty array on V3+, tariff-experience and susi subdomains noted
+  as out of scope).
+
+  Format cleanup after a structural pass: duplicate refresh_token variable
+  deduplicated, missing roomId variable added (used by every room-level
+  request). The collection passes through pretty-format-json like every
+  other JSON in the repo; the filebox working copy is kept in the same
+  normalized format.
+
+  TADO_API.md aligns the manualControl payload with the shipped code and
+  keeps only what the kritsel v2 spec and the collection do not offer:
+  tadoasync patches, Hops quirks (404 stand-in, ngsw-bypass,
+  Content-Type), scheduling and quota rationale, generation routing, and
+  why-bulk/why-fused notes. Standard payload samples and tables were
+  dropped in favour of cross-references.
+
 ## [5.14.0-dev.5](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.4...v5.14.0-dev.5) (2026-11-09)
 
 ### ✨ New Features
