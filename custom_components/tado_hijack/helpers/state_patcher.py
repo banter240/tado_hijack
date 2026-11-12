@@ -7,6 +7,7 @@ from typing import Any
 
 from tadoasync.models import Overlay, Temperature, Termination
 
+from ..const import TERMINATION_MANUAL, TERMINATION_NEXT_TIME_BLOCK
 from ..lib.tadox_models import HopsTemperature, ManualControlTermination
 from .logging_utils import get_redacted_logger
 
@@ -116,6 +117,40 @@ def active_termination(state: Any) -> Any | None:
     if term is not None:
         return term
     return getattr(getattr(state, "overlay", None), "termination", None)
+
+
+def override_timing_attributes(state: Any) -> dict[str, Any]:
+    """Attributes describing an active override termination, if any.
+
+    Shape-based, so both generations pass without a generation gate:
+    Classic nests the termination under overlay and maps NEXT_TIME_BLOCK
+    from type_skill_based_app, Tado X keeps it on manual_control_termination
+    with an optional remaining_time_in_seconds. Empty dict when no overlay
+    is active or the termination is missing.
+    """
+    if state is None or not getattr(state, "overlay_active", False):
+        return {}
+    termination = active_termination(state)
+    if termination is None:
+        return {}
+    kind = getattr(termination, "type", None)
+    if (
+        getattr(termination, "type_skill_based_app", None)
+        == TERMINATION_NEXT_TIME_BLOCK
+    ):
+        kind = TERMINATION_NEXT_TIME_BLOCK
+    if not kind:
+        return {}
+    attrs: dict[str, Any] = {"override_termination": kind}
+    if kind != TERMINATION_MANUAL:
+        if expiry := termination.projected_expiry or getattr(
+            getattr(state, "overlay", None), "projected_expiry", None
+        ):
+            attrs["override_expires_at"] = expiry
+    remaining = getattr(termination, "remaining_time_in_seconds", None)
+    if isinstance(remaining, int) and remaining > 0:
+        attrs["remaining_time_in_seconds"] = remaining
+    return attrs
 
 
 def patch_zone_resume(current_state: Any | None) -> Any | None:
