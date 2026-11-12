@@ -6,9 +6,11 @@
 > were rechecked against the client on 15 October 2026.
 > The old "verified at 7166d36" stamp is retired; the rest of this file
 > was not re-audited line by line.
-> This document describes how the integration talks to the Tado APIs, which
-> endpoints it uses, and why each layer exists. The public kritsel v2
-> OpenAPI spec does not cover most of what follows.
+> This document describes how the integration talks to the Tado APIs and
+> why each layer exists. Standard classic v2 payload shapes are covered by
+> the public kritsel v2 OpenAPI spec (MIT); recorded Hops and classic-on-X
+> request bodies live in `docs/tadox_api_collection.json`. This file keeps
+> only what those two do not offer: patches, quirks, scheduling, and why.
 
 ---
 
@@ -232,6 +234,12 @@ These are custom methods added on top of the stock `tadoasync.Tado` API.
 Every call goes through `TadoRequestHandler` (Part 1 §4).
 All paths are relative to `homes/{home_id}/` unless stated otherwise.
 
+Scope: standard classic payload shapes are covered by the public kritsel v2
+OpenAPI spec (MIT, https://github.com/kritsel/tado-openapispec-v2). This part
+keeps only what that spec does not offer: undocumented endpoints, bulk
+variants, per-endpoint why, and how the call is scheduled by the integration.
+For recorded Hops/classic request bodies see `docs/tadox_api_collection.json`.
+
 ## 3.1 Bulk Overlay Operations
 
 ### reset_all_zones_overlay(zones: list[int]) -> None
@@ -270,13 +278,8 @@ Tado X hot water is not this overlay. It is the Hops programmer (`programmer/dom
 ### set_temperature_offset(serial_no: str, offset: float) -> None
 
 **Endpoint:** `PUT homes/{home_id}/devices/{serial_no}/temperatureOffset`
-
-**Payload:**
-
-    {"celsius": <float>}
-
-**Why:** device-level temperature calibration. On Tado X the equivalent is
-part of device fusion (Part 4).
+(payload shape in the kritsel spec). Device-level calibration; the Tado X
+equivalent is device fusion (Part 4 §4.8).
 
 ## 3.4 Zone-Level Settings (undocumented endpoints)
 
@@ -332,9 +335,8 @@ Classic schedules = active timetable + blocks per day type.
 
 ### Active Timetable
 
-- `get_active_timetable(zone_id)` → `GET .../zones/{zone_id}/schedule/activeTimetable`
-- `set_active_timetable(zone_id, timetable_id)` →
-  `PUT .../zones/{zone_id}/schedule/activeTimetable` with `{"id": timetable_id}`
+- `get/set_active_timetable(zone_id, ...)` →
+  `GET/PUT .../zones/{zone_id}/schedule/activeTimetable` (payload shapes in the kritsel spec)
 
 ### Timetable Blocks
 
@@ -359,27 +361,7 @@ our overridden `_request`:
 | `set_zone_overlay` / `reset_zone_overlay` | `PUT/DELETE .../zones/{z}/overlay` | Single-zone fallback |
 | `get_capabilities` | `GET .../zones/{z}/capabilities` | Detects what a zone supports |
 
-## 3.8 Summary Table
-
-| Method | HTTP + Path | Purpose |
-|---|---|---|
-| `reset_all_zones_overlay` | `DELETE /overlay?rooms=` | Bulk overlay reset |
-| `set_all_zones_overlay` | `POST /overlay` | Bulk overlay set |
-| `set_hot_water_zone_overlay` | `PUT /zones/{z}/overlay` | Defined, no caller. Live hot-water overlays use the bulk POST |
-| `reset_hot_water_zone_overlay` | `DELETE /zones/{z}/overlay` | Hot water resume. The bulk DELETE rejects these ids |
-| `set_temperature_offset` | `PUT /devices/{serial}/temperatureOffset` | Calibration |
-| `get/set_away_configuration` | `GET/PUT /zones/{z}/awayConfiguration` | Away behavior |
-| `set_dazzle_mode` | `PUT /zones/{z}/dazzle` | Dazzle protection |
-| `get/set_early_start` | `GET/PUT /zones/{z}/earlyStart` | Pre-heating |
-| `list_boiler_drivers` | `GET /heatingCircuits` | Boiler drivers, once per setup, option off by default |
-| `read_zone_control` | `GET /zones/{z}/control` | Current driver, only when two or more drivers exist |
-| `assign_zone_circuit` | `PUT /zones/{z}/control/heatingCircuit` | Assign or clear a driver |
-| `set_open_window_detection` | `PUT /zones/{z}/openWindowDetection` | OWD config |
-| `identify_device` | `POST /devices/{serial}/identify` | Flash device |
-| `get/set_active_timetable` | `GET/PUT /zones/{z}/schedule/activeTimetable` | Switch timetable |
-| `get/set_timetable_blocks` | `GET/PUT /zones/{z}/schedule/timetables/{tt}/blocks[/{dayType}]` | Schedule edit |
-
-## 3.9 File Map
+## 3.8 File Map
 
 - Implementation: `helpers/client.py`
 - Handler: `helpers/tado_request_handler.py` (Part 1 §4)
@@ -462,17 +444,20 @@ Detailed snapshot for one room (used by coordinators).
 
 ### 4.2 Manual Control (Overlay Equivalent)
 
-#### async_manual_control_set(room_id: int, payload: dict) -> None
+#### async_set_manual_control(room_id, temperature, power, termination_type, duration_seconds) -> Any
 
 POST: rooms/{room_id}/manualControl
 
-Payload shape:
+Request bodies (ON/OFF x MANUAL/TIMER/NEXT_TIME_BLOCK) are recorded in
+`docs/tadox_api_collection.json` ("Set Manual Control", independently
+confirmed by the community). `temperature.value` is omitted for OFF. Timer
+writes send `durationInSeconds`. Supported termination types: `MANUAL`,
+`TIMER`, `NEXT_TIME_BLOCK`; the executor validates the requested type and
+falls back to MANUAL on rejection — manualControl silently ignores
+unsupported types. The quick-action boost sets `isBoost: true` server-side
+via `POST quickActions/boost`, not through this payload.
 
-    {"setting": {"type": "HEATING", "power": "ON", "temperature": {"celsius": 21.5}}}
-
-Termination: Unlike classic's "termination": "MANUAL", Hops uses implicit session expiry or a subsequent resumeSchedule call.
-
-#### async_manual_control_resume(room_id: int) -> None
+#### async_resume_schedule(room_id: int) -> Any
 
 DELETE: rooms/{room_id}/manualControl
 
@@ -506,24 +491,10 @@ Returns the room and `schedule`, a list of blocks. Each block has `dayType`
 
 POST: rooms/{room_id}/schedule
 
-One weekday per call:
-
-```json
-{
-  "dayType": "TUESDAY",
-  "daySchedule": [
-    {
-      "start": "00:00",
-      "end": "24:00",
-      "dayType": "TUESDAY",
-      "setting": {"power": "ON", "temperature": {"value": 20}}
-    }
-  ]
-}
-```
-
-`set_schedule` with `all_days` posts that once per weekday. `days` posts
-only the named weekdays. `one_day`, `three_day`, and `activate` are classic.
+One weekday per call; the exact body is recorded in
+`docs/tadox_api_collection.json` ("Set Room Schedule"). `set_schedule` with
+`all_days` posts that once per weekday. `days` posts only the named
+weekdays. `one_day`, `three_day`, and `activate` are classic.
 
 ### 4.5 Flow Temperature Optimization (Boiler)
 
@@ -567,20 +538,11 @@ GET: programmer/domesticHotWater/schedule
 
 PUT: programmer/domesticHotWater/schedule
 
-One weekday per call. Tado answers 204 with an empty body.
-
-```json
-{
-  "dayType": "MONDAY",
-  "daySchedule": [
-    {"start": "00:00", "end": "05:00", "power": "OFF"},
-    {"start": "05:00", "end": "20:00", "power": "ON"},
-    {"start": "20:00", "end": "24:00", "power": "OFF"}
-  ]
-}
-```
-
-`set_schedule` on `water_heater.hot_water` writes that once per named weekday. `all_days` is seven PUTs. The cache updates only after Tado accepts the write.
+One weekday per call; the exact body is recorded in
+`docs/tadox_api_collection.json` ("Replace Hot Water Weekday"). Tado answers
+204 with an empty body. `set_schedule` on `water_heater.hot_water` writes
+that once per named weekday. `all_days` is seven PUTs. The cache updates
+only after Tado accepts the write.
 
 ### 4.7 Open Window Helper
 
@@ -887,23 +849,18 @@ cached and the poll spends one call once.
 
 ## Classic v2 API (my.tado.com/api/v2, paths relative to homes/{home_id}/)
 
+Standard zone/device operations are fully covered by the kritsel v2 spec;
+recorded bodies are in `docs/tadox_api_collection.json`. Listed here are
+only the endpoints outside that coverage:
+
 | Category | Method | Path | Purpose |
 |---|---|---|---|
-| Bulk | DELETE | /overlay?rooms= | Reset overlays for multiple zones |
-| Bulk | POST | /overlay | Set overlays for multiple zones |
-| Hot Water | POST | /overlay | Hot-water overlays share the bulk overlay POST |
-| Hot Water | DELETE | /zones/{z}/overlay | Hot-water resume. The bulk DELETE rejects these ids. The per-zone PUT exists and has no caller |
-| Device | PUT | /devices/{serial}/temperatureOffset | Temperature calibration |
-| Device | PUT | /devices/{serial}/childLock | Child lock toggle |
-| Device | POST | /devices/{serial}/identify | Flash device |
-| Zone | GET/PUT | /zones/{z}/awayConfiguration | Away mode config |
-| Zone | PUT | /zones/{z}/dazzle | Dazzle mode |
-| Zone | GET/PUT | /zones/{z}/earlyStart | Early start |
-| Zone | PUT | /zones/{z}/openWindowDetection | Open window detection |
-| Schedule | GET/PUT | /zones/{z}/schedule/activeTimetable | Switch timetable |
-| Schedule | GET/PUT | /zones/{z}/schedule/timetables/{tt}/blocks[/{dayType}] | Timetable blocks |
-| Presence | PUT/DELETE | /presenceLock | Geofencing override (PUT) / AUTO (DELETE) |
-| Capabilities | GET | /zones/{z}/capabilities | Zone capabilities |
+| Bulk | DELETE | /overlay?rooms= | Reset overlays for multiple zones (undocumented) |
+| Bulk | POST | /overlay | Set overlays for multiple zones (undocumented) |
+| Hot Water | DELETE | /zones/{z}/overlay | Hot-water resume; the bulk DELETE rejects these ids |
+| Boiler | GET | /heatingCircuits | Driver list, once per setup (undocumented) |
+| Boiler | GET/PUT | /zones/{z}/control[/heatingCircuit] | Driver assignment (undocumented) |
+| Presence | PUT/DELETE | /presenceLock | Geofencing override; also the write path for Tado X homes |
 
 ## Hops API (hops.tado.com)
 
@@ -950,3 +907,13 @@ cached and the poll spends one call once.
 - 1 November 2026: the flow-temperature GET moved from dead
   `async_fetch_unified_data` to `async_fetch_metadata` (entities are now
   created); §4.5 and §5.6 updated accordingly.
+- 12 November 2026: §4.2 manualControl payload aligned with the shipped code;
+  Part 3 scoped against the kritsel v2 spec; the recorded request collection
+  published as `docs/tadox_api_collection.json` (GPL-3.0, based on
+  gedhi/tadox-postman-collection, extended with verified write endpoints and
+  classic-on-X evidence). Later the same day: payload samples in Parts 3–4
+  deduplicated into the collection after reviewing gedhi issues #1 and #3
+  (community confirmation of the manualControl shape; classic device
+  offset/humidity endpoints reported non-working on Tado X; installations
+  answers content on X, empty on V3+; tariff-experience and susi subdomains
+  noted).

@@ -1,0 +1,2773 @@
+{
+  "info": {
+    "_postman_id": "180a57f1-cf5a-45fe-be1d-c3cfe1f34cdc",
+    "name": "TadoX API Collection",
+    "description": "Tado X (Hops) API requests. There is no official Tado X API documentation. Copyright (C) 2026 banter240/tado_hijack contributors. Extended from gedhi/tadox-postman-collection (https://github.com/gedhi/tadox-postman-collection). Licensed GPL-3.0: https://www.gnu.org/licenses/gpl-3.0.html. Covers hops.tado.com plus the classic v2 (my.tado.com) endpoints a Tado X home also accepts. A Hops 404 is not 'no X hardware'. Generation is on GET /api/v2/homes/{{homeId}}, not on /me. Community classic v2 OpenAPI spec: https://github.com/kritsel/tado-openapispec-v2. Other undocumented tado.com subdomains have been reported (tariff-experience, susi) and are not covered here.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "125168"
+  },
+  "item": [
+    {
+      "name": "Set Manual Control",
+      "item": [
+        {
+          "name": "ON",
+          "item": [
+            {
+              "name": "Timer",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"setting\": {\n        \"power\": \"ON\",\n        \"isBoost\": false,\n        \"temperature\": {\n            \"value\": 22.0\n        }\n    },\n    \"termination\": {\n        \"type\": \"TIMER\",\n        \"durationInSeconds\": 600\n    }\n}"
+                },
+                "url": {
+                  "raw": "https://hops.tado.com/homes/{{homeId}}/rooms/{{roomId}}/manualControl?ngsw-bypass=true",
+                  "protocol": "https",
+                  "host": [
+                    "hops",
+                    "tado",
+                    "com"
+                  ],
+                  "path": [
+                    "homes",
+                    "{{homeId}}",
+                    "rooms",
+                    "{{roomId}}",
+                    "manualControl"
+                  ],
+                  "query": [
+                    {
+                      "key": "ngsw-bypass",
+                      "value": "true"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Next time block",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"setting\": {\n        \"power\": \"ON\",\n        \"isBoost\": false,\n        \"temperature\": {\n            \"value\": 22.0\n        }\n    },\n    \"termination\": {\n        \"type\": \"NEXT_TIME_BLOCK\"\n    }\n}"
+                },
+                "url": {
+                  "raw": "https://hops.tado.com/homes/{{homeId}}/rooms/{{roomId}}/manualControl?ngsw-bypass=true",
+                  "protocol": "https",
+                  "host": [
+                    "hops",
+                    "tado",
+                    "com"
+                  ],
+                  "path": [
+                    "homes",
+                    "{{homeId}}",
+                    "rooms",
+                    "{{roomId}}",
+                    "manualControl"
+                  ],
+                  "query": [
+                    {
+                      "key": "ngsw-bypass",
+                      "value": "true"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Manual",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"setting\": {\n        \"power\": \"ON\",\n        \"isBoost\": false,\n        \"temperature\": {\n            \"value\": 22.0\n        }\n    },\n    \"termination\": {\n        \"type\": \"MANUAL\"\n    }\n}"
+                },
+                "url": {
+                  "raw": "https://hops.tado.com/homes/{{homeId}}/rooms/{{roomId}}/manualControl?ngsw-bypass=true",
+                  "protocol": "https",
+                  "host": [
+                    "hops",
+                    "tado",
+                    "com"
+                  ],
+                  "path": [
+                    "homes",
+                    "{{homeId}}",
+                    "rooms",
+                    "{{roomId}}",
+                    "manualControl"
+                  ],
+                  "query": [
+                    {
+                      "key": "ngsw-bypass",
+                      "value": "true"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            }
+          ],
+          "description": "Turn on manual control"
+        },
+        {
+          "name": "OFF",
+          "item": [
+            {
+              "name": "Timer",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"setting\": {\n        \"power\": \"OFF\",\n        \"isBoost\": false,\n        \"temperature\": null\n    },\n    \"termination\": {\n        \"type\": \"TIMER\",\n        \"durationInSeconds\": 600\n    }\n}"
+                },
+                "url": {
+                  "raw": "https://hops.tado.com/homes/{{homeId}}/rooms/{{roomId}}/manualControl?ngsw-bypass=true",
+                  "protocol": "https",
+                  "host": [
+                    "hops",
+                    "tado",
+                    "com"
+                  ],
+                  "path": [
+                    "homes",
+                    "{{homeId}}",
+                    "rooms",
+                    "{{roomId}}",
+                    "manualControl"
+                  ],
+                  "query": [
+                    {
+                      "key": "ngsw-bypass",
+                      "value": "true"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Next time block",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"setting\": {\n        \"power\": \"OFF\",\n        \"isBoost\": false,\n        \"temperature\": null\n    },\n    \"termination\": {\n        \"type\": \"NEXT_TIME_BLOCK\"\n    }\n}"
+                },
+                "url": {
+                  "raw": "https://hops.tado.com/homes/{{homeId}}/rooms/{{roomId}}/manualControl?ngsw-bypass=true",
+                  "protocol": "https",
+                  "host": [
+                    "hops",
+                    "tado",
+                    "com"
+                  ],
+                  "path": [
+                    "homes",
+                    "{{homeId}}",
+                    "rooms",
+                    "{{roomId}}",
+                    "manualControl"
+                  ],
+                  "query": [
+                    {
+                      "key": "ngsw-bypass",
+                      "value": "true"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Manual",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"setting\": {\n        \"power\": \"OFF\",\n        \"isBoost\": false,\n        \"temperature\": null\n    },\n    \"termination\": {\n        \"type\": \"MANUAL\"\n    }\n}"
+                },
+                "url": {
+                  "raw": "https://hops.tado.com/homes/{{homeId}}/rooms/{{roomId}}/manualControl?ngsw-bypass=true",
+                  "protocol": "https",
+                  "host": [
+                    "hops",
+                    "tado",
+                    "com"
+                  ],
+                  "path": [
+                    "homes",
+                    "{{homeId}}",
+                    "rooms",
+                    "{{roomId}}",
+                    "manualControl"
+                  ],
+                  "query": [
+                    {
+                      "key": "ngsw-bypass",
+                      "value": "true"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            }
+          ],
+          "description": "Turn off manual control"
+        }
+      ],
+      "description": "Sets manual control for a specific room."
+    },
+    {
+      "name": "Login",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var jsonData = pm.response.json();",
+              "pm.collectionVariables.set(\"token\", jsonData.access_token);",
+              "pm.collectionVariables.set(\"device_code\", jsonData.device_code);"
+            ],
+            "type": "text/javascript",
+            "packages": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "client_id",
+              "value": "1bb50063-6b0c-4d11-bd99-387f4a91cc46",
+              "type": "text"
+            },
+            {
+              "key": "scope",
+              "value": "offline_access",
+              "type": "text"
+            }
+          ]
+        },
+        "url": {
+          "raw": "https://login.tado.com/oauth2/device_authorize",
+          "protocol": "https",
+          "host": [
+            "login",
+            "tado",
+            "com"
+          ],
+          "path": [
+            "oauth2",
+            "device_authorize"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Token 1th",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var jsonData = pm.response.json();",
+              "pm.collectionVariables.set(\"token\", jsonData.access_token);",
+              "pm.collectionVariables.set(\"refresh_token\", jsonData.refresh_token);"
+            ],
+            "type": "text/javascript",
+            "packages": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "client_id",
+              "value": "1bb50063-6b0c-4d11-bd99-387f4a91cc46",
+              "type": "text"
+            },
+            {
+              "key": "device_code",
+              "value": "{{device_code}}",
+              "type": "text"
+            },
+            {
+              "key": "grant_type",
+              "value": "urn:ietf:params:oauth:grant-type:device_code",
+              "type": "text"
+            }
+          ]
+        },
+        "url": {
+          "raw": "https://login.tado.com/oauth2/token",
+          "protocol": "https",
+          "host": [
+            "login",
+            "tado",
+            "com"
+          ],
+          "path": [
+            "oauth2",
+            "token"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Token Refresh",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var jsonData = pm.response.json();",
+              "pm.collectionVariables.set(\"token\", jsonData.access_token);",
+              "pm.collectionVariables.set(\"refresh_token\", jsonData.refresh_token);"
+            ],
+            "type": "text/javascript",
+            "packages": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "client_id",
+              "value": "1bb50063-6b0c-4d11-bd99-387f4a91cc46",
+              "type": "text"
+            },
+            {
+              "key": "grant_type",
+              "value": "refresh_token",
+              "type": "text"
+            },
+            {
+              "key": "refresh_token",
+              "value": "{{refresh_token}}",
+              "type": "text"
+            }
+          ]
+        },
+        "url": {
+          "raw": "https://login.tado.com/oauth2/token",
+          "protocol": "https",
+          "host": [
+            "login",
+            "tado",
+            "com"
+          ],
+          "path": [
+            "oauth2",
+            "token"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Homes",
+      "description": "Returns every home on the account (id, name). Generation is not in this payload. The test script stores homes[0] only.",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var jsonData = pm.response.json();",
+              "pm.collectionVariables.set(\"homeId\", jsonData.homes[0].id);"
+            ],
+            "type": "text/javascript",
+            "packages": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "https://my.tado.com/api/v2/me",
+          "protocol": "https",
+          "host": [
+            "my",
+            "tado",
+            "com"
+          ],
+          "path": [
+            "api",
+            "v2",
+            "me"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Home Data",
+      "description": "generation is LINE_X or null. zonesCount is the classic zone count and stays 0 when the rooms live on Hops.",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "https://my.tado.com/api/v2/homes/{{homeId}}",
+          "protocol": "https",
+          "host": [
+            "my",
+            "tado",
+            "com"
+          ],
+          "path": [
+            "api",
+            "v2",
+            "homes",
+            "{{homeId}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Rooms",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "https://hops.tado.com/homes/{{homeId}}/rooms?ngsw-bypass=true",
+          "protocol": "https",
+          "host": [
+            "hops",
+            "tado",
+            "com"
+          ],
+          "path": [
+            "homes",
+            "{{homeId}}",
+            "rooms"
+          ],
+          "query": [
+            {
+              "key": "ngsw-bypass",
+              "value": "true"
+            }
+          ]
+        }
+      },
+      "response": [
+        {
+          "id": "resp-rooms-overlay-active-2026-11-12",
+          "name": "Overlay active, manualControlTermination populated (recorded PyTado fixture)",
+          "originalRequest": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://hops.tado.com/homes/{{homeId}}/rooms?ngsw-bypass=true",
+              "protocol": "https",
+              "host": [
+                "hops",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "homes",
+                "{{homeId}}",
+                "rooms"
+              ],
+              "query": [
+                {
+                  "key": "ngsw-bypass",
+                  "value": "true"
+                }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "[\n  {\n    \"id\": 1,\n    \"name\": \"Room 1\",\n    \"sensorDataPoints\": {\n      \"insideTemperature\": {\n        \"value\": 24.07\n      },\n      \"humidity\": {\n        \"percentage\": 38\n      }\n    },\n    \"setting\": {\n      \"power\": \"ON\",\n      \"temperature\": {\n        \"value\": 20.0\n      }\n    },\n    \"manualControlTermination\": {\n      \"type\": \"NEXT_TIME_BLOCK\",\n      \"remainingTimeInSeconds\": 4549,\n      \"projectedExpiry\": \"2024-12-19T21:00:00Z\"\n    },\n    \"boostMode\": null,\n    \"heatingPower\": {\n      \"percentage\": 0\n    },\n    \"connection\": {\n      \"state\": \"CONNECTED\"\n    },\n    \"openWindow\": null,\n    \"nextScheduleChange\": {\n      \"start\": \"2024-12-19T21:00:00Z\",\n      \"setting\": {\n        \"power\": \"ON\",\n        \"temperature\": {\n          \"value\": 18.0\n        }\n      }\n    },\n    \"nextTimeBlock\": {\n      \"start\": \"2024-12-19T21:00:00Z\"\n    },\n    \"balanceControl\": null\n  }\n]"
+        },
+        {
+          "id": "resp-rooms-no-overlay-2026-11-12",
+          "name": "No overlay, manualControlTermination null (recorded PyTado fixture)",
+          "originalRequest": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://hops.tado.com/homes/{{homeId}}/rooms?ngsw-bypass=true",
+              "protocol": "https",
+              "host": [
+                "hops",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "homes",
+                "{{homeId}}",
+                "rooms"
+              ],
+              "query": [
+                {
+                  "key": "ngsw-bypass",
+                  "value": "true"
+                }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "[\n  {\n    \"id\": 1,\n    \"name\": \"Room 1\",\n    \"sensorDataPoints\": {\n      \"insideTemperature\": {\n        \"value\": 24.0\n      },\n      \"humidity\": {\n        \"percentage\": 38\n      }\n    },\n    \"setting\": {\n      \"power\": \"ON\",\n      \"temperature\": {\n        \"value\": 22.0\n      }\n    },\n    \"manualControlTermination\": null,\n    \"boostMode\": null,\n    \"heatingPower\": {\n      \"percentage\": 100\n    },\n    \"connection\": {\n      \"state\": \"CONNECTED\"\n    },\n    \"openWindow\": null,\n    \"nextScheduleChange\": {\n      \"start\": \"2024-12-19T21:00:00Z\",\n      \"setting\": {\n        \"power\": \"ON\",\n        \"temperature\": {\n          \"value\": 18.0\n        }\n      }\n    },\n    \"nextTimeBlock\": {\n      \"start\": \"2024-12-19T21:00:00Z\"\n    },\n    \"balanceControl\": null\n  }\n]"
+        }
+      ]
+    },
+    {
+      "name": "Get Features",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "https://hops.tado.com/homes/{{homeId}}/features?ngsw-bypass=true",
+          "protocol": "https",
+          "host": [
+            "hops",
+            "tado",
+            "com"
+          ],
+          "path": [
+            "homes",
+            "{{homeId}}",
+            "features"
+          ],
+          "query": [
+            {
+              "key": "ngsw-bypass",
+              "value": "true"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Room Details",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "https://hops.tado.com/homes/{{homeId}}/rooms/{{roomId}}?ngsw-bypass=true",
+          "protocol": "https",
+          "host": [
+            "hops",
+            "tado",
+            "com"
+          ],
+          "path": [
+            "homes",
+            "{{homeId}}",
+            "rooms",
+            "{{roomId}}"
+          ],
+          "query": [
+            {
+              "key": "ngsw-bypass",
+              "value": "true"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Rooms and Devices",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "https://hops.tado.com/homes/{{homeId}}/roomsAndDevices?ngsw-bypass=true",
+          "protocol": "https",
+          "host": [
+            "hops",
+            "tado",
+            "com"
+          ],
+          "path": [
+            "homes",
+            "{{homeId}}",
+            "roomsAndDevices"
+          ],
+          "query": [
+            {
+              "key": "ngsw-bypass",
+              "value": "true"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Set Open Window",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "https://hops.tado.com/homes/{{homeId}}/rooms/{{roomId}}/openWindow?ngsw-bypass=true",
+          "protocol": "https",
+          "host": [
+            "hops",
+            "tado",
+            "com"
+          ],
+          "path": [
+            "homes",
+            "{{homeId}}",
+            "rooms",
+            "{{roomId}}",
+            "openWindow"
+          ],
+          "query": [
+            {
+              "key": "ngsw-bypass",
+              "value": "true"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Delete Open Window",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "https://hops.tado.com/homes/{{homeId}}/rooms/{{roomId}}/openWindow?ngsw-bypass=true",
+          "protocol": "https",
+          "host": [
+            "hops",
+            "tado",
+            "com"
+          ],
+          "path": [
+            "homes",
+            "{{homeId}}",
+            "rooms",
+            "{{roomId}}",
+            "openWindow"
+          ],
+          "query": [
+            {
+              "key": "ngsw-bypass",
+              "value": "true"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Set Boost",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "https://hops.tado.com/homes/{{homeId}}/quickActions/boost?ngsw-bypass=true",
+          "protocol": "https",
+          "host": [
+            "hops",
+            "tado",
+            "com"
+          ],
+          "path": [
+            "homes",
+            "{{homeId}}",
+            "quickActions",
+            "boost"
+          ],
+          "query": [
+            {
+              "key": "ngsw-bypass",
+              "value": "true"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Resume Schedule",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "https://hops.tado.com/homes/{{homeId}}/quickActions/resumeSchedule?ngsw-bypass=true",
+          "protocol": "https",
+          "host": [
+            "hops",
+            "tado",
+            "com"
+          ],
+          "path": [
+            "homes",
+            "{{homeId}}",
+            "quickActions",
+            "resumeSchedule"
+          ],
+          "query": [
+            {
+              "key": "ngsw-bypass",
+              "value": "true"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Update Device Temperature Offset",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"temperatureOffset\":2}"
+        },
+        "url": {
+          "raw": "https://hops.tado.com/homes/{{homeId}}/roomsAndDevices/devices/{{deviceId}}?ngsw-bypass=true",
+          "protocol": "https",
+          "host": [
+            "hops",
+            "tado",
+            "com"
+          ],
+          "path": [
+            "homes",
+            "{{homeId}}",
+            "roomsAndDevices",
+            "devices",
+            "{{deviceId}}"
+          ],
+          "query": [
+            {
+              "key": "ngsw-bypass",
+              "value": "true"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Weather",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "https://my.tado.com/api/v2/homes/{{homeId}}/weather",
+          "protocol": "https",
+          "host": [
+            "my",
+            "tado",
+            "com"
+          ],
+          "path": [
+            "api",
+            "v2",
+            "homes",
+            "{{homeId}}",
+            "weather"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Mobile Devices",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "https://my.tado.com/api/v2/homes/{{homeId}}/mobileDevices",
+          "protocol": "https",
+          "host": [
+            "my",
+            "tado",
+            "com"
+          ],
+          "path": [
+            "api",
+            "v2",
+            "homes",
+            "{{homeId}}",
+            "mobileDevices"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Mobile Device Settings",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "https://my.tado.com/api/v2/homes/{{homeId}}/mobileDevices/{{deviceId}}/settings",
+          "protocol": "https",
+          "host": [
+            "my",
+            "tado",
+            "com"
+          ],
+          "path": [
+            "api",
+            "v2",
+            "homes",
+            "{{homeId}}",
+            "mobileDevices",
+            "{{deviceId}}",
+            "settings"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Installations",
+      "request": {
+        "description": "Classic endpoint. Answers an empty array on classic V3+ homes but returns content on Tado X homes. The installation id is not the home id. On X prefer Get Rooms and Devices.",
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "https://my.tado.com/api/v2/homes/{{homeId}}/installations",
+          "protocol": "https",
+          "host": [
+            "my",
+            "tado",
+            "com"
+          ],
+          "path": [
+            "api",
+            "v2",
+            "homes",
+            "{{homeId}}",
+            "installations"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Devices",
+      "request": {
+        "description": "Classic device list. Answers an empty list on a Tado X home - X devices live in the Hops roomsAndDevices response.",
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "https://my.tado.com/api/v2/homes/{{homeId}}/devices",
+          "protocol": "https",
+          "host": [
+            "my",
+            "tado",
+            "com"
+          ],
+          "path": [
+            "api",
+            "v2",
+            "homes",
+            "{{homeId}}",
+            "devices"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Device Temperature Offset",
+      "request": {
+        "description": "Classic endpoint. Reported not to work on Tado X homes. On X the offset is part of the roomsAndDevices response and is written via the Hops device PATCH.",
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "https://my.tado.com/api/v2/homes/{{homeId}}/devices/{{deviceId}}/temperatureOffset",
+          "protocol": "https",
+          "host": [
+            "my",
+            "tado",
+            "com"
+          ],
+          "path": [
+            "api",
+            "v2",
+            "homes",
+            "{{homeId}}",
+            "devices",
+            "{{deviceId}}",
+            "temperatureOffset"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Device Humidity Offset",
+      "request": {
+        "description": "Classic endpoint. Reported not to work on Tado X homes.",
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "https://my.tado.com/api/v2/homes/{{homeId}}/devices/{{deviceId}}/humidityOffset",
+          "protocol": "https",
+          "host": [
+            "my",
+            "tado",
+            "com"
+          ],
+          "path": [
+            "api",
+            "v2",
+            "homes",
+            "{{homeId}}",
+            "devices",
+            "{{deviceId}}",
+            "humidityOffset"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Update Device Humidity Offset",
+      "request": {
+        "description": "Classic endpoint. Reported not to work on Tado X homes.",
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"humidityOffset\":2}"
+        },
+        "url": {
+          "raw": "https://my.tado.com/api/v2/homes/{{homeId}}/devices/{{deviceId}}/humidityOffset",
+          "protocol": "https",
+          "host": [
+            "my",
+            "tado",
+            "com"
+          ],
+          "path": [
+            "api",
+            "v2",
+            "homes",
+            "{{homeId}}",
+            "devices",
+            "{{deviceId}}",
+            "humidityOffset"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Daily Zone Report",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "https://my.tado.com/api/v2/homes/{{homeId}}/zones/{{zoneId}}/dayReport",
+          "protocol": "https",
+          "host": [
+            "my",
+            "tado",
+            "com"
+          ],
+          "path": [
+            "api",
+            "v2",
+            "homes",
+            "{{homeId}}",
+            "zones",
+            "{{zoneId}}",
+            "dayReport"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Domestic Hot Water (Internet Bridge programmer)",
+      "description": "Captured 2026-05-31 from a Tado X Internet Bridge IB02 programmer. Power ON/OFF, no temperature. Home id omitted; use {{homeId}}.",
+      "item": [
+        {
+          "name": "Get State",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://hops.tado.com/homes/{{homeId}}/programmer/domesticHotWater/state?ngsw-bypass=true",
+              "protocol": "https",
+              "host": [
+                "hops",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "homes",
+                "{{homeId}}",
+                "programmer",
+                "domesticHotWater",
+                "state"
+              ],
+              "query": [
+                {
+                  "key": "ngsw-bypass",
+                  "value": "true"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 SCHEDULE_ON",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "https://hops.tado.com/homes/{{homeId}}/programmer/domesticHotWater/state?ngsw-bypass=true",
+                  "protocol": "https",
+                  "host": [
+                    "hops",
+                    "tado",
+                    "com"
+                  ],
+                  "path": [
+                    "homes",
+                    "{{homeId}}",
+                    "programmer",
+                    "domesticHotWater",
+                    "state"
+                  ],
+                  "query": [
+                    {
+                      "key": "ngsw-bypass",
+                      "value": "true"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"state\": \"SCHEDULE_ON\",\n    \"nextStateChange\": \"2026-05-31T19:00:00Z\",\n    \"setpoint\": null,\n    \"setpointConstraints\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "Resume Schedule",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://hops.tado.com/homes/{{homeId}}/programmer/domesticHotWater/resumeSchedule?ngsw-bypass=true",
+              "protocol": "https",
+              "host": [
+                "hops",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "homes",
+                "{{homeId}}",
+                "programmer",
+                "domesticHotWater",
+                "resumeSchedule"
+              ],
+              "query": [
+                {
+                  "key": "ngsw-bypass",
+                  "value": "true"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 SCHEDULE_ON",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "https://hops.tado.com/homes/{{homeId}}/programmer/domesticHotWater/resumeSchedule?ngsw-bypass=true",
+                  "protocol": "https",
+                  "host": [
+                    "hops",
+                    "tado",
+                    "com"
+                  ],
+                  "path": [
+                    "homes",
+                    "{{homeId}}",
+                    "programmer",
+                    "domesticHotWater",
+                    "resumeSchedule"
+                  ],
+                  "query": [
+                    {
+                      "key": "ngsw-bypass",
+                      "value": "true"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"state\": \"SCHEDULE_ON\",\n    \"nextStateChange\": \"2026-05-31T19:00:00Z\",\n    \"setpoint\": null,\n    \"setpointConstraints\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "Boost OFF",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://hops.tado.com/homes/{{homeId}}/programmer/domesticHotWater/boost?ngsw-bypass=true",
+              "protocol": "https",
+              "host": [
+                "hops",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "homes",
+                "{{homeId}}",
+                "programmer",
+                "domesticHotWater",
+                "boost"
+              ],
+              "query": [
+                {
+                  "key": "ngsw-bypass",
+                  "value": "true"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"boost\": \"OFF\"\n}"
+            }
+          },
+          "response": [
+            {
+              "name": "204 No Content",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "https://hops.tado.com/homes/{{homeId}}/programmer/domesticHotWater/boost?ngsw-bypass=true",
+                  "protocol": "https",
+                  "host": [
+                    "hops",
+                    "tado",
+                    "com"
+                  ],
+                  "path": [
+                    "homes",
+                    "{{homeId}}",
+                    "programmer",
+                    "domesticHotWater",
+                    "boost"
+                  ],
+                  "query": [
+                    {
+                      "key": "ngsw-bypass",
+                      "value": "true"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"boost\": \"OFF\"\n}"
+                }
+              },
+              "status": "No Content",
+              "code": 204,
+              "_postman_previewlanguage": "json",
+              "header": [],
+              "cookie": [],
+              "body": ""
+            }
+          ]
+        },
+        {
+          "name": "Boost ON",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://hops.tado.com/homes/{{homeId}}/programmer/domesticHotWater/boost?ngsw-bypass=true",
+              "protocol": "https",
+              "host": [
+                "hops",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "homes",
+                "{{homeId}}",
+                "programmer",
+                "domesticHotWater",
+                "boost"
+              ],
+              "query": [
+                {
+                  "key": "ngsw-bypass",
+                  "value": "true"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"boost\": \"ON\"\n}"
+            }
+          },
+          "response": [
+            {
+              "name": "204 No Content",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "https://hops.tado.com/homes/{{homeId}}/programmer/domesticHotWater/boost?ngsw-bypass=true",
+                  "protocol": "https",
+                  "host": [
+                    "hops",
+                    "tado",
+                    "com"
+                  ],
+                  "path": [
+                    "homes",
+                    "{{homeId}}",
+                    "programmer",
+                    "domesticHotWater",
+                    "boost"
+                  ],
+                  "query": [
+                    {
+                      "key": "ngsw-bypass",
+                      "value": "true"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"boost\": \"ON\"\n}"
+                }
+              },
+              "status": "No Content",
+              "code": 204,
+              "_postman_previewlanguage": "json",
+              "header": [],
+              "cookie": [],
+              "body": ""
+            }
+          ]
+        },
+        {
+          "name": "Get Schedule",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://hops.tado.com/homes/{{homeId}}/programmer/domesticHotWater/schedule?ngsw-bypass=true",
+              "protocol": "https",
+              "host": [
+                "hops",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "homes",
+                "{{homeId}}",
+                "programmer",
+                "domesticHotWater",
+                "schedule"
+              ],
+              "query": [
+                {
+                  "key": "ngsw-bypass",
+                  "value": "true"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 week",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "https://hops.tado.com/homes/{{homeId}}/programmer/domesticHotWater/schedule?ngsw-bypass=true",
+                  "protocol": "https",
+                  "host": [
+                    "hops",
+                    "tado",
+                    "com"
+                  ],
+                  "path": [
+                    "homes",
+                    "{{homeId}}",
+                    "programmer",
+                    "domesticHotWater",
+                    "schedule"
+                  ],
+                  "query": [
+                    {
+                      "key": "ngsw-bypass",
+                      "value": "true"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n    \"schedule\": [\n        {\n            \"dayType\": \"WEDNESDAY\",\n            \"start\": \"00:00\",\n            \"end\": \"05:00\",\n            \"power\": \"OFF\"\n        },\n        {\n            \"dayType\": \"WEDNESDAY\",\n            \"start\": \"05:00\",\n            \"end\": \"20:00\",\n            \"power\": \"ON\"\n        },\n        {\n            \"dayType\": \"WEDNESDAY\",\n            \"start\": \"20:00\",\n            \"end\": \"24:00\",\n            \"power\": \"OFF\"\n        },\n        {\n            \"dayType\": \"MONDAY\",\n            \"start\": \"00:00\",\n            \"end\": \"05:00\",\n            \"power\": \"OFF\"\n        },\n        {\n            \"dayType\": \"MONDAY\",\n            \"start\": \"05:00\",\n            \"end\": \"20:00\",\n            \"power\": \"ON\"\n        },\n        {\n            \"dayType\": \"MONDAY\",\n            \"start\": \"20:00\",\n            \"end\": \"24:00\",\n            \"power\": \"OFF\"\n        },\n        {\n            \"dayType\": \"THURSDAY\",\n            \"start\": \"00:00\",\n            \"end\": \"05:00\",\n            \"power\": \"OFF\"\n        },\n        {\n            \"dayType\": \"THURSDAY\",\n            \"start\": \"05:00\",\n            \"end\": \"20:00\",\n            \"power\": \"ON\"\n        },\n        {\n            \"dayType\": \"THURSDAY\",\n            \"start\": \"20:00\",\n            \"end\": \"24:00\",\n            \"power\": \"OFF\"\n        },\n        {\n            \"dayType\": \"SUNDAY\",\n            \"start\": \"00:00\",\n            \"end\": \"05:00\",\n            \"power\": \"OFF\"\n        },\n        {\n            \"dayType\": \"SUNDAY\",\n            \"start\": \"05:00\",\n            \"end\": \"20:00\",\n            \"power\": \"ON\"\n        },\n        {\n            \"dayType\": \"SUNDAY\",\n            \"start\": \"20:00\",\n            \"end\": \"24:00\",\n            \"power\": \"OFF\"\n        },\n        {\n            \"dayType\": \"TUESDAY\",\n            \"start\": \"00:00\",\n            \"end\": \"05:00\",\n            \"power\": \"OFF\"\n        },\n        {\n            \"dayType\": \"TUESDAY\",\n            \"start\": \"05:00\",\n            \"end\": \"20:00\",\n            \"power\": \"ON\"\n        },\n        {\n            \"dayType\": \"TUESDAY\",\n            \"start\": \"20:00\",\n            \"end\": \"24:00\",\n            \"power\": \"OFF\"\n        },\n        {\n            \"dayType\": \"FRIDAY\",\n            \"start\": \"00:00\",\n            \"end\": \"05:00\",\n            \"power\": \"OFF\"\n        },\n        {\n            \"dayType\": \"FRIDAY\",\n            \"start\": \"05:00\",\n            \"end\": \"20:00\",\n            \"power\": \"ON\"\n        },\n        {\n            \"dayType\": \"FRIDAY\",\n            \"start\": \"20:00\",\n            \"end\": \"24:00\",\n            \"power\": \"OFF\"\n        },\n        {\n            \"dayType\": \"SATURDAY\",\n            \"start\": \"00:00\",\n            \"end\": \"05:00\",\n            \"power\": \"OFF\"\n        },\n        {\n            \"dayType\": \"SATURDAY\",\n            \"start\": \"05:00\",\n            \"end\": \"20:00\",\n            \"power\": \"ON\"\n        },\n        {\n            \"dayType\": \"SATURDAY\",\n            \"start\": \"20:00\",\n            \"end\": \"24:00\",\n            \"power\": \"OFF\"\n        }\n    ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Put Schedule Monday",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://hops.tado.com/homes/{{homeId}}/programmer/domesticHotWater/schedule?ngsw-bypass=true",
+              "protocol": "https",
+              "host": [
+                "hops",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "homes",
+                "{{homeId}}",
+                "programmer",
+                "domesticHotWater",
+                "schedule"
+              ],
+              "query": [
+                {
+                  "key": "ngsw-bypass",
+                  "value": "true"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"dayType\": \"MONDAY\",\n    \"daySchedule\": [\n        {\n            \"start\": \"00:00\",\n            \"end\": \"05:00\",\n            \"power\": \"OFF\"\n        },\n        {\n            \"start\": \"05:00\",\n            \"end\": \"10:00\",\n            \"power\": \"ON\"\n        },\n        {\n            \"start\": \"10:00\",\n            \"end\": \"12:00\",\n            \"power\": \"ON\"\n        },\n        {\n            \"start\": \"12:00\",\n            \"end\": \"20:00\",\n            \"power\": \"ON\"\n        },\n        {\n            \"start\": \"20:00\",\n            \"end\": \"24:00\",\n            \"power\": \"OFF\"\n        }\n    ]\n}"
+            }
+          },
+          "response": [
+            {
+              "name": "204 No Content",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "https://hops.tado.com/homes/{{homeId}}/programmer/domesticHotWater/schedule?ngsw-bypass=true",
+                  "protocol": "https",
+                  "host": [
+                    "hops",
+                    "tado",
+                    "com"
+                  ],
+                  "path": [
+                    "homes",
+                    "{{homeId}}",
+                    "programmer",
+                    "domesticHotWater",
+                    "schedule"
+                  ],
+                  "query": [
+                    {
+                      "key": "ngsw-bypass",
+                      "value": "true"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"dayType\": \"MONDAY\",\n    \"daySchedule\": [\n        {\n            \"start\": \"00:00\",\n            \"end\": \"05:00\",\n            \"power\": \"OFF\"\n        },\n        {\n            \"start\": \"05:00\",\n            \"end\": \"10:00\",\n            \"power\": \"ON\"\n        },\n        {\n            \"start\": \"10:00\",\n            \"end\": \"12:00\",\n            \"power\": \"ON\"\n        },\n        {\n            \"start\": \"12:00\",\n            \"end\": \"20:00\",\n            \"power\": \"ON\"\n        },\n        {\n            \"start\": \"20:00\",\n            \"end\": \"24:00\",\n            \"power\": \"OFF\"\n        }\n    ]\n}"
+                }
+              },
+              "status": "No Content",
+              "code": 204,
+              "_postman_previewlanguage": "json",
+              "header": [],
+              "cookie": [],
+              "body": ""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Probe 2026-10-15 (empty homes)",
+      "description": "GETs missing from the main folders, read 2026-10-15 on one login with two homes (one LINE_X, one classic). A Hops 404 is generation- or installation-dependent, not proof an endpoint does not exist. No saved bodies.",
+      "item": [
+        {
+          "name": "Hops heat pump",
+          "description": "404 Heat pump not found, on an empty home and on a LINE_X home with no heat pump.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://hops.tado.com/homes/{{homeId}}/heatPump?ngsw-bypass=true",
+              "protocol": "https",
+              "host": [
+                "hops",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "homes",
+                "{{homeId}}",
+                "heatPump"
+              ],
+              "query": [
+                {
+                  "key": "ngsw-bypass",
+                  "value": "true"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Hops flow temperature",
+          "description": "404 There needs to be at least one RU/TR/PR with an active OpenTherm interface. A TR04 relay does not count.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://hops.tado.com/homes/{{homeId}}/settings/flowTemperatureOptimization?ngsw-bypass=true",
+              "protocol": "https",
+              "host": [
+                "hops",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "homes",
+                "{{homeId}}",
+                "settings",
+                "flowTemperatureOptimization"
+              ],
+              "query": [
+                {
+                  "key": "ngsw-bypass",
+                  "value": "true"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Hops air comfort",
+          "description": "403 on a home with generation null. 200 {comfort, freshness} on LINE_X.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://hops.tado.com/homes/{{homeId}}/airComfort?ngsw-bypass=true",
+              "protocol": "https",
+              "host": [
+                "hops",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "homes",
+                "{{homeId}}",
+                "airComfort"
+              ],
+              "query": [
+                {
+                  "key": "ngsw-bypass",
+                  "value": "true"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Hops state",
+          "description": "404 Resource not found. Presence stays on classic GET /state.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://hops.tado.com/homes/{{homeId}}/state?ngsw-bypass=true",
+              "protocol": "https",
+              "host": [
+                "hops",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "homes",
+                "{{homeId}}",
+                "state"
+              ],
+              "query": [
+                {
+                  "key": "ngsw-bypass",
+                  "value": "true"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Hops room schedule",
+          "description": "200 {otherRooms, room, schedule} when the room exists.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://hops.tado.com/homes/{{homeId}}/rooms/{{roomId}}/schedule?ngsw-bypass=true",
+              "protocol": "https",
+              "host": [
+                "hops",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "homes",
+                "{{homeId}}",
+                "rooms",
+                "{{roomId}}",
+                "schedule"
+              ],
+              "query": [
+                {
+                  "key": "ngsw-bypass",
+                  "value": "true"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Classic home state",
+          "description": "200 {presence, presenceLocked}. HOME and unlocked on both probed homes.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://my.tado.com/api/v2/homes/{{homeId}}/state",
+              "protocol": "https",
+              "host": [
+                "my",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "homes",
+                "{{homeId}}",
+                "state"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Classic air comfort",
+          "description": "200. freshness UNKNOWN and comfort empty on both probed homes.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://my.tado.com/api/v2/homes/{{homeId}}/airComfort",
+              "protocol": "https",
+              "host": [
+                "my",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "homes",
+                "{{homeId}}",
+                "airComfort"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Classic heating system",
+          "description": "200 {boiler: null, underfloorHeating: null}. The boiler and underfloorHeating subpaths are forbidden.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://my.tado.com/api/v2/homes/{{homeId}}/heatingSystem",
+              "protocol": "https",
+              "host": [
+                "my",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "homes",
+                "{{homeId}}",
+                "heatingSystem"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Classic incident detection",
+          "description": "200 {supported: true, enabled: true} even with no hardware.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://my.tado.com/api/v2/homes/{{homeId}}/incidentDetection",
+              "protocol": "https",
+              "host": [
+                "my",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "homes",
+                "{{homeId}}",
+                "incidentDetection"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Classic flow temperature",
+          "description": "404 on both probed homes.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://my.tado.com/api/v2/homes/{{homeId}}/flowTemperatureOptimization",
+              "protocol": "https",
+              "host": [
+                "my",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "homes",
+                "{{homeId}}",
+                "flowTemperatureOptimization"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Write endpoints (2026-11-12)",
+      "description": "Hops write endpoints verified against working requests. Payload shapes are the exact bodies the API accepts.",
+      "item": [
+        {
+          "name": "Resume Schedule (Room)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://hops.tado.com/homes/{{homeId}}/rooms/{{roomId}}/manualControl?ngsw-bypass=true",
+              "protocol": "https",
+              "host": [
+                "hops",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "homes",
+                "{{homeId}}",
+                "rooms",
+                "{{roomId}}",
+                "manualControl"
+              ],
+              "query": [
+                {
+                  "key": "ngsw-bypass",
+                  "value": "true"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Set Room Schedule (one weekday)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://hops.tado.com/homes/{{homeId}}/rooms/{{roomId}}/schedule?ngsw-bypass=true",
+              "protocol": "https",
+              "host": [
+                "hops",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "homes",
+                "{{homeId}}",
+                "rooms",
+                "{{roomId}}",
+                "schedule"
+              ],
+              "query": [
+                {
+                  "key": "ngsw-bypass",
+                  "value": "true"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"dayType\": \"TUESDAY\",\n    \"daySchedule\": [\n        {\n            \"start\": \"00:00\",\n            \"end\": \"24:00\",\n            \"dayType\": \"TUESDAY\",\n            \"setting\": {\n                \"power\": \"ON\",\n                \"temperature\": {\n                    \"value\": 20\n                }\n            }\n        }\n    ]\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Turn Off All Rooms (allOff)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://hops.tado.com/homes/{{homeId}}/quickActions/allOff?ngsw-bypass=true",
+              "protocol": "https",
+              "host": [
+                "hops",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "homes",
+                "{{homeId}}",
+                "quickActions",
+                "allOff"
+              ],
+              "query": [
+                {
+                  "key": "ngsw-bypass",
+                  "value": "true"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Identify Device",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://hops.tado.com/homes/{{homeId}}/roomsAndDevices/devices/{{deviceId}}/identify?ngsw-bypass=true",
+              "protocol": "https",
+              "host": [
+                "hops",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "homes",
+                "{{homeId}}",
+                "roomsAndDevices",
+                "devices",
+                "{{deviceId}}",
+                "identify"
+              ],
+              "query": [
+                {
+                  "key": "ngsw-bypass",
+                  "value": "true"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Patch Device (child lock + offset fused)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://hops.tado.com/homes/{{homeId}}/roomsAndDevices/devices/{{deviceId}}?ngsw-bypass=true",
+              "protocol": "https",
+              "host": [
+                "hops",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "homes",
+                "{{homeId}}",
+                "roomsAndDevices",
+                "devices",
+                "{{deviceId}}"
+              ],
+              "query": [
+                {
+                  "key": "ngsw-bypass",
+                  "value": "true"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"childLockEnabled\": true,\n    \"temperatureOffset\": 0.5\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Patch Flow Temperature Optimization",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://hops.tado.com/homes/{{homeId}}/settings/flowTemperatureOptimization?ngsw-bypass=true",
+              "protocol": "https",
+              "host": [
+                "hops",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "homes",
+                "{{homeId}}",
+                "settings",
+                "flowTemperatureOptimization"
+              ],
+              "query": [
+                {
+                  "key": "ngsw-bypass",
+                  "value": "true"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"maxFlowTemperature\": 50,\n    \"autoAdaptation\": {\n        \"enabled\": true\n    }\n}"
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Classic v2 endpoints that also work on Tado X homes (2026-11-12)",
+      "description": "Classic v2 and EIQ endpoints a LINE_X home accepts although Hops does not cover them. Presence, state and meter readings answer on both generations; timetable, defaultOverlay, heatingCircuit and zone control are classic-generation homes only.",
+      "item": [
+        {
+          "name": "Get Home State (presence source)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://my.tado.com/api/v2/homes/{{homeId}}/state",
+              "protocol": "https",
+              "host": [
+                "my",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "homes",
+                "{{homeId}}",
+                "state"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Set Presence Lock",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://my.tado.com/api/v2/homes/{{homeId}}/presenceLock",
+              "protocol": "https",
+              "host": [
+                "my",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "homes",
+                "{{homeId}}",
+                "presenceLock"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"homePresence\": \"HOME\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Presence AUTO (delete lock)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://my.tado.com/api/v2/homes/{{homeId}}/presenceLock",
+              "protocol": "https",
+              "host": [
+                "my",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "homes",
+                "{{homeId}}",
+                "presenceLock"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Zone Default Overlay (classic only)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://my.tado.com/api/v2/homes/{{homeId}}/zones/{{zoneId}}/defaultOverlay",
+              "protocol": "https",
+              "host": [
+                "my",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "homes",
+                "{{homeId}}",
+                "zones",
+                "{{zoneId}}",
+                "defaultOverlay"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Active Timetable (classic only)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://my.tado.com/api/v2/homes/{{homeId}}/zones/{{zoneId}}/schedule/activeTimetable",
+              "protocol": "https",
+              "host": [
+                "my",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "homes",
+                "{{homeId}}",
+                "zones",
+                "{{zoneId}}",
+                "schedule",
+                "activeTimetable"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Set Active Timetable (classic only)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://my.tado.com/api/v2/homes/{{homeId}}/zones/{{zoneId}}/schedule/activeTimetable",
+              "protocol": "https",
+              "host": [
+                "my",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "homes",
+                "{{homeId}}",
+                "zones",
+                "{{zoneId}}",
+                "schedule",
+                "activeTimetable"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"id\": 1\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Timetable Blocks (classic only)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://my.tado.com/api/v2/homes/{{homeId}}/zones/{{zoneId}}/schedule/timetables/1/blocks",
+              "protocol": "https",
+              "host": [
+                "my",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "homes",
+                "{{homeId}}",
+                "zones",
+                "{{zoneId}}",
+                "schedule",
+                "timetables",
+                "1",
+                "blocks"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Put Timetable Blocks (classic only)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://my.tado.com/api/v2/homes/{{homeId}}/zones/{{zoneId}}/schedule/timetables/1/blocks/MONDAY",
+              "protocol": "https",
+              "host": [
+                "my",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "homes",
+                "{{homeId}}",
+                "zones",
+                "{{zoneId}}",
+                "schedule",
+                "timetables",
+                "1",
+                "blocks",
+                "MONDAY"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "[\n    {\n        \"start\": \"00:00\",\n        \"end\": \"24:00\",\n        \"dayType\": \"MONDAY\",\n        \"setting\": {\n            \"type\": \"HEATING\",\n            \"power\": \"ON\",\n            \"temperature\": {\n                \"celsius\": 20\n            }\n        }\n    }\n]"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Heating Circuits (classic only)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://my.tado.com/api/v2/homes/{{homeId}}/heatingCircuits",
+              "protocol": "https",
+              "host": [
+                "my",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "homes",
+                "{{homeId}}",
+                "heatingCircuits"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Read Zone Control (classic only)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "https://my.tado.com/api/v2/homes/{{homeId}}/zones/{{zoneId}}/control",
+              "protocol": "https",
+              "host": [
+                "my",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "homes",
+                "{{homeId}}",
+                "zones",
+                "{{zoneId}}",
+                "control"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Assign Zone Circuit (classic only)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://my.tado.com/api/v2/homes/{{homeId}}/zones/{{zoneId}}/control/heatingCircuit",
+              "protocol": "https",
+              "host": [
+                "my",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "homes",
+                "{{homeId}}",
+                "zones",
+                "{{zoneId}}",
+                "control",
+                "heatingCircuit"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"circuitNumber\": 1\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add EnergyIQ Meter Reading",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://energy-insights.tado.com/api/homes/{{homeId}}/meterReadings",
+              "protocol": "https",
+              "host": [
+                "energy-insights",
+                "tado",
+                "com"
+              ],
+              "path": [
+                "api",
+                "homes",
+                "{{homeId}}",
+                "meterReadings"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"date\": \"2026-11-12\",\n    \"reading\": 12345\n}"
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "access_token",
+      "value": "set-by-collection",
+      "type": "string"
+    },
+    {
+      "key": "homeId",
+      "value": "set-by-collection",
+      "type": "string"
+    },
+    {
+      "key": "deviceId",
+      "value": "set-by-collection",
+      "type": "string"
+    },
+    {
+      "key": "zoneId",
+      "value": "set-by-collection",
+      "type": "string"
+    },
+    {
+      "key": "device_code",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "roomId",
+      "value": "set-by-collection",
+      "type": "string"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
