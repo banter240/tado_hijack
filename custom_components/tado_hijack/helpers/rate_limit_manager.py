@@ -135,6 +135,16 @@ class RateLimitManager:
             return sim[0]
         return header_limit
 
+    @property
+    def header_limit(self) -> int:
+        """Return the real header limit, unaffected by the simulated limit."""
+        return self._header_snapshot()[0]
+
+    @property
+    def header_remaining(self) -> int:
+        """Return the real header remaining, unaffected by the simulated limit."""
+        return self._header_snapshot()[1]
+
     def decrement(self, count: int = 1) -> None:
         """Decrement internal counter (e.g. during throttling)."""
         self._internal_remaining = max(0, self._internal_remaining - count)

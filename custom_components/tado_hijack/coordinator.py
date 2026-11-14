@@ -962,9 +962,10 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         reset times, independent of time-of-day.
         """
         reset = False
+        # Real headers only: the simulated limit must not fake or mask a reset.
         if check_quota_reset(
-            limit=self.rate_limit.limit,
-            remaining=self.rate_limit.remaining,
+            limit=self.rate_limit.header_limit,
+            remaining=self.rate_limit.header_remaining,
             last_remaining=self._last_remaining,
         ):
             reset = True
@@ -982,14 +983,14 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             _LOGGER.info(
                 "Quota reset detected! remaining: %d/%d (%d -> %d), "
                 "expected window: %s",
-                self.rate_limit.remaining,
-                self.rate_limit.limit,
+                self.rate_limit.header_remaining,
+                self.rate_limit.header_limit,
                 self._last_remaining,
-                self.rate_limit.remaining,
+                self.rate_limit.header_remaining,
                 expected,
             )
 
-        self._last_remaining = self.rate_limit.remaining
+        self._last_remaining = self.rate_limit.header_remaining
         self._save_quota_counters()
         return reset
 
