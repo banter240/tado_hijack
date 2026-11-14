@@ -40,6 +40,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "custom_components/tado_hijack/**/*.py" = ["PLC0415"]  # Conditional/lazy imports by design in HA
 "custom_components/tado_hijack/definitions.py" = ["PLR0913", "PLR0917"]  # Entity factory functions have many args by design
+"tests/*" = ["PLR2004"]  # expected literal values ARE the assertions
 
 [tool.ruff.lint.pylint]
 max-args = 10
@@ -70,7 +71,7 @@ python = "^3.14"
 homeassistant = ">=2026.8"
 
 [tool.poetry.group.dev.dependencies]
-pytest = "9.1.1"
+pytest = "9.2.0"
 pytest-cov = "7.1.0"
 pytest-homeassistant-custom-component = "0.13.361"
 
