@@ -75,12 +75,14 @@ class TadoDummyHandler:
         self._states[TADOX_VIRTUAL_HOT_WATER_ZONE_ID] = TadoXHotWaterState(
             state="SCHEDULE_ON",
             nextStateChange="2026-02-01T06:00:00Z",
+            setpointConstraints=None,
         )
 
         # 3. Dedicated Tado X Hot Water test dummy (separate ID from real 9001)
         self._states[DUMMY_ZONE_ID_TADOX_HOT_WATER] = TadoXHotWaterState(
             state="SCHEDULE_ON",
             nextStateChange="2026-02-01T06:00:00Z",
+            setpointConstraints=None,
         )
 
         # 3. AC Dummy
@@ -277,6 +279,7 @@ class TadoDummyHandler:
             self._states[zid] = TadoXHotWaterState(
                 state="BOOST_OFF",
                 nextStateChange=getattr(current, "next_state_change", None),
+                setpointConstraints=None,
             )
 
     def set_tadox_hot_water_on(self, zone_id: int | None = None) -> None:
@@ -286,6 +289,7 @@ class TadoDummyHandler:
             self._states[zid] = TadoXHotWaterState(
                 state="BOOST_ON",
                 nextStateChange=getattr(current, "next_state_change", None),
+                setpointConstraints=None,
             )
 
     def set_tadox_hot_water_auto(self, zone_id: int | None = None) -> None:
@@ -295,6 +299,7 @@ class TadoDummyHandler:
             self._states[zid] = TadoXHotWaterState(
                 state="SCHEDULE_ON",
                 nextStateChange=getattr(current, "next_state_change", None),
+                setpointConstraints=None,
             )
 
     def get_away_configuration(self, zone_id: int) -> dict[str, Any]:

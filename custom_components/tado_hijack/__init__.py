@@ -5,7 +5,7 @@ from __future__ import annotations
 import inspect
 import logging
 from functools import partial
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from homeassistant.const import CONF_SCAN_INTERVAL, Platform
 from homeassistant.core import HomeAssistant
@@ -282,7 +282,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: TadoConfigEntry) -> boo
     entry.runtime_data.shutdown()
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
-        entry.runtime_data = None
+        object.__delattr__(entry, "runtime_data")
         await async_unload_services(hass)
 
-    return cast(bool, unload_ok)
+    return unload_ok

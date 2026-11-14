@@ -6,8 +6,11 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
-from homeassistant.core import Event, callback
-from homeassistant.helpers.entity_registry import EVENT_ENTITY_REGISTRY_UPDATED
+from homeassistant.core import Event, EventStateChangedData, callback
+from homeassistant.helpers.entity_registry import (
+    EVENT_ENTITY_REGISTRY_UPDATED,
+    EventEntityRegistryUpdatedData,
+)
 from homeassistant.helpers.event import async_track_state_change_event
 
 from .device_linker import get_climate_entity_id, invalidate_cache
@@ -86,7 +89,7 @@ class AvailabilityTracker:
         self._notify_map()
 
     @callback
-    def _on_registry_update(self, event: Event) -> None:
+    def _on_registry_update(self, event: Event[EventEntityRegistryUpdatedData]) -> None:
         """Pick up climate entities created after startup."""
         entity_id = str(event.data.get("entity_id") or "")
         old_entity_id = str(event.data.get("old_entity_id") or "")
@@ -112,7 +115,7 @@ class AvailabilityTracker:
         )
 
     @callback
-    def _async_on_state_change(self, event: Event) -> None:
+    def _async_on_state_change(self, event: Event[EventStateChangedData]) -> None:
         """Handle state change of a tracked climate entity."""
         entity_id = event.data.get("entity_id")
         if not entity_id or entity_id not in self._serial_by_entity:

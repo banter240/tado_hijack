@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.calendar import CalendarEntity, CalendarEvent
 from homeassistant.helpers import entity_registry as er
@@ -45,7 +45,7 @@ def _weekly_plan_title(
 def _as_local(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=dt_util.get_default_time_zone())
-    return cast(datetime, dt_util.as_local(value))
+    return dt_util.as_local(value)
 
 
 def _heat_event(

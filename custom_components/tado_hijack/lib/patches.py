@@ -10,7 +10,6 @@ Patches applied:
 
 from __future__ import annotations
 
-import sys
 from datetime import datetime
 from typing import Any, cast
 
@@ -206,7 +205,6 @@ def patch_version_string() -> None:
 
     Implementation:
         Sets tadoasync.tadoasync.VERSION to TADO_VERSION_PATCH value
-        Updates sys.modules cache if already imported
     """
     try:
         import tadoasync.tadoasync
@@ -221,10 +219,6 @@ def patch_version_string() -> None:
         _LOGGER.debug(
             "Successfully patched tadoasync.tadoasync.VERSION to %s", TADO_VERSION_PATCH
         )
-
-        # Update sys.modules cache if already imported
-        if "tadoasync" in sys.modules:
-            sys.modules["tadoasync"].VERSION = TADO_VERSION_PATCH  # type: ignore[attr-defined]
 
     except ImportError as e:
         _LOGGER.warning("Failed to import tadoasync for version patch: %s", e)

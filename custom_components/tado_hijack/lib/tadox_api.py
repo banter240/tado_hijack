@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import http
 import time
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from aiohttp import ClientResponseError, ClientTimeout
 
@@ -188,10 +188,7 @@ class TadoXApi:
     async def async_get_rooms_and_devices(self) -> HopsRoomsAndDevicesResponse:
         """Fetch all rooms and devices snapshot."""
         data = await self._request("GET", "roomsAndDevices")
-        return cast(
-            HopsRoomsAndDevicesResponse,
-            HopsRoomsAndDevicesResponse.model_validate(data),
-        )
+        return HopsRoomsAndDevicesResponse.model_validate(data)
 
     async def async_get_room_states(self) -> list[TadoXZoneState]:
         """Fetch all room states."""
@@ -262,9 +259,7 @@ class TadoXApi:
         (the endpoint answers 404, which _request maps to an empty dict).
         """
         data = await self._request("GET", "settings/flowTemperatureOptimization")
-        if not data:
-            return None
-        return cast(TadoXFlowTempSettings, TadoXFlowTempSettings.model_validate(data))
+        return TadoXFlowTempSettings.model_validate(data) if data else None
 
     async def async_patch_flow_temperature_optimization(
         self, payload: dict[str, Any]
@@ -310,9 +305,7 @@ class TadoXApi:
     async def async_get_hot_water_state(self) -> TadoXHotWaterState | None:
         """Fetch current hot water programmer state."""
         data = await self._request("GET", "programmer/domesticHotWater/state")
-        if not data:
-            return None  # 404 handled by _request as {}
-        return cast(TadoXHotWaterState, TadoXHotWaterState.model_validate(data))
+        return TadoXHotWaterState.model_validate(data) if data else None
 
     async def async_resume_hot_water_schedule(self) -> Any:
         """Resume hot water schedule (clear boost override)."""

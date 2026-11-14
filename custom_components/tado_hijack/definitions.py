@@ -438,7 +438,7 @@ def _create_definition(
     scope: str,
     value_fn: Any,
     icon: str | None = None,
-    device_class: SensorDeviceClass | None = None,
+    device_class: SensorDeviceClass | BinarySensorDeviceClass | None = None,
     state_class: SensorStateClass | None = None,
     unit: str | None = None,
     entity_category: EntityCategory | None = None,

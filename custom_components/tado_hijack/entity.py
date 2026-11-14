@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -112,6 +112,15 @@ if TYPE_CHECKING:
 
 class TadoDefinitionMixin:
     """Mixin for entities based on TadoEntityDefinition."""
+
+    # HA declares these as optional class attrs; annotations keep __init__
+    # assignments from narrowing the type.
+    _attr_icon: Any
+    _attr_device_class: Any
+    _attr_state_class: Any
+    _attr_native_unit_of_measurement: Any
+    _attr_entity_category: Any
+    _attr_entity_registry_enabled_default: Any
 
     def __init__(self, definition: TadoEntityDefinition) -> None:
         """Initialize the definition mixin."""
@@ -269,10 +278,20 @@ class TadoStateMemoryMixin(RestoreEntity):
         return attrs
 
 
-class TadoEntity(CoordinatorEntity):
+class TadoEntity(CoordinatorEntity["TadoDataUpdateCoordinator"]):
     """Base class for Tado Hijack entities."""
 
     _attr_has_entity_name = True
+
+    # Set by zone/device subclasses.
+    _zone_id: int
+    _serial_no: str
+
+    if TYPE_CHECKING:
+        # From TadoDefinitionMixin in generic entity classes.
+        _definition: TadoEntityDefinition
+
+        def _get_unique_id_suffix(self) -> str: ...
 
     # Default entity_id configuration (can be overridden by subclasses)
     _entity_id_prefix: str = "tado"
@@ -333,7 +352,7 @@ class TadoEntity(CoordinatorEntity):
     @property
     def tado_coordinator(self) -> TadoDataUpdateCoordinator:
         """Return the coordinator."""
-        return cast("TadoDataUpdateCoordinator", self.coordinator)
+        return self.coordinator
 
     @property
     def unique_id(self) -> str | None:
@@ -343,7 +362,7 @@ class TadoEntity(CoordinatorEntity):
 
         # Only use dynamic unique_id for generic entities with a definition
         if not hasattr(self, "_definition"):
-            return cast(str | None, self._attr_unique_id)
+            return self._attr_unique_id
 
         suffix = self._get_unique_id_suffix()
         scope = self._definition.get("scope")

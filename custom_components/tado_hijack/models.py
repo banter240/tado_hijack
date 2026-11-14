@@ -11,6 +11,7 @@ from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 from homeassistant.helpers.entity import EntityCategory
 
 if TYPE_CHECKING:
+    from homeassistant.components.binary_sensor import BinarySensorDeviceClass
     from tadoasync.models import (
         Capabilities,
         Device,
@@ -111,7 +112,7 @@ class TadoEntityDefinition(TypedDict, total=False):
 
     # Standard HA Entity Properties
     icon: str | None
-    ha_device_class: SensorDeviceClass | None
+    ha_device_class: SensorDeviceClass | BinarySensorDeviceClass | None
     ha_state_class: SensorStateClass | None
     ha_native_unit_of_measurement: str | None
     suggested_display_precision: int | None

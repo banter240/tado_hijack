@@ -79,7 +79,7 @@ from homeassistant.components.select import (
     DOMAIN as SELECT_DOMAIN,
 )
 from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import (
@@ -94,14 +94,17 @@ from homeassistant.const import (
     STATE_UNKNOWN,
     UnitOfTemperature,
 )
-from homeassistant.core import Event, callback
+from homeassistant.core import Event, EventStateChangedData, callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import EntityCategory
-from homeassistant.helpers.entity_registry import EVENT_ENTITY_REGISTRY_UPDATED
+from homeassistant.helpers.entity_registry import (
+    EVENT_ENTITY_REGISTRY_UPDATED,
+    EventEntityRegistryUpdatedData,
+)
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.util import slugify
 
@@ -132,7 +135,7 @@ if TYPE_CHECKING:
     from ..coordinator import TadoDataUpdateCoordinator
 
 _LOGGER = get_redacted_logger(__name__)
-_SERVICE_TARGET_KEYS = frozenset(marker.schema for marker in cv.TARGET_SERVICE_FIELDS)
+_SERVICE_TARGET_KEYS = frozenset(cv.TARGET_SERVICE_FIELDS)
 _SKIP = {STATE_UNAVAILABLE, STATE_UNKNOWN}
 _FORWARD_MODES = {
     HVACMode.HEAT,
@@ -317,7 +320,7 @@ class LocalProxyManager:
         self._proxies.clear()
 
     @callback
-    def _on_registry_update(self, event: Event) -> None:
+    def _on_registry_update(self, event: Event[EventEntityRegistryUpdatedData]) -> None:
         entity_id = str(event.data.get("entity_id") or "")
         domain = entity_id.split(".", 1)[0]
         if domain in _PROXY_DOMAINS or str(event.data.get("action")) == "create":
@@ -456,7 +459,7 @@ class TadoLocalProxyBase(TadoEntity):
             self._source_unsub = None
 
     @callback
-    def _on_source(self, _event: Event) -> None:
+    def _on_source(self, _event: Event[EventStateChangedData]) -> None:
         self.async_write_ha_state()
 
     def _source(self) -> State | None:
@@ -805,12 +808,12 @@ class TadoLocalSensorProxy(TadoLocalProxyBase, SensorEntity):
         return None if state is None or state.state in _SKIP else state.state
 
     @property
-    def state_class(self) -> str | None:
+    def state_class(self) -> SensorStateClass | None:
         state = self._source()
         if state is None:
             return None
         raw = state.attributes.get("state_class")
-        return str(raw) if raw is not None else None
+        return SensorStateClass(str(raw)) if raw is not None else None
 
 
 class TadoLocalBinarySensorProxy(TadoLocalProxyBase, BinarySensorEntity):

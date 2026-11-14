@@ -255,7 +255,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:  # noqa: C901
             )
             if not zone_ids:
                 _LOGGER.warning(
-                    "No zones found for set_mode_all_zones in home %s", coord.home_name
+                    "No zones found for set_mode_all_zones in home %s",
+                    getattr(coord.config_entry, "title", "?"),
                 )
                 continue
             await _execute_set_mode(coord, zone_ids, params)
@@ -385,7 +386,18 @@ async def async_setup_services(hass: HomeAssistant) -> None:  # noqa: C901
         try:
             for coord, zone_ids in coord_map.items():
                 for zone_id in zone_ids:
-                    await coord.async_set_schedule(zone_id, **kwargs)
+                    await coord.async_set_schedule(
+                        zone_id,
+                        all_days=bool(call.data.get("all_days", False)),
+                        days=as_day_list(call.data.get("days")),
+                        timetable=call.data.get("timetable"),
+                        activate=bool(call.data.get("activate", False)),
+                        blocks=call.data.get("blocks"),
+                        schedule_entity=call.data.get("schedule_entity"),
+                        geolocation_override=bool(
+                            call.data.get("geolocation_override", False)
+                        ),
+                    )
         except ValueError as err:
             raise ServiceValidationError(redact(str(err))) from None
 

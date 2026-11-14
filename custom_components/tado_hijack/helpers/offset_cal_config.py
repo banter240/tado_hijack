@@ -13,7 +13,6 @@ from homeassistant.util import dt as dt_util
 from .logging_utils import get_redacted_logger
 
 if TYPE_CHECKING:
-    from .. import TadoConfigEntry
     from .window_controller import WindowController
 
 from ..const import (
@@ -44,7 +43,7 @@ class OffsetCalConfigMixin:
 
     if TYPE_CHECKING:
         hass: HomeAssistant
-        config_entry: TadoConfigEntry
+        config_entry: Any
         _offset_cal_unsub: Callable[[], None] | None
         _offset_cal_threshold_unsubs: list[Callable[[], None]]
         _offset_cal_threshold_handle: Callable[[], None] | None
@@ -60,7 +59,7 @@ class OffsetCalConfigMixin:
         _offset_cal_interval_flush_again: bool
 
         def async_calibrate_offsets(
-            self, trigger: str, zone_id: int | None = None
+            self, reason: str, zone_id: int | None = None
         ) -> Any: ...
         def async_update_interval_local(self) -> None: ...
         def async_update_listeners(self) -> None: ...
@@ -304,10 +303,10 @@ class OffsetCalSchedulerMixin(OffsetCalConfigMixin):
                         else min(retry_at, settle_until)
                     )
                     continue
-            settle_until = self._offset_cal_window_settle_until.get(zone_id)
-            if settle_until is not None and now < settle_until:
+            cached_settle = self._offset_cal_window_settle_until.get(zone_id)
+            if cached_settle is not None and now < cached_settle:
                 retry_at = (
-                    settle_until if retry_at is None else min(retry_at, settle_until)
+                    cached_settle if retry_at is None else min(retry_at, cached_settle)
                 )
                 continue
             send_ready = self._offset_cal_send_ready_at.get(zone_id)
@@ -407,10 +406,10 @@ class OffsetCalSchedulerMixin(OffsetCalConfigMixin):
                     settle_until if retry_at is None else min(retry_at, settle_until)
                 )
                 continue
-            settle_until = self._offset_cal_window_settle_until.get(zone_id)
-            if settle_until is not None and now < settle_until:
+            cached_settle = self._offset_cal_window_settle_until.get(zone_id)
+            if cached_settle is not None and now < cached_settle:
                 retry_at = (
-                    settle_until if retry_at is None else min(retry_at, settle_until)
+                    cached_settle if retry_at is None else min(retry_at, cached_settle)
                 )
                 continue
             ready_at = self._offset_cal_send_ready_at.get(zone_id)

@@ -25,6 +25,8 @@ API is dropped in Home Assistant 2027.11).
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from homeassistant.components.climate import ClimateEntity
 
 # Climate and water heater entities were renamed together in 2026.11, so a
@@ -35,7 +37,7 @@ _HAS_NATIVE_TEMPERATURE_API = hasattr(ClimateEntity, "native_temperature_unit")
 class NativeLegacyShimMixin:
     """Expose the legacy temperature API on Home Assistant < 2026.11."""
 
-    if not _HAS_NATIVE_TEMPERATURE_API:
+    if not TYPE_CHECKING and not _HAS_NATIVE_TEMPERATURE_API:
         native_temperature_unit = property(
             lambda self: self._attr_native_temperature_unit
         )
@@ -47,7 +49,7 @@ class NativeLegacyShimMixin:
 class NativeLegacyRangeMixin:
     """Forward the legacy high and low bounds on Home Assistant < 2026.11."""
 
-    if not _HAS_NATIVE_TEMPERATURE_API:
+    if not TYPE_CHECKING and not _HAS_NATIVE_TEMPERATURE_API:
         target_temperature_high = property(
             lambda self: self.native_target_temperature_high
         )

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any
+from collections.abc import Iterable, Mapping
+from typing import TYPE_CHECKING, Any, cast
 
 import voluptuous as vol
 from homeassistant import config_entries, data_entry_flow
@@ -149,6 +149,11 @@ def _home_choice_labels(homes: list[tuple[int, str]]) -> dict[str, str]:
     }
 
 
+def _flow_section(schema: vol.Schema, options: Any = None) -> Any:
+    """Bridge vol/probatio: section expects a probatio schema since 2026.11."""
+    return data_entry_flow.section(cast(Any, schema), options)
+
+
 class TadoHijackCommonFlow:
     """Mixin for shared logic between ConfigFlow and OptionsFlow."""
 
@@ -156,16 +161,17 @@ class TadoHijackCommonFlow:
     hass: Any
 
     if TYPE_CHECKING:
+        config_entry: config_entries.ConfigEntry
 
         def async_show_form(
             self,
             *,
-            step_id: str,
-            data_schema: vol.Schema | None = None,
+            step_id: str | None = None,
+            data_schema: Any | None = None,
             errors: dict[str, str] | None = None,
-            description_placeholders: dict[str, str] | None = None,
+            description_placeholders: Mapping[str, str] | None = None,
             last_step: bool | None = None,
-            title: str | None = None,
+            preview: str | None = None,
         ) -> ConfigFlowResult:
             """Show the form to the user."""
             ...
@@ -173,17 +179,24 @@ class TadoHijackCommonFlow:
         def async_create_entry(
             self,
             *,
-            title: str,
+            title: str | None = None,
             data: Mapping[str, Any],
             description: str | None = None,
-            description_placeholders: dict[str, str] | None = None,
+            description_placeholders: Mapping[str, str] | None = None,
+            next_flow: tuple[config_entries.FlowType, str] | None = None,
             options: Mapping[str, Any] | None = None,
+            subentries: Iterable[config_entries.ConfigSubentryData] | None = None,
         ) -> ConfigFlowResult:
             """Finish config flow and create a config entry."""
             ...
 
         def async_abort(
-            self, *, reason: str, description_placeholders: dict[str, str] | None = None
+            self,
+            *,
+            reason: str,
+            description_placeholders: Mapping[str, str] | None = None,
+            translation_domain: str | None = None,
+            next_flow: tuple[config_entries.FlowType, str] | None = None,
         ) -> ConfigFlowResult:
             """Abort the config flow."""
             ...
@@ -285,7 +298,7 @@ class TadoHijackCommonFlow:
         """Handle single-page configuration with collapsible sections."""
         if user_input is None:
             _schema: dict[Any, Any] = {
-                vol.Required("general_polling"): data_entry_flow.section(
+                vol.Required("general_polling"): _flow_section(
                     vol.Schema(
                         {
                             vol.Required(
@@ -351,7 +364,7 @@ class TadoHijackCommonFlow:
                     ),
                     {"collapsed": True},
                 ),
-                vol.Required("reduced_polling"): data_entry_flow.section(
+                vol.Required("reduced_polling"): _flow_section(
                     vol.Schema(
                         {
                             vol.Optional(
@@ -385,7 +398,7 @@ class TadoHijackCommonFlow:
                     ),
                     {"collapsed": True},
                 ),
-                vol.Required("api_quota"): data_entry_flow.section(
+                vol.Required("api_quota"): _flow_section(
                     vol.Schema(
                         {
                             vol.Optional(
@@ -482,7 +495,7 @@ class TadoHijackCommonFlow:
                     ),
                     {"collapsed": True},
                 ),
-                vol.Required("window"): data_entry_flow.section(
+                vol.Required("window"): _flow_section(
                     vol.Schema(
                         {
                             vol.Optional(
@@ -526,7 +539,7 @@ class TadoHijackCommonFlow:
                     ),
                     {"collapsed": True},
                 ),
-                vol.Required("offset"): data_entry_flow.section(
+                vol.Required("offset"): _flow_section(
                     vol.Schema(
                         {
                             vol.Optional(
@@ -558,7 +571,7 @@ class TadoHijackCommonFlow:
                     ),
                     {"collapsed": True},
                 ),
-                vol.Required("recovery"): data_entry_flow.section(
+                vol.Required("recovery"): _flow_section(
                     vol.Schema(
                         {
                             vol.Optional(
@@ -579,7 +592,7 @@ class TadoHijackCommonFlow:
                     ),
                     {"collapsed": True},
                 ),
-                vol.Required("features"): data_entry_flow.section(
+                vol.Required("features"): _flow_section(
                     vol.Schema(
                         {
                             vol.Optional(
@@ -683,7 +696,7 @@ class TadoHijackCommonFlow:
                     ),
                     {"collapsed": True},
                 ),
-                vol.Required("advanced"): data_entry_flow.section(
+                vol.Required("advanced"): _flow_section(
                     vol.Schema(
                         {
                             vol.Optional(
@@ -777,11 +790,13 @@ class TadoHijackCommonFlow:
 
 class TadoHijackConfigFlow(
     TadoHijackCommonFlow, config_entries.ConfigFlow, domain=DOMAIN
-):  # type: ignore[call-arg]
+):
     """Handle a config flow for Tado Hijack."""
 
     VERSION = 13
     login_task: asyncio.Task[Any] | None = None
+    device_url: str | None = None
+    user_code: str | None = None
     refresh_token: str | None = None
     tado: Tado | None = None
 
@@ -922,11 +937,11 @@ class TadoHijackConfigFlow(
                 _LOGGER.exception("Error initiating Tado")
                 return self.async_abort(reason="cannot_connect")
 
-            tado_device_url = self.tado.device_verification_url
-            if tado_device_url is None:
+            self.device_url = self.tado.device_verification_url
+            if self.device_url is None:
                 return self.async_abort(reason="cannot_connect")
 
-            user_code = URL(tado_device_url).query["user_code"]
+            self.user_code = URL(self.device_url).query["user_code"]
 
         async def _wait_for_login() -> None:
             """Poll for login status via library."""
@@ -945,9 +960,10 @@ class TadoHijackConfigFlow(
 
         if self.login_task is None:
             self.login_task = self.hass.async_create_task(_wait_for_login())
+        login_task = self.login_task
 
-        if self.login_task.done():
-            exc = self.login_task.exception()
+        if login_task.done():
+            exc = login_task.exception()
             if exc:
                 if isinstance(exc, NoHomesReturnedError):
                     return self.async_show_progress_done(
@@ -961,10 +977,10 @@ class TadoHijackConfigFlow(
             step_id="tado_auth",
             progress_action="wait_for_device",
             description_placeholders={
-                "url": str(tado_device_url),
-                "code": str(user_code),
+                "url": str(self.device_url),
+                "code": str(self.user_code),
             },
-            progress_task=self.login_task,
+            progress_task=login_task,
         )
 
     async def async_step_no_homes_returned(

@@ -16,7 +16,7 @@ from homeassistant.const import (
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
 )
-from homeassistant.core import Event, callback
+from homeassistant.core import Event, EventStateChangedData, callback
 from homeassistant.helpers.event import (
     async_call_later,
     async_track_state_change_event,
@@ -556,7 +556,7 @@ class WindowController:
             self._batch_handle()
             self._batch_handle = None
 
-    async def _async_on_sensor_event(self, event: Event) -> None:
+    async def _async_on_sensor_event(self, event: Event[EventStateChangedData]) -> None:
         entity_id = str(event.data.get("entity_id", ""))
         new_state = event.data.get("new_state")
         old_state = event.data.get("old_state")

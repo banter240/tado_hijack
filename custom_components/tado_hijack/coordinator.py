@@ -21,11 +21,10 @@ from homeassistant.util import dt as dt_util
 from tadoasync import Tado, TadoError
 
 if TYPE_CHECKING:
-    from tadoasync.models import Device, Zone
+    from tadoasync.models import Device
 
     from . import TadoConfigEntry
     from .helpers.client import TadoHijackClient
-    from .lib.tadox_models import HopsRoomSnapshot
 
 from .const import (
     BOOST_MODE_TEMP,
@@ -413,7 +412,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         else:
             self.action_provider = TadoV3ActionProvider(self)
 
-        self.zones_meta: dict[int, Zone | HopsRoomSnapshot] = {}
+        self.zones_meta: dict[int, Any] = {}
         self.devices_meta: dict[str, Device] = {}
         self.bridges: list[Device] = []
         self._climate_to_zone: dict[str, int] = {}
