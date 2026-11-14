@@ -1,3 +1,11 @@
+## [5.14.0-dev.8](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.7...v5.14.0-dev.8) (2026-11-14)
+
+### 🐛 Bug Fixes
+
+* fix(tadox): log the hot water programmer state on fetch
+
+  DEBUG builds had no line showing what the programmer state endpoint
+
 ## [5.14.0-dev.7](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.6...v5.14.0-dev.7) (2026-11-14)
 
 ### 🐛 Bug Fixes
