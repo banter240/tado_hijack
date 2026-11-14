@@ -1,0 +1,47 @@
+# Home Assistant quality scale readiness tracker.
+#
+# This is a custom integration, so it can never carry an official tier badge
+# (tiers are granted to Core integrations only). This file tracks how close
+# the codebase is to each tier's expectations so the gaps stay visible.
+#
+# Scale definition: https://www.home-assistant.io/docs/quality_scale/
+
+scale:
+  bronze:
+    description: Setup and basic documentation.
+    status: met
+    notes:
+      config_flow: done
+      basic_documentation: done  # README, docs/, hacs.json
+
+  silver:
+    description: Reliability and testing.
+    status: partial
+    notes:
+      reliability_patterns: done  # coordinator, debounce, retry-after backoff, optimistic rollback
+      unit_tests: partial  # tests/ covers pure logic (quota_math, state_patcher); no HA test harness yet
+      integration_tests: todo  # no pytest-homeassistant-custom-component fixtures yet
+
+  gold:
+    description: Features and a fuller user guide.
+    status: partial
+    notes:
+      user_guide: done  # docs/FEATURES.md, docs/ARCHITECTURE.md, docs/TADO_API.md, docs/QUOTA_100.md
+      diagnostics: done  # diagnostics.py
+      translations: done  # en, de, cs
+
+  platinum:
+    description: Async PyPI dependency, injected HTTP session, strict typing.
+    status: met
+    notes:
+      strict_typing: done  # mypy disallow_untyped_defs + strict_optional in pyproject.toml
+      async_codebase: done  # coordinator and helpers fully async
+      async_pypi_dependency: done  # tadoasync==0.2.3 from PyPI (manifest), fully async; the Tado X Hops layer (lib/tadox_api.py) rides on the same library and session
+      injected_http_session: done  # async_get_clientsession injected at both Tado construction sites; TadoXApi inherits it; no ClientSession is created in the codebase
+
+# Silver gaps are real: unit tests cover pure logic only, and the HA test
+# harness (pytest-homeassistant-custom-component) is blocked — 0.13.375 pins
+# HA 2026.10.4, incompatible with the 2026.11.1 venv. Revisit when PHACC
+# tracks 2026.11.
+#
+# The official badge is unattainable regardless (Core integrations only).
