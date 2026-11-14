@@ -1,3 +1,35 @@
+## [5.14.0-dev.7](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.6...v5.14.0-dev.7) (2026-11-14)
+
+### 🐛 Bug Fixes
+
+* fix(quota): detect reset on real headers, not simulated values
+
+  _detect_quota_reset compared the simulated limit/remaining that the
+  experimental "Simulated Daily Limit" option feeds into rate_limit.
+  Changing that setting made sim_remaining jump, which counted as a
+  quota reset at a random hour; the pattern-break trim then wiped the
+  reset history to one entry and the tracker never accumulated two
+  consecutive resets again, so reset_expected_window never re-learned
+* fix(windows): cancel pending cloud resume when a window re-opens
+
+  _async_handle_open only cleared the queued resume when the previous
+  episode had already ended (snap.released). After a normal close the
+  snapshot sits with released=False and a pending resume, so reopening
+  a second contact kept the queued set_zone_auto: the flush fired it
+  while the window was open, the zone resumed heating, and
+  _note_cloud_sent then marked the episode released, disabling the
+
+### 📚 Documentation
+
+* docs: add quality scale readiness tracker
+
+  Tracks each tier expectation as a checklist inside the integration.
+  Re-evaluated against the code: both platinum todos were stale —
+  async_get_clientsession is injected at both Tado construction sites
+  (TadoXApi inherits it) and tadoasync is already an async PyPI
+  dependency. Platinum items are met; silver stays partial on the HA
+  test harness (PHACC blocked on HA 2026.11).
+
 ## [5.14.0-dev.6](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.5...v5.14.0-dev.6) (2026-11-12)
 
 ### 🐛 Bug Fixes
