@@ -230,6 +230,7 @@ class TadoXMapper:
             return None
 
         self._hot_water_available = True
+        _LOGGER.debug("Tado X hot water state: %s", result.state)
         return result
 
     async def _augment_with_hot_water(self, zones: dict[str, Any]) -> None:
