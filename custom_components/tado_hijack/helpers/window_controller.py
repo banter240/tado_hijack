@@ -716,9 +716,9 @@ class WindowController:
             await self._async_turn_off_legacy(zone_id)
             return
         snap = self._snaps.get(zone_id)
-        if snap and snap.released:
-            # New open after a timeout resume. Keep the original pre-state.
-            # A resume that has not flushed yet must not land on top of this off.
+        if snap and (snap.released or snap.pending):
+            # Keep the original pre-state; a queued resume must not land
+            # on this off.
             snap.pending = None
             snap.released = False
             self._disarm_if_idle()
