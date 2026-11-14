@@ -39,6 +39,8 @@ repos:
         additional_dependencies:
           - "mypy==2.3.1"
           - "tadoasync==0.2.3"
+          - "pydantic==2.13.5"
+          - "homeassistant==2026.11.1"
 
   # Sourcery hook for AI-powered refactoring.
   - repo: https://github.com/sourcery-ai/sourcery
@@ -53,6 +55,30 @@ repos:
     rev: v8.30.1 # Use the latest stable version
     hooks:
       - id: gitleaks
+
+  # Validate the commit message against the semantic-release parsing rules.
+  - repo: local
+    hooks:
+      - id: commit-message
+        name: commit message validation
+        entry: "../.venv/bin/python3 scripts/check_commit_message.py"
+        language: system
+        stages: [commit-msg]
+        always_run: true
+        description: "Reject headers/types semantic-release would mis-parse."
+
+  # Hard gate before a push leaves the machine: ruff, mypy, tests.
+  # Skip explicitly with --no-verify only.
+  - repo: local
+    hooks:
+      - id: push-gate
+        name: pre-push gate (ruff + mypy + tests)
+        entry: "bash -c '../.venv/bin/python -m ruff check . && ../.venv/bin/python -m mypy . && ../.venv/bin/python -m pytest tests/ -q'"
+        language: system
+        stages: [pre-push]
+        always_run: true
+        pass_filenames: false
+        description: "Refuse the push when lint, types or tests fail."
 
   # Local hooks for Home Assistant & HACS validation (Parity with GitHub Actions)
   - repo: local

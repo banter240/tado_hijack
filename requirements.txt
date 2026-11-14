@@ -6,3 +6,7 @@ ruff==0.16.5
 pre-commit==4.6.2
 mypy==2.3.1
 yamllint==1.38.0
+# Typed stubs for `mypy .` — must match the shared dev venv, otherwise
+# CI type-checks a different reality than the pre-push gate.
+homeassistant==2026.11.1
+pydantic==2.13.5
