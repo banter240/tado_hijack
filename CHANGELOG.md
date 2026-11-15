@@ -1,3 +1,17 @@
+## [5.14.0-dev.10](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.9...v5.14.0-dev.10) (2026-11-15)
+
+### ✨ New Features
+
+* feat(sensors): expose the boiler flow temperature on Classic homes
+
+  OpenTherm-connected Classic boilers report the measured flow
+  temperature in `activityDataPoints.boilerFlowTemperature` inside the
+  regular zoneStates poll, but tadoasync's ActivityDataPoints model
+  drops the field. `TadoHijackClient.get_zone_states` now rescues it
+  onto the zone state, and a home-scope sensor surfaces the first zone
+  that reports it — no extra API call. On Tado X the field never
+  appears, so the sensor is not created there.
+
 ## [5.14.0-dev.9](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.8...v5.14.0-dev.9) (2026-11-15)
 
 ### ✨ New Features
