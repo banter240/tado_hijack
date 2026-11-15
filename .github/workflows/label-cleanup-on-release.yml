@@ -1,0 +1,58 @@
+# When a release label lands on an issue, strip the workflow-state labels
+# that no longer apply (checking, planned, question, done-unreleased, ...).
+# Fires only on the labeling event itself, so status labels re-added manually
+# afterwards survive.
+name: Label cleanup on release
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  issues: write
+
+jobs:
+  strip-stale-status-labels:
+    name: Strip stale status labels
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove superseded labels
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const RELEASED = new Set([
+              'released',
+              'released-dev',
+              'released-rc',
+              'released-alpha',
+            ]);
+            const STALE = new Set([
+              'status:checking',
+              'status:help-required',
+              'status:in-progress',
+              'planned',
+              'question',
+              'invalid',
+              'not-planned',
+              'wontfix',
+              'done-unreleased',
+            ]);
+
+            const added = context.payload.label.name;
+            if (!RELEASED.has(added)) {
+              return;
+            }
+
+            const current = context.payload.issue.labels.map((l) => l.name);
+            const toRemove = current.filter(
+              (name) => STALE.has(name) && !RELEASED.has(name)
+            );
+            for (const name of toRemove) {
+              core.info(`Removing '${name}' — issue is ${added}`);
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                name,
+              });
+            }
