@@ -516,7 +516,7 @@ Payload: {"maxFlowTemperature": float}, {"autoAdaptation": bool}.
 
 GET: programmer/domesticHotWater/state
 
-`state` is `SCHEDULE_ON` or `SCHEDULE_OFF` while the programmer follows the plan. A boost replaces that with `BOOST_ON` or `BOOST_OFF`. `NONE` is not controllable, so no water-heater entity is created. `nextStateChange` is the next schedule change while `state` starts with `SCHEDULE_`. During a boost it is the boost expiry, not the next block.
+`state` is `SCHEDULE_ON` or `SCHEDULE_OFF` while the programmer follows the plan. An app-initiated boost shows as `BOOST`; a boost the integration started reads back as `BOOST_ON`, and `BOOST_OFF` is a forced off overlay. The water heater treats any `BOOST*` state other than `BOOST_OFF` as heat, and logs a warning once for unknown states so API renames surface immediately. `NONE` is not controllable, so no water-heater entity is created. `nextStateChange` is the next schedule change while `state` starts with `SCHEDULE_`. During a boost it is the boost expiry, not the next block.
 
 #### async_boost_hot_water() -> None
 

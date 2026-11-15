@@ -270,6 +270,17 @@ class _HotWaterSetting:
         self.power = power
 
 
+def is_hot_water_boost(raw_state: str) -> bool:
+    """Active boost overlay: the tado app sends `BOOST`, own writes read back `BOOST_ON`."""
+    normalized = (raw_state or "").strip().upper()
+    return normalized.startswith("BOOST") and normalized != "BOOST_OFF"
+
+
+KNOWN_PROGRAMMER_STATES: frozenset[str] = frozenset(
+    {"SCHEDULE_ON", "SCHEDULE_OFF", "BOOST", "BOOST_ON", "BOOST_OFF"}
+)
+
+
 class TadoXHotWaterState(BaseModel):
     """State for the Tado X domestic hot water programmer (Hops)."""
 
@@ -291,6 +302,10 @@ class TadoXHotWaterState(BaseModel):
     def schedule_on(self) -> bool:
         """True when the programmer is in a scheduled-on block."""
         return (self.state or "").strip().upper() == "SCHEDULE_ON"
+
+    @property
+    def is_boost(self) -> bool:
+        return is_hot_water_boost(self.state)
 
     @property
     def setting(self) -> _HotWaterSetting:

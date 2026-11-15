@@ -14,6 +14,7 @@ from ..const import (
     TEMP_TOLERANCE,
     TERMINATION_MANUAL,
 )
+from ..lib.tadox_models import is_hot_water_boost
 from ..models import CommandType, TadoCommand
 from .logging_utils import get_redacted_logger
 from .state_patcher import active_termination
@@ -674,7 +675,7 @@ def should_skip_hot_water_boost_on(
     state = zone_states.get(str(zone_id))
     if state is None:
         return False
-    return str(getattr(state, "state", "")).strip().upper() == "BOOST_ON"
+    return is_hot_water_boost(str(getattr(state, "state", "")))
 
 
 def _filter_zone_updates(

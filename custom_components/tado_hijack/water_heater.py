@@ -27,6 +27,7 @@ from .helpers.legacy_shim import NativeLegacyShimMixin
 from .helpers.logging_utils import get_redacted_logger
 from .helpers.parsers import parse_schedule_temperature
 from .helpers.zone_utils import zone_follows_cloud_schedule
+from .lib.tadox_models import is_hot_water_boost
 
 if TYPE_CHECKING:
     from . import TadoConfigEntry
@@ -309,9 +310,10 @@ class TadoHotWaterX(TadoHotWater):
             return OPERATION_MODE_AUTO
         if not getattr(state, "overlay_active", False):
             return OPERATION_MODE_AUTO
-        # BOOST_ON is a 60 minute boost overlay, BOOST_OFF forces off.
-        raw_state = str(getattr(state, "state", "")).strip().upper()
-        return OPERATION_MODE_HEAT if raw_state == "BOOST_ON" else OPERATION_MODE_OFF
+        raw_state = str(getattr(state, "state", ""))
+        return (
+            OPERATION_MODE_HEAT if is_hot_water_boost(raw_state) else OPERATION_MODE_OFF
+        )
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         pass
