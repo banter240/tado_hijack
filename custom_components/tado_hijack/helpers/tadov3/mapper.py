@@ -6,7 +6,8 @@ from typing import TYPE_CHECKING, Any
 
 from tadoasync.models import TemperatureOffset
 
-from ..logging_utils import get_redacted_logger
+from ...const import KNOWN_PRESENCE_STATES
+from ..logging_utils import get_redacted_logger, warn_unknown_enum
 from ..models_unified import UnifiedTadoData
 
 if TYPE_CHECKING:
@@ -51,7 +52,11 @@ class TadoV3Mapper:
 
     async def async_fetch_home_state(self) -> Any:
         """Fetch presence/home state."""
-        return await self.client.get_home_state()
+        state = await self.client.get_home_state()
+        warn_unknown_enum(
+            _LOGGER, "presence", getattr(state, "presence", None), KNOWN_PRESENCE_STATES
+        )
+        return state
 
     async def async_fetch_capabilities(self, zone_id: int) -> Any:
         """Fetch capabilities for a zone."""

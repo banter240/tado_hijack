@@ -333,6 +333,23 @@ TERMINATION_TIMER: Final = "TIMER"
 TERMINATION_TADO_MODE: Final = "TADO_MODE"
 TERMINATION_NEXT_TIME_BLOCK: Final = "NEXT_TIME_BLOCK"
 
+# Enum vocabularies the integration understands. Anything else triggers a
+# one-time warning at the parse boundary so API drift surfaces in the log
+# instead of silently degrading to a fallback.
+KNOWN_PRESENCE_STATES: Final[frozenset[str]] = frozenset({"HOME", "AWAY"})
+KNOWN_CONNECTION_STATES: Final[frozenset[str]] = frozenset(
+    {"CONNECTED", "DISCONNECTED"}
+)
+KNOWN_POWER_STATES: Final[frozenset[str]] = frozenset({POWER_ON, POWER_OFF})
+KNOWN_TERMINATION_TYPES: Final[frozenset[str]] = frozenset(
+    {
+        TERMINATION_MANUAL,
+        TERMINATION_TIMER,
+        TERMINATION_TADO_MODE,
+        TERMINATION_NEXT_TIME_BLOCK,
+    }
+)
+
 # Auto API Quota
 API_RESET_DEFAULT_UTC_HOUR: Final = 11  # Default reset hour in UTC
 API_RESET_MIN_PERCENT: Final = (

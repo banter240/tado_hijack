@@ -4,10 +4,25 @@ from __future__ import annotations
 
 from typing import Any
 
-from ...const import GEN_X, TADOX_VIRTUAL_HOT_WATER_ZONE_ID
+from pydantic import ValidationError
+
+from ...const import (
+    GEN_X,
+    KNOWN_CONNECTION_STATES,
+    KNOWN_POWER_STATES,
+    KNOWN_PRESENCE_STATES,
+    KNOWN_TERMINATION_TYPES,
+    TADOX_VIRTUAL_HOT_WATER_ZONE_ID,
+)
 from ...lib.tadox_api import TadoXApi
-from ...lib.tadox_models import TadoXFlowTempSettings, TadoXHotWaterState
-from ..logging_utils import get_redacted_logger
+from ...lib.tadox_models import (
+    KNOWN_PROGRAMMER_STATES,
+    TadoXDevice,
+    TadoXFlowTempSettings,
+    TadoXHotWaterState,
+    TadoXZoneState,
+)
+from ..logging_utils import get_redacted_logger, warn_unknown_enum
 from ..models_unified import UnifiedTadoData
 
 _LOGGER = get_redacted_logger(__name__)
@@ -95,6 +110,7 @@ class TadoXMapper:
             unified_data.flow_temp = self._flow_temp_cached
 
         for state in room_states:
+            self._audit_zone_state(state)
             unified_data.zone_states[str(state.room_id)] = state
 
         await self._augment_with_hot_water(unified_data.zone_states)
@@ -103,6 +119,7 @@ class TadoXMapper:
             dev for room in rooms for dev in room.devices
         ]
         for dev in all_hops_devices:
+            self._audit_device(dev)
             unified_data.devices[dev.serial_no] = dev
 
         return unified_data
@@ -123,7 +140,10 @@ class TadoXMapper:
                 exc_info=True,
             )
             return {}
-        result: dict[str, Any] = {str(state.room_id): state for state in room_states}
+        result: dict[str, Any] = {}
+        for state in room_states:
+            self._audit_zone_state(state)
+            result[str(state.room_id)] = state
         await self._augment_with_hot_water(result)
         return result
 
@@ -145,6 +165,8 @@ class TadoXMapper:
 
         zones_meta: dict[int, Any] = {room.room_id: room for room in rooms}
         all_devices = other_devices + [dev for room in rooms for dev in room.devices]
+        for dev in all_devices:
+            self._audit_device(dev)
         devices_meta: dict[str, Any] = {dev.serial_no: dev for dev in all_devices}
 
         if (flow_temp := await self._fetch_flow_temp_safe()) is not None:
@@ -182,9 +204,41 @@ class TadoXMapper:
         """Return the Hops API bridge as the rate limit data source."""
         return self.bridge
 
+    def _audit_zone_state(self, state: TadoXZoneState) -> None:
+        """Surface unknown enum values from the zone state poll."""
+        if state.connection is not None:
+            warn_unknown_enum(
+                _LOGGER,
+                "connection state",
+                state.connection.state,
+                KNOWN_CONNECTION_STATES,
+            )
+        if state.manual_control_termination is not None:
+            warn_unknown_enum(
+                _LOGGER,
+                "termination type",
+                state.manual_control_termination.type,
+                KNOWN_TERMINATION_TYPES,
+            )
+        warn_unknown_enum(
+            _LOGGER, "setting power", state.setting.power, KNOWN_POWER_STATES
+        )
+
+    def _audit_device(self, device: TadoXDevice) -> None:
+        warn_unknown_enum(
+            _LOGGER,
+            "connection state",
+            device.connection.state,
+            KNOWN_CONNECTION_STATES,
+        )
+
     async def async_fetch_home_state(self) -> Any:
         """Fetch presence/home state."""
-        return await self.bridge.async_get_home_state()
+        state = await self.bridge.async_get_home_state()
+        warn_unknown_enum(
+            _LOGGER, "presence", getattr(state, "presence", None), KNOWN_PRESENCE_STATES
+        )
+        return state
 
     async def async_fetch_capabilities(self, zone_id: int) -> Any:
         """Not used for Tado X — no separate capabilities endpoint."""
@@ -209,6 +263,12 @@ class TadoXMapper:
 
         try:
             result = await self.bridge.async_get_hot_water_state()
+        except ValidationError:
+            _LOGGER.warning(
+                "Tado X hot water programmer state failed schema validation; "
+                "the API shape may have changed"
+            )
+            return None
         except Exception as e:
             _LOGGER.debug("Tado X hot water state fetch failed (transient): %s", e)
             return None
@@ -230,6 +290,9 @@ class TadoXMapper:
             return None
 
         self._hot_water_available = True
+        warn_unknown_enum(
+            _LOGGER, "hot water programmer state", result.state, KNOWN_PROGRAMMER_STATES
+        )
         _LOGGER.debug("Tado X hot water state: %s", result.state)
         return result
 

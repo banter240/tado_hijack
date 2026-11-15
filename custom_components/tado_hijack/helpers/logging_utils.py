@@ -191,6 +191,25 @@ def get_redacted_logger(name: str) -> logging.Logger:
 
 _LOGGER = get_redacted_logger(__name__)
 
+_warned_unknown_values: set[tuple[str, str]] = set()
+
+
+def warn_unknown_enum(
+    logger: logging.Logger, field: str, value: Any, known: frozenset[str]
+) -> None:
+    """Warn once per unknown enum value so API drift is visible but not spammy."""
+    raw = str(value or "").strip().upper()
+    key = (field, raw)
+    if not raw or raw in known or key in _warned_unknown_values:
+        return
+    _warned_unknown_values.add(key)
+    logger.warning(
+        "Unknown %s %r (known: %s) — the tado API may have changed",
+        field,
+        value,
+        ", ".join(sorted(known)),
+    )
+
 
 def set_version_prefix_enabled(enabled: bool) -> None:
     """Enable or disable version prefix injection in log messages."""
