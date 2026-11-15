@@ -1,3 +1,30 @@
+## [5.14.0-dev.9](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.8...v5.14.0-dev.9) (2026-11-15)
+
+### ✨ New Features
+
+* feat(polling): warn once when the API reports unknown enum values
+
+  Unrecognized enum strings degraded silently to defaults: an unknown
+  hot water programmer state read as off, an unknown presence fell back
+  to home, an unknown connection state to disconnected. API drift like
+
+### 🐛 Bug Fixes
+
+* fix(hot-water): treat any BOOST* programmer state as an active boost
+
+  The tado X mobile app writes `BOOST` to the programmer state endpoint
+  while its Hot Water Boost runs, while integration-initiated boosts read
+  back `BOOST_ON` — the exact-match on `BOOST_ON` left app boosts mapped
+  to operation mode `off`. Parse by prefix instead (`BOOST*`, except the
+  forced-off `BOOST_OFF`), so both clients map to heat and future boost
+  renames stay covered.
+
+  Fixes #201
+
+### 📚 Documentation
+
+* docs(readme): add fluxer invite badge to the header
+
 ## [5.14.0-dev.8](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.7...v5.14.0-dev.8) (2026-11-14)
 
 ### 🐛 Bug Fixes
