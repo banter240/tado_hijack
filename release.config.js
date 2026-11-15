@@ -45,11 +45,25 @@ export default {
           /**
            * conventional-changelog-writer v9 replaced Handlebars strings with
            * render functions. list() already prepends "* ", so return inner text.
+           * Issue-reference trailers (Fixes/Closes #N) join the notes;
+           * other footer lines stay out — BREAKING CHANGE gets its own
+           * section through noteGroups.
            */
           commitPartial(_context, commit) {
             let line = commit.header || "";
             if (commit.body) {
               line += `\n\n${commit.body}`;
+            }
+            const refs = String(commit.footer || "")
+              .split("\n")
+              .map((l) => l.trim())
+              .filter((l) =>
+                /^(fixes|fixed|closes|closed|resolves|resolved|ref|refs)\s+#[0-9]+/i.test(
+                  l,
+                ),
+              );
+            if (refs.length) {
+              line += `\n\n${refs.join("\n")}`;
             }
             return line;
           },
