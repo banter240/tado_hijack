@@ -21,21 +21,21 @@ jobs:
         with:
           script: |
             const RELEASED = new Set([
-              'released',
-              'released-dev',
-              'released-rc',
-              'released-alpha',
+              'status:released',
+              'status:released-dev',
+              'status:released-rc',
+              'status:released-alpha',
             ]);
             const STALE = new Set([
               'status:checking',
               'status:help-required',
               'status:in-progress',
-              'planned',
-              'question',
-              'invalid',
-              'not-planned',
-              'wontfix',
-              'done-unreleased',
+              'status:planned',
+              'status:question',
+              'status:invalid',
+              'status:not-planned',
+              'status:wontfix',
+              'status:done-unreleased',
             ]);
 
             const added = context.payload.label.name;
