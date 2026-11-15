@@ -190,6 +190,8 @@ Home mode aggregates heating and air-conditioning rooms into `schedule`, `off`, 
 
 Opt-in, default off, Tado X only. `GET settings/flowTemperatureOptimization` and a 404 cache live on `TadoXMapper.async_fetch_metadata()`. The zone and metadata polls call that method, so the max-flow number and the auto-adaptation switch are created on the first refresh. The 404 is cached, so a home without an OpenTherm device spends one call once.
 
+Classic homes with an OpenTherm boiler report the measured flow temperature in `activityDataPoints.boilerFlowTemperature` inside the regular zone-state poll. tadoasync drops that field, so `TadoHijackClient.get_zone_states` rescues it onto the zone state and the `boiler_flow_temperature` home sensor surfaces the first zone that reports it. No extra API call; on Tado X the field does not exist and the sensor is not created.
+
 If a write is invoked anyway, both fields share the queue key `flow_temp` and one PATCH. A failed PATCH rolls back to the first server value of each field.
 
 ---

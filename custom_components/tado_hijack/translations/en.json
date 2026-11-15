@@ -199,6 +199,9 @@
           "manual": "Manual",
           "mixed": "Mixed"
         }
+      },
+      "boiler_flow_temperature": {
+        "name": "Boiler Flow Temperature"
       }
     },
     "binary_sensor": {

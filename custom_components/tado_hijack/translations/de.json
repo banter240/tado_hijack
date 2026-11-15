@@ -199,6 +199,9 @@
           "manual": "Manuell",
           "mixed": "Gemischt"
         }
+      },
+      "boiler_flow_temperature": {
+        "name": "Kesselvorlauftemperatur"
       }
     },
     "binary_sensor": {

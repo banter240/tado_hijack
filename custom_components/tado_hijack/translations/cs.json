@@ -199,6 +199,9 @@
           "manual": "Manuálně",
           "mixed": "Smíšený"
         }
+      },
+      "boiler_flow_temperature": {
+        "name": "Teplota vstupu kotle"
       }
     },
     "binary_sensor": {

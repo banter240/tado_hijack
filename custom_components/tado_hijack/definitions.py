@@ -548,6 +548,7 @@ def create_home_sensor(
     state_class: SensorStateClass | None = None,
     unit: str | None = None,
     entity_category: EntityCategory | None = None,
+    is_supported_fn: Any = None,
 ) -> TadoEntityDefinition:
     """Create a sensor for the Tado Home (global scope)."""
     return _create_definition(
@@ -560,6 +561,7 @@ def create_home_sensor(
         state_class=state_class,
         unit=unit,
         entity_category=entity_category,
+        is_supported_fn=is_supported_fn,
     )
 
 
@@ -734,6 +736,19 @@ def _get_flow_auto_adaptation(c: Any) -> bool | None:
     if ft is None or ft.auto_adaptation is None:
         return None
     return bool(ft.auto_adaptation.enabled)
+
+
+def _find_boiler_flow_temp(c: Any) -> tuple[float, str] | None:
+    """First zone reporting a boiler flow temperature, with its zone id."""
+    for zid, state in (c.data.zone_states or {}).items():
+        flow = getattr(state, "boiler_flow_temp", None)
+        if flow is not None:
+            return float(flow), str(zid)
+    return None
+
+
+def _boiler_flow_supported(c: Any) -> bool:
+    return _find_boiler_flow_temp(c) is not None
 
 
 def _get_flow_temp_min(c: Any, _ctx: Any = None) -> float:
@@ -1328,6 +1343,15 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         value_fn=_parse_home_zone_mode,
         device_class=SensorDeviceClass.ENUM,
         icon="mdi:home-thermometer",
+    ),
+    create_home_sensor(
+        key="boiler_flow_temperature",
+        value_fn=lambda c: (found := _find_boiler_flow_temp(c)) and found[0],
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        unit=UnitOfTemperature.CELSIUS,
+        icon="mdi:water-boiler",
+        is_supported_fn=_boiler_flow_supported,
     ),
     create_home_binary_sensor(
         key="heating_demand",

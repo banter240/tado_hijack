@@ -8,6 +8,7 @@ from typing import Any, cast
 import orjson
 from tadoasync import Tado
 from tadoasync.const import HttpMethod
+from tadoasync.models import ZoneState
 from tadoasync.tadoasync import API_URL
 
 from ..lib.patches import get_handler
@@ -60,6 +61,31 @@ class TadoHijackClient(Tado):
         return await get_handler().robust_request(
             self, uri, endpoint, data, method, self.proxy_url, self.proxy_token
         )
+
+    async def get_zone_states(self) -> dict[str, ZoneState]:
+        """Zone states with the boiler flow temperature rescued.
+
+        tadoasync's ActivityDataPoints drops `boilerFlowTemperature` on
+        OpenTherm homes, so the raw poll body is the only carrier. Attached
+        per zone as a dynamic attribute like tadoasync's own enrichment.
+        """
+        response = await self._request(f"homes/{self._home_id}/zoneStates")
+        obj = orjson.loads(response)
+        zone_states = {
+            zone_id: ZoneState.from_dict(zone_state_dict)
+            for zone_id, zone_state_dict in obj["zoneStates"].items()
+        }
+
+        for zone_id, zone_state in zone_states.items():
+            activity = (obj["zoneStates"].get(zone_id) or {}).get(
+                "activityDataPoints"
+            ) or {}
+            flow = (activity.get("boilerFlowTemperature") or {}).get("celsius")
+            if flow is not None:
+                cast(Any, zone_state).boiler_flow_temp = float(flow)
+            await self.update_zone_data(zone_state)
+
+        return zone_states
 
     async def reset_all_zones_overlay(self, zones: list[int]) -> None:
         """Reset overlay for multiple zones (Bulk API)."""
