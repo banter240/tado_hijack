@@ -111,6 +111,7 @@ from homeassistant.util import slugify
 from ..const import (
     DEVICE_TYPE_MAP,
     DOMAIN,
+    POWER_OFF,
     TEMP_MAX_PROXY,
     TEMP_MIN_PROXY,
     bridge_display_name,
@@ -173,6 +174,36 @@ def proxy_hvac_modes(raw: Any, *, add_auto: bool) -> list[HVACMode]:
     if add_auto and HVACMode.AUTO not in modes:
         modes.append(HVACMode.AUTO)
     return modes
+
+
+def proxy_hvac_action(
+    raw: Any,
+    hvac_mode: HVACMode,
+    zone_state: Any,
+    *,
+    cloud_live: bool = True,
+) -> HVACAction | None:
+    """Source action, or one read from the zone poll.
+
+    A Tado X Wireless Temperature Sensor reports no action over Matter.
+    The zone poll is the cloud's view of the same room. Power off is off.
+    Heating power above 0 is heating, 0 is idle. A failed poll shows none,
+    so a cloud outage does not hold the last action.
+    """
+    if raw is not None:
+        with contextlib.suppress(ValueError):
+            return HVACAction(raw)
+    if hvac_mode == HVACMode.OFF:
+        return HVACAction.OFF
+    if not cloud_live or zone_state is None:
+        return None
+    if getattr(getattr(zone_state, "setting", None), "power", None) == POWER_OFF:
+        return HVACAction.OFF
+    activity = getattr(zone_state, "activity_data_points", None)
+    power = getattr(getattr(activity, "heating_power", None), "percentage", None)
+    if power is None:
+        return None
+    return HVACAction.HEATING if float(power) > 0 else HVACAction.IDLE
 
 
 def proxy_temperature_mode(
@@ -610,12 +641,15 @@ class TadoLocalClimateProxy(
     def hvac_action(self) -> HVACAction | None:
         state = self._source()
         raw = state.attributes.get(ATTR_HVAC_ACTION) if state else None
-        if raw is None:
-            return None
-        try:
-            return HVACAction(raw)
-        except ValueError:
-            return None
+        coordinator = self.tado_coordinator
+        data = coordinator.data
+        zone = data.zone_states.get(str(self._host.zone_id)) if data else None
+        return proxy_hvac_action(
+            raw,
+            self.hvac_mode,
+            zone,
+            cloud_live=coordinator.last_update_success,
+        )
 
     @property
     def native_current_temperature(self) -> float | None:
