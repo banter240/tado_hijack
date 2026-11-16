@@ -155,6 +155,10 @@ IDENTIFIER_DOMAIN_KIND_VALUE: Final = (
 # visible: the age cannot be shown.
 ZONE_SAMPLE_MAX_AGE_S: Final = 4 * 60 * 60
 
+# Room states older than two zone polls are not the live room. The floor
+# keeps a short, jittered interval from flapping.
+ZONE_STATES_STALE_FLOOR_S: Final = 300
+
 # Select token. This heating zone does not call a boiler driver.
 CIRCUIT_UNASSIGNED: Final = "none"
 

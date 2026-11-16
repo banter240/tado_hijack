@@ -13,6 +13,7 @@ from ..const import (
     POWER_OFF,
     TEMP_TOLERANCE,
     ZONE_SAMPLE_MAX_AGE_S,
+    ZONE_STATES_STALE_FLOOR_S,
     ZONE_TYPE_AIR_CONDITIONING,
     ZONE_TYPE_HEATING,
     ZONE_TYPE_HOT_WATER,
@@ -128,6 +129,20 @@ def cloud_reading_is_live(sample: Any, *, now: datetime | None = None) -> bool:
     parsed_utc = dt_util.as_utc(parsed)
     age_s = float((moment - parsed_utc).total_seconds())
     return age_s <= ZONE_SAMPLE_MAX_AGE_S
+
+
+def zone_states_are_live(age_s: float | None, interval_s: float | None) -> bool:
+    """True when the last room states can still stand in for the room.
+
+    They go stale after two zone polls, never before five minutes and never
+    after four hours. No fetch yet is not live.
+    """
+    if age_s is None:
+        return False
+    limit = float(ZONE_SAMPLE_MAX_AGE_S)
+    if interval_s:
+        limit = min(limit, max(2 * interval_s, ZONE_STATES_STALE_FLOOR_S))
+    return age_s <= limit
 
 
 def trv_serials(zones_meta: Mapping[int, Any], zone_id: int | None = None) -> list[str]:

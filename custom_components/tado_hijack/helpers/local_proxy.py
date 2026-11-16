@@ -127,6 +127,7 @@ from .logging_utils import get_redacted_logger
 from .zone_utils import (
     cloud_climate_can_follow_schedule,
     zone_follows_cloud_schedule,
+    zone_states_are_live,
 )
 
 if TYPE_CHECKING:
@@ -178,7 +179,7 @@ def proxy_hvac_modes(raw: Any, *, add_auto: bool) -> list[HVACMode]:
 
 def proxy_hvac_action(
     raw: Any,
-    hvac_mode: HVACMode,
+    hvac_mode: HVACMode | None,
     zone_state: Any,
     *,
     cloud_live: bool = True,
@@ -187,12 +188,15 @@ def proxy_hvac_action(
 
     A Tado X Wireless Temperature Sensor reports no action over Matter.
     The zone poll is the cloud's view of the same room. Power off is off.
-    Heating power above 0 is heating, 0 is idle. A failed poll shows none,
-    so a cloud outage does not hold the last action.
+    Heating power above 0 is heating, 0 is idle. A mode of None is an
+    unknown source and shows none. Stale room states show none, so a cloud
+    outage does not hold the last action. Air conditioning gets no fallback.
     """
     if raw is not None:
         with contextlib.suppress(ValueError):
             return HVACAction(raw)
+    if hvac_mode is None:
+        return None
     if hvac_mode == HVACMode.OFF:
         return HVACAction.OFF
     if not cloud_live or zone_state is None:
@@ -200,6 +204,8 @@ def proxy_hvac_action(
     if getattr(getattr(zone_state, "setting", None), "power", None) == POWER_OFF:
         return HVACAction.OFF
     activity = getattr(zone_state, "activity_data_points", None)
+    if getattr(activity, "ac_power", None) is not None:
+        return None
     power = getattr(getattr(activity, "heating_power", None), "percentage", None)
     if power is None:
         return None
@@ -641,14 +647,17 @@ class TadoLocalClimateProxy(
     def hvac_action(self) -> HVACAction | None:
         state = self._source()
         raw = state.attributes.get(ATTR_HVAC_ACTION) if state else None
+        known = state is not None and state.state not in _SKIP
         coordinator = self.tado_coordinator
         data = coordinator.data
         zone = data.zone_states.get(str(self._host.zone_id)) if data else None
+        interval = coordinator.update_interval
+        live = coordinator.last_update_success and zone_states_are_live(
+            coordinator.data_manager.zone_states_age(),
+            interval.total_seconds() if interval else None,
+        )
         return proxy_hvac_action(
-            raw,
-            self.hvac_mode,
-            zone,
-            cloud_live=coordinator.last_update_success,
+            raw, self.hvac_mode if known else None, zone, cloud_live=live
         )
 
     @property
