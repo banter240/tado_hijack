@@ -395,6 +395,7 @@ DEVICE_TYPE_MAP: Final[dict[str, str]] = {
     "PR04": "Wireless Receiver X",
     "BU01": "Smart Radiator Thermostat (Vertical)",
     "SU04": "Temperature Sensor X",
+    "SU05": "Temperature Sensor X",
 }
 
 
@@ -416,9 +417,9 @@ DEVICE_TYPE_VA01: Final = _get_device_type("VA01")
 DEVICE_TYPE_RU01: Final = _get_device_type("RU01")
 
 # Device type patterns
-DEVICE_SUFFIX_TADO_X: Final = (
-    "04"  # Tado X devices end with 04 (VA04, RU04, TR04, SU04, PR04)
-)
+# Tado X devices end with 04 (VA04, RU04, TR04, SU04, PR04).
+# Second-generation hardware ends with 05 (SU05).
+DEVICE_SUFFIXES_TADO_X: Final[tuple[str, ...]] = ("04", "05")
 DEVICE_PREFIX_BRIDGE: Final = "IB"  # Bridge devices start with IB (IB01, IB02)
 
 CLASSIC_BRIDGE_DEVICE_TYPES: Final[frozenset[str]] = frozenset(
