@@ -185,12 +185,12 @@ class TadoXMapper:
 
     def is_device_compatible(self, device_type: str) -> bool:
         """Check if device is compatible with Tado X generation."""
-        from ...const import DEVICE_SUFFIX_TADO_X, DEVICE_TYPE_IB02
+        from ...const import DEVICE_SUFFIXES_TADO_X, DEVICE_TYPE_IB02
 
-        # X uses IB02 (Bridge X) and devices ending in "04"
+        # X uses IB02 (Bridge X) and devices ending in "04" or "05"
         return (
             device_type == DEVICE_TYPE_IB02
-            or device_type.endswith(DEVICE_SUFFIX_TADO_X)
+            or device_type.endswith(DEVICE_SUFFIXES_TADO_X)
             or "DUMMY" in device_type
         )
 
