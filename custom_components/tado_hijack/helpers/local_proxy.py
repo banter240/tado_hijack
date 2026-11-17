@@ -123,7 +123,7 @@ from .device_linker import get_local_device, invalidate_cache
 from .discovery import get_bridges, yield_devices
 from .legacy_shim import NativeLegacyRangeMixin, NativeLegacyShimMixin
 from .local_climate import climate_is_off
-from .logging_utils import get_redacted_logger
+from .logging_utils import get_redacted_logger, partial_serial
 from .parsers import parse_heating_power_pct, zone_setting_power_temp
 from .zone_utils import (
     cloud_climate_can_follow_schedule,
@@ -666,9 +666,29 @@ class TadoLocalClimateProxy(
     def native_current_temperature(self) -> float | None:
         return _float_attr(self._source(), ATTR_CURRENT_TEMPERATURE)
 
+    _null_target_logged: bool = False
+
     @property
     def native_target_temperature(self) -> float | None:
-        return _float_attr(self._source(), ATTR_TEMPERATURE)
+        state = self._source()
+        target = _float_attr(state, ATTR_TEMPERATURE)
+        if target is not None:
+            self._null_target_logged = False
+            return target
+        if not self._null_target_logged:
+            self._null_target_logged = True
+            zone = zone_state(self.tado_coordinator, self._host.zone_id)
+            setting = zone_setting_power_temp(zone)
+            _LOGGER.debug(
+                "Zone %s (%s): source reports no target temperature "
+                "(source state: %s), cloud zone state holds power=%s temperature=%s",
+                self._host.zone_id,
+                partial_serial(self._host.serial),
+                state.state if state else "missing",
+                setting[0] if setting else "missing",
+                setting[1] if setting else "-",
+            )
+        return None
 
     @property
     def native_target_temperature_high(self) -> float | None:
