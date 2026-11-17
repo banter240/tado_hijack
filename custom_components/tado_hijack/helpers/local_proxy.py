@@ -111,6 +111,7 @@ from homeassistant.util import slugify
 from ..const import (
     DEVICE_TYPE_MAP,
     DOMAIN,
+    POWER_OFF,
     TEMP_MAX_PROXY,
     TEMP_MIN_PROXY,
     bridge_display_name,
@@ -123,9 +124,12 @@ from .discovery import get_bridges, yield_devices
 from .legacy_shim import NativeLegacyRangeMixin, NativeLegacyShimMixin
 from .local_climate import climate_is_off
 from .logging_utils import get_redacted_logger
+from .parsers import parse_heating_power_pct, zone_setting_power_temp
 from .zone_utils import (
     cloud_climate_can_follow_schedule,
     zone_follows_cloud_schedule,
+    zone_state,
+    zone_states_are_live,
 )
 
 if TYPE_CHECKING:
@@ -173,6 +177,40 @@ def proxy_hvac_modes(raw: Any, *, add_auto: bool) -> list[HVACMode]:
     if add_auto and HVACMode.AUTO not in modes:
         modes.append(HVACMode.AUTO)
     return modes
+
+
+def proxy_hvac_action(
+    raw: Any,
+    hvac_mode: HVACMode | None,
+    zone_state: Any,
+    *,
+    cloud_live: bool = True,
+) -> HVACAction | None:
+    """Source action, or one read from the zone poll.
+
+    A Tado X Wireless Temperature Sensor reports no action over Matter.
+    The zone poll is the cloud's view of the same room. Power off is off.
+    Heating power above 0 is heating, 0 is idle. A mode of None is an
+    unknown source and shows none. Stale room states show none, so a cloud
+    outage does not hold the last action. Air conditioning gets no fallback.
+    """
+    if raw is not None:
+        with contextlib.suppress(ValueError):
+            return HVACAction(raw)
+    if hvac_mode is None:
+        return None
+    if hvac_mode == HVACMode.OFF:
+        return HVACAction.OFF
+    if not cloud_live or zone_state is None:
+        return None
+    if (setting := zone_setting_power_temp(zone_state)) and setting[0] == POWER_OFF:
+        return HVACAction.OFF
+    if getattr(getattr(zone_state, "activity_data_points", None), "ac_power", None):
+        return None
+    power = parse_heating_power_pct(zone_state)
+    if power is None:
+        return None
+    return HVACAction.HEATING if power > 0 else HVACAction.IDLE
 
 
 def proxy_temperature_mode(
@@ -610,12 +648,19 @@ class TadoLocalClimateProxy(
     def hvac_action(self) -> HVACAction | None:
         state = self._source()
         raw = state.attributes.get(ATTR_HVAC_ACTION) if state else None
-        if raw is None:
-            return None
-        try:
-            return HVACAction(raw)
-        except ValueError:
-            return None
+        known = state is not None and state.state not in _SKIP
+        coordinator = self.tado_coordinator
+        interval = coordinator.update_interval
+        live = coordinator.last_update_success and zone_states_are_live(
+            coordinator.zone_states_age(),
+            interval.total_seconds() if interval else None,
+        )
+        return proxy_hvac_action(
+            raw,
+            self.hvac_mode if known else None,
+            zone_state(coordinator, self._host.zone_id),
+            cloud_live=live,
+        )
 
     @property
     def native_current_temperature(self) -> float | None:

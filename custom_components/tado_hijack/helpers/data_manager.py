@@ -152,6 +152,7 @@ class TadoDataManager:
         self._last_schedule_poll: float = 0
         self._last_presence_poll: float = 0
         self._last_zones_poll: float = 0
+        self._zones_fetched_at: float = 0
         self._last_capabilities_poll: float = 0
         self._offset_invalidated_at: float = 0
         self._capabilities_invalidated_at: float = 0
@@ -557,6 +558,12 @@ class TadoDataManager:
             else:
                 self.coordinator.data.zone_states[zone_id] = new_state
 
+    def zone_states_age(self) -> float | None:
+        """Seconds since room states last arrived. None before the first."""
+        if self._zones_fetched_at <= 0:
+            return None
+        return time.monotonic() - self._zones_fetched_at
+
     async def _fetch_zones(self, now: float) -> dict[str, Any]:
         """Fetch zone states (Unified)."""
         if not self.provider:
@@ -569,6 +576,9 @@ class TadoDataManager:
             h.inject_states(states)
 
         self._last_zones_poll = now
+        if states:
+            # A Tado X fetch error returns no states and keeps the old ones.
+            self._zones_fetched_at = now
         self._zones_init = True
         self._merge_zone_states(states)
         self.coordinator.linked_resume.note_zone_poll(states)

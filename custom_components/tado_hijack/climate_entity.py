@@ -37,6 +37,7 @@ from .helpers.legacy_shim import NativeLegacyShimMixin
 from .helpers.logging_utils import get_redacted_logger
 from .helpers.parsers import (
     get_ac_capabilities,
+    parse_heating_power_pct,
     parse_schedule_temperature,
 )
 from .helpers.zone_utils import cloud_reading_is_live, zone_follows_cloud_schedule
@@ -440,9 +441,8 @@ class TadoAirConditioning(TadoClimateEntity):
                 if hasattr(ac_p, "value"):
                     return str(ac_p.value) == POWER_ON
             # Heating power check (both v3 and Tado X)
-            if h_p := getattr(state.activity_data_points, "heating_power", None):
-                if hasattr(h_p, "percentage"):
-                    return float(h_p.percentage) > 0
+            if (pct := parse_heating_power_pct(state)) is not None:
+                return pct > 0
 
         if current_temp is None or target_temp is None:
             return False
@@ -719,9 +719,8 @@ class TadoHeating(TadoClimateEntity):
 
         # Heating power from API
         if hasattr(state, "activity_data_points") and state.activity_data_points:
-            if h_p := getattr(state.activity_data_points, "heating_power", None):
-                if hasattr(h_p, "percentage"):
-                    return float(h_p.percentage) > 0
+            if (pct := parse_heating_power_pct(state)) is not None:
+                return pct > 0
 
         if current_temp is None or target_temp is None:
             return False

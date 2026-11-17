@@ -546,6 +546,10 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         """Return the away temperature for a zone."""
         return self.data_manager.away_cache.get(zone_id)
 
+    def zone_states_age(self) -> float | None:
+        """Seconds since room states last arrived, None before the first."""
+        return self.data_manager.zone_states_age()
+
     async def async_get_capabilities(self, zone_id: int) -> Any:
         """Return capabilities for a zone."""
         return await self.data_manager.async_get_capabilities(zone_id)

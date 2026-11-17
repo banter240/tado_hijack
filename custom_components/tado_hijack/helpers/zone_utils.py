@@ -13,6 +13,7 @@ from ..const import (
     POWER_OFF,
     TEMP_TOLERANCE,
     ZONE_SAMPLE_MAX_AGE_S,
+    ZONE_STATES_STALE_FLOOR_S,
     ZONE_TYPE_AIR_CONDITIONING,
     ZONE_TYPE_HEATING,
     ZONE_TYPE_HOT_WATER,
@@ -104,10 +105,15 @@ def zone_follows_cloud_schedule(
     overlay = coordinator.optimistic.get_zone_overlay(zone_id)
     if overlay is not None:
         return not overlay
+    state = zone_state(coordinator, zone_id)
+    return not bool(state and getattr(state, "overlay_active", False))
+
+
+def zone_state(coordinator: TadoDataUpdateCoordinator, zone_id: int) -> Any:
+    """Zone state for one zone; zone_states is string-keyed."""
     data = coordinator.data
     states = getattr(data, "zone_states", None) if data is not None else None
-    state = states.get(str(zone_id)) if isinstance(states, dict) else None
-    return not bool(state and getattr(state, "overlay_active", False))
+    return states.get(str(zone_id)) if isinstance(states, dict) else None
 
 
 def cloud_reading_is_live(sample: Any, *, now: datetime | None = None) -> bool:
@@ -128,6 +134,20 @@ def cloud_reading_is_live(sample: Any, *, now: datetime | None = None) -> bool:
     parsed_utc = dt_util.as_utc(parsed)
     age_s = float((moment - parsed_utc).total_seconds())
     return age_s <= ZONE_SAMPLE_MAX_AGE_S
+
+
+def zone_states_are_live(age_s: float | None, interval_s: float | None) -> bool:
+    """True when the last room states can still stand in for the room.
+
+    They go stale after two zone polls, never before five minutes and never
+    after four hours. No fetch yet is not live.
+    """
+    if age_s is None:
+        return False
+    limit = float(ZONE_SAMPLE_MAX_AGE_S)
+    if interval_s:
+        limit = min(limit, max(2 * interval_s, ZONE_STATES_STALE_FLOOR_S))
+    return age_s <= limit
 
 
 def trv_serials(zones_meta: Mapping[int, Any], zone_id: int | None = None) -> list[str]:

@@ -778,6 +778,14 @@ Matter device is on the Hijack device for that serial, including entities
 that appear later. A write on the clone calls the original entity. Child
 lock, offset, battery, and connection are on the Hijack device.
 
+The climate clone shows the original's `hvac_action`. When the original
+reports none, as a Tado X Wireless Temperature Sensor does over Matter,
+the clone reads it from the zone poll: power off is off, heating power
+above 0 is heating, 0 is idle. It costs no extra call and follows the
+zone poll interval. Room states older than two zone polls (at least five
+minutes, at most four hours), a failed poll, an unknown source, and air
+conditioning show no action.
+
 Attach on puts those cloud entities on the HomeKit or Matter device, and
 the clone stays off. Full cloud mode does neither. A V2 gateway has no
 HomeKit device. An entry still stored with attach on and the clone off

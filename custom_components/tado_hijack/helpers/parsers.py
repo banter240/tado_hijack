@@ -114,6 +114,14 @@ def zone_setting_power_temp(state: Any) -> tuple[str, float | None] | None:
     return power, temperature
 
 
+def parse_heating_power_pct(state: Any) -> float | None:
+    """Heating power % from a zone state, None without a reading."""
+    activity = getattr(state, "activity_data_points", None)
+    power = getattr(activity, "heating_power", None)
+    percentage = getattr(power, "percentage", None)
+    return float(percentage) if isinstance(percentage, int | float) else None
+
+
 def parse_schedule_temperature(state: Any) -> float | None:
     """Extract the target temperature from the active schedule in zone state.
 
