@@ -1,3 +1,53 @@
+## [5.14.0-dev.11](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.10...v5.14.0-dev.11) (2026-11-17)
+
+### ✨ New Features
+
+* feat(proxy): show the zone heating action on the linked climate clone
+
+  A Tado X Wireless Temperature Sensor reports no hvac_action over
+  Matter, so the reverse-linked climate clone never showed heating or
+  idle. When the source reports no action, the clone now reads it from
+  the zone poll: power off is off, heating power above 0 is heating,
+  0 is idle. A valid source action still wins, so HomeKit and Matter
+  devices that report one are unchanged.
+
+  The fallback only applies while the room states are live: older than
+  two zone polls, at least five minutes and at most four hours. A failed
+  poll keeps the old states but stops the clock, so a cloud outage or
+  throttle pause shows no action instead of holding the last one. An
+  unknown source and air-conditioning zones show no action.
+
+  The data manager records when room states last arrived; a Tado X
+  fetch error returns no states and keeps the old ones. Heating power
+  is read via activity_data_points, the path climate_entity already
+  uses, so it works for Classic and Tado X at no extra API call.
+
+  Aligned with the project standards: the coordinator owns
+  zone_states_age() behind its facade, parse_heating_power_pct() in
+  helpers/parsers.py is the single heating-power read (also replaces
+  the two climate_entity copies), zone_state() in zone_utils.py owns
+  the string-keyed zone_states lookup, and zone_setting_power_temp()
+  parses the setting.
+
+  Tests: tests/test_proxy_hvac_action.py (19) cover the priority rules,
+  the zone shapes including the real TadoXZoneState model, and the
+  room-state age limits. Docs: FEATURES.md, TADO_API.md.
+
+  Refs #207
+
+### 🐛 Bug Fixes
+
+* fix(tadox): accept second-generation device types such as SU05
+
+  The Wireless Temperature Sensor X now ships as SU05. The Tado X filter
+  only accepted types ending in 04, so the sensor was dropped from
+  discovery: no device entities and no Matter linking.
+
+  Accept 04 and 05 through DEVICE_SUFFIXES_TADO_X and give SU05 its
+  model name.
+
+  Refs #205
+
 ## [5.14.0-dev.10](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.9...v5.14.0-dev.10) (2026-11-15)
 
 ### ✨ New Features
