@@ -1,3 +1,22 @@
+## [5.14.0-dev.12](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.11...v5.14.0-dev.12) (2026-11-18)
+
+### 🐛 Bug Fixes
+
+* fix(proxy): log the cloud zone setting when the source reports no target
+
+  Discussion #209: Apple Home shows the HA bridge placeholder (21 C) on
+  the linked clone whenever the source climate has no target temperature,
+  e.g. a TRV idle in frost protection. Whether a fallback could ever be
+  honest depends on what the cloud zone state holds in that moment:
+  power ON with a temperature would be a real reading, power OFF without
+  one would mean nobody in the chain has a target and null is the truth.
+
+  Instrument the decision point: when the source target is missing, log
+  the source state plus the zone's cloud power and temperature once per
+  silent episode, using the same readers a fallback would consume.
+
+  Refs #209
+
 ## [5.14.0-dev.11](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.10...v5.14.0-dev.11) (2026-11-17)
 
 ### ✨ New Features
