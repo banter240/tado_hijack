@@ -46,7 +46,7 @@ class TadoV3Mapper:
         devices = await self.client.get_devices()
 
         zones_meta = {z.id: z for z in zones}
-        devices_meta = {d.short_serial_no: d for d in devices}
+        devices_meta = {d.serial_no: d for d in devices}
 
         return zones_meta, devices_meta
 

@@ -120,9 +120,27 @@ def has_local_domain(device: DeviceEntry, domains: Iterable[str]) -> bool:
     )
 
 
+_SUFFIX_MIN_LEN = 8
+
+
 def serial_equals(value: str | None, needle: str) -> bool:
-    """Return True if value is the cloud serial."""
-    return isinstance(value, str) and normalize_serial(value) == needle
+    """Return True if value is the cloud serial.
+
+    Some devices (old RU units) report a long factory serial to the cloud
+    whose tail is the serial HomeKit/Matter exposes, so exact equality is
+    too strict. Both sides must be long enough to keep tails from matching
+    unrelated serials.
+    """
+    if not isinstance(value, str) or not needle:
+        return False
+    candidate = normalize_serial(value)
+    if candidate == needle:
+        return True
+    return (
+        len(candidate) >= _SUFFIX_MIN_LEN
+        and len(needle) >= _SUFFIX_MIN_LEN
+        and (candidate.endswith(needle) or needle.endswith(candidate))
+    )
 
 
 def serial_in_identifiers(
