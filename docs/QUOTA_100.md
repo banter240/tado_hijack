@@ -130,6 +130,8 @@ A button or `manual_poll` of type `all`, `schedule`, `timetable`, or `capabiliti
 
 `simulated_daily_limit` pretends `q=` is lower. Consumed calls still come from the real header, so a real reset refills the pretended budget too. Set it to **100** just after a reset. If the real header has already recorded more than 100 calls that day, the pretended remaining is 0 until the real reset.
 
+Reset detection and the reset window sensors always read the real quota headers, so reset tracking keeps following the account's true reset while the limit is simulated. The sensors can still look odd next to the polling sensors, because the simulation shapes the poll rhythm and the trackers follow different inputs by design.
+
 The first full poll runs only when the header limit is at least 1000 (`API_QUOTA_STANDARD`). A home whose header is already 100 skips that pass. The first hardware sync still loads capabilities for zones that have no copy. Timetable types and weekly plans stay uncached until the reset switch fires or someone uses the button.
 
 ## What does not belong in the 100
