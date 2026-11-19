@@ -1,3 +1,43 @@
+## [5.14.0-dev.13](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.12...v5.14.0-dev.13) (2026-11-19)
+
+### 🐛 Bug Fixes
+
+* fix(link): match devices whose HomeKit serial is the cloud serial tail
+
+  Old RU units report a long factory serial to the cloud while HomeKit
+  exposes only the 12-char tail of it, breaking the HomeKit attach and
+  every devices_meta lookup at once (connection, battery, child lock,
+  offset, resolver). Exact serial equality only ever worked because
+  both serials are identical strings on all other devices.
+
+  serial_equals now accepts suffix matches with a minimum-length guard
+  of 8, so the shared matcher covers HomeKit and Matter. The v3 mapper
+  keys devices_meta by the long serial, like the Tado X mapper and the
+  dummy handler already do; all consumers look up with the long serial,
+  and API calls use device.serial_no regardless of the dict key.
+
+  Fixes #210
+* fix(quota): learn the reset window from honest observation intervals
+
+  The learner compared detection hours: with a poll grid straddling the
+  reset boundary the detected hour flips between two values from day to
+  day, and the pattern-break trim wiped the history daily — history_count
+
+  Fixes #203
+
+### 📚 Documentation
+
+* docs(quota): describe window learning and simulated-limit sensor scope
+
+  The reset-window paragraph still described the retired same-hour
+  pattern rule and the fixed :30 storage; it now explains observation-
+  window intersection and the midpoint estimate. The simulated limit
+  section gains the note that reset detection and window sensors always
+  follow the real headers, so poll-rhythm and reset sensors can
+  legitimately disagree while a limit is simulated.
+
+  Refs #203
+
 ## [5.14.0-dev.12](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.11...v5.14.0-dev.12) (2026-11-18)
 
 ### 🐛 Bug Fixes
