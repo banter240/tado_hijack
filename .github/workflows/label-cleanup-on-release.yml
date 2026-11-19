@@ -1,7 +1,8 @@
 # When a release label lands on an issue, strip the workflow-state labels
 # that no longer apply (checking, planned, question, done-unreleased, ...).
-# Fires only on the labeling event itself, so status labels re-added manually
-# afterwards survive.
+# A final release (status:released) also supersedes the channel variants
+# (released-dev/rc/alpha). Fires only on the labeling event itself, so
+# status labels re-added manually afterwards survive.
 name: Label cleanup on release
 
 on:
@@ -44,8 +45,14 @@ jobs:
             }
 
             const current = context.payload.issue.labels.map((l) => l.name);
+            // A final release supersedes the channel release variants.
+            const superseded =
+              added === 'status:released'
+                ? (name) => RELEASED.has(name) && name !== added
+                : () => false;
             const toRemove = current.filter(
-              (name) => STALE.has(name) && !RELEASED.has(name)
+              (name) =>
+                name !== added && (STALE.has(name) || superseded(name))
             );
             for (const name of toRemove) {
               core.info(`Removing '${name}' — issue is ${added}`);
