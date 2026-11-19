@@ -26,6 +26,30 @@ from ..const import (
     API_RESET_PATTERN_THRESHOLD,
 )
 
+_MINUTES_PER_DAY = 24 * 60
+
+
+def _arc_midpoint(minutes: set[int]) -> int | None:
+    """Center of the cyclic arc covered by minutes, or None if it rings the clock."""
+    if not minutes or len(minutes) >= _MINUTES_PER_DAY:
+        return None
+    if len(minutes) == 1:
+        return next(iter(minutes))
+    ordered = sorted(minutes)
+    n = len(ordered)
+    largest = 0
+    index = 0
+    for i in range(n):
+        gap = (ordered[(i + 1) % n] - ordered[i]) % _MINUTES_PER_DAY
+        if gap > largest:
+            largest = gap
+            index = i
+    if index == n - 1:
+        lo, hi = ordered[0], ordered[n - 1]
+    else:
+        lo, hi = ordered[index + 1], ordered[index] + _MINUTES_PER_DAY
+    return ((lo + hi) // 2) % _MINUTES_PER_DAY
+
 
 @dataclass
 class ResetWindow:
@@ -57,8 +81,13 @@ class ResetWindowTracker:
     Tado's API quota resets daily but the exact time varies by user.
     This tracker observes reset events and learns the pattern:
 
-    - 2+ consecutive resets at same UTC hour: Pattern confirmed, _learned_window updated
-    - Single reset or pattern break: _learned_window kept unchanged (outlier protection)
+    - Window learning: a reset recorded together with the last poll that
+      still saw the old quota gives the honest bounds (observed_after,
+      detection]; the recent windows must intersect inside a single UTC
+      hour to confirm the pattern
+    - Legacy path: 2+ consecutive detections at the same UTC hour
+    - Pattern break: history trimmed to the newest entry, _learned_window
+      kept until a new pattern accumulates enough confirmations
     - No confirmed pattern: Falls back to default UTC hour (API_RESET_DEFAULT_UTC_HOUR)
 
     A confirmed learned window is only replaced once a NEW pattern accumulates
@@ -81,6 +110,11 @@ class ResetWindowTracker:
 
         self._history: deque[datetime] = deque(maxlen=history_size)
         self._history_original: deque[datetime] = deque(maxlen=history_size)
+        # Parallel to _history: (lower bound UTC, detection UTC) per reset or
+        # None for legacy entries without a known lower bound.
+        self._windows: deque[tuple[datetime, datetime] | None] = deque(
+            maxlen=history_size
+        )
 
         self._learned_window: ResetWindow | None = None
         self._initial_target: datetime | None = None
@@ -119,12 +153,20 @@ class ResetWindowTracker:
         assert self._initial_target is not None
         return self._initial_target
 
-    def record_reset(self, reset_time: datetime) -> None:
+    def record_reset(
+        self,
+        reset_time: datetime,
+        observed_after: datetime | None = None,
+    ) -> None:
         """Record a detected quota reset.
 
         Stores original time in Berlin tz (for display) and normalized UTC
         time (for pattern learning). Normalizing in UTC keeps the learned
         hour stable across DST transitions.
+
+        observed_after is the wall-clock time of the last header observation
+        that still saw the old quota, the honest lower bound of when the
+        reset happened. None marks a legacy detection-only entry.
         """
         berlin_tz = dt_util.get_time_zone("Europe/Berlin")
         reset_berlin = reset_time.astimezone(berlin_tz)
@@ -135,42 +177,84 @@ class ResetWindowTracker:
         normalized_utc = reset_utc.replace(
             minute=API_RESET_MIDPOINT_MINUTE, second=0, microsecond=0
         )
+        if observed_after is not None and observed_after.astimezone(UTC) < reset_utc:
+            self._windows.appendleft((observed_after.astimezone(UTC), reset_utc))
+        else:
+            self._windows.appendleft(None)
         self._history.appendleft(normalized_utc)
         self._update_learned_window()
+
+    def _candidate_minutes(self, idx: int) -> set[int]:
+        """Minutes-of-day entry idx could have reset in, on the daily cycle.
+
+        Windowed entries contribute their honest (lower, upper] interval as
+        a time of day; windows that cross midnight wrap around the cycle.
+        Legacy entries only pin the detection hour block.
+        """
+        if idx < len(self._windows):
+            bounds = self._windows[idx]
+            if bounds is not None:
+                lower, upper = bounds
+                lo = lower.hour * 60 + lower.minute
+                hi = upper.hour * 60 + upper.minute
+                span = (hi - lo) % _MINUTES_PER_DAY
+                if span == 0:
+                    # 24 h window (long suspension) pins nothing.
+                    return set(range(_MINUTES_PER_DAY))
+                # Half-open (lower, upper]: the lower-bound poll still saw
+                # the old quota, so exclude its exact minute.
+                return {(lo + i) % _MINUTES_PER_DAY for i in range(1, span + 1)}
+        hour = self._history[idx].hour
+        return set(range(hour * 60, hour * 60 + 60))
 
     def _update_learned_window(self) -> None:
         """Analyze history and update learned window only when pattern is confirmed.
 
-        A confirmed _learned_window is never overwritten by a single outlier.
-        On a pattern break the history is trimmed to the newest entry so the
-        tracker can accumulate fresh confirmations, but _learned_window is left
-        untouched until >= pattern_threshold consecutive resets agree on a new hour.
+        Entries are compared as times of day, never as absolute datetimes:
+        the reset recurs daily, so windows from different days intersect on
+        the daily minute cycle. A confirmed _learned_window is never
+        overwritten by a single outlier; when the newest entry cannot share
+        any minute with the previous one the history is trimmed to the
+        newest entry so the tracker can accumulate fresh confirmations.
+
+        Learning takes the midpoint of the intersected arc: every window
+        provably contains the true reset, so the center minimizes the worst
+        case distance and keeps learning possible even when the arc spans
+        two hours (a majority rule would stall at a stable hour-boundary
+        straddle).
         """
         if not self._history:
             return
 
-        recent = list(self._history)[: self._pattern_threshold]
-        first = recent[0]
-
-        if len(recent) >= self._pattern_threshold and first.hour != recent[1].hour:
+        if len(self._history) >= self._pattern_threshold and self._candidate_minutes(
+            0
+        ).isdisjoint(self._candidate_minutes(1)):
+            newest = self._history[0]
             newest_original = (
                 self._history_original[0] if self._history_original else None
             )
+            newest_window = self._windows[0] if self._windows else None
             self._history.clear()
             self._history_original.clear()
-            self._history.appendleft(first)
+            self._windows.clear()
+            self._history.appendleft(newest)
             if newest_original is not None:
                 self._history_original.appendleft(newest_original)
+            self._windows.appendleft(newest_window)
             return
 
         if len(self._history) < self._pattern_threshold:
             return
 
-        reset_hours = [r.hour for r in recent]
-        if len(set(reset_hours)) == 1:
-            # minute is always 30 — record_reset normalizes all UTC entries to :30
+        common = self._candidate_minutes(0)
+        for idx in range(1, len(self._history)):
+            common &= self._candidate_minutes(idx)
+        midpoint = _arc_midpoint(common)
+        if midpoint is not None:
             self._learned_window = ResetWindow(
-                hour=reset_hours[0], minute=recent[0].minute, confidence="learned"
+                hour=midpoint // 60,
+                minute=(midpoint % 60) // 30 * 30,
+                confidence="learned",
             )
 
     def _default_utc_window(self) -> tuple[int, int]:
@@ -200,6 +284,17 @@ class ResetWindowTracker:
         """Get the absolute next expected reset time in Berlin tz."""
         berlin_tz = dt_util.get_time_zone("Europe/Berlin")
         now_utc = dt_util.now().astimezone(UTC)
+
+        if self._learned_window and self._learned_window.confidence == "learned":
+            next_reset_utc = now_utc.replace(
+                hour=self._learned_window.hour,
+                minute=self._learned_window.minute,
+                second=0,
+                microsecond=0,
+            )
+            if next_reset_utc <= now_utc:
+                next_reset_utc += timedelta(days=1)
+            return next_reset_utc.astimezone(berlin_tz)
 
         if not self._history:
             return self.get_initial_target()
@@ -241,6 +336,10 @@ class ResetWindowTracker:
                 if self._learned_window
                 else None
             ),
+            "windows": [
+                [bounds[0].isoformat(), bounds[1].isoformat()] if bounds else None
+                for bounds in self._windows
+            ],
             "initial_target": self._initial_target.isoformat()
             if self._initial_target
             else None,
@@ -268,12 +367,29 @@ class ResetWindowTracker:
 
         self._history.clear()
         self._history_original.clear()
+        self._windows.clear()
 
         history_list = data.get("history", [])
         self._load_history_from_list(history_list, self._history)
 
         history_original_list = data.get("history_original", history_list)
         self._load_history_from_list(history_original_list, self._history_original)
+
+        windows_list = data.get("windows", [])
+        for entry in reversed(windows_list):
+            try:
+                lower_raw, upper_raw = entry
+            except TypeError, ValueError:
+                self._windows.appendleft(None)
+                continue
+            lower = dt_util.parse_datetime(lower_raw)
+            upper = dt_util.parse_datetime(upper_raw)
+            if lower is not None and upper is not None:
+                self._windows.appendleft((lower, upper))
+            else:
+                self._windows.appendleft(None)
+        while len(self._windows) < len(self._history):
+            self._windows.append(None)
 
         if lw := data.get("learned_window"):
             if isinstance(lw, dict) and "hour" in lw and "minute" in lw:

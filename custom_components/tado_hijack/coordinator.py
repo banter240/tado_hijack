@@ -420,6 +420,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         self._polling_calls_today = 0
         self._last_quota_reset: datetime | None = None
         self._last_remaining: int | None = None
+        self._last_observed: datetime | None = None
         self._force_next_update: bool = False
         self._last_ac_swing: dict[int, str] = {}
 
@@ -461,6 +462,9 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             remaining = counters.get("last_remaining")
             if isinstance(remaining, int):
                 self._last_remaining = remaining
+            observed = counters.get("last_observed")
+            if isinstance(observed, str):
+                self._last_observed = dt_util.parse_datetime(observed)
             _LOGGER.debug(
                 "Restored quota counters: %d calls today, last remaining %s",
                 self._polling_calls_today,
@@ -958,7 +962,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
 
         self.poll_scheduler.schedule_reset_poll(delay, self._on_reset_poll)
 
-    def _detect_quota_reset(self) -> bool:
+    def _detect_quota_reset(self, stamp_observation: bool = True) -> bool:
         """Detect quota reset by monitoring any increase in remaining quota.
 
         Since quota only decreases through usage, any upward movement
@@ -977,7 +981,9 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
             self._last_quota_reset = reset_time
             self._polling_calls_today = 0
 
-            self.reset_tracker.record_reset(reset_time)
+            self.reset_tracker.record_reset(
+                reset_time, observed_after=self._last_observed
+            )
             self._save_reset_tracker()
             self._schedule_reset_poll()
             if self._refresh_plans_after_reset:
@@ -994,6 +1000,11 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
                 expected,
             )
 
+        if stamp_observation:
+            # Only a real fetch guarantees fresh headers; the local sync path
+            # may still read the previous response, and stamping it later
+            # would push the learning window past the true reset.
+            self._last_observed = dt_util.now()
         self._last_remaining = self.rate_limit.header_remaining
         self._save_quota_counters()
         return reset
@@ -1006,6 +1017,9 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
                 {
                     "polling_calls_today": self._polling_calls_today,
                     "last_remaining": self._last_remaining,
+                    "last_observed": self._last_observed.isoformat()
+                    if self._last_observed
+                    else None,
                 },
             )
         )
@@ -1216,7 +1230,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
                 remaining=self.rate_limit.remaining,
             )
             self.data.api_status = self.rate_limit.api_status
-        if self._detect_quota_reset():
+        if self._detect_quota_reset(stamp_observation=False):
             self._maybe_calibrate_offsets_on_reset()
         if not silent:
             self.async_update_listeners()
