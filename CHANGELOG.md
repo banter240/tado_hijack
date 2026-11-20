@@ -1,3 +1,25 @@
+## [5.14.0-dev.14](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.13...v5.14.0-dev.14) (2026-11-20)
+
+### 🐛 Bug Fixes
+
+* fix(link): match the cloud shortSerialNo instead of a serial tail
+
+  The dev.13 suffix rule was built on the reporter's masked serial and
+  the tail reconstruction it implied. The full serials show the real
+  shape: shortSerialNo is the first two plus the last ten characters of
+  the long factory serial, so endswith can never match it. The cloud
+  already hands us the exact string HomeKit exposes, so no heuristic is
+  needed.
+
+  serial_equals is back to exact equality. The device linker now keeps
+  shortSerialNo as a match alias per long serial, fed once per metadata
+  fetch by the coordinator and merged across config entries, so every
+  consumer (attach, climate map, proxies, recovery queue, diagnostics)
+  matches either serial without touching call sites. devices_meta keeps
+  its long-serial keys.
+
+  Fixes #210
+
 ## [5.14.0-dev.13](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.12...v5.14.0-dev.13) (2026-11-19)
 
 ### 🐛 Bug Fixes
