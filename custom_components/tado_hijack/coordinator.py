@@ -113,7 +113,7 @@ from .helpers.api_manager import TadoApiManager
 from .helpers.auth_manager import AuthManager
 from .helpers.availability_tracker import AvailabilityTracker
 from .helpers.data_manager import TadoDataManager, UnifiedDataProvider
-from .helpers.device_linker import get_climate_entity_id
+from .helpers.device_linker import get_climate_entity_id, update_serial_aliases
 from .helpers.entity_resolver import EntityResolver
 from .helpers.event_handlers import TadoEventHandler
 from .helpers.hot_water_duration import (
@@ -703,6 +703,7 @@ class TadoDataUpdateCoordinator(OffsetCalSchedulerMixin, DataUpdateCoordinator[A
         """Copy zones, devices, and bridges from the fetch that just finished."""
         self.zones_meta = self.data_manager.zones_meta
         self.devices_meta = self.data_manager.devices_meta
+        update_serial_aliases(self.devices_meta)
         entry = self.config_entry
         if entry is not None:
             from .helpers.device_linker import drop_absent_registry

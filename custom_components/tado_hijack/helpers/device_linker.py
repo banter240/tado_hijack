@@ -105,6 +105,38 @@ def _matcher_for(generation: str) -> Callable[[dr.DeviceEntry, str], bool]:
     return matches_matter if generation == GEN_X else matches_homekit
 
 
+_serial_aliases: dict[str, str] = {}
+
+
+def update_serial_aliases(devices_meta: Mapping[Any, Any]) -> None:
+    """Remember shortSerialNo as a match alias for each long serial.
+
+    Old RU units expose the short serial to HomeKit while the cloud
+    lists a long factory serial for the same device.
+    """
+    aliases: dict[str, str] = {}
+    for device in devices_meta.values():
+        long = _field(device, "serial_no")
+        short = _field(device, "short_serial_no")
+        if not isinstance(long, str) or not isinstance(short, str):
+            continue
+        long_serial, short_serial = normalize_serial(long), normalize_serial(short)
+        if long_serial and short_serial and long_serial != short_serial:
+            aliases[long_serial] = short_serial
+    # Merge, never replace: another entry's coordinator owns other serials.
+    _serial_aliases.update(aliases)
+
+
+def _serial_candidates(serial_no: str) -> tuple[str, ...]:
+    """The serial itself plus its known short-serial alias."""
+    needle = normalize_serial(serial_no)
+    if not needle:
+        return ()
+    if alias := _serial_aliases.get(needle):
+        return needle, alias
+    return (needle,)
+
+
 def _matching_devices(
     hass: HomeAssistant,
     serial_no: str,
@@ -113,13 +145,14 @@ def _matching_devices(
     exclude_entry_id: str | None = None,
 ) -> Iterator[dr.DeviceEntry]:
     """Yield local protocol devices that carry the cloud serial."""
-    if not serial_no or not serial_no.strip():
+    candidates = _serial_candidates(serial_no)
+    if not candidates:
         return
     matches = _matcher_for(generation)
     for device in _all_devices(hass):
         if exclude_entry_id and _owned_by(device, exclude_entry_id):
             continue
-        if matches(device, serial_no):
+        if any(matches(device, candidate) for candidate in candidates):
             yield device
 
 
