@@ -17,6 +17,7 @@ from .const import (
 )
 from .definitions import home_mode_room_attributes
 from .entity import (
+    TadoDeviceEntity,
     TadoGenericEntityMixin,
     TadoHomeEntity,
     TadoZoneEntity,
@@ -47,6 +48,7 @@ async def async_setup_entry(
         {
             "home": TadoGenericHomeSensor,
             "zone": TadoGenericZoneSensor,
+            "device": TadoGenericDeviceSensor,
         },
     )
     coordinator: TadoDataUpdateCoordinator = entry.runtime_data
@@ -83,6 +85,30 @@ class TadoGenericHomeSensor(TadoHomeEntity, TadoGenericEntityMixin, SensorEntity
             attrs |= home_mode_room_attributes(self.coordinator)
 
         return attrs
+
+
+class TadoGenericDeviceSensor(TadoDeviceEntity, TadoGenericEntityMixin, SensorEntity):
+    """Generic sensor for Device scope."""
+
+    def __init__(
+        self,
+        coordinator: TadoDataUpdateCoordinator,
+        definition: TadoEntityDefinition,
+        device: Any,
+        zone_id: int,
+    ) -> None:
+        """Initialize the generic device sensor."""
+        TadoDeviceEntity.__init__(
+            self,
+            coordinator,
+            cast(str, definition["translation_key"]),
+            device.serial_no,
+            device.short_serial_no,
+            device.device_type,
+            zone_id,
+            device.current_fw_version,
+        )
+        TadoGenericEntityMixin.__init__(self, definition)
 
 
 class TadoGenericZoneSensor(TadoZoneEntity, TadoGenericEntityMixin, SensorEntity):

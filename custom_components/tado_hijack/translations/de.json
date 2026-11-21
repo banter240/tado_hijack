@@ -4,6 +4,9 @@
       "api_limit": {
         "name": "API Tageslimit"
       },
+      "mounting_state": {
+        "name": "Montagezustand"
+      },
       "api_remaining": {
         "name": "Verbleibende API-Aufrufe"
       },

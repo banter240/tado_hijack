@@ -199,6 +199,7 @@ If a write is invoked anyway, both fields share the queue key `flow_temp` and on
 ## Other controls
 
 - **Child lock:** a device switch when `child_lock_enabled` is not `None`. Classic is one call per serial. Tado X can share a device PATCH with a queued offset.
+- **Mounting state:** a diagnostic device sensor carrying the raw `mountingStateWithError` string (e.g. `CALIBRATED`) when the cloud reports one. No extra API call; arrives with the device poll. A valve that slipped off the stem still reports normal battery and connection, so this is the only field that surfaces it.
 - **Dazzle and early start:** classic only. Tado X marks both unsupported. Early start keeps the switch state. A GET runs only when that state is unknown, or on a full refresh.
 - **Heating circuit:** classic heating, option off by default. A Tado X home is not read yet. With the option on, one call lists the drivers. Zero or one driver stops there: no select, no further reads. Two or more drivers add one control read per heating zone, once per setup, and the select lists those drivers plus `none` (this room does not call for heat). The write is queued with the other zone settings, so the last choice is the one sent, including while calls are held. A failed read is logged and tried again only after a reload.
 - **Away temperature:** classic heating. At or below 5°C the number shows 0 and the away setpoint is cleared.
@@ -206,7 +207,7 @@ If a write is invoked anyway, both fields share the queue key `flow_temp` and on
 - **Meter readings:** Energy IQ, not Hops. The schema marks `config_entry` required. The handler sends the reading to every coordinator when the field is missing.
 - **Polling switch:** starts on at every load and is not stored.
 - **Refresh token:** when a refresh rotates the token, `persist_refresh_token` writes it to the config entry. The same helper runs after a poll and does nothing if the entry already has that value.
-- **Classic device lookup:** `devices_meta` is keyed by `short_serial_no`. Device entities look up the full serial. When those differ, battery, connection, and child lock read no row. Tado X keys the same map by the full serial.
+- **Classic device lookup:** `devices_meta` is keyed by the full `serial_no`, matching how the cloud and Tado X list devices. Devices whose HomeKit serial is the shorter `shortSerialNo` link through the alias map in the device linker, so battery, connection, child lock, and mounting state all resolve. Same-key lookups in `drop_absent_registry` and live-serial cleanup accept both.
 - **Dummy zones:** only when the environment variable `TADO_ENABLE_DUMMIES` is set. Not a config option.
 
 ---

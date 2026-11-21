@@ -611,6 +611,29 @@ def create_diagnostic_zone_sensor(
     )
 
 
+def create_device_sensor(
+    key: str,
+    value_fn: Any,
+    icon: str | None = None,
+    entity_category: EntityCategory | None = None,
+    is_supported_fn: Any | None = None,
+    supported_generations: set[str] | None = None,
+    unique_id_suffix: str | None = None,
+) -> TadoEntityDefinition:
+    """Create a sensor for a Tado Device."""
+    return _create_definition(
+        key=key,
+        platform="sensor",
+        scope="device",
+        value_fn=value_fn,
+        icon=icon,
+        entity_category=entity_category,
+        is_supported_fn=is_supported_fn,
+        supported_generations=supported_generations,
+        unique_id_suffix=unique_id_suffix,
+    )
+
+
 def create_home_binary_sensor(
     key: str,
     value_fn: Any,
@@ -694,6 +717,11 @@ def _is_connected(state: Any) -> bool:
     if isinstance(value, bool):
         return value
     return isinstance(state, str) and state == "CONNECTED"
+
+
+def _get_mounting_state(c: Any, serial: str) -> str | None:
+    """mountingStateWithError from the device list, or None."""
+    return getattr(c.devices_meta.get(serial), "mounting_state_with_error", None)
 
 
 def create_bridge_binary_sensor(
@@ -2020,6 +2048,14 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         device_class=BinarySensorDeviceClass.CONNECTIVITY,
         entity_category=EntityCategory.DIAGNOSTIC,
         unique_id_suffix="conn",
+    ),
+    create_device_sensor(
+        key="mounting_state",
+        value_fn=_get_mounting_state,
+        icon="mdi:tune",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        is_supported_fn=lambda c, serial: _get_mounting_state(c, serial) is not None,
+        supported_generations={GEN_CLASSIC},
     ),
     create_bridge_binary_sensor(
         key="cloud_connection",

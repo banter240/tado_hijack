@@ -4,6 +4,9 @@
       "api_limit": {
         "name": "Denní limit API"
       },
+      "mounting_state": {
+        "name": "Stav montáže"
+      },
       "api_remaining": {
         "name": "Zbývající API dotazy"
       },
