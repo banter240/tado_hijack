@@ -1,3 +1,19 @@
+## [5.14.0-dev.15](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.14...v5.14.0-dev.15) (2026-11-21)
+
+### ✨ New Features
+
+* feat(sensors): expose the mounting state as a device diagnostic
+
+  Adds a device-scoped diagnostic sensor that carries the raw
+  mountingStateWithError string (e.g. CALIBRATED) from the regular
+  device poll, no extra API call. Entities are limited to Classic
+  devices where the cloud reports the field; bridges, Tado X and
+  dummy devices grow nothing. The sensor platform gets its previously
+  missing device scope class, translations come in en/de/cs, and a
+  stale devices_meta note in FEATURES.md is corrected along the way.
+
+  Fixes #211
+
 ## [5.14.0-dev.14](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.13...v5.14.0-dev.14) (2026-11-20)
 
 ### 🐛 Bug Fixes
