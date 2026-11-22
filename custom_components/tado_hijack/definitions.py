@@ -766,6 +766,21 @@ def _get_flow_auto_adaptation(c: Any) -> bool | None:
     return bool(ft.auto_adaptation.enabled)
 
 
+def _get_current_flow_temperature(c: Any) -> float | None:
+    """Return the current auto-adapted flow temperature.
+
+    With auto adaptation on, Tado lowers the configured max flow temperature
+    based on outdoor conditions; this is the value the Tado app shows.
+    ``None`` while adaptation is off (no adapted value exists) — the
+    effective value then equals ``max_flow_temperature``.
+    """
+    ft = _get_flow_temp_settings(c)
+    if ft is None or ft.auto_adaptation is None:
+        return None
+    value = ft.auto_adaptation.max_flow_temperature
+    return float(value) if value is not None else None
+
+
 def _find_boiler_flow_temp(c: Any) -> tuple[float, str] | None:
     """First zone reporting a boiler flow temperature, with its zone id."""
     for zid, state in (c.data.zone_states or {}).items():
@@ -1380,6 +1395,15 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         unit=UnitOfTemperature.CELSIUS,
         icon="mdi:water-boiler",
         is_supported_fn=_boiler_flow_supported,
+    ),
+    create_home_sensor(
+        key="current_flow_temperature",
+        value_fn=_get_current_flow_temperature,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        unit=UnitOfTemperature.CELSIUS,
+        icon="mdi:water-boiler",
+        is_supported_fn=_flow_temp_supported,
     ),
     create_home_binary_sensor(
         key="heating_demand",

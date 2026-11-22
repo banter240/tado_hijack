@@ -205,6 +205,9 @@
       },
       "boiler_flow_temperature": {
         "name": "Boiler Flow Temperature"
+      },
+      "current_flow_temperature": {
+        "name": "Current Flow Temperature"
       }
     },
     "binary_sensor": {

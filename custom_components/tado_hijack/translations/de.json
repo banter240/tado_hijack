@@ -205,6 +205,9 @@
       },
       "boiler_flow_temperature": {
         "name": "Kesselvorlauftemperatur"
+      },
+      "current_flow_temperature": {
+        "name": "Aktuelle Vorlauftemperatur"
       }
     },
     "binary_sensor": {

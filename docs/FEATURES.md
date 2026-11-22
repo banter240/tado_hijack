@@ -192,6 +192,8 @@ Opt-in, default off, Tado X only. `GET settings/flowTemperatureOptimization` and
 
 Classic homes with an OpenTherm boiler report the measured flow temperature in `activityDataPoints.boilerFlowTemperature` inside the regular zone-state poll. tadoasync drops that field, so `TadoHijackClient.get_zone_states` rescues it onto the zone state and the `boiler_flow_temperature` home sensor surfaces the first zone that reports it. No extra API call; on Tado X the field does not exist and the sensor is not created.
 
+Tado X homes additionally get the `current_flow_temperature` home sensor: the auto-adapted flow temperature from `autoAdaptation.maxFlowTemperature` in the same optimization-settings poll — the value the Tado app shows while auto adaptation lowers the configured maximum. It stays `unknown` while adaptation is off (the effective value then equals the configured maximum). No extra API call; the sensor only exists when the settings poll succeeded.
+
 If a write is invoked anyway, both fields share the queue key `flow_temp` and one PATCH. A failed PATCH rolls back to the first server value of each field.
 
 ---

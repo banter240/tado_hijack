@@ -205,6 +205,9 @@
       },
       "boiler_flow_temperature": {
         "name": "Teplota vstupu kotle"
+      },
+      "current_flow_temperature": {
+        "name": "Aktuální teplota vstupu"
       }
     },
     "binary_sensor": {
