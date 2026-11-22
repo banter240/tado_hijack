@@ -342,7 +342,9 @@ class OfflineFallback:
         """Linked heating climates, or None when this zone must not be written."""
         if not local_heating_zone(self._coordinator, zone_id):
             return None
-        if self._coordinator.window_controller.zone_window_is_open(zone_id):
+        # Guards-writes, not is-open: an unreachable contact during a window
+        # episode must not let the schedule repaint heat an open window (#212).
+        if self._coordinator.window_controller.zone_window_guards_writes(zone_id):
             return None
         entity_ids = linked_climate_ids(self._coordinator, zone_id)
         return entity_ids or None
@@ -358,7 +360,9 @@ class OfflineFallback:
         zone_id = zone_id_for_serial(self._coordinator.zones_meta, serial)
         if zone_id is None:
             return
-        if self._coordinator.window_controller.zone_window_is_open(zone_id):
+        # Guards-writes, not is-open: keep the hand-change detector idle while
+        # an active window episode guards the zone despite a dropped sensor (#212).
+        if self._coordinator.window_controller.zone_window_guards_writes(zone_id):
             return
         reading = climate_power_temp(self._coordinator.hass.states.get(entity_id))
         if reading is None:

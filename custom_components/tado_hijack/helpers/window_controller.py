@@ -199,6 +199,19 @@ class WindowController:
         """True when any linked contact is open. Unknown contacts are skipped."""
         return self._window_kind(zone_id, override=override) == _KIND_OPEN
 
+    def zone_window_guards_writes(self, zone_id: int) -> bool:
+        """True while local writes to this zone must stay blocked.
+
+        An unreachable contact is not evidence the window closed. While a
+        window episode is active, only a contact reporting ``closed`` lifts
+        the guard; unknown/unavailable keeps guarding so the re-off
+        watchdog survives sensor dropouts. Without an episode this is the
+        plain open check.
+        """
+        if not self._window_episode(zone_id):
+            return self.zone_window_is_open(zone_id)
+        return self._window_kind(zone_id) != _KIND_CLOSED
+
     def _window_kind(
         self,
         zone_id: int,
@@ -561,9 +574,17 @@ class WindowController:
         new_state = event.data.get("new_state")
         old_state = event.data.get("old_state")
 
-        if new_state is None or old_state is None:
+        if new_state is None:
             return
         if new_state.state in _IGNORED_STATES:
+            return
+        if old_state is None:
+            # First state after registration or an HA restart. A zone with an
+            # active window episode must be re-evaluated now, not silently
+            # dropped (#212): the contact may have come back still open.
+            for zone_id in list(self._zones_by_sensor.get(entity_id, ())):
+                if self._window_episode(zone_id):
+                    await self._async_evaluate_zone_startup(zone_id)
             return
         if new_state.state == old_state.state:
             return
@@ -627,12 +648,17 @@ class WindowController:
     ) -> Callable[[], Awaitable[None]]:
 
         async def _fire() -> None:
-            if self.zone_window_is_open(zone_id) != opened:
-                return
+            kind = self._window_kind(zone_id)
             if opened:
+                # An unreachable contact during the wait is no evidence the
+                # window closed; commit the off anyway (#212).
+                if kind == _KIND_CLOSED:
+                    return
                 await self._async_commit_open(zone_id)
                 return
             if not self._window_episode(zone_id):
+                return
+            if self.zone_window_is_open(zone_id):
                 return
             await self._async_resume(zone_id, still_open=False)
 
@@ -950,7 +976,9 @@ class WindowController:
         snap = self._snaps.get(zone_id)
         if snap is None:
             return
-        if self.zone_window_is_open(zone_id):
+        # Unknown contact: openness is unverifiable, keep the episode so the
+        # reconnect or the self-heal watchdog can act on it later (#212).
+        if self.zone_window_guards_writes(zone_id):
             # Resume already queued. A later restart must not treat this as off.
             snap.released = True
             snap.pending = None
@@ -989,7 +1017,9 @@ class WindowController:
         snap = self._snaps.get(zone_id)
         if snap is not None and snap.released:
             return False
-        return self.zone_window_is_open(zone_id)
+        # An unreachable contact is not evidence the window closed; keep
+        # the re-off watchdog alive while the episode is active (#212).
+        return self.zone_window_guards_writes(zone_id)
 
     def _held_zones(self, entity_id: str) -> list[int]:
         zones: list[int] = []
