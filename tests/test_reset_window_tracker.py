@@ -139,3 +139,49 @@ def test_midnight_wrapping_arc_learns_zero_hour() -> None:
     window = tracker.get_expected_window()
     assert window.hour == 0
     assert window.minute == 0
+
+
+def _time_utc(day: int, total_minutes: int) -> datetime:
+    """UTC datetime from minutes of day, wrapping negatives past midnight."""
+    hour, minute = divmod(total_minutes % (24 * 60), 60)
+    return datetime(2026, 11, day, hour, minute, tzinfo=UTC)
+
+
+def test_gradual_drift_sheds_stale_history() -> None:
+    """A creeping reset follows the newest regime, not a frozen window.
+
+    Each day's window overlaps the previous one, so the adjacent-pair trim
+    never fires, but the all-history intersection empties once the drift
+    spans more than the window width. Before the fix the learner froze on
+    the first regime; now it drops the stale oldest entries and follows.
+    """
+    tracker = ResetWindowTracker()
+    for day, minute in ((16, 56), (17, 66), (18, 76), (19, 86), (20, 96)):
+        tracker.record_reset(
+            _time_utc(day, minute),
+            observed_after=_time_utc(day, minute - 30),
+        )
+
+    window = tracker.get_expected_window()
+    assert window.confidence == "learned"
+    # Newest regime: (01:06, 01:36] intersected backwards as far as it
+    # stays non-empty - must be hour 1 (midpoint of the latest entries),
+    # not the frozen 00:30 from day 16's era.
+    assert window.hour == 1
+
+
+def test_gradual_drift_keeps_newest_entry() -> None:
+    """Shedding stale history never drops the just-recorded entry."""
+    tracker = ResetWindowTracker()
+    for day, minute in ((16, 56), (17, 66), (18, 76), (19, 86), (20, 96)):
+        tracker.record_reset(
+            _time_utc(day, minute),
+            observed_after=_time_utc(day, minute - 30),
+        )
+    assert tracker.history_count >= 1
+    # The learner shed entries; the surviving history must intersect and
+    # keep following the drift.
+    tracker.record_reset(_time_utc(21, 106), observed_after=_time_utc(21, 76))
+    assert tracker.history_count >= 2
+    assert tracker.is_learned
+    assert tracker.get_expected_window().hour == 1

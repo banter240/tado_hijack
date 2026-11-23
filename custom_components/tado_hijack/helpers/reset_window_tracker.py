@@ -222,6 +222,13 @@ class ResetWindowTracker:
         case distance and keeps learning possible even when the arc spans
         two hours (a majority rule would stall at a stable hour-boundary
         straddle).
+
+        A gradual drift never trips the adjacent-pair trim (each day's
+        window overlaps the previous one), but the all-history intersection
+        still empties once the entries span more than the window width.
+        The learner then sheds the stale oldest entries — the longest
+        newest run that still shares a non-empty intersection is the
+        current regime — instead of freezing on an empty intersection.
         """
         if not self._history:
             return
@@ -247,8 +254,18 @@ class ResetWindowTracker:
             return
 
         common = self._candidate_minutes(0)
+        keep = 1
         for idx in range(1, len(self._history)):
-            common &= self._candidate_minutes(idx)
+            merged = common & self._candidate_minutes(idx)
+            if not merged:
+                # This oldest entry predates the current regime (drift).
+                break
+            common = merged
+            keep = idx + 1
+        while len(self._history) > keep:
+            self._history.pop()
+            self._history_original.pop()
+            self._windows.pop()
         midpoint = _arc_midpoint(common)
         if midpoint is not None:
             self._learned_window = ResetWindow(
