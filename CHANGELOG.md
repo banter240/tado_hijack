@@ -1,3 +1,69 @@
+## [5.14.0-dev.16](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.15...v5.14.0-dev.16) (2026-11-23)
+
+### ✨ New Features
+
+* feat(sensors): expose the auto-adapted flow temperature
+
+  Adds the current_flow_temperature home sensor on Tado X: the
+  auto-adapted value from autoAdaptation.maxFlowTemperature inside the
+  existing flow-temperature optimization poll — the value the Tado app
+  shows while auto adaptation lowers the configured maximum. Charting
+  that value over weeks shows how hard the boiler runs on cold days.
+
+  No extra API call: the sensor reads the same settings response the
+  max-flow number and the auto-adaptation switch already use, and only
+  exists when that poll succeeded (the opt-in flow-temp feature). While
+  adaptation is off the sensor stays unknown, since no adapted value
+  exists; the effective value then equals the configured maximum.
+
+  Translations in en/de/cs, FEATURES.md section updated, six unit
+  tests for the value helpers.
+
+  Fixes #213
+
+### 🐛 Bug Fixes
+
+* fix(quota): follow gradual reset-time drift instead of freezing
+
+  A creeping reset time (adjacent daily windows still overlapping, so the
+  adjacent-pair trim never fires) emptied the all-history intersection
+  once the entries spanned more than the window width. _arc_midpoint
+  returned None and the learned window silently froze on the first
+  regime while reality drifted on - new data carried zero weight.
+
+  The learner now sheds stale oldest entries: it intersects backwards
+  from the newest entry only while the intersection stays non-empty,
+  so the longest newest run that shares a window defines the current
+  regime. A hard jump still trips the adjacent-pair trim and re-learns
+  after two confirmations; a one-off outlier still cannot move a
+  learned window. Szenario sims in dev/tmp/sim203/sim_timeshift.py.
+
+  Refs #203
+* fix(windows): keep the window hold alive through sensor dropouts
+
+  While a window episode is active, an unreachable contact (unknown/
+  unavailable in Home Assistant) collapsed zone_window_is_open to False,
+  which killed the local re-off watchdog: any event that lifted the TRV
+  off - a schedule repaint, an offline-fallback paint, a bridge echo -
+  stuck, and the room heated with the window open. A batch flush during
+  the outage also erased the episode snapshot via _note_cloud_sent, and
+  the first sensor event after an HA restart was silently dropped.
+
+  Introduces zone_window_guards_writes as the SSOT guard for local
+  writes: during an active episode only a contact reporting closed lifts
+  the block; unknown keeps guarding. Wired into _hold_active,
+  _note_cloud_sent, and the offline-fallback paint and hand-change
+  guards. The open-delay commit now proceeds on an unreachable contact
+  instead of aborting, and a first sensor state after a restart
+  re-evaluates zones with a stored episode instead of being ignored.
+
+  Generation-agnostic: the window controller, offline fallback and
+  local writes are shared by both generations. Twelve regression tests
+  cover the guard combinations, the episode retention and the delay
+  behaviour.
+
+  Fixes #212
+
 ## [5.14.0-dev.15](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.14...v5.14.0-dev.15) (2026-11-21)
 
 ### ✨ New Features
