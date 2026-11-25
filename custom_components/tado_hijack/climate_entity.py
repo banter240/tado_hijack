@@ -325,7 +325,8 @@ class TadoClimateEntity(
         if (temperature := kwargs.get(ATTR_TEMPERATURE)) is None:
             return
 
-        rounded_temp = round(float(temperature))
+        step = self.target_temperature_step or 1.0
+        rounded_temp = round(float(temperature) / step) * step
         self._store_last_state("target_temperature", float(rounded_temp))
 
         # For AC zones, we must pass the current mode to avoid validation errors
