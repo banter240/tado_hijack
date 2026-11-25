@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from ...const import BOOST_MODE_TEMP, POWER_OFF, POWER_ON, TEMP_TOLERANCE
 from ...lib.tadox_api import TadoXApi
+from ...lib.tadox_models import auto_adaptation_enabled, fold_written_flow_temp
 from ..executor_base import TadoExecutorBase
 from ..logging_utils import get_redacted_logger
 from ..optimistic_manager import ZoneOverlayFields
@@ -17,14 +18,6 @@ if TYPE_CHECKING:
     from ...coordinator import TadoDataUpdateCoordinator
 
 _LOGGER = get_redacted_logger(__name__)
-
-
-def _auto_adaptation_enabled(value: Any) -> bool | None:
-    """enabled flag from an autoAdaptation object. A bare dict must not be bool()."""
-    if isinstance(value, dict):
-        enabled = value.get("enabled")
-        return None if enabled is None else bool(enabled)
-    return value if isinstance(value, bool) else None
 
 
 class TadoXExecutor(TadoExecutorBase):
@@ -111,12 +104,40 @@ class TadoXExecutor(TadoExecutorBase):
 
     def _on_flow_temp_success(self, payload: dict[str, Any]) -> None:
         """Apply optimistic state after a successful flow temp PATCH."""
+        self._apply_flow_temp_optimistic(payload)
+        self._fold_written_flow_temp(payload)
+
+    def _apply_flow_temp_optimistic(self, payload: dict[str, Any]) -> None:
+        """Show the written flow fields optimistically. Shared by success and rollback."""
         if (temp := payload.get("maxFlowTemperature")) is not None:
             self.coordinator.optimistic.set_max_flow_temp(float(temp), grace_period=2.0)
         if (
-            enabled := _auto_adaptation_enabled(payload.get("autoAdaptation"))
+            enabled := auto_adaptation_enabled(payload.get("autoAdaptation"))
         ) is not None:
             self.coordinator.optimistic.set_flow_auto_adapt(enabled, grace_period=2.0)
+
+    def _fold_written_flow_temp(self, payload: dict[str, Any]) -> None:
+        """Persist the written fields into mapper cache and live data.
+
+        The regular poll never re-reads the flow endpoint, so once the
+        optimistic grace expires the entities defer to the cached settings.
+        Without folding the write through, that cache still holds the
+        pre-write GET and the entities revert to a stale value (#215). A
+        slow-track GET already in flight when the write lands can still
+        overwrite the fold with its older server view; the next GET
+        settles it. Known, accepted window.
+        """
+        provider = getattr(self.coordinator.data_manager, "provider", None)
+        if provider is None or not hasattr(provider, "note_written_flow_temp"):
+            _LOGGER.debug("Provider has no flow temp cache; skipping write fold")
+        else:
+            provider.note_written_flow_temp(payload)
+        live_data = self.coordinator.data
+        live_flow = getattr(live_data, "flow_temp", None) if live_data else None
+        folded = fold_written_flow_temp(live_flow, payload)
+        if live_data is not None and folded is not live_flow:
+            live_data.flow_temp = folded
+            self.coordinator.async_update_listeners()
 
     def _create_flow_temp_rollback(
         self, context: Any
@@ -137,16 +158,7 @@ class TadoXExecutor(TadoExecutorBase):
             if not payload:
                 return
             await self.bridge.async_patch_flow_temperature_optimization(payload)
-            if "maxFlowTemperature" in payload:
-                self.coordinator.optimistic.set_max_flow_temp(
-                    float(payload["maxFlowTemperature"]), grace_period=2.0
-                )
-            if (
-                enabled := _auto_adaptation_enabled(payload.get("autoAdaptation"))
-            ) is not None:
-                self.coordinator.optimistic.set_flow_auto_adapt(
-                    enabled, grace_period=2.0
-                )
+            self._apply_flow_temp_optimistic(payload)
 
         return _rollback
 

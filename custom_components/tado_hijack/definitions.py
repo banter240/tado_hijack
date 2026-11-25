@@ -548,6 +548,7 @@ def create_home_sensor(
     state_class: SensorStateClass | None = None,
     unit: str | None = None,
     entity_category: EntityCategory | None = None,
+    supported_generations: set[str] | None = None,
     is_supported_fn: Any = None,
 ) -> TadoEntityDefinition:
     """Create a sensor for the Tado Home (global scope)."""
@@ -561,6 +562,7 @@ def create_home_sensor(
         state_class=state_class,
         unit=unit,
         entity_category=entity_category,
+        supported_generations=supported_generations,
         is_supported_fn=is_supported_fn,
     )
 
@@ -1403,6 +1405,7 @@ ENTITY_DEFINITIONS: Final[list[TadoEntityDefinition]] = [
         state_class=SensorStateClass.MEASUREMENT,
         unit=UnitOfTemperature.CELSIUS,
         icon="mdi:water-boiler",
+        supported_generations={GEN_X},
         is_supported_fn=_flow_temp_supported,
     ),
     create_home_binary_sensor(

@@ -21,6 +21,7 @@ from ...lib.tadox_models import (
     TadoXFlowTempSettings,
     TadoXHotWaterState,
     TadoXZoneState,
+    fold_written_flow_temp,
 )
 from ..logging_utils import get_redacted_logger, warn_unknown_enum
 from ..models_unified import UnifiedTadoData
@@ -177,6 +178,16 @@ class TadoXMapper:
     def get_flow_temp_cached(self) -> TadoXFlowTempSettings | None:
         """Return the last fetched flow temperature settings (None = off/404)."""
         return self._flow_temp_cached
+
+    def note_written_flow_temp(self, payload: dict[str, Any]) -> None:
+        """Fold a successful write into the cached flow settings.
+
+        The regular poll does not read the flow endpoint, so after the
+        optimistic grace expires the entities would fall back to the
+        pre-write cached value. Folding the written fields into the cache
+        keeps them true until the next real GET replaces them (#215).
+        """
+        self._flow_temp_cached = fold_written_flow_temp(self._flow_temp_cached, payload)
 
     def is_feature_supported(self, feature: str) -> bool:
         """Check if a specific Hijack feature is supported by Tado X hardware."""

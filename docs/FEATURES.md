@@ -196,7 +196,7 @@ Classic homes with an OpenTherm boiler report the measured flow temperature in `
 
 Tado X homes additionally get the `current_flow_temperature` home sensor: the auto-adapted flow temperature from `autoAdaptation.maxFlowTemperature` in the same optimization-settings poll — the value the Tado app shows while auto adaptation lowers the configured maximum. It stays `unknown` while adaptation is off (the effective value then equals the configured maximum). No extra API call; the sensor only exists when the settings poll succeeded.
 
-If a write is invoked anyway, both fields share the queue key `flow_temp` and one PATCH. A failed PATCH rolls back to the first server value of each field.
+If a write is invoked anyway, both fields share the queue key `flow_temp` and one PATCH. A failed PATCH rolls back to the first server value of each field. On success the written fields are folded into the cached settings: the regular poll never re-reads the flow endpoint, so without the fold the entities would revert to the pre-write GET value once the optimistic grace expires. The next real GET replaces the folded cache.
 
 ---
 

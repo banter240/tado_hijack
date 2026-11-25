@@ -276,9 +276,54 @@ def is_hot_water_boost(raw_state: str) -> bool:
     return normalized.startswith("BOOST") and normalized != "BOOST_OFF"
 
 
+def auto_adaptation_enabled(value: Any) -> bool | None:
+    """Enabled flag from an autoAdaptation object. A bare bool must not be truthy-parsed."""
+    if isinstance(value, dict):
+        enabled = value.get("enabled")
+        return None if enabled is None else bool(enabled)
+    return value if isinstance(value, bool) else None
+
+
 KNOWN_PROGRAMMER_STATES: frozenset[str] = frozenset(
     {"SCHEDULE_ON", "SCHEDULE_OFF", "BOOST", "BOOST_ON", "BOOST_OFF"}
 )
+
+
+def fold_written_flow_temp(
+    settings: TadoXFlowTempSettings | None, payload: dict[str, Any]
+) -> TadoXFlowTempSettings | None:
+    """Fold written flow-temp fields into cached settings (SSOT for #215).
+
+    The regular poll never re-reads the flow endpoint, so after the
+    optimistic grace expires the entities would fall back to the
+    pre-write cached value. Returns the folded settings, or ``None``
+    when there is nothing to fold; callers assign the result to their
+    cache or live-data slot. Never mutates the input object.
+
+    A GET already in flight when the write lands can still overwrite
+    the fold with its (older) server view; the next slow-track GET
+    settles it. Known, accepted window (#215).
+    """
+    if settings is None:
+        return None
+    patch = payload or {}
+    max_temp = patch.get("maxFlowTemperature")
+    enabled = auto_adaptation_enabled(patch.get("autoAdaptation"))
+    if max_temp is None and enabled is None:
+        return settings
+    replacements: dict[str, Any] = {}
+    if max_temp is not None:
+        replacements["max_flow_temperature"] = float(max_temp)
+    if enabled is not None:
+        adapted = (
+            settings.auto_adaptation.max_flow_temperature
+            if settings.auto_adaptation
+            else None
+        )
+        replacements["auto_adaptation"] = TadoXAutoAdaptation.model_construct(
+            enabled=bool(enabled), max_flow_temperature=adapted
+        )
+    return settings.model_copy(update=replacements)
 
 
 class TadoXHotWaterState(BaseModel):
