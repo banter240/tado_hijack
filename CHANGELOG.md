@@ -1,3 +1,27 @@
+## [5.14.0-dev.17](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.16...v5.14.0-dev.17) (2026-11-26)
+
+### 🐛 Bug Fixes
+
+* fix(climate): respect the advertised target temperature step
+
+  async_set_temperature rounded every request to a whole degree even
+  though heating climates advertise a 0.5 degree step, so a
+  climate.set_temperature call for 19.5 became 20.0 in the Hops
+  payload. The rounding now snaps to the advertised step (1.0 fallback
+  when absent), preserving valid half-degree setpoints. Water heater
+  and overlay termination handling unchanged.
+
+  The upstream tests were reworked to the repo convention (direct
+  import, bare entity via object.__new__, no ast/exec harness).
+
+  Refs #217
+* fix(tadox): fold written flow temperature into the cached settings
+
+  A max-flow-temperature or auto-adaptation write reached Tado (the
+  app shows it), but the entity reverted to the pre-write value within
+
+  Fixes #215
+
 ## [5.14.0-dev.16](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.15...v5.14.0-dev.16) (2026-11-23)
 
 ### ✨ New Features
