@@ -24,6 +24,15 @@ body:
     validations:
       required: true
 
+  - type: checkboxes
+    id: dev_checked
+    attributes:
+      label: Dev Version Check
+      description: Features are often already implemented in dev releases before they reach stable.
+      options:
+        - label: "I have checked the changelog and the latest dev/pre-release notes to confirm this feature does not already exist"
+          required: true
+
   - type: textarea
     id: problem
     attributes:
