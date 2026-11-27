@@ -28,7 +28,7 @@ from .helpers.device_link import (
     home_device_identifier,
     zone_device_identifier,
 )
-from .helpers.device_linker import get_local_device
+from .helpers.device_linker import get_local_device, get_zone_device_link
 from .models import TadoEntityDefinition
 
 
@@ -629,28 +629,20 @@ class TadoDeviceEntity(TadoEntity):
             raise RuntimeError("Config entry not available")
 
         model_name = DEVICE_TYPE_MAP.get(self._device_type, self._device_type)
-        try:
-            via_device_id = dr.async_get_device_id_by_identifier(
-                self.coordinator.hass,
-                zone_device_identifier(
-                    self.coordinator.config_entry.entry_id, self._zone_id
-                ),
-                config_entry_id=self.coordinator.config_entry.entry_id,
-            )
-        except ValueError:
-            via_device_id = None
 
-        info = DeviceInfo(
+        return DeviceInfo(
             identifiers={device_identifier(self._serial_no)},
             name=f"tado {model_name} {self._short_serial}",
             manufacturer="Tado",
             model=model_name,
             sw_version=self._fw_version,
             serial_number=self._serial_no,
+            **get_zone_device_link(
+                self.coordinator.hass,
+                self.coordinator.config_entry.entry_id,
+                self._zone_id,
+            ),
         )
-        if via_device_id is not None:
-            info["via_device_id"] = via_device_id
-        return info
 
     @property
     def _tado_entity_id(self) -> str:

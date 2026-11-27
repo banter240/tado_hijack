@@ -4,13 +4,18 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Sequence
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
+
+from homeassistant.core import HomeAssistant
+from pytest import MonkeyPatch
 
 from custom_components.tado_hijack.helpers.device_link import serial_equals
 from custom_components.tado_hijack.helpers.device_linker import (
     _serial_aliases,
     _serial_candidates,
+    get_zone_device_link,
     update_serial_aliases,
 )
 from custom_components.tado_hijack.helpers.tadov3.device_link import matches_serial
@@ -123,3 +128,70 @@ def _async_return(items: Sequence[object]) -> Any:
         return items
 
     return run
+
+
+class TestZoneDeviceLink:
+    """get_zone_device_link resolves parent zone links for DeviceInfo kwargs."""
+
+    def test_registered_zone_returns_link(self, monkeypatch: MonkeyPatch) -> None:
+        seen: dict[str, object] = {}
+
+        def fake_lookup(
+            hass: object,
+            identifier: tuple[str, str],
+            *,
+            config_entry_id: str,
+        ) -> str:
+            seen["identifier"] = identifier
+            seen["config_entry_id"] = config_entry_id
+            return "device-42"
+
+        monkeypatch.setattr(
+            "custom_components.tado_hijack.helpers.device_linker.dr"
+            ".async_get_device_id_by_identifier",
+            fake_lookup,
+        )
+
+        link = get_zone_device_link(cast(HomeAssistant, object()), "entry-1", 3)
+
+        assert link == {"via_device_id": "device-42"}
+        assert seen["identifier"] == ("tado_hijack", "entry-1_zone_3")
+        assert seen["config_entry_id"] == "entry-1"
+
+    def test_unregistered_zone_returns_empty_mapping(
+        self, monkeypatch: MonkeyPatch
+    ) -> None:
+        def fake_lookup(
+            hass: object,
+            identifier: tuple[str, str],
+            *,
+            config_entry_id: str,
+        ) -> str:
+            raise ValueError("no device")
+
+        monkeypatch.setattr(
+            "custom_components.tado_hijack.helpers.device_linker.dr"
+            ".async_get_device_id_by_identifier",
+            fake_lookup,
+        )
+
+        assert get_zone_device_link(cast(HomeAssistant, object()), "entry-1", 3) == {}
+
+
+class TestNoDeprecatedDeviceInfoWrites:
+    """DeviceInfo metadata must be supplied via constructor kwargs, not item writes."""
+
+    def test_no_via_device_id_item_assignment(self) -> None:
+        component_dir = (
+            Path(__file__).resolve().parent.parent / "custom_components" / "tado_hijack"
+        )
+        offenders = [
+            str(path.relative_to(component_dir.parent))
+            for path in sorted(component_dir.rglob("*.py"))
+            if path.read_text(encoding="utf-8").count('["via_device_id"]')
+        ]
+        assert not offenders, (
+            "DeviceInfo['via_device_id'] item assignment is deprecated since "
+            "HA 2026.12 (removal 2027.12); pass via_device_id as a DeviceInfo "
+            f"constructor kwarg instead. Offending files: {offenders}"
+        )
