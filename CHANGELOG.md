@@ -1,3 +1,20 @@
+## [5.14.0-dev.18](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.17...v5.14.0-dev.18) (2026-11-27)
+
+### 🐛 Bug Fixes
+
+* fix: avoid deprecated DeviceInfo writes for zone links
+
+  HA 2026.12 deprecates item assignment on DeviceInfo (removal in
+  2027.12); resolve the parent zone via a shared helper and pass the
+  resulting keyword straight into the DeviceInfo constructor for
+  physical devices and local proxies. The keyword is omitted when the
+  zone is not registered, keeping registry behavior unchanged.
+
+  Includes regression coverage for the new helper and a source guard
+  against future via_device_id item writes.
+
+  Refs #220
+
 ## [5.14.0-dev.17](https://github.com/banter240/tado_hijack/compare/v5.14.0-dev.16...v5.14.0-dev.17) (2026-11-26)
 
 ### 🐛 Bug Fixes
