@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator, Mapping
-from typing import Any
+from typing import Any, TypedDict
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
@@ -25,6 +25,7 @@ from .device_link import (
     identifier_root,
     normalize_serial,
     serial_from_unique_id,
+    zone_device_identifier,
     zone_id_from_device_key,
     zone_id_from_unique_id,
 )
@@ -90,6 +91,27 @@ def _device_for_identifier(
         found = scoped(identifier, entry_id)
         return found if isinstance(found, dr.DeviceEntry) else None
     return registry.async_get_device(identifiers={identifier})
+
+
+class _ZoneDeviceLink(TypedDict, total=False):
+    """Optional DeviceInfo keyword for a parent zone."""
+
+    via_device_id: str
+
+
+def get_zone_device_link(
+    hass: HomeAssistant, entry_id: str, zone_id: int
+) -> _ZoneDeviceLink:
+    """Return the parent link if the zone is already registered."""
+    try:
+        parent_id = dr.async_get_device_id_by_identifier(
+            hass,
+            zone_device_identifier(entry_id, zone_id),
+            config_entry_id=entry_id,
+        )
+    except ValueError:
+        return {}
+    return {"via_device_id": parent_id}
 
 
 def _owned_by(device: dr.DeviceEntry, entry_id: str) -> bool:

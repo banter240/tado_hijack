@@ -97,7 +97,6 @@ from homeassistant.const import (
 from homeassistant.core import Event, EventStateChangedData, callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
-from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import EntityCategory
@@ -118,8 +117,8 @@ from ..const import (
     bridge_model_name,
 )
 from ..entity import TadoEntity
-from .device_link import device_identifier, zone_device_identifier
-from .device_linker import get_local_device, invalidate_cache
+from .device_link import device_identifier
+from .device_linker import get_local_device, get_zone_device_link, invalidate_cache
 from .discovery import get_bridges, yield_devices
 from .legacy_shim import NativeLegacyRangeMixin, NativeLegacyShimMixin
 from .local_climate import climate_is_off
@@ -550,27 +549,19 @@ class TadoLocalProxyBase(TadoEntity):
                 serial_number=serial,
             )
         model_name = DEVICE_TYPE_MAP.get(self._host.device_type, self._host.device_type)
-        try:
-            via_device_id = dr.async_get_device_id_by_identifier(
-                self.coordinator.hass,
-                zone_device_identifier(
-                    self.coordinator.config_entry.entry_id, self._host.zone_id
-                ),
-                config_entry_id=self.coordinator.config_entry.entry_id,
-            )
-        except ValueError:
-            via_device_id = None
-        info = DeviceInfo(
+        return DeviceInfo(
             identifiers={device_identifier(serial)},
             name=f"tado {model_name} {self._host.short_serial}",
             manufacturer="Tado",
             model=model_name,
             sw_version=self._host.fw_version,
             serial_number=serial,
+            **get_zone_device_link(
+                self.coordinator.hass,
+                self.coordinator.config_entry.entry_id,
+                self._host.zone_id,
+            ),
         )
-        if via_device_id is not None:
-            info["via_device_id"] = via_device_id
-        return info
 
     async def _async_call(
         self, domain: str, service: str, data: dict[str, Any]
